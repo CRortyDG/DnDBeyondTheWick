@@ -64,7 +64,10 @@ npm run build     # what gets deployed: dist/client (the pages) and dist/candlef
 One-time setup, in the Cloudflare dashboard of the account that already holds `calebs.garden`:
 
 1. **Turn on R2.** R2 Object Storage → Purchase/Enable. The free tier covers 10 GB, but Cloudflare asks for a payment method. Create a bucket named `candlefair-files`.
-2. **Connect the repo.** Workers & Pages → Create → Import a repository → `DnDBeyondTheWick`. Build command `npm run build`, deploy command `npx wrangler deploy`. Every push to `main` then deploys by itself. (Or deploy by hand with `npx wrangler login` then `npm run deploy`.)
+2. **Let GitHub deploy.** Every push to `main` deploys through `.github/workflows/deploy.yml`. It needs two repository secrets (GitHub → the repo → Settings → Secrets and variables → Actions → New repository secret):
+   - `CLOUDFLARE_API_TOKEN`: Cloudflare → My Profile → API Tokens → Create Token → the **Edit Cloudflare Workers** template → your account and the `calebs.garden` zone → Create.
+   - `CLOUDFLARE_ACCOUNT_ID`: shown on the Cloudflare dashboard home (Account home → the ⋯ next to your account → Copy account ID).
+   Then run it once from the repo's Actions tab → Deploy to Cloudflare → Run workflow. (Or deploy by hand with `npx wrangler login` then `npm run deploy`.)
 3. **Domain.** The Worker → Settings → Domains & Routes → Add → Custom domain → `dnd.calebs.garden`. Remove the old `dnd` CNAME that pointed at Vercel first.
 4. **Plan.** On the free plan, hitting a daily limit makes changes fail until midnight UTC. Before inviting the public, switch to Workers Paid ($5 a month): Workers & Pages → Plans.
 5. Turn off the Vercel project, Upstash and Blob once the new site works.
