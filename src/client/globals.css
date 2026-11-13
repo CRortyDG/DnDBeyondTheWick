@@ -3037,6 +3037,170 @@ input.fld.inline-input {
   font-size: 15px;
 }
 
+/* ---------- the shop as progression: categories, projects, earned, flyers ---------- */
+
+.shop-modes {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin: 4px 0 8px;
+}
+.shop-modes .note {
+  margin-right: 4px;
+}
+.card-shop {
+  margin: 0;
+  font-size: 13px;
+  letter-spacing: 0.04em;
+  color: var(--ink-soft);
+  font-family: var(--font-sc);
+}
+.card.locked .card-shop {
+  color: var(--muted);
+}
+.card-was {
+  font-weight: 400;
+  opacity: 0.6;
+}
+.card-off {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--pine);
+}
+.earned-badge {
+  align-self: flex-start;
+  font-family: var(--font-sc);
+  font-size: 13px;
+  border-radius: 999px;
+  padding: 1px 10px;
+  background: var(--gold);
+  color: var(--ink);
+}
+.project-bar-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.project-bar {
+  height: 10px;
+  border-radius: 999px;
+  background: rgba(91, 74, 58, 0.25);
+  overflow: hidden;
+}
+.card.locked .project-bar {
+  background: rgba(255, 255, 255, 0.12);
+}
+.project-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--gold), var(--wax));
+  border-radius: inherit;
+}
+.mine-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.mine-list li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.mine-list .project-bar {
+  width: 100%;
+  background: var(--wood-2);
+}
+.owe-note {
+  color: var(--down);
+}
+.req-answer {
+  margin-top: 4px;
+  padding: 6px 10px;
+  border-left: 3px solid var(--gold);
+  font-style: italic;
+}
+.dues-list {
+  list-style: none;
+  padding: 0;
+  margin: 8px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.dues-list li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.dues-list .short {
+  color: var(--down);
+  font-size: 14px;
+}
+.effect-row {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  align-items: flex-end;
+}
+.inbox-task {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+/* Player flyers, pinned over the TV notice board in handwriting. Positions are on the 1920x1080 board. */
+.flyer {
+  position: absolute;
+  width: 290px;
+  max-height: 270px;
+  z-index: 10;
+  background: #f6f1e4;
+  color: #2b2118;
+  padding: 30px 20px 16px;
+  box-shadow: 0 4px 10px rgba(30, 18, 10, 0.55);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  overflow: hidden;
+  font-family: var(--font-hand);
+}
+.flyer::before {
+  content: "";
+  position: absolute;
+  top: 9px;
+  left: 50%;
+  width: 14px;
+  height: 14px;
+  margin-left: -7px;
+  border-radius: 50%;
+  background: #7a2a1f;
+}
+.flyer.alt {
+  background: #efe3c8;
+}
+.flyer-title {
+  font-weight: 700;
+  font-size: 38px;
+  line-height: 1;
+}
+.flyer-body {
+  font-size: 26px;
+  line-height: 1.12;
+  white-space: pre-line;
+  overflow: hidden;
+}
+.flyer-sign {
+  font-size: 24px;
+  text-align: right;
+}
+
 /* ---------- The Table (Arrival) on the TV ---------- */
 .table-scene {
   background: radial-gradient(circle at 50% 50%, #2a170c, #0c0604 70%);

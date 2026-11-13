@@ -8,6 +8,10 @@ import { TvIcon } from "../ui/icons";
 import { useDm } from "./context";
 import { Field } from "./Field";
 import { Check } from "./Check";
+import { ContributeBox, GrantBox, KindFields, RunningBox } from "./ItemExtras";
+import { CATEGORIES, creditCp, firstChargeCp, KINDS, raisedCp } from "@/shared/progress";
+import type { ShopMode } from "../ui/ShopBoard";
+import type { ItemCategory, ItemKind } from "@/shared/types";
 
 const TIERS: [ItemTier, string][] = [
   ["sale", "For sale"],
@@ -26,23 +30,39 @@ export function ShopPanel() {
   const shopId = s.live.shopOpen ? s.live.shopId : ownShopId;
   const [buying, setBuying] = useState<string | null>(null);
   const [quiet, setQuiet] = useState(false);
+  const [mode, setMode] = useState<ShopMode>("shop");
+  const [category, setCategory] = useState<ItemCategory | undefined>(undefined);
+  // What the cards show the DM: progress on projects and who has earned what.
+  const cards = s.items.map((i) => ({
+    ...i,
+    ...(i.kind === "project" ? { raisedCp: raisedCp(s, i.id), funded: !!s.effectsOn[i.id] } : {}),
+    ...(i.kind === "earned" ? { earnedBy: s.players.filter((p) => s.awards.some((a) => a.itemId === i.id && a.playerIds.includes(p.id))).map((p) => p.name) } : {}),
+  }));
   const shop = s.shops.find((x) => x.id === shopId) ?? s.shops[0];
   const buyers = s.players.filter((p) => !p.archived);
 
   const actions = (it: Item) => {
-    const buyable = it.tier === "sale" && it.stock !== 0 && !s.shops.find((x) => x.id === it.shopId)?.closed;
+    const buyable = it.tier === "sale" && it.stock !== 0 && !s.shops.find((x) => x.id === it.shopId)?.closed && !(it.kind === "project" && s.effectsOn[it.id]);
+    const cost = firstChargeCp(s, it);
     return (
       <>
-        {buyable && buying !== it.id ? (
+        {buyable && buying !== it.id && it.kind !== "earned" ? (
           <button className="btn small" type="button" onClick={() => setBuying(it.id)}>
-            Buy
+            {it.kind === "project" ? "Put gold in" : it.kind === "recurring" ? "Rent" : it.kind === "training" ? "Enroll" : "Buy"}
           </button>
         ) : null}
-        {buying === it.id ? (
+        {it.kind === "earned" && buying !== it.id ? (
+          <button className="btn small" type="button" onClick={() => setBuying(it.id)}>
+            Grant
+          </button>
+        ) : null}
+        {buying === it.id && it.kind === "earned" ? <GrantBox it={it} onDone={() => setBuying(null)} /> : null}
+        {buying === it.id && it.kind === "project" ? <ContributeBox it={it} onDone={() => setBuying(null)} /> : null}
+        {buying === it.id && it.kind !== "earned" && it.kind !== "project" ? (
           <div className="buyers" role="group" aria-label={`Who's buying ${it.name}?`}>
             <span className="note">Who&rsquo;s buying?</span>
             {buyers.map((p) => {
-              const ok = canAfford(p.balanceCp, it.priceCp);
+              const ok = canAfford(p.balanceCp + creditCp(s, p.id, it.shopId), cost);
               return (
                 <button
                   key={p.id}
@@ -53,8 +73,17 @@ export function ShopPanel() {
                   onClick={async () => {
                     const msg = it.arrivesInSessions
                       ? `${p.name} ordered ${it.name}. It arrives in ${it.arrivesInSessions} sessions.`
-                      : `${p.name} bought ${it.name}. Remind them to add it on D&D Beyond.`;
-                    if (await run({ type: "money.buy", playerId: p.id, itemId: it.id }, msg)) setBuying(null);
+                      : it.kind === "recurring"
+                        ? `${p.name} rents ${it.name}. Rent is due at the end of each session.`
+                        : it.kind === "training"
+                          ? `${p.name} started ${it.name}. One lesson is charged at the end of each session.`
+                          : `${p.name} bought ${it.name}. Remind them to add it on D&D Beyond.`;
+                    let question: string | undefined;
+                    if (it.prompt) {
+                      question = window.prompt(it.prompt)?.trim();
+                      if (!question) return;
+                    }
+                    if (await run({ type: "money.buy", playerId: p.id, itemId: it.id, ...(question ? { question } : {}) }, msg)) setBuying(null);
                   }}
                 >
                   {p.name}
@@ -105,8 +134,12 @@ export function ShopPanel() {
 
       <ShopBoard
         shops={s.shops}
-        items={s.items}
+        items={cards}
         shopId={shop.id}
+        mode={mode}
+        onMode={setMode}
+        category={category}
+        onCategory={setCategory}
         onShop={(id) => {
           setShopId(id);
           setBuying(null);
@@ -120,6 +153,7 @@ export function ShopPanel() {
       />
 
       <OrdersBox />
+      <RunningBox />
 
       <div className="panel-grid">
         <section className="box">
@@ -260,7 +294,7 @@ function ItemEditor({ it, quiet }: { it: Item; quiet: boolean }) {
         </div>
         <div className="inline">
           <Field
-            label="Special order: arrives after (sessions)"
+            label={it.kind === "order" ? "Special order: arrives after (sessions)" : "Special order: arrives after (sessions; blank = not an order)"}
             value={it.arrivesInSessions ? String(it.arrivesInSessions) : ""}
             type="number"
             onCommit={(v) => {
@@ -275,7 +309,8 @@ function ItemEditor({ it, quiet }: { it: Item; quiet: boolean }) {
           Players can ask for several at once{it.arrivesInSessions ? " (special orders are one at a time)" : ""}
         </Check>
         <Field label="Fine print" value={it.finePrint ?? ""} placeholder="e.g. *Payment will be collected later." onCommit={(v) => patch({ finePrint: v })} />
-        <Field label="DM note (only you see this)" value={it.dmNote ?? ""} multiline onCommit={(v) => patch({ dmNote: v })} />
+        <KindFields it={it} patch={patch} />
+        <Field label="DM note (only you see this)" value={it.dmNote ?? ""} multiline placeholder="e.g. Fennick becomes an ally" onCommit={(v) => patch({ dmNote: v })} />
         <div className="inline">
           <label className="inline-label">
             Move to
@@ -343,7 +378,7 @@ function OrdersBox() {
 
 function AddItem({ shopId, quiet }: { shopId: string; quiet: boolean }) {
   const { view, run, toast } = useDm();
-  const blank = { shopId, name: "", price: "", description: "", tier: "sale" as ItemTier, reason: "", hint: "" };
+  const blank = { shopId, name: "", price: "", description: "", tier: "sale" as ItemTier, reason: "", hint: "", category: "gear" as ItemCategory, kind: "purchase" as ItemKind };
   const [f, setF] = useState(blank);
   const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => setF({ ...f, [k]: e.target.value });
   return (
@@ -355,7 +390,7 @@ function AddItem({ shopId, quiet }: { shopId: string; quiet: boolean }) {
           e.preventDefault();
           const cp = parseAmount(f.price || "0");
           if (!f.name.trim() || cp === null) return toast("Give the item a name and a price.");
-          const item = { shopId: f.shopId, name: f.name, priceCp: cp, description: f.description, tier: f.tier, reason: f.reason, hint: f.hint };
+          const item = { shopId: f.shopId, name: f.name, priceCp: cp, description: f.description, tier: f.tier, reason: f.reason, hint: f.hint, category: f.category, kind: f.kind };
           if (await run({ type: "item.add", item, quiet }, `Added ${f.name}.`)) setF({ ...blank, shopId: f.shopId });
         }}
       >
@@ -374,7 +409,27 @@ function AddItem({ shopId, quiet }: { shopId: string; quiet: boolean }) {
           <input className="fld" value={f.name} onChange={set("name")} />
         </label>
         <label>
-          Price
+          Category
+          <select className="fld" value={f.category} onChange={set("category")}>
+            {CATEGORIES.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          Type
+          <select className="fld" value={f.kind} onChange={set("kind")}>
+            {KINDS.map((k) => (
+              <option key={k.id} value={k.id}>
+                {k.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          {f.kind === "project" ? "Goal" : f.kind === "recurring" ? "Price per month" : f.kind === "training" ? "Total price" : "Price"}
           <input className="fld" value={f.price} onChange={set("price")} inputMode="decimal" placeholder="gp, or 5 gp 3 sp" />
         </label>
         <label>
@@ -403,7 +458,7 @@ function AddItem({ shopId, quiet }: { shopId: string; quiet: boolean }) {
             <input className="fld" value={f.hint} onChange={set("hint")} placeholder="e.g. Someone in town has been watching you." />
           </label>
         ) : null}
-        <p className="note">Stock, special orders and fine print are under Edit on the card once it&rsquo;s added.</p>
+        <p className="note">Stock, lessons, effects and fine print are under Edit on the card once it&rsquo;s added.</p>
         <button className="btn primary" type="submit">
           Add item
         </button>

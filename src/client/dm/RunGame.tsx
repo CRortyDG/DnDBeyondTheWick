@@ -10,6 +10,7 @@ import { beatFirstLine } from "@/shared/runsheet";
 import type { Beat, BeatAction, Episode, Scene, Session, SessionRun } from "@/shared/types";
 import { BankPanel } from "./BankPanel";
 import { Inbox, isInboxOpen } from "./Inbox";
+import { Dues } from "./Dues";
 import { useDm } from "./context";
 
 export function actionLabel(a: BeatAction, scenes: Scene[]): string {
@@ -388,6 +389,16 @@ function StartStep({ session }: { session: Session }) {
         </div>
         <p className="note">Anyone unticked is marked away: off the TV purse and out of &ldquo;pay everyone&rdquo;.</p>
       </section>
+      {session.startLog?.length ? (
+        <section className="run-section">
+          <h2>Since last time</h2>
+          <ul className="run-notelist">
+            {session.startLog.map((line, i) => (
+              <li key={i}>{line}</li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
       {prev ? (
         <section className="run-section">
           <h2>Previously on&hellip;</h2>
@@ -416,6 +427,10 @@ function EndStep({ session, episode, onBank, onEnded }: { session: Session; epis
   return (
     <article className="run-beat">
       <h1 className="run-title">Session end</h1>
+      <section className="run-section">
+        <h2>Rent and lessons due</h2>
+        <Dues session={session} />
+      </section>
       <section className="run-section run-payday">
         <h2>Payday</h2>
         <p>Pay out tonight&rsquo;s gold before everyone leaves.</p>

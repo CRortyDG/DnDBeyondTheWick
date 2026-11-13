@@ -7,7 +7,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { formatCp, parseAmount } from "@/shared/money";
 import { pendingRequests } from "@/shared/requests";
-import type { TradeRequest } from "@/shared/types";
+import { firstChargeCp } from "@/shared/progress";
+import type { FlyerText, TradeRequest } from "@/shared/types";
 import { useDm } from "./context";
 
 const MUTE_SLOT = "cf-inbox-muted";
@@ -56,6 +57,8 @@ export function isInboxOpen(): boolean {
 export function Inbox() {
   const { view } = useDm();
   const pending = pendingRequests(view.state);
+  const openTasks = view.state.tasks.filter((t) => !t.done).length;
+  const waiting = pending.length + openTasks;
   const [open, setOpen] = useState(false);
   const [muted, setMuted] = useState(false);
   useEffect(() => setMuted(readMuted()), []);
@@ -87,9 +90,9 @@ export function Inbox() {
 
   return (
     <>
-      <button type="button" className={`btn inbox-btn${pending.length ? " has" : ""}`} aria-expanded={open} onClick={() => setOpen((o) => !o)} aria-label={`Requests: ${pending.length} waiting`}>
+      <button type="button" className={`btn inbox-btn${waiting ? " has" : ""}`} aria-expanded={open} onClick={() => setOpen((o) => !o)} aria-label={`Requests: ${waiting} waiting`}>
         <span className="key">I</span> Requests
-        {pending.length ? <span className="badge">{pending.length}</span> : null}
+        {waiting ? <span className="badge">{waiting}</span> : null}
       </button>
       {open ? (
         <InboxDrawer
@@ -152,12 +155,14 @@ function InboxDrawer({ pending, muted, onMute, onClose }: { pending: TradeReques
             Approve all {pending.length}
           </button>
         ) : null}
-        {pending.length === 0 ? <p className="note">Nothing waiting. Requests from phones show up here.</p> : null}
+        {pending.length === 0 && !s.tasks.some((t) => !t.done) ? <p className="note">Nothing waiting. Requests from phones show up here.</p> : null}
         <ul className="inbox-list">
           {pending.map((r) => (
             <RequestRow key={r.id} r={r} />
           ))}
         </ul>
+        <Tasks />
+        <BoardFlyers />
         {recent.length ? (
           <>
             <h3>Recently</h3>
@@ -183,6 +188,8 @@ function InboxDrawer({ pending, muted, onMute, onClose }: { pending: TradeReques
 
 function describe(r: TradeRequest): string {
   if (r.kind === "give") return `send ${formatCp(r.totalCp)} to ${r.toPlayerName}`;
+  if (r.kind === "contribute") return `${formatCp(r.chargedCp ?? r.totalCp)} toward ${r.itemName}`;
+  if (r.flyer) return `flyer “${r.flyer.title}”`;
   return `${r.qty > 1 ? `${r.qty} × ` : ""}${r.itemName}`;
 }
 
@@ -196,15 +203,25 @@ function RequestRow({ r }: { r: TradeRequest }) {
   const [reason, setReason] = useState("");
   const [price, setPrice] = useState("");
   const [problem, setProblem] = useState<{ msg: string; totalCp?: number } | null>(null);
+  const service = item?.kind === "service";
+  const [answer, setAnswer] = useState("");
+  const [flyer, setFlyer] = useState<FlyerText>(r.flyer ?? { title: "", body: "", signedBy: "" });
 
   const approve = useCallback(
     async (totalCp?: number, override = false) => {
-      const res = await call({ type: "request.approve", requestId: r.id, ...(totalCp !== undefined ? { totalCp } : {}), ...(override ? { override: true } : {}) });
+      const res = await call({
+        type: "request.approve",
+        requestId: r.id,
+        ...(totalCp !== undefined ? { totalCp } : {}),
+        ...(override ? { override: true } : {}),
+        ...(answer.trim() ? { answer: answer.trim() } : {}),
+        ...(r.flyer && flyer.title.trim() ? { flyer } : {}),
+      });
       if (res.code === "recheck") return setProblem({ msg: res.error ?? "", totalCp });
       if (res.error) return toast(res.error);
       toast(`Approved: ${r.playerName}, ${describe(r)}.`);
     },
-    [call, r, toast],
+    [call, r, toast, answer, flyer],
   );
   const decline = async () => {
     const res = await call({ type: "request.decline", requestId: r.id, reason: reason.trim() });
@@ -213,7 +230,8 @@ function RequestRow({ r }: { r: TradeRequest }) {
   };
 
   const newTotal = parseAmount(price);
-  const priceChanged = item && r.kind === "buy" && item.priceCp !== r.unitCp;
+  const nowCp = item ? firstChargeCp(s, item) : 0;
+  const priceChanged = item && r.kind === "buy" && nowCp !== r.unitCp;
 
   return (
     <li className="inbox-req">
@@ -226,6 +244,16 @@ function RequestRow({ r }: { r: TradeRequest }) {
         {r.kind === "give" ? (
           <>
             Send <b className="purse-amt">{formatCp(r.totalCp)}</b> to <b>{r.toPlayerName}</b>
+          </>
+        ) : r.kind === "contribute" ? (
+          <>
+            Put <b className="purse-amt">{formatCp(r.totalCp)}</b> toward <b>{r.itemName}</b>
+            {item ? (
+              <span className="note">
+                {" "}
+                ({formatCp(s.stakes.filter((k) => k.itemId === item.id).reduce((a, k) => a + k.cp, 0))} of {formatCp(item.priceCp)} so far)
+              </span>
+            ) : null}
           </>
         ) : (
           <>
@@ -246,9 +274,36 @@ function RequestRow({ r }: { r: TradeRequest }) {
         )}
         {item && item.stock !== null ? ` · ${item.stock} in stock` : ""}
       </div>
-      {priceChanged ? <div className="inbox-warn">The price is now {formatCp(item!.priceCp)} each. Approving charges what they saw, unless you set a price.</div> : null}
+      {priceChanged ? <div className="inbox-warn">The price is now {formatCp(nowCp)} each. Approving charges what they saw, unless you set a price.</div> : null}
+      {r.question ? (
+        <div className="inbox-note">
+          {item?.prompt ? <span className="note">{item.prompt} </span> : null}&ldquo;{r.question}&rdquo;
+        </div>
+      ) : null}
       {r.note ? <div className="inbox-note">&ldquo;{r.note}&rdquo;</div> : null}
       {item?.finePrint ? <div className="card-fine inbox-fine">{item.finePrint}</div> : null}
+      {item?.dmNote ? <div className="note">Your note: {item.dmNote}</div> : null}
+      {service && r.flyer ? (
+        <div className="form">
+          <label>
+            Flyer title
+            <input className="fld" value={flyer.title} maxLength={60} onChange={(e) => setFlyer({ ...flyer, title: e.target.value })} />
+          </label>
+          <label>
+            Lines
+            <textarea className="fld" rows={3} value={flyer.body} maxLength={400} onChange={(e) => setFlyer({ ...flyer, body: e.target.value })} />
+          </label>
+          <label>
+            Signed
+            <input className="fld" value={flyer.signedBy} maxLength={60} onChange={(e) => setFlyer({ ...flyer, signedBy: e.target.value })} placeholder={r.playerName} />
+          </label>
+        </div>
+      ) : service ? (
+        <label>
+          Your answer (they see it on their phone)
+          <textarea className="fld" rows={2} value={answer} maxLength={600} onChange={(e) => setAnswer(e.target.value)} placeholder="Mags leans in: “The chef? Bought those recipes off a traveling merchant.”" />
+        </label>
+      ) : null}
 
       {problem ? (
         <div className="inbox-problem" role="alert">
@@ -307,12 +362,12 @@ function RequestRow({ r }: { r: TradeRequest }) {
       ) : (
         <div className="inline">
           <button type="button" className="btn primary" onClick={() => void approve()}>
-            Approve
+            {r.flyer ? "Pin it up" : service ? (answer.trim() ? "Answer and charge" : "Done, charge it") : "Approve"}
           </button>
           <button type="button" className="btn" onClick={() => setMode("decline")}>
             Decline
           </button>
-          {r.kind === "buy" ? (
+          {r.kind === "buy" && !r.flyer ? (
             <button type="button" className="btn" onClick={() => setMode("price")}>
               Different price
             </button>
@@ -320,5 +375,62 @@ function RequestRow({ r }: { r: TradeRequest }) {
         </div>
       )}
     </li>
+  );
+}
+
+/** Your to-do list: record a proficiency, a project funded. */
+function Tasks() {
+  const { view, run } = useDm();
+  const open = view.state.tasks.filter((t) => !t.done);
+  if (!open.length) return null;
+  return (
+    <>
+      <h3>To do</h3>
+      <ul className="inbox-list">
+        {open.map((t) => (
+          <li key={t.id} className="inbox-req inbox-task">
+            <span>{t.text}</span>
+            <button type="button" className="btn small primary" onClick={() => run({ type: "task.done", taskId: t.id, done: true })}>
+              Done
+            </button>
+          </li>
+        ))}
+      </ul>
+    </>
+  );
+}
+
+/** Player flyers: up on the TV notice board until you take them down. */
+function BoardFlyers() {
+  const { view, run } = useDm();
+  const flyers = view.state.flyers;
+  if (!flyers.length) return null;
+  return (
+    <>
+      <h3>On the notice board</h3>
+      <ul className="inbox-recent">
+        {flyers
+          .slice()
+          .reverse()
+          .map((f) => (
+            <li key={f.id}>
+              <span>
+                <b>{f.title}</b> <span className="note">· {f.signedBy}</span>
+              </span>
+              <span className="inline">
+                <button type="button" className="btn small" onClick={() => run({ type: "flyer.update", flyerId: f.id, patch: { up: !f.up } })}>
+                  {f.up ? "Take down" : "Put back up"}
+                </button>
+                {!f.up ? (
+                  <button type="button" className="btn small danger" onClick={() => run({ type: "flyer.remove", flyerId: f.id })}>
+                    Throw away
+                  </button>
+                ) : null}
+              </span>
+            </li>
+          ))}
+      </ul>
+      {flyers.filter((f) => f.up).length > 8 ? <p className="note">The board shows the newest 8.</p> : null}
+    </>
   );
 }

@@ -6,10 +6,11 @@ import { displayNameFrom, isReservedHandle, normaliseHandle } from "./handles";
 import { canAfford, formatCp } from "./money";
 import { beatBody } from "./commands";
 import { availableCp, availableStock, boughtPhrase, heldStock, isSecretShop } from "./requests";
-import { candlefairMap, SEED_ITEMS, SEED_SHOPS, swordCoastMap } from "./seed";
+import { candlefairMap, emptyProgress, SEED_ITEMS, SEED_SHOPS, swordCoastMap } from "./seed";
+import { creditCp, duesFor, firstChargeCp, installmentCp, keepsStake, liveEffects, priceOf, raisedCp, rollDice, sharesOf, splitByShare } from "./progress";
 import { shopVisibleTo } from "./projection";
 import { CHARACTER_MAX, TABLE_SCENE_ID, WHY_MAX } from "./arrival";
-import type { Actor, Beat, BeatAction, Episode, GameState, Item, ItemTier, LedgerEntry, LedgerKind, MapData, Pin, PinLink, Player, Scene, Session, SessionRun, Shop, TradeRequest } from "./types";
+import type { Actor, Beat, BeatAction, Episode, FlyerText, GameState, Item, ItemTier, LedgerEntry, LedgerKind, MapData, Pin, PinLink, Player, Scene, Session, SessionRun, Shop, TradeRequest } from "./types";
 import type { z } from "zod";
 
 export class CommandError extends Error {
@@ -25,6 +26,8 @@ export class CommandError extends Error {
 export interface Ctx {
   now: number;
   actor: Actor;
+  /** Dice for income rolls. Defaults to Math.random; tests pass their own. */
+  rand?: () => number;
   /** Makes a random private link code. The server passes one; without it, new players get their link from the Arrival tab. */
   token?: () => string;
 }
@@ -66,9 +69,29 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
   const scene = (id: string): Scene => s.scenes.find((x) => x.id === id) ?? fail("That scene doesn't exist.");
   const shop = (id: string): Shop => s.shops.find((x) => x.id === id) ?? fail("That shop doesn't exist.");
 
-  /** A short TV banner. */
+  /** A short TV banner. Several in one command (an order arrives and income pays out) share it. */
+  const said: string[] = [];
   const announce = (text: string) => {
-    s.banner = { id: nextId("bn"), text, at: ctx.now };
+    said.push(text);
+    s.banner = { id: s.banner && said.length > 1 ? s.banner.id : nextId("bn"), text: said.join(" · "), at: ctx.now };
+  };
+  /** Announce only what the whole room may see: storefronts open to everyone, never secret ones. */
+  const announcePublic = (shopId: string, text: string) => {
+    const sh = s.shops.find((x) => x.id === shopId);
+    if (sh && sh.visibility === "all" && !isSecretShop(sh)) announce(text);
+  };
+  const rand = ctx.rand ?? Math.random;
+  const item = (id: string): Item => s.items.find((x) => x.id === id) ?? fail("That item doesn't exist.");
+  /** The session a payment made now covers: the running one, or the next one between sessions. */
+  const coversSession = () => s.sessions.find((x) => x.id === s.currentSessionId)?.number ?? nextSessionNumber(s);
+  const task = (text: string, extra: { playerId?: string; itemId?: string } = {}) => {
+    s.tasks.push({ id: nextId("t"), at: ctx.now, text, done: false, ...extra });
+    // Keep every open task and the latest 100 done ones.
+    const done = s.tasks.filter((t) => t.done);
+    if (done.length > 100) {
+      const drop = new Set(done.slice(0, done.length - 100).map((t) => t.id));
+      s.tasks = s.tasks.filter((t) => !drop.has(t.id));
+    }
   };
   const RANK: Record<ItemTier, number> = { hidden: 0, rumored: 1, locked: 2, sale: 3 };
   /** Banner when an item becomes more visible in a shop the whole party can see. */
@@ -94,23 +117,93 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
     });
   };
 
-  /** Take stock, write the ledger, and place special orders. Checks are the caller's job. */
-  const buyItem = (p: Player, item: Item, qty: number, chargeCp: number, extra: Partial<LedgerEntry> = {}) => {
-    if (item.stock !== null) item.stock = Math.max(0, item.stock - qty);
-    const listCp = item.priceCp * qty;
+  /** Effects apply once per item: unlocks and discounts the first time, credit and income for every stake. */
+  const turnOn = (it: Item) => {
+    if (s.effectsOn[it.id]) return;
+    s.effectsOn[it.id] = ctx.now;
+    for (const e of it.effects ?? []) {
+      if (e.type !== "unlock") continue;
+      const target = e.itemId ? s.items.find((x) => x.id === e.itemId) : undefined;
+      if (target && target.tier !== "sale") {
+        const was = target.tier;
+        target.tier = "sale";
+        announceItem(target, was);
+      }
+      const sh = e.shopId ? s.shops.find((x) => x.id === e.shopId) : undefined;
+      if (sh && sh.visibility !== "all") {
+        sh.visibility = "all";
+        sh.playerIds = [];
+        if (!isSecretShop(sh)) announce(sh.closed ? `${sh.name} has come to town` : `Now open: ${sh.name}`);
+      }
+    }
+  };
+
+  const addStake = (it: Item, p: Player, cp: number) => {
+    const k = s.stakes.find((x) => x.itemId === it.id && x.playerId === p.id);
+    if (k) k.cp += cp;
+    else s.stakes.push({ itemId: it.id, playerId: p.id, cp, at: ctx.now });
+  };
+
+  /** Money toward a project. Funding it applies its effects, once. */
+  const contribute = (p: Player, it: Item, cp: number, extra: Partial<LedgerEntry> = {}) => {
+    move(p, -cp, `Put ${formatCp(cp)} toward ${it.name}`, "contribution", { itemId: it.id, ...extra });
+    addStake(it, p, cp);
+    if (!s.effectsOn[it.id] && raisedCp(s, it.id) >= it.priceCp) {
+      announcePublic(it.shopId, `Funded: ${it.name}!`);
+      turnOn(it);
+      const who = [...sharesOf(s, it.id).keys()].map((id) => s.players.find((x) => x.id === id)?.name ?? "someone").join(", ");
+      task(`Funded: ${it.name} (by ${who}).${it.dmNote ? ` Your note: ${it.dmNote}` : ""}`, { itemId: it.id });
+    }
+  };
+
+  /** Fails unless a project can still take money; returns what's left to raise. */
+  const projectLeft = (it: Item, recheck = false): number => {
+    if (it.kind !== "project") fail(`${it.name} isn't a project.`);
+    if (s.effectsOn[it.id]) fail(`${it.name} is already funded.`, recheck ? "recheck" : undefined);
+    return Math.max(0, it.priceCp - raisedCp(s, it.id));
+  };
+
+  /** Can p pay this here? Credit (Mags's tab) only counts at its own storefront. */
+  const canPay = (p: Player, cp: number, shopId: string) => p.balanceCp - cp >= -creditCp(s, p.id, shopId);
+
+  /**
+   * Take stock, write the ledger, and do whatever this kind of item does:
+   * place an order, start a rental or lessons, post a flyer. Checks are the caller's job.
+   */
+  const fulfil = (p: Player, it: Item, qty: number, chargeCp: number, extra: Partial<LedgerEntry> = {}, more: { question?: string; flyer?: FlyerText } = {}) => {
+    if (it.kind === "earned") fail(`${it.name} can't be bought. You grant it.`);
+    if (it.kind === "project") fail(`${it.name} is a project: contribute to it instead.`);
+    if (it.stock !== null) it.stock = Math.max(0, it.stock - qty);
+    const listCp = firstChargeCp(s, it) * qty;
     const haggled = chargeCp !== listCp ? ` (${formatCp(listCp)}, settled at ${formatCp(chargeCp)})` : "";
-    const what = qty > 1 ? `${qty} × ${item.name}` : item.name;
-    const ledgerExtra: Partial<LedgerEntry> = { itemId: item.id, ...(chargeCp !== listCp ? { listCp } : {}), ...extra };
-    if (item.arrivesInSessions) {
+    const what = qty > 1 ? `${qty} × ${it.name}` : it.name;
+    const ledgerExtra: Partial<LedgerEntry> = { itemId: it.id, ...(chargeCp !== listCp ? { listCp } : {}), ...extra };
+    const question = more.question?.trim();
+    if (it.kind === "recurring") {
+      move(p, -chargeCp, `Rented ${it.name} (first month)${haggled}`, "rent", ledgerExtra);
+      s.rentals.push({ id: nextId("rn"), itemId: it.id, itemName: it.name, playerId: p.id, monthlyCp: priceOf(s, it), startedAt: ctx.now, paidThrough: coversSession(), active: true });
+    } else if (it.kind === "training") {
+      const of = it.installments ?? 1;
+      const totalCp = priceOf(s, it) - listCp + chargeCp;
+      const t = { id: nextId("tr"), itemId: it.id, itemName: it.name, playerId: p.id, what: question ?? "", totalCp, of, paid: 1, paidCp: chargeCp, paidThrough: coversSession(), done: of <= 1 };
+      s.trainings.push(t);
+      move(p, -chargeCp, `${it.name}${t.what ? ` (${t.what})` : ""}: lesson 1 of ${of}${haggled}`, "purchase", ledgerExtra);
+      if (t.done) task(`Record a new proficiency: ${p.name} finished ${it.name}${t.what ? `: ${t.what}` : ""}.`, { playerId: p.id, itemId: it.id });
+    } else if (it.arrivesInSessions) {
       const now = s.sessions.find((x) => x.id === s.currentSessionId)?.number ?? nextSessionNumber(s) - 1;
-      const arrivesAtSession = now + item.arrivesInSessions;
+      const arrivesAtSession = now + it.arrivesInSessions;
       for (let i = 0; i < qty; i++) {
-        s.orders.push({ id: nextId("o"), playerId: p.id, itemId: item.id, itemName: item.name, priceCp: Math.round(chargeCp / qty), orderedAt: ctx.now, arrivesAtSession, arrived: false });
+        s.orders.push({ id: nextId("o"), playerId: p.id, itemId: it.id, itemName: it.name, priceCp: Math.round(chargeCp / qty), orderedAt: ctx.now, arrivesAtSession, arrived: false });
       }
       move(p, -chargeCp, `Ordered ${what} (arrives session ${arrivesAtSession})${haggled}`, "purchase", ledgerExtra);
+    } else if (it.kind === "service") {
+      move(p, -chargeCp, `${it.name}${question ? `: ${question}` : ""}${haggled}`, "purchase", ledgerExtra);
+      if (more.flyer) s.flyers.push({ id: nextId("fl"), playerId: p.id, ...cleanFlyer(more.flyer, p.name), postedAt: ctx.now, up: true });
     } else {
       move(p, -chargeCp, `Bought ${what}${haggled}`, "purchase", ledgerExtra);
     }
+    if (keepsStake(it)) addStake(it, p, chargeCp);
+    if (it.effects?.length) turnOn(it);
   };
 
   const request = (id: string): TradeRequest => s.requests.find((r) => r.id === id) ?? fail("That request doesn't exist.");
@@ -127,9 +220,24 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
    * Approve one request. Every check runs before anything changes, so a
    * failed check leaves the state untouched (Approve all relies on that).
    */
-  const approve = (r: TradeRequest, totalCp: number | undefined, override: boolean) => {
+  const approve = (r: TradeRequest, totalCp: number | undefined, override: boolean, more: { answer?: string; flyer?: FlyerText } = {}) => {
     if (r.status !== "pending") fail(`That request was already ${r.status}.`);
     const p = player(r.playerId);
+    if (r.kind === "contribute") {
+      const it = s.items.find((x) => x.id === r.itemId) ?? fail(`${r.itemName ?? "That project"} is no longer in the shop. Decline it instead.`);
+      const left = projectLeft(it, true);
+      // Never take more than the project still needs.
+      const charge = Math.min(totalCp ?? r.totalCp, left);
+      if (!override) {
+        if (p.archived) fail(`${p.name} has left the table.`, "recheck");
+        if (p.balanceCp < charge) fail(`${p.name} only has ${formatCp(p.balanceCp)} now, not ${formatCp(charge)}.`, "recheck");
+      }
+      contribute(p, it, charge, { requestId: r.id });
+      r.chargedCp = charge;
+      r.status = "approved";
+      r.decidedAt = ctx.now;
+      return;
+    }
     if (r.kind === "give") {
       const to = player(r.toPlayerId ?? "");
       if (!override && p.balanceCp < r.totalCp) fail(`${p.name} only has ${formatCp(p.balanceCp)} now, not ${formatCp(r.totalCp)}.`, "recheck");
@@ -144,15 +252,20 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
       const charge = totalCp ?? r.totalCp;
       if (!override) {
         if (p.archived) fail(`${p.name} has left the table.`, "recheck");
-        if (p.balanceCp < charge) fail(`${p.name} only has ${formatCp(p.balanceCp)} now, not ${formatCp(charge)}.`, "recheck");
+        if (!canPay(p, charge, item.shopId)) fail(`${p.name} only has ${formatCp(p.balanceCp)} now, not ${formatCp(charge)}.`, "recheck");
+        if (item.kind === "recurring" && s.rentals.some((x) => x.active && x.itemId === item.id && x.playerId === p.id)) fail(`${p.name} already rents ${item.name}.`, "recheck");
         if (item.stock !== null && item.stock - heldStock(s, item.id, r.id) < r.qty) {
           fail(item.stock === 0 ? `${item.name} is sold out now.` : `Only ${item.stock} ${item.name} left now.`, "recheck");
         }
         if (item.tier !== "sale") fail(`${item.name} isn't for sale any more.`, "recheck");
       }
-      buyItem(p, item, r.qty, charge, { requestId: r.id });
+      const flyer = more.flyer ?? r.flyer;
+      if (flyer) r.flyer = cleanFlyer(flyer, p.name);
+      fulfil(p, item, r.qty, charge, { requestId: r.id }, { question: r.question, flyer: r.flyer });
       r.chargedCp = charge;
-      if (s.tvPurchases !== false && !r.secret && !isSecretShop(s.shops.find((x) => x.id === item.shopId))) {
+      const answer = more.answer?.trim();
+      if (answer) r.answer = answer;
+      if (s.tvPurchases !== false && !r.secret && !isSecretShop(s.shops.find((x) => x.id === item.shopId)) && (item.kind === "purchase" || item.kind === "order")) {
         announce(`${p.name} bought ${boughtPhrase(item.name, r.qty)}`);
       }
     }
@@ -239,8 +352,22 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
     // Special orders due by this session arrive (whether started here or by run-game).
     const due = s.orders.filter((o) => !o.arrived && o.arrivesAtSession <= number);
     for (const o of due) o.arrived = true;
+    const log: string[] = due.map((o) => `Arrived: ${o.itemName} for ${s.players.find((p) => p.id === o.playerId)?.name ?? "someone"}`);
     if (due.length === 1) announce(`Arrived from Baldur\u2019s Gate: ${due[0].itemName} for ${s.players.find((p) => p.id === due[0].playerId)?.name ?? "someone"}`);
     else if (due.length > 1) announce(`${due.length} special orders have arrived from Baldur\u2019s Gate`);
+    // Income: roll for each live income effect and pay the owners by share.
+    for (const { item: it, effect } of liveEffects(s, "income")) {
+      const owners = [...sharesOf(s, it.id)].filter(([pid]) => s.players.some((p) => p.id === pid && !p.archived));
+      if (!owners.length) continue;
+      const roll = rollDice(effect.dice, rand);
+      const total = roll * effect.unitCp;
+      for (const [pid, cp] of splitByShare(total, owners)) {
+        if (cp > 0) move(player(pid), cp, `${it.name}: your share (rolled ${roll} on ${effect.dice})`, "income", { itemId: it.id });
+      }
+      log.push(`${it.name}: rolled ${roll} on ${effect.dice}, paid ${formatCp(total)}`);
+      if (total > 0) announcePublic(it.shopId, `${it.name} paid ${formatCp(total)}`);
+    }
+    if (log.length) sess.startLog = log;
     return sess;
   };
 
@@ -469,8 +596,13 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
 
     // ---------- what the TV shows ----------
     case "live.shop": {
+      if (cmd.category !== undefined) {
+        if (cmd.category) s.live.shopCategory = cmd.category;
+        else delete s.live.shopCategory;
+      } else if (cmd.shopId) delete s.live.shopCategory;
       const target = shop(cmd.shopId ?? s.live.shopId);
-      if (cmd.open && target.visibility !== "all") fail(`${target.name} is hidden from the party. Open it to everyone first.`);
+      if (cmd.open && !s.live.shopCategory && target.visibility !== "all") fail(`${target.name} is hidden from the party. Open it to everyone first.`);
+      if (cmd.open && s.live.shopCategory && !s.shops.some((x) => x.visibility === "all" && !x.closed)) fail("No storefront is open to everyone yet.");
       s.live.shopId = target.id;
       s.live.shopOpen = cmd.open;
       if (cmd.open) delete s.live.recapSessionId;
@@ -512,10 +644,94 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
       if (item.tier === "locked") fail(`${item.name} is locked: ${item.reason || "not for sale yet"}.`);
       if (item.tier !== "sale") fail(`${item.name} isn't for sale.`);
       if (item.stock === 0) fail(`${item.name} is sold out.${item.restockNote ? " " + item.restockNote : ""}`);
-      if (!canAfford(p.balanceCp, item.priceCp)) fail(`${p.name} can't afford ${item.name}.`);
-      buyItem(p, item, 1, item.priceCp);
+      const cost = firstChargeCp(s, item);
+      if (!canPay(p, cost, item.shopId)) fail(`${p.name} can't afford ${item.name}.`);
+      if (item.kind === "recurring" && s.rentals.some((x) => x.active && x.itemId === item.id && x.playerId === p.id)) fail(`${p.name} already rents ${item.name}.`);
+      fulfil(p, item, 1, cost, {}, { question: cmd.question });
       break;
     }
+    case "project.contribute": {
+      const p = player(cmd.playerId);
+      if (p.archived) fail(`${p.name} has left the table.`);
+      const it = item(cmd.itemId);
+      const left = projectLeft(it);
+      const cp = Math.min(cmd.amountCp, left);
+      if (p.balanceCp < cp) fail(`${p.name} only has ${formatCp(p.balanceCp)}.`);
+      contribute(p, it, cp);
+      if (cp < cmd.amountCp) out.info = `${it.name} only needed ${formatCp(cp)}, so that's all ${p.name} paid.`;
+      break;
+    }
+
+    // ---------- rent and lessons ----------
+    case "dues.charge": {
+      const sess = curSession();
+      const want = new Set(cmd.ids);
+      const due = duesFor(s, sess.number).filter((d) => want.has(d.id));
+      for (const d of due) {
+        const p = player(d.playerId);
+        if (d.kind === "rent") {
+          const r = s.rentals.find((x) => x.id === d.id)!;
+          move(p, -d.cp, `Rent: ${r.itemName}`, "rent", { itemId: r.itemId });
+          r.paidThrough = sess.number;
+        } else {
+          const t = s.trainings.find((x) => x.id === d.id)!;
+          move(p, -d.cp, `${t.itemName}${t.what ? ` (${t.what})` : ""}: lesson ${t.paid + 1} of ${t.of}`, "purchase", { itemId: t.itemId });
+          t.paid++;
+          t.paidCp += d.cp;
+          t.paidThrough = sess.number;
+          if (t.paid >= t.of) {
+            t.done = true;
+            task(`Record a new proficiency: ${p.name} finished ${t.itemName}${t.what ? `: ${t.what}` : ""}.`, { playerId: p.id, itemId: t.itemId });
+          }
+        }
+      }
+      sess.duesCharged = true;
+      out.info = due.length ? `Charged ${due.length} ${due.length === 1 ? "payment" : "payments"}.` : "Nothing was due.";
+      break;
+    }
+    case "rental.cancel": {
+      const r = s.rentals.find((x) => x.id === cmd.rentalId) ?? fail("That rental doesn't exist.");
+      r.active = false;
+      r.endedAt = ctx.now;
+      break;
+    }
+    case "training.cancel": {
+      const t = s.trainings.find((x) => x.id === cmd.trainingId) ?? fail("That training doesn't exist.");
+      if (t.done) fail("That training is already finished.");
+      t.cancelled = true;
+      break;
+    }
+
+    // ---------- earned ----------
+    case "award.grant": {
+      const it = item(cmd.itemId);
+      if (it.kind !== "earned") fail(`${it.name} isn't an Earned item.`);
+      const ps = [...new Set(cmd.playerIds)].map(player);
+      s.awards.push({ id: nextId("aw"), itemId: it.id, itemName: it.name, playerIds: ps.map((p) => p.id), at: ctx.now, note: cmd.note.trim() });
+      announcePublic(it.shopId, `Earned: ${it.name} (${ps.map((p) => p.name).join(", ")})`);
+      break;
+    }
+    case "award.revoke":
+      if (!s.awards.some((a) => a.id === cmd.awardId)) fail("That award doesn't exist.");
+      s.awards = s.awards.filter((a) => a.id !== cmd.awardId);
+      break;
+
+    // ---------- the DM's to-do list and the flyers ----------
+    case "task.done": {
+      const t = s.tasks.find((x) => x.id === cmd.taskId) ?? fail("That task doesn't exist.");
+      t.done = cmd.done;
+      break;
+    }
+    case "flyer.update": {
+      const f = s.flyers.find((x) => x.id === cmd.flyerId) ?? fail("That flyer doesn't exist.");
+      const { up, ...text } = cmd.patch;
+      Object.assign(f, cleanFlyer({ ...f, ...text }, f.signedBy));
+      if (up !== undefined) f.up = up;
+      break;
+    }
+    case "flyer.remove":
+      s.flyers = s.flyers.filter((x) => x.id !== cmd.flyerId);
+      break;
 
     // ---------- players ----------
     case "player.add": {
@@ -603,6 +819,8 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
         hidePrice: false,
         stock: null,
         restockNote: "",
+        category: "gear",
+        kind: "purchase",
         ...cmd.item,
       });
       s.items.push(it);
@@ -644,6 +862,10 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
       s.items = structuredClone(SEED_ITEMS);
       s.live.shopOpen = false;
       s.live.shopId = s.shops[0].id;
+      delete s.live.shopCategory;
+      // Shares, rentals and awards point at the old items. Flyers and your to-do list stay.
+      Object.assign(s, { ...emptyProgress(), flyers: s.flyers, tasks: s.tasks });
+      for (const sc of s.scenes) for (const p of sc.map?.pins ?? []) if (p.link?.kind === "shop" && !s.shops.some((x) => x.id === (p.link as { shopId: string }).shopId)) delete p.link;
       break;
     case "item.remove":
       s.items = s.items.filter((x) => x.id !== cmd.itemId);
@@ -897,7 +1119,7 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
 
     // ---------- phone requests: the DM decides ----------
     case "request.approve":
-      approve(request(cmd.requestId), cmd.totalCp, !!cmd.override);
+      approve(request(cmd.requestId), cmd.totalCp, !!cmd.override, { answer: cmd.answer, flyer: cmd.flyer });
       pruneRequests();
       break;
     case "request.decline": {
@@ -915,7 +1137,13 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
       if (!pending.length) fail("Nothing is waiting.");
       let ok = 0;
       const stuck: string[] = [];
+      let waiting = 0;
       for (const r of pending) {
+        // Services (and flyers) need you to read and answer them.
+        if (r.kind === "buy" && s.items.find((x) => x.id === r.itemId)?.kind === "service") {
+          waiting++;
+          continue;
+        }
         try {
           approve(r, undefined, false);
           ok++;
@@ -924,7 +1152,8 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
           stuck.push(`${r.playerName}: ${e.message}`);
         }
       }
-      out.info = stuck.length ? `Approved ${ok}. Still waiting on you: ${stuck.join(" ")}` : `Approved ${ok}.`;
+      const answer = waiting ? ` ${waiting} ${waiting === 1 ? "service needs" : "services need"} your answer.` : "";
+      out.info = (stuck.length ? `Approved ${ok}. Still waiting on you: ${stuck.join(" ")}` : `Approved ${ok}.`) + answer;
       pruneRequests();
       break;
     }
@@ -943,16 +1172,26 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
       if (!where || !shopVisibleTo(where, { tv: false, playerId: p.id }) || item.tier === "hidden" || item.tier === "rumored") fail(unseen);
       if (where.closed) fail(`${where.name} isn't open yet.`);
       if (item.tier === "locked") fail(`${item.name} is locked: ${item.reason || "not for sale yet"}.`);
-      if (cmd.expectedUnitCp !== undefined && cmd.expectedUnitCp !== item.priceCp) fail(`The price of ${item.name} just changed to ${formatCp(item.priceCp)}. Have another look.`);
-      if (cmd.qty > 1 && (item.oneAtATime || item.arrivesInSessions)) fail(`${item.name} is sold one at a time.`);
+      if (item.kind === "earned") fail(`${item.name} can't be bought. It has to be earned.`);
+      if (item.kind === "project") fail(`${item.name} is a project: put gold toward it instead.`);
+      const unitCp = firstChargeCp(s, item);
+      if (cmd.expectedUnitCp !== undefined && cmd.expectedUnitCp !== unitCp) fail(`The price of ${item.name} just changed to ${formatCp(unitCp)}. Have another look.`);
+      if (cmd.qty > 1 && (item.oneAtATime || item.arrivesInSessions || item.kind !== "purchase")) fail(`${item.name} is sold one at a time.`);
+      const question = cmd.question?.trim() ?? "";
+      if (item.prompt && !question) fail(`${item.prompt} Tell the DM first.`);
+      if (item.flyer && !cmd.flyer?.title.trim()) fail("Give your flyer a title.");
+      const mine = (r: TradeRequest) => r.status === "pending" && r.playerId === p.id && r.itemId === item.id;
+      if (item.kind === "recurring" && (s.rentals.some((x) => x.active && x.itemId === item.id && x.playerId === p.id) || s.requests.some(mine))) fail(`You already rent ${item.name}.`);
+      if (item.kind === "training" && (s.trainings.some((x) => !x.done && !x.cancelled && x.itemId === item.id && x.playerId === p.id) || s.requests.some(mine))) fail(`You're already taking ${item.name}.`);
       const left = availableStock(s, item);
       if (left !== null && left < cmd.qty) {
         if (item.stock === 0) fail(`${item.name} is sold out.${item.restockNote ? " " + item.restockNote : ""}`);
         fail(left === 0 ? `Someone has already asked for the last ${item.name}.` : `Only ${left} ${item.name} left.`);
       }
-      const totalCp = item.priceCp * cmd.qty;
-      const avail = availableCp(s, p.id);
-      if (totalCp > avail) fail(`That costs ${formatCp(totalCp)} and you have ${formatCp(Math.max(0, avail))} available.`);
+      const totalCp = unitCp * cmd.qty;
+      const credit = creditCp(s, p.id, where.id);
+      const avail = availableCp(s, p.id) + credit;
+      if (totalCp > avail) fail(`That costs ${formatCp(totalCp)} and you have ${formatCp(Math.max(0, avail))} available${credit ? " (with your tab)" : ""}.`);
       if (s.requests.filter((r) => r.status === "pending" && r.playerId === p.id).length >= 20) fail("You have 20 requests waiting. Let the DM catch up.");
       s.requests.push({
         id: nextId("rq"),
@@ -968,8 +1207,51 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
         itemName: item.name,
         shopId: where.id,
         qty: cmd.qty,
-        unitCp: item.priceCp,
+        unitCp,
+        ...(question ? { question } : {}),
+        ...(item.flyer && cmd.flyer ? { flyer: cleanFlyer(cmd.flyer, p.name) } : {}),
       });
+      break;
+    }
+    case "me.contribute": {
+      const p = me();
+      const unseen = "That item isn't available.";
+      const it = s.items.find((x) => x.id === cmd.itemId) ?? fail(unseen);
+      const where = s.shops.find((x) => x.id === it.shopId);
+      if (!where || !shopVisibleTo(where, { tv: false, playerId: p.id }) || it.tier === "hidden" || it.tier === "rumored") fail(unseen);
+      if (where.closed) fail(`${where.name} isn't open yet.`);
+      if (it.tier === "locked") fail(`${it.name} is locked: ${it.reason || "not open yet"}.`);
+      const pledged = s.requests.reduce((a, r) => (r.status === "pending" && r.kind === "contribute" && r.itemId === it.id ? a + r.totalCp : a), 0);
+      const left = projectLeft(it) - pledged;
+      if (left <= 0) fail(`${it.name} has all the gold it needs waiting on the DM.`);
+      if (cmd.amountCp > left) fail(`${it.name} only needs ${formatCp(left)} more.`);
+      const avail = availableCp(s, p.id);
+      if (cmd.amountCp > avail) fail(`You have ${formatCp(Math.max(0, avail))} available.`);
+      if (s.requests.filter((r) => r.status === "pending" && r.playerId === p.id).length >= 20) fail("You have 20 requests waiting. Let the DM catch up.");
+      s.requests.push({
+        id: nextId("rq"),
+        kind: "contribute",
+        playerId: p.id,
+        playerName: p.name,
+        at: ctx.now,
+        status: "pending",
+        totalCp: cmd.amountCp,
+        note: cmd.note.trim(),
+        secret: isSecretShop(where),
+        itemId: it.id,
+        itemName: it.name,
+        shopId: where.id,
+        qty: 1,
+        unitCp: cmd.amountCp,
+      });
+      break;
+    }
+    case "me.cancelRental": {
+      const p = player(ctx.actor.role === "player" ? ctx.actor.playerId : "");
+      const r = s.rentals.find((x) => x.id === cmd.rentalId && x.playerId === p.id) ?? fail("That rental doesn't exist.");
+      if (!r.active) fail("You already gave that up.");
+      r.active = false;
+      r.endedAt = ctx.now;
       break;
     }
     case "me.requestGive": {
@@ -1117,9 +1399,28 @@ function tidyItem(it: Item): Item {
     if (v) it[k] = v;
     else delete it[k];
   }
+  // A special-order delay makes it an order; an order always has one.
+  if (it.arrivesInSessions && (it.kind === "purchase" || !it.kind)) it.kind = "order";
+  if (it.kind === "order" && !it.arrivesInSessions) it.arrivesInSessions = 2;
+  if (it.kind !== "order") delete it.arrivesInSessions;
   if (!it.arrivesInSessions) delete it.arrivesInSessions;
   if (!it.oneAtATime) delete it.oneAtATime;
+  if (it.kind !== "training") delete it.installments;
+  const prompt = it.prompt?.trim();
+  if (prompt && (it.kind === "service" || it.kind === "training")) it.prompt = prompt;
+  else delete it.prompt;
+  if (!it.flyer || it.kind !== "service") delete it.flyer;
+  if (!it.keep) delete it.keep;
+  const tags = (it.tags ?? []).map((t) => t.trim()).filter(Boolean);
+  if (tags.length) it.tags = tags;
+  else delete it.tags;
+  if (!it.effects?.length) delete it.effects;
   return it;
+}
+
+/** Trim a flyer, and sign it with the player's name if they left it blank. */
+function cleanFlyer(f: FlyerText, fallbackName: string): FlyerText {
+  return { title: f.title.trim().slice(0, 60) || "Notice", body: f.body.trim().slice(0, 400), signedBy: f.signedBy.trim().slice(0, 60) || fallbackName };
 }
 
 function checkUrl(url: string): string | undefined {
