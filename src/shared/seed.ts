@@ -253,7 +253,7 @@ export function seedGame(id: string, name = "Tales from the Flickering Candle", 
 
 /**
  * "Start fresh" after testing: keeps players, scenes, shops and items, but
- * zeroes every purse and clears sessions and knocks. The ledger is wiped
+ * zeroes every purse and clears sessions (and their recaps) and knocks. Episodes stay. The ledger is wiped
  * separately by the caller. Everything else is untouched.
  */
 export function freshStart(g: GameState): GameState {
@@ -268,5 +268,6 @@ export function freshStart(g: GameState): GameState {
   const home = s.scenes.find((x) => x.kind === "notice" && !x.reveal) ?? s.scenes.find((x) => !x.reveal) ?? s.scenes[0];
   if (home) s.live.sceneId = home.id;
   s.live.shopOpen = false;
+  delete s.live.recapSessionId;
   return s;
 }

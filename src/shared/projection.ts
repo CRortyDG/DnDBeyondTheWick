@@ -129,6 +129,8 @@ export interface TvView extends Common {
   live: Pick<LiveState, "sceneId" | "shopOpen" | "shopId" | "purseVisible">;
   /** Every non-reveal scene (for instant switching), plus the live scene even if it's a reveal. */
   scenes: PublicScene[];
+  /** "Previously on…": only while the DM is showing it. The only session text the TV ever gets. */
+  recap: { number: number; title: string; text: string } | null;
 }
 
 export interface MyLedgerLine {
@@ -292,7 +294,13 @@ export function projectTv(game: GameState, version: number): TvView {
     role: "tv",
     live: { sceneId: game.live.sceneId, ...liveShop(game, { tv: true }), purseVisible: game.live.purseVisible },
     scenes: game.scenes.filter((sc) => !sc.reveal || sc.id === game.live.sceneId).map((sc) => publicScene(game, sc)),
+    recap: publicRecap(game),
   };
+}
+
+function publicRecap(game: GameState): TvView["recap"] {
+  const sess = game.live.recapSessionId ? game.sessions.find((x) => x.id === game.live.recapSessionId) : undefined;
+  return sess?.recap?.trim() ? { number: sess.number, title: sess.title, text: sess.recap } : null;
 }
 
 export function projectPlayer(game: GameState, version: number, playerId: string, ledger: LedgerEntry[]): PlayerView {

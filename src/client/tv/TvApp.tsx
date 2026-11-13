@@ -64,6 +64,21 @@ function TvScreen({ view, online }: { view: TvView; online: boolean }) {
         </div>
       ) : null}
 
+      {view.recap ? (
+        <div className="tv-recap" role="region" aria-label="Previously on">
+          <div className="tv-recap-sheet">
+            <div className="tv-recap-kicker">Previously on&hellip;</div>
+            <h2 className="tv-recap-title">{view.recap.title}</h2>
+            {view.recap.text
+              .split(/\n\s*\n/)
+              .filter((p) => p.trim())
+              .map((p, i) => (
+                <p key={i}>{p.trim()}</p>
+              ))}
+          </div>
+        </div>
+      ) : null}
+
       <Purse players={view.purse} visible={view.live.purseVisible} size="tv" />
 
       <BannerToast banner={view.banner} className="tv-banner" />

@@ -20,16 +20,19 @@ import { ShopPanel } from "./ShopPanel";
 import { ScenesPanel } from "./ScenesPanel";
 import { PlayersPanel } from "./PlayersPanel";
 import { GamePanel } from "./GamePanel";
+import { EpisodesPanel } from "./EpisodesPanel";
+import { RunGame } from "./RunGame";
 import { LiveMapControls } from "./LiveMapControls";
 import { MapEditor } from "./MapEditor";
 import { Inbox } from "./Inbox";
 
-type Tab = "bank" | "shop" | "scenes" | "players" | "game";
+type Tab = "bank" | "shop" | "scenes" | "players" | "episodes" | "game";
 const TABS: [Tab, string, string][] = [
   ["bank", "Bank", "B"],
   ["shop", "Shop", ""],
   ["scenes", "Scenes", ""],
   ["players", "Players", ""],
+  ["episodes", "Episodes", ""],
   ["game", "Game", ""],
 ];
 
@@ -168,6 +171,38 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
     void run({ type: "live.shop", open: true, shopId: target.id });
   };
 
+  // Run-game mode. It reopens on reload (or on another device) while an episode
+  // is running, unless you left it on this device during this session.
+  const session0 = s.sessions.find((x) => x.id === s.currentSessionId);
+  const runKey = `candlefair-run-left:${ident.game}`;
+  const [runOpen, setRunOpen] = useState(() => {
+    if (!session0?.run) return false;
+    try {
+      return sessionStorage.getItem(runKey) !== session0.id;
+    } catch {
+      return true;
+    }
+  });
+  const [pickEpisode, setPickEpisode] = useState<string>("");
+  const leaveRun = useCallback(() => {
+    setRunOpen(false);
+    try {
+      if (s.currentSessionId) sessionStorage.setItem(runKey, s.currentSessionId);
+    } catch {}
+  }, [runKey, s.currentSessionId]);
+  const startRun = useCallback(
+    async (episodeId: string) => {
+      if (await run({ type: "run.start", episodeId })) {
+        try {
+          sessionStorage.removeItem(runKey);
+        } catch {}
+        setRunOpen(true);
+        window.scrollTo(0, 0);
+      }
+    },
+    [run, runKey],
+  );
+
   const askedShop = useRef(s.live.shopId);
   useEffect(() => {
     askedShop.current = s.live.shopId;
@@ -175,6 +210,7 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
 
   // Keyboard: 0-9 scenes, arrows step, S shop on TV, P purse, B bank, L map legend, Esc closes the shop (or zooms the map back out).
   useEffect(() => {
+    if (runOpen) return; // run-game mode has its own keys
     const onKey = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement | null;
       if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT" || t.isContentEditable)) return;
@@ -208,7 +244,7 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [s.scenes, s.shops, s.live.shopOpen, s.live.shopId, s.live.purseVisible, s.live.sceneId, s.live.focus, run]);
+  }, [s.scenes, s.shops, s.live.shopOpen, s.live.shopId, s.live.purseVisible, s.live.sceneId, s.live.focus, run, runOpen]);
 
   const live = s.scenes.find((x) => x.id === s.live.sceneId) ?? s.scenes[0];
   const purse = s.players.filter((p) => !p.archived && !p.away).map((p) => ({ id: p.id, name: p.name, balanceCp: p.balanceCp, inspired: !!p.inspired }));
@@ -222,6 +258,21 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
   const openTv = () => {
     window.open(hrefFor(ident.game, "TV"), "candlefair-tv", "popup,width=1280,height=720");
   };
+
+  const episodes = s.episodes ?? [];
+  const runningEp = session?.run ? episodes.find((e) => e.id === session.run!.episodeId) : undefined;
+  const chosenEp = episodes.find((e) => e.id === pickEpisode) ?? episodes[0];
+
+  if (runOpen && session?.run) {
+    return (
+      <DmContext.Provider value={ctx}>
+        <RunGame onExit={leaveRun} />
+        <div className={`toast${toastMsg ? " show" : ""}`} role="status" aria-live="polite">
+          {toastMsg?.text}
+        </div>
+      </DmContext.Provider>
+    );
+  }
 
   return (
     <DmContext.Provider value={ctx}>
@@ -248,6 +299,26 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
               Start session {nextSessionNumber(s)}
             </button>
           )}
+          {runningEp ? (
+            <button className="btn primary" type="button" onClick={() => startRun(runningEp.id)}>
+              Resume run-game
+            </button>
+          ) : chosenEp ? (
+            <span className="run-pick">
+              {episodes.length > 1 ? (
+                <select className="fld" aria-label="Episode to run" value={chosenEp.id} onChange={(e) => setPickEpisode(e.target.value)}>
+                  {episodes.map((e) => (
+                    <option key={e.id} value={e.id}>
+                      {e.title}
+                    </option>
+                  ))}
+                </select>
+              ) : null}
+              <button className="btn" type="button" onClick={() => startRun(chosenEp.id)} title={`Run “${chosenEp.title}”`}>
+                Run game{episodes.length > 1 ? "" : `: ${chosenEp.title}`}
+              </button>
+            </span>
+          ) : null}
           {s.vttUrl ? (
             <a className="btn" href={s.vttUrl} target="_blank" rel="noopener noreferrer">
               <DiceIcon /> Launch VTT
@@ -359,6 +430,7 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
               {tab === "shop" ? <ShopPanel /> : null}
               {tab === "scenes" ? <ScenesPanel /> : null}
               {tab === "players" ? <PlayersPanel /> : null}
+              {tab === "episodes" ? <EpisodesPanel onRun={startRun} /> : null}
               {tab === "game" ? <GamePanel /> : null}
             </div>
           </section>

@@ -4,10 +4,12 @@
 import type { Command } from "./commands";
 import { displayNameFrom, isReservedHandle, normaliseHandle } from "./handles";
 import { canAfford, formatCp } from "./money";
+import { beatBody } from "./commands";
 import { availableCp, availableStock, boughtPhrase, heldStock, isSecretShop } from "./requests";
 import { candlefairMap, SEED_ITEMS, SEED_SHOPS, swordCoastMap } from "./seed";
 import { shopVisibleTo } from "./projection";
-import type { Actor, GameState, Item, ItemTier, LedgerEntry, LedgerKind, MapData, Pin, PinLink, Player, Scene, Shop, TradeRequest } from "./types";
+import type { Actor, Beat, BeatAction, Episode, GameState, Item, ItemTier, LedgerEntry, LedgerKind, MapData, Pin, PinLink, Player, Scene, Session, SessionRun, Shop, TradeRequest } from "./types";
+import type { z } from "zod";
 
 export class CommandError extends Error {
   /** "recheck": a phone request no longer works at approval time; the DM may override or decline. */
@@ -29,6 +31,9 @@ export interface Result {
   ledger: LedgerEntry[];
   /** Created player id for system.join / player.add / knock.admit. */
   playerId?: string;
+  /** Created episode / beat ids. */
+  episodeId?: string;
+  beatId?: string;
   /** A note for whoever sent the command ("2 approved, 1 still needs you"). */
   info?: string;
 }
@@ -48,6 +53,8 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
   if (cmd.type.startsWith("system.") && ctx.actor.role !== "system") fail("Not allowed.");
 
   const s: GameState = structuredClone(input);
+  // The server fills in the seed episode when it reads an older game (see withSeedEpisodes on the server).
+  const episodes = (s.episodes ??= []);
   const ledger: LedgerEntry[] = [];
   const out: Result = { state: s, ledger };
 
@@ -193,8 +200,87 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
   const showScene = (id: string) => {
     s.live.sceneId = id;
     s.live.shopOpen = false;
+    delete s.live.recapSessionId;
     delete s.live.focus;
     delete s.live.banner;
+  };
+
+  const startSession = (title?: string): Session => {
+    const number = nextSessionNumber(s);
+    const sess: Session = {
+      id: nextId("sess"),
+      number,
+      title: title?.trim() || `Session ${number}`,
+      startedAt: ctx.now,
+      endedAt: null,
+      attendeeIds: s.players.filter((p) => !p.archived && !p.away).map((p) => p.id),
+    };
+    s.sessions.push(sess);
+    s.currentSessionId = sess.id;
+    showScene(homeScene());
+    // Special orders due by this session arrive (whether started here or by run-game).
+    const due = s.orders.filter((o) => !o.arrived && o.arrivesAtSession <= number);
+    for (const o of due) o.arrived = true;
+    if (due.length === 1) announce(`Arrived from Baldur\u2019s Gate: ${due[0].itemName} for ${s.players.find((p) => p.id === due[0].playerId)?.name ?? "someone"}`);
+    else if (due.length > 1) announce(`${due.length} special orders have arrived from Baldur\u2019s Gate`);
+    return sess;
+  };
+
+  // ---------- run-game helpers ----------
+  const episode = (id: string): Episode => episodes.find((e) => e.id === id) ?? fail("That episode doesn't exist.");
+  const session = (id: string): Session => s.sessions.find((x) => x.id === id) ?? fail("That session doesn't exist.");
+  const curSession = (): Session => s.sessions.find((x) => x.id === s.currentSessionId) ?? fail("No session is running.");
+  const curRun = () => {
+    const sess = curSession();
+    const run = sess.run ?? fail("This session isn't running an episode. Start run-game mode first.");
+    return { sess, run, ep: episode(run.episodeId) };
+  };
+  const makeBeat = (b: z.infer<typeof beatBody>): Beat => {
+    const beat: Beat = { id: nextId("b"), title: b.title.trim() || "New beat", notes: b.notes, checks: b.checks, branches: b.branches, actions: b.actions };
+    if (b.readAloud?.length) {
+      beat.readAloud = b.readAloud;
+      beat.readAloudAt = Math.min(b.readAloudAt ?? 0, b.notes.length);
+    }
+    return beat;
+  };
+  const fireAction = (a: BeatAction) => {
+    if (a.type === "scene") {
+      if (s.scenes.some((x) => x.id === a.sceneId)) showScene(a.sceneId);
+    } else if (a.type === "black") {
+      const black = s.scenes.find((x) => x.kind === "black");
+      if (black) showScene(black.id);
+    } else if (a.type === "bank") {
+      // The bank is the DM's screen; the TV shows the purse.
+      s.live.purseVisible = true;
+      s.live.shopOpen = false;
+      delete s.live.recapSessionId;
+    }
+  };
+  const land = (run: SessionRun, ep: Episode, i: number, skip: number[] = []) => {
+    run.stage = "beat";
+    run.beat = i;
+    ep.beats[i].actions.forEach((a, k) => {
+      if (!skip.includes(k)) fireAction(a);
+    });
+  };
+  /** Runs of this episode in the current session, so edits keep pointing at the same beat. */
+  const keepCurrentBeat = (ep: Episode, edit: () => void) => {
+    const run = s.sessions.find((x) => x.id === s.currentSessionId)?.run;
+    const mine = run && run.episodeId === ep.id ? run : null;
+    const beatId = mine ? ep.beats[mine.beat]?.id : undefined;
+    edit();
+    if (!mine) return;
+    const i = beatId ? ep.beats.findIndex((b) => b.id === beatId) : -1;
+    mine.beat = i >= 0 ? i : Math.max(0, Math.min(mine.beat, ep.beats.length - 1));
+    if (!ep.beats.length && mine.stage === "beat") mine.stage = "start";
+  };
+  /** Where a new session of this episode picks up: the beat the last unfinished run stopped on. */
+  const resumeBeat = (episodeId: string): number => {
+    const last = s.sessions
+      .filter((x) => x.endedAt !== null && x.run?.episodeId === episodeId)
+      .sort((a, b) => (b.endedAt ?? 0) - (a.endedAt ?? 0))[0];
+    if (!last?.run || last.run.stage === "end") return 0;
+    return last.run.beat;
   };
 
   const mapOf = (sceneId: string): MapData => {
@@ -369,6 +455,7 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
       if (cmd.open && target.visibility !== "all") fail(`${target.name} is hidden from the party. Open it to everyone first.`);
       s.live.shopId = target.id;
       s.live.shopOpen = cmd.open;
+      if (cmd.open) delete s.live.recapSessionId;
       break;
     }
     case "live.purse":
@@ -547,22 +634,7 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
     // ---------- sessions ----------
     case "session.start": {
       if (s.currentSessionId) fail("A session is already running. End it first.");
-      const number = nextSessionNumber(s);
-      const sess = {
-        id: nextId("sess"),
-        number,
-        title: cmd.title?.trim() || `Session ${number}`,
-        startedAt: ctx.now,
-        endedAt: null,
-        attendeeIds: s.players.filter((p) => !p.archived && !p.away).map((p) => p.id),
-      };
-      s.sessions.push(sess);
-      s.currentSessionId = sess.id;
-      showScene(homeScene());
-      const due = s.orders.filter((o) => !o.arrived && o.arrivesAtSession <= number);
-      for (const o of due) o.arrived = true;
-      if (due.length === 1) announce(`Arrived from Baldur\u2019s Gate: ${due[0].itemName} for ${s.players.find((p) => p.id === due[0].playerId)?.name ?? "someone"}`);
-      else if (due.length > 1) announce(`${due.length} special orders have arrived from Baldur\u2019s Gate`);
+      startSession(cmd.title);
       break;
     }
     case "session.end": {
@@ -597,6 +669,145 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
       // Ledger lines keep their (now unknown) session id and read as "between sessions".
       s.sessions = s.sessions.filter((x) => x.id !== cmd.sessionId);
       if (s.currentSessionId === cmd.sessionId) s.currentSessionId = null;
+      if (s.live.recapSessionId === cmd.sessionId) delete s.live.recapSessionId;
+      break;
+    }
+
+    // ---------- run sheets ----------
+    case "episode.add": {
+      const ep: Episode = { id: nextId("ep"), title: cmd.title.trim() || "New episode", beats: (cmd.beats ?? []).map(makeBeat) };
+      episodes.push(ep);
+      out.episodeId = ep.id;
+      break;
+    }
+    case "episode.update":
+      episode(cmd.episodeId).title = cmd.title.trim() || episode(cmd.episodeId).title;
+      break;
+    case "episode.replaceBeats": {
+      const ep = episode(cmd.episodeId);
+      keepCurrentBeat(ep, () => (ep.beats = cmd.beats.map(makeBeat)));
+      break;
+    }
+    case "episode.remove": {
+      episode(cmd.episodeId);
+      if (curRunEpisode(s) === cmd.episodeId) fail("That episode is running in this session. End the session first.");
+      s.episodes = episodes.filter((e) => e.id !== cmd.episodeId);
+      break;
+    }
+    case "beat.add": {
+      const ep = episode(cmd.episodeId);
+      const b = makeBeat(cmd.beat ?? { title: "New beat", notes: [], checks: [], branches: [], actions: [] });
+      keepCurrentBeat(ep, () => ep.beats.splice(Math.min(cmd.at ?? ep.beats.length, ep.beats.length), 0, b));
+      out.beatId = b.id;
+      break;
+    }
+    case "beat.update": {
+      const ep = episode(cmd.episodeId);
+      const i = ep.beats.findIndex((b) => b.id === cmd.beatId);
+      if (i < 0) fail("That beat doesn't exist.");
+      ep.beats[i] = { ...makeBeat(cmd.beat), id: cmd.beatId };
+      break;
+    }
+    case "beat.move": {
+      const ep = episode(cmd.episodeId);
+      const i = ep.beats.findIndex((b) => b.id === cmd.beatId);
+      if (i < 0) fail("That beat doesn't exist.");
+      keepCurrentBeat(ep, () => {
+        const [b] = ep.beats.splice(i, 1);
+        ep.beats.splice(Math.min(cmd.to, ep.beats.length), 0, b);
+      });
+      break;
+    }
+    case "beat.remove": {
+      const ep = episode(cmd.episodeId);
+      if (!ep.beats.some((b) => b.id === cmd.beatId)) fail("That beat doesn't exist.");
+      keepCurrentBeat(ep, () => (ep.beats = ep.beats.filter((b) => b.id !== cmd.beatId)));
+      break;
+    }
+
+    // ---------- running a session from an episode ----------
+    case "run.start": {
+      const ep = episode(cmd.episodeId);
+      const cur = s.sessions.find((x) => x.id === s.currentSessionId);
+      if (cur?.run) {
+        if (cur.run.episodeId === ep.id) break; // resume where we are
+        fail(`${cur.title} is running “${episode(cur.run.episodeId).title}”. End it first.`);
+      }
+      const sess = cur ?? startSession();
+      sess.run = { episodeId: ep.id, stage: "start", beat: Math.min(resumeBeat(ep.id), Math.max(0, ep.beats.length - 1)), notes: {} };
+      break;
+    }
+    case "run.next": {
+      const { run, ep } = curRun();
+      if (run.stage === "end") break;
+      const i = run.stage === "start" ? run.beat : run.beat + 1;
+      if (i < ep.beats.length) land(run, ep, i, cmd.skip);
+      else run.stage = "end";
+      break;
+    }
+    case "run.back": {
+      // Never fires actions, so stepping back doesn't flash the TV.
+      const { run, ep } = curRun();
+      if (run.stage === "end") {
+        if (ep.beats.length) {
+          run.stage = "beat";
+          run.beat = ep.beats.length - 1;
+        } else run.stage = "start";
+      } else if (run.stage === "beat") {
+        if (run.beat > 0) run.beat--;
+        else run.stage = "start";
+      }
+      break;
+    }
+    case "run.jump": {
+      const { run, ep } = curRun();
+      if (cmd.stage === "beat") {
+        const i = cmd.beat ?? fail("Which beat?");
+        if (i >= ep.beats.length) fail("That beat doesn't exist.");
+        land(run, ep, i);
+      } else run.stage = cmd.stage;
+      break;
+    }
+    case "run.fire": {
+      const { ep } = curRun();
+      const b = ep.beats.find((x) => x.id === cmd.beatId) ?? fail("That beat doesn't exist.");
+      fireAction(b.actions[cmd.index] ?? fail("That action doesn't exist."));
+      break;
+    }
+    case "run.note": {
+      const { run, ep } = curRun();
+      if (!ep.beats.some((b) => b.id === cmd.beatId)) fail("That beat doesn't exist.");
+      if (cmd.text.trim()) run.notes[cmd.beatId] = cmd.text;
+      else delete run.notes[cmd.beatId];
+      break;
+    }
+    case "run.recap": {
+      const sess = session(cmd.sessionId);
+      if (cmd.text.trim()) sess.recap = cmd.text;
+      else {
+        delete sess.recap;
+        if (s.live.recapSessionId === sess.id) delete s.live.recapSessionId;
+      }
+      break;
+    }
+    case "run.attend": {
+      const sess = curSession();
+      const p = player(cmd.playerId);
+      // Ticked: here tonight. Unticked: away (off the TV purse and out of "pay everyone").
+      p.away = !cmd.here;
+      if (cmd.here) markAttending(p.id);
+      else sess.attendeeIds = sess.attendeeIds.filter((x) => x !== p.id);
+      break;
+    }
+    case "live.recap": {
+      if (cmd.sessionId === null) {
+        delete s.live.recapSessionId;
+        break;
+      }
+      const sess = session(cmd.sessionId);
+      if (!sess.recap?.trim()) fail("That session has no recap yet.");
+      s.live.recapSessionId = sess.id;
+      s.live.shopOpen = false;
       break;
     }
 
@@ -783,6 +994,20 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
   }
 
   return out;
+}
+
+/** The episode the current session is running, if any. */
+export function curRunEpisode(s: Pick<GameState, "sessions" | "currentSessionId">): string | null {
+  return s.sessions.find((x) => x.id === s.currentSessionId)?.run?.episodeId ?? null;
+}
+
+/** "Previously on…": the most recently ended session with a recap. */
+export function previousRecap(s: Pick<GameState, "sessions" | "currentSessionId">): Session | null {
+  return (
+    s.sessions
+      .filter((x) => x.id !== s.currentSessionId && x.endedAt !== null && x.recap?.trim())
+      .sort((a, b) => (b.endedAt ?? 0) - (a.endedAt ?? 0))[0] ?? null
+  );
 }
 
 export function emptyMap(): MapData {
