@@ -108,6 +108,8 @@ export interface PlayerArrival {
   claimedAt?: number;
   /** "Why did you get on that boat?" Up to 120 characters. */
   why?: string;
+  /** The starting point they picked for a first character (see starters.ts), if any. */
+  pick?: string;
 }
 
 /** Game-wide Arrival settings. */

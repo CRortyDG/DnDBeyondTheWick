@@ -260,7 +260,7 @@ export type SystemCommand =
   | { type: "me.lockHashed"; keyHash: string }
   /** From /api/arrival: the server has already matched the link code to playerId. */
   | { type: "system.arrivalStep"; playerId: string; step: "open" | "finish" }
-  | { type: "system.arrivalClaim"; playerId: string; character: string; why: string };
+  | { type: "system.arrivalClaim"; playerId: string; character: string; why: string; pick?: string | null };
 
 export type DmCommand = z.infer<typeof dmCommand>;
 export type PlayerCommand = z.infer<typeof playerCommand>;
