@@ -512,6 +512,8 @@ export interface GameState {
   arrival?: ArrivalSettings;
   /** The Chronicle's notes, oldest first. Missing on games made before it; read with notesOf(). */
   notes?: Note[];
+  /** One-time content upgrades already applied to this game (see migrate.ts), so a later delete sticks. */
+  upgrades?: string[];
   seq: number;
 }
 

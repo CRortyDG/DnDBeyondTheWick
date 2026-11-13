@@ -8,6 +8,7 @@ import { createMemoryStore, type Store } from "@/server/store";
 import type { DmCommand } from "@/shared/commands";
 import { projectPlayer, projectTv } from "@/shared/projection";
 import { apply, previousRecap } from "@/shared/reducer";
+import { upgrade } from "@/shared/migrate";
 import { episodeMarkdown, parseEpisode, sceneResolver } from "@/shared/runsheet";
 import { SEED_SCENES, seedGame } from "@/shared/seed";
 import type { GameState } from "@/shared/types";
@@ -187,6 +188,28 @@ describe("running an episode", () => {
     expect(sc?.id).toBe("s-stinger");
     expect(g2.live.sceneId).toBe("s-stinger");
     expect(g2.scenes.at(-1)?.kind).toBe("black");
+  });
+
+  it("adds the stinger to a game saved before it, once", () => {
+    const old = start();
+    old.scenes = old.scenes.filter((x) => x.kind !== "stinger");
+    const ep = old.episodes![0];
+    ep.beats = ep.beats.filter((b) => b.title !== "Roll the stinger");
+    expect(ep.beats).toHaveLength(15);
+    old.sessions[0].run = { ...old.sessions[0].run!, stage: "beat", beat: 14 };
+    const g = upgrade(JSON.parse(JSON.stringify(old)));
+    expect(g.scenes.find((x) => x.kind === "stinger")?.label).toBe("The stinger");
+    expect(g.scenes.at(-1)?.kind).toBe("black");
+    const beats = g.episodes![0].beats;
+    expect(beats.map((b) => b.title).slice(14)).toEqual(["The stinger", "Roll the stinger"]);
+    expect(beats[15].actions).toEqual([{ type: "stinger" }]);
+    expect(g.sessions[0].run?.beat).toBe(14);
+    // Deleting it afterwards sticks.
+    g.scenes = g.scenes.filter((x) => x.kind !== "stinger");
+    g.episodes![0].beats.splice(15, 1);
+    const again = upgrade(JSON.parse(JSON.stringify(g)));
+    expect(again.scenes.some((x) => x.kind === "stinger")).toBe(false);
+    expect(again.episodes![0].beats).toHaveLength(15);
   });
 
   it("fires one action again on request", () => {
