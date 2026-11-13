@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { CATEGORY_IDS, KIND_IDS } from "./progress";
 
 const id = z.string().min(1).max(64);
 const text = (max: number) => z.string().max(max);
@@ -41,6 +42,15 @@ const scenePatch = z
   })
   .partial();
 
+const category = z.enum(CATEGORY_IDS);
+const effect = z.discriminatedUnion("type", [
+  z.object({ type: z.literal("unlock"), itemId: id.optional(), shopId: id.optional() }),
+  z.object({ type: z.literal("discount"), pct: z.number().int().min(1).max(50), category: category.optional(), tag: text(40).optional() }),
+  z.object({ type: z.literal("income"), dice: z.string().regex(/^\s*(\d*d\d+([+-]\d+)?|\d+)\s*$/i), unitCp: cp }),
+  z.object({ type: z.literal("credit"), limitCp: cp }),
+]);
+const flyerText = z.object({ title: text(60).min(1), body: text(400), signedBy: text(60) });
+
 const itemFields = {
   shopId: id,
   name: text(120).min(1),
@@ -57,6 +67,14 @@ const itemFields = {
   arrivesInSessions: z.number().int().min(0).max(20),
   oneAtATime: z.boolean(),
   dmNote: text(2000),
+  category,
+  kind: z.enum(KIND_IDS),
+  installments: z.number().int().min(1).max(20),
+  prompt: text(120),
+  flyer: z.boolean(),
+  tags: z.array(text(40)).max(10),
+  keep: z.boolean(),
+  effects: z.array(effect).max(6),
 };
 const itemPatch = z.object(itemFields).partial();
 
@@ -98,12 +116,24 @@ export const dmCommand = z.discriminatedUnion("type", [
   /** Add the Candlefair and Sword Coast maps to a game created before maps existed. */
   z.object({ type: z.literal("map.addSeedMaps") }),
 
-  z.object({ type: z.literal("live.shop"), open: z.boolean(), shopId: id.optional() }),
+  /** category: show a category on the TV instead of a storefront (null = back to storefronts). */
+  z.object({ type: z.literal("live.shop"), open: z.boolean(), shopId: id.optional(), category: category.nullable().optional() }),
   z.object({ type: z.literal("live.purse"), visible: z.boolean() }),
 
   z.object({ type: z.literal("money.adjust"), playerId: id, amountCp: z.number().int().min(-1_000_000_000).max(1_000_000_000), note: text(200), allowDebt: z.boolean().optional() }),
   z.object({ type: z.literal("money.payAll"), amountCp: cp, note: text(200), playerIds: z.array(id).max(50) }),
-  z.object({ type: z.literal("money.buy"), playerId: id, itemId: id }),
+  /** question: what a training is for ("Elvish"). */
+  z.object({ type: z.literal("money.buy"), playerId: id, itemId: id, question: text(300).optional() }),
+  z.object({ type: z.literal("project.contribute"), playerId: id, itemId: id, amountCp: cp.min(1) }),
+  /** Charge the rent and lessons due at the end of the running session (the ids the DM ticked). */
+  z.object({ type: z.literal("dues.charge"), ids: z.array(id).max(200) }),
+  z.object({ type: z.literal("rental.cancel"), rentalId: id }),
+  z.object({ type: z.literal("training.cancel"), trainingId: id }),
+  z.object({ type: z.literal("award.grant"), itemId: id, playerIds: z.array(id).min(1).max(50), note: text(200) }),
+  z.object({ type: z.literal("award.revoke"), awardId: id }),
+  z.object({ type: z.literal("task.done"), taskId: id, done: z.boolean() }),
+  z.object({ type: z.literal("flyer.update"), flyerId: id, patch: flyerText.partial().extend({ up: z.boolean().optional() }) }),
+  z.object({ type: z.literal("flyer.remove"), flyerId: id }),
 
   z.object({ type: z.literal("player.add"), name: text(32) }),
   z.object({ type: z.literal("player.update"), playerId: id, patch: z.object({ name: text(32), dndbUrl: text(300), away: z.boolean(), dropIn: z.boolean(), handle: text(40) }).partial() }),
@@ -165,7 +195,8 @@ export const dmCommand = z.discriminatedUnion("type", [
 
   // Phone requests (buy / send gold). totalCp: approve at a different price (haggling).
   // override: approve even though the player can no longer afford it (allows debt) or it's out of stock.
-  z.object({ type: z.literal("request.approve"), requestId: id, totalCp: cp.optional(), override: z.boolean().optional() }),
+  // answer: a service's reply the player sees. flyer: the flyer as the DM edited it.
+  z.object({ type: z.literal("request.approve"), requestId: id, totalCp: cp.optional(), override: z.boolean().optional(), answer: text(600).optional(), flyer: flyerText.optional() }),
   z.object({ type: z.literal("request.decline"), requestId: id, reason: text(120) }),
   /** Approve every pending request that still works; the rest stay pending. */
   z.object({ type: z.literal("request.approveAll") }),
@@ -180,7 +211,10 @@ export const playerCommand = z.discriminatedUnion("type", [
   z.object({ type: z.literal("me.update"), patch: z.object({ name: text(32), dndbUrl: text(300) }).partial() }),
   z.object({ type: z.literal("me.lock"), key: z.string().min(4).max(128) }),
   /** expectedUnitCp: the price the phone showed; refused if it has changed since. */
-  z.object({ type: z.literal("me.requestBuy"), itemId: id, qty: z.number().int().min(1).max(99), note: text(120), expectedUnitCp: cp.optional() }),
+  // question: the answer to the item's prompt. flyer: "Post on the notice board".
+  z.object({ type: z.literal("me.requestBuy"), itemId: id, qty: z.number().int().min(1).max(99), note: text(120), expectedUnitCp: cp.optional(), question: text(300).optional(), flyer: flyerText.optional() }),
+  z.object({ type: z.literal("me.contribute"), itemId: id, amountCp: cp.min(1), note: text(120) }),
+  z.object({ type: z.literal("me.cancelRental"), rentalId: id }),
   z.object({ type: z.literal("me.requestGive"), toPlayerId: id, amountCp: cp.min(1), note: text(120) }),
   z.object({ type: z.literal("me.cancelRequest"), requestId: id }),
 ]);
