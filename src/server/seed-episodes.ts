@@ -136,6 +136,10 @@ action: scene the symbol
 >
 > Open your eyes. End of episode one.
 action: black
+
+## Roll the stinger
+- Press Next once they've opened their eyes: the TV plays the stinger (about 25 seconds, no sound) and holds on "End of episode one".
+action: stinger
 `;
 
 /** Resolve the seed's scene names: pinned ids first, then the scenes as they are now. */

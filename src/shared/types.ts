@@ -1,7 +1,7 @@
 // The whole campaign ("game") lives in one JSON document, plus an append-only ledger.
 // Anything marked DM-ONLY must never reach the TV or a player: see projection.ts.
 
-export type SceneKind = "notice" | "portrait" | "handout" | "image" | "black" | "map" | "table";
+export type SceneKind = "notice" | "portrait" | "handout" | "image" | "black" | "map" | "table" | "stinger";
 
 /** Built-in art. "merchant-sigil" is DM-only and served through a gated route. */
 export type BuiltinArt = "candlefair-board" | "artum-notice" | "artum" | "mags-wick" | "chef" | "merchant-sigil";
@@ -399,7 +399,7 @@ export interface Note {
 
 // ---------- run-game (all DM-ONLY) ----------
 
-export type BeatAction = { type: "scene"; sceneId: string } | { type: "black" } | { type: "bank" };
+export type BeatAction = { type: "scene"; sceneId: string } | { type: "black" } | { type: "bank" } | { type: "stinger" };
 
 export interface BeatCheck {
   /** "Strength (Athletics)", "Dexterity saving throw", "... or ...". */

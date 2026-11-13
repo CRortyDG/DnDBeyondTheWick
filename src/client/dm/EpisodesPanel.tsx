@@ -593,6 +593,8 @@ function ActionsPicker({
         ? { type: "black" }
         : v === "bank"
           ? { type: "bank" }
+          : v === "stinger"
+            ? { type: "stinger" }
           : { type: "scene", sceneId: v.slice(6) };
     onChange([...actions, a]);
     setPick("");
@@ -628,7 +630,7 @@ function ActionsPicker({
           <option value="">+ Add a TV action…</option>
           <optgroup label="Show a scene">
             {scenes
-              .filter((sc) => sc.kind !== "black")
+              .filter((sc) => sc.kind !== "black" && sc.kind !== "stinger")
               .map((sc) => (
                 <option key={sc.id} value={`scene:${sc.id}`}>
                   {sc.label}
@@ -636,6 +638,7 @@ function ActionsPicker({
               ))}
           </optgroup>
           <option value="black">Black screen</option>
+          <option value="stinger">Play the stinger (animated)</option>
           <option value="bank">
             Bank (purse on the TV, bank on your screen)
           </option>

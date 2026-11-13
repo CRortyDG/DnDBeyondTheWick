@@ -204,6 +204,9 @@ export function swordCoastMap(candlefairSceneId = "s-map"): MapData {
   );
 }
 
+/** Episode one's animated stinger (the TV draws and plays it; nothing to upload). */
+export const STINGER_SCENE: Scene = { id: "s-stinger", label: "The stinger", kind: "stinger", hotkey: null, reveal: false, alt: "The stinger: an old woman walks her lantern cart into the Trollbark" };
+
 export const SEED_SCENES: Scene[] = [
   { id: "s-board", label: "Notice board", kind: "notice", hotkey: 1, reveal: false, art: { builtin: "candlefair-board" } },
   { id: "s-artum", label: "Artum", kind: "portrait", hotkey: 2, reveal: false, art: { builtin: "artum" }, name: "Artum", title: "Planner of Winterfest", alt: "Portrait of Artum, Winterfest’s harried planner: balding, spectacles, worried brows, a quill behind his ear and a scarf" },
@@ -215,6 +218,7 @@ export const SEED_SCENES: Scene[] = [
   { id: "s-extra", label: "Extra image", kind: "image", hotkey: 7, reveal: false, art: {}, alt: "Scene image" },
   { id: "s-symbol", label: "The symbol", kind: "handout", hotkey: 8, reveal: true, art: { builtin: "merchant-sigil" }, alt: "A symbol drawn on paper" },
   { id: "s-table", label: "The Table", kind: "table", hotkey: null, reveal: false, alt: "The round table from above, one candle per player" },
+  STINGER_SCENE,
   { id: "s-black", label: "Black screen", kind: "black", hotkey: 0, reveal: false },
 ];
 

@@ -26,7 +26,7 @@ describe("importing the seed episode", () => {
 
   it("finds 15 beats in order", () => {
     expect(p.title).toBe("Just Desserts");
-    expect(p.beats).toHaveLength(15);
+    expect(p.beats).toHaveLength(16);
     expect(p.beats[0].title).toBe("Locals at the Flickering Candle");
     expect(p.beats[14].title).toBe("The stinger");
   });
@@ -63,6 +63,7 @@ describe("importing the seed episode", () => {
     expect(acts["The chef's confession"]).toEqual([{ type: "scene", sceneId: "s-chef" }]);
     expect(acts["The recipes won't burn"]).toEqual([{ type: "scene", sceneId: "s-symbol" }]);
     expect(acts["The stinger"]).toEqual([{ type: "black" }]);
+    expect(acts["Roll the stinger"]).toEqual([{ type: "stinger" }]);
     expect(acts["Hang the fir garlands"]).toEqual([]);
     expect(p.warnings).toEqual([expect.stringContaining("initiative")]);
   });
@@ -163,15 +164,29 @@ describe("running an episode", () => {
   });
 
   it("goes to the end screen after the last beat and back again", () => {
-    let g = run(start(), { type: "run.jump", stage: "beat", beat: 14 });
+    let g = run(start(), { type: "run.jump", stage: "beat", beat: 15 });
     g = run(g, { type: "run.next" });
     expect(runOf(g).stage).toBe("end");
     g = run(g, { type: "run.next" });
     expect(runOf(g).stage).toBe("end");
     g = run(g, { type: "scene.show", sceneId: "s-board" });
     g = run(g, { type: "run.back" });
-    expect(runOf(g)).toMatchObject({ stage: "beat", beat: 14 });
+    expect(runOf(g)).toMatchObject({ stage: "beat", beat: 15 });
     expect(g.live.sceneId).toBe("s-board");
+  });
+
+  it("plays the stinger, adding its scene to games made before it", () => {
+    let g = run(start(), { type: "run.jump", stage: "beat", beat: 14 });
+    expect(g.live.sceneId).toBe("s-black");
+    g = run(g, { type: "run.next" });
+    expect(g.live.sceneId).toBe("s-stinger");
+    const old = start();
+    old.scenes = old.scenes.filter((x) => x.kind !== "stinger");
+    const g2 = run(old, { type: "run.jump", stage: "beat", beat: 15 });
+    const sc = g2.scenes.find((x) => x.kind === "stinger");
+    expect(sc?.id).toBe("s-stinger");
+    expect(g2.live.sceneId).toBe("s-stinger");
+    expect(g2.scenes.at(-1)?.kind).toBe("black");
   });
 
   it("fires one action again on request", () => {
@@ -224,7 +239,7 @@ describe("resuming after a reload", () => {
   it("gives older games the seed episode", async () => {
     const { state } = await store.read("t");
     expect(state!.episodes).toHaveLength(1);
-    expect(state!.episodes![0].beats).toHaveLength(15);
+    expect(state!.episodes![0].beats).toHaveLength(16);
   });
 
   it("lands back on the current beat", async () => {
@@ -264,7 +279,7 @@ describe("spoiler safety", () => {
     });
     g = run(g, { type: "episode.add", title: `${CANARY} episode` });
     const beatId = g.episodes![0].beats.at(-1)!.id;
-    g = run(g, { type: "run.jump", stage: "beat", beat: 15 });
+    g = run(g, { type: "run.jump", stage: "beat", beat: 16 });
     g = run(g, { type: "run.note", beatId, text: `${CANARY} quick note` });
     g = run(g, { type: "run.recap", sessionId: g.currentSessionId!, text: `${CANARY} unshown recap` });
     return g;

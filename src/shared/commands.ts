@@ -16,7 +16,7 @@ const artSchema = z.object({
   url: z.string().max(2048).optional(),
 });
 
-const SCENE_KINDS = ["notice", "portrait", "handout", "image", "black", "map", "table"] as const;
+const SCENE_KINDS = ["notice", "portrait", "handout", "image", "black", "map", "table", "stinger"] as const;
 const frac = z.number().min(0).max(1);
 export const SEAL_SCALE_MIN = 0.25;
 export const SEAL_SCALE_MAX = 2;
@@ -89,6 +89,7 @@ const itemPatch = z.object(itemFields).partial();
 const beatAction = z.discriminatedUnion("type", [
   z.object({ type: z.literal("scene"), sceneId: id }),
   z.object({ type: z.literal("black") }),
+  z.object({ type: z.literal("stinger") }),
   z.object({ type: z.literal("bank") }),
 ]);
 export const beatBody = z.object({

@@ -11,6 +11,7 @@ export const CHARACTER_MAX = 40;
 export const WHY_MAX = 120;
 /** The Table's scene id in new games. Older games get one from the Arrival tab. */
 export const TABLE_SCENE_ID = "s-table";
+export const STINGER_SCENE_ID = "s-stinger";
 
 /** Players who hold a seat: everyone who hasn't left the table, in the order they joined. */
 export function seatedPlayers(g: Pick<GameState, "players">): Player[] {
