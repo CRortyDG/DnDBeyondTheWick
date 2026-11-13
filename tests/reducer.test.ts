@@ -202,3 +202,23 @@ describe("seats", () => {
     expect(() => apply(s, { type: "table.seats", max: 8 }, { now: 0, actor: { role: "player", playerId: "p1" } })).toThrow();
   });
 });
+
+describe("Heroic Inspiration", () => {
+  it("the DM toggles it, and only the DM", () => {
+    let s = apply(seedGame("t"), { type: "player.inspire", playerId: "p2", on: true }, DM).state;
+    expect(s.players.find((p) => p.id === "p2")!.inspired).toBe(true);
+    s = apply(s, { type: "player.inspire", playerId: "p2", on: false }, DM).state;
+    expect(s.players.find((p) => p.id === "p2")!.inspired).toBe(false);
+    expect(() => apply(s, { type: "player.inspire", playerId: "p2", on: true }, { now: 0, actor: { role: "player", playerId: "p2" } })).toThrow(/Only the DM/);
+  });
+});
+
+describe("the VTT link", () => {
+  it("only accepts https links, and an empty one clears it", () => {
+    let s = apply(seedGame("t"), { type: "game.vtt", url: " https://www.dndbeyond.com/games/8 " }, DM).state;
+    expect(s.vttUrl).toBe("https://www.dndbeyond.com/games/8");
+    expect(() => apply(s, { type: "game.vtt", url: "javascript:alert(1)" }, DM)).toThrow(/https/);
+    s = apply(s, { type: "game.vtt", url: "" }, DM).state;
+    expect(s.vttUrl).toBeUndefined();
+  });
+});

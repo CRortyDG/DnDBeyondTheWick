@@ -43,10 +43,13 @@ export function useGame<V extends View = View>(ident: Ident | null): GameHook<V>
 
   /** Set by the stream effect: marks activity and leaves idle mode. */
   const activity = useRef<() => void>(() => {});
+  /** True while a session is running: never go idle then. */
+  const inSession = useRef(false);
 
   const accept = useCallback((v: View) => {
     if (v.version < versionRef.current) return;
     if (v.version > versionRef.current) activity.current();
+    inSession.current = v.role === "dm" ? !!v.state.currentSessionId : !!v.session;
     versionRef.current = v.version;
     setView(v as V);
   }, []);
@@ -160,6 +163,7 @@ export function useGame<V extends View = View>(ident: Ident | null): GameHook<V>
     let polledAt = 0;
     const tick = setInterval(async () => {
       const now = Date.now();
+      if (inSession.current) lastChange = now; // game night: stay live
       if (!idle && now - lastChange > IDLE_AFTER_MS) {
         idle = true;
         es?.close();

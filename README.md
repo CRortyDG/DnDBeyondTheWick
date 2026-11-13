@@ -112,6 +112,12 @@ tests/              vitest
 scripts/seed.ts     create or reset a game from the command line
 ```
 
+## At the table
+
+- **Gold lives here, not on D&D Beyond.** Players keep D&D Beyond's coins at 0. Anything bought here, they add to their D&D Beyond inventory themselves; the ledger keeps the purchase history.
+- **Heroic Inspiration:** tap the d20 beside a player's name in the Bank (or "Inspiration" on their card under Players). A gold d20 then shows beside their name in the TV purse; tap again when it's spent.
+- **Launch VTT:** paste the campaign's D&D Beyond game link under Game. It shows as a Launch VTT button at the top of your view and on every player's phone.
+
 ## Sessions and starting over
 
 - **Start or end a session** with the button at the top of the DM view. Ledger lines are tagged with the running session.

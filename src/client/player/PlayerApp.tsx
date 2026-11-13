@@ -7,7 +7,7 @@ import { hrefFor, rememberKey, type Ident } from "../api";
 import { useGame } from "../useGame";
 import { Notice } from "../ui/Notice";
 import { ShopBoard } from "../ui/ShopBoard";
-import { LockIcon } from "../ui/icons";
+import { InspirationIcon, LockIcon } from "../ui/icons";
 
 export function PlayerApp({ ident: initial }: { ident: Ident }) {
   const [ident, setIdent] = useState(initial);
@@ -104,6 +104,7 @@ function PlayerScreen({ view, online, send, ident, setIdent }: { view: PlayerVie
           {formatCp(me.balanceCp)}
         </div>
       </header>
+      <p className="note gold-note">Your gold lives here, not on D&amp;D Beyond: keep D&amp;D Beyond&rsquo;s coins at 0. Anything you buy, add to your D&amp;D Beyond inventory yourself.</p>
       {!online ? (
         <p className="player-offline" role="status">
           Reconnecting&hellip;
@@ -120,7 +121,10 @@ function PlayerScreen({ view, online, send, ident, setIdent }: { view: PlayerVie
         <ul className="purse-list">
           {view.purse.map((p) => (
             <li key={p.id} className={p.id === me.id ? "me" : undefined}>
-              <span>{p.name}</span>
+              <span>
+                {p.inspired ? <InspirationIcon size={18} className="insp" role="img" aria-hidden={false} aria-label="Heroic Inspiration" /> : null}
+                {p.name}
+              </span>
               <span className="purse-amt">{formatCp(p.balanceCp)}</span>
             </li>
           ))}
@@ -155,6 +159,11 @@ function PlayerScreen({ view, online, send, ident, setIdent }: { view: PlayerVie
 
       <section className="box">
         <h2>Your character</h2>
+        {view.vttUrl ? (
+          <a className="btn primary big vtt-btn" href={view.vttUrl} target="_blank" rel="noopener noreferrer">
+            Launch the VTT
+          </a>
+        ) : null}
         <CharacterLink current={me.dndbUrl} onSave={async (url) => setMsg((await send({ type: "me.update", patch: { dndbUrl: url } })) ?? "Saved.")} />
         <div className="inline">
           {me.locked ? (

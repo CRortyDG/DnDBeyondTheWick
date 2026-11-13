@@ -224,6 +224,9 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
     case "player.clearKey":
       delete player(cmd.playerId).keyHash;
       break;
+    case "player.inspire":
+      player(cmd.playerId).inspired = cmd.on;
+      break;
 
     // ---------- shops ----------
     case "shop.add":
@@ -332,6 +335,12 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
     case "game.rename":
       s.name = cmd.name.trim();
       break;
+    case "game.vtt": {
+      const url = checkUrl(cmd.url);
+      if (url) s.vttUrl = url;
+      else delete s.vttUrl;
+      break;
+    }
 
     // ---------- players acting on themselves ----------
     case "me.update": {

@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { formatCp, formatDelta } from "@/shared/money";
 import type { PublicPlayer } from "@/shared/projection";
+import { InspirationIcon } from "./icons";
 
 interface Float {
   key: number;
@@ -47,7 +48,10 @@ export function Purse({ players, visible, size = "tv" }: { players: PublicPlayer
       {players.length === 0 ? <div className="purse-empty">Nobody at the table yet</div> : null}
       {players.map((p) => (
         <div className="purse-row" key={p.id}>
-          <span className="purse-name">{p.name}</span>
+          <span className="purse-name">
+            {p.inspired ? <InspirationIcon className="insp" aria-hidden={false} role="img" aria-label="Heroic Inspiration" /> : null}
+            {p.name}
+          </span>
           <span className="purse-amt">{formatCp(p.balanceCp)}</span>
           {floats
             .filter((f) => f.playerId === p.id)

@@ -58,6 +58,13 @@ export function GamePanel() {
         <h3>The campaign</h3>
         <div className="form">
           <Field label="Campaign name" value={s.name} onCommit={(v) => run({ type: "game.rename", name: v })} />
+          <Field
+            label="D&D Beyond game link (the Launch VTT button)"
+            value={s.vttUrl ?? ""}
+            placeholder="https://www.dndbeyond.com/games/..."
+            hint="Shows as Launch VTT at the top of your view and on every player's phone."
+            onCommit={(v) => run({ type: "game.vtt", url: v }, v.trim() ? "VTT link saved." : "VTT link removed.")}
+          />
           <p className="note">
             Game id: <code>{s.id}</code>. Sessions so far: {s.sessions.length}.
           </p>

@@ -8,7 +8,11 @@ import { useGame } from "../useGame";
 import { Notice } from "../ui/Notice";
 import { Purse } from "../ui/Purse";
 import { SceneView } from "../ui/SceneView";
-import { TvIcon, CandleIcon } from "../ui/icons";
+import { ShopBoard } from "../ui/ShopBoard";
+import { Stage } from "../ui/Stage";
+import { projectTv } from "@/shared/projection";
+import type { GameState } from "@/shared/types";
+import { TvIcon, CandleIcon, InspirationIcon as DiceIcon } from "../ui/icons";
 import { DmContext, type DmCtx } from "./context";
 import { nextSessionNumber } from "@/shared/reducer";
 import { BankPanel } from "./BankPanel";
@@ -187,7 +191,9 @@ function DmConsole({ view, ident, online, send }: { view: DmView; ident: Ident; 
   }, [s.scenes, s.shops, s.live.shopOpen, s.live.shopId, s.live.purseVisible, run]);
 
   const live = s.scenes.find((x) => x.id === s.live.sceneId) ?? s.scenes[0];
-  const purse = s.players.filter((p) => !p.archived && !p.away).map((p) => ({ id: p.id, name: p.name, balanceCp: p.balanceCp }));
+  const purse = s.players.filter((p) => !p.archived && !p.away).map((p) => ({ id: p.id, name: p.name, balanceCp: p.balanceCp, inspired: !!p.inspired }));
+  // What the TV sees, for the preview (hidden prices stay hidden here too).
+  const tvView = projectTv(s as unknown as GameState, view.version);
   const session = s.sessions.find((x) => x.id === s.currentSessionId);
   const liveShop = s.shops.find((x) => x.id === s.live.shopId);
 
@@ -219,6 +225,11 @@ function DmConsole({ view, ident, online, send }: { view: DmView; ident: Ident; 
               Start session {nextSessionNumber(s)}
             </button>
           )}
+          {s.vttUrl ? (
+            <a className="btn" href={s.vttUrl} target="_blank" rel="noopener noreferrer">
+              <DiceIcon /> Launch VTT
+            </a>
+          ) : null}
           <button className="btn" type="button" onClick={openTv} title={absoluteHref(ident.game, "TV")}>
             <TvIcon /> Open TV window
           </button>
@@ -251,7 +262,13 @@ function DmConsole({ view, ident, online, send }: { view: DmView; ident: Ident; 
             </div>
             <div className="preview" aria-label={`Preview: ${live.label}`}>
               <SceneView scene={live} gated={gated} emptyHint="No image yet. Add one under Scenes." />
-              {s.live.shopOpen && liveShop ? <div className="preview-flag">Shop open: {liveShop.name}</div> : null}
+              {s.live.shopOpen && liveShop ? (
+                <div className="preview-shop" aria-label={`Shop open on the TV: ${liveShop.name}`}>
+                  <Stage w={1920} h={1080}>
+                    <ShopBoard shops={tvView.shops} items={tvView.items} shopId={liveShop.id} size="tv" />
+                  </Stage>
+                </div>
+              ) : null}
               <div className="preview-purse">
                 <Purse players={purse} visible={s.live.purseVisible} size="small" />
               </div>

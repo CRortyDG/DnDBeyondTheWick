@@ -8,6 +8,8 @@ import { LinkIcon, LockIcon } from "../ui/icons";
 import { useDm } from "./context";
 import { seatedCount, seatsOf } from "@/shared/seed";
 import { Field } from "./Field";
+import { Check } from "./Check";
+import { InspireToggle } from "./InspireToggle";
 
 export function PlayersPanel() {
   const { view, run, toast } = useDm();
@@ -24,9 +26,9 @@ export function PlayersPanel() {
         <p className="note">
           Anyone who opens <code>{absoluteHref(view.state.id, "their-name")}</code> joins the table straight away. Close the door to make new names knock first.
         </p>
-        <label className="check">
-          <input type="checkbox" checked={s.doorClosed} onChange={(e) => run({ type: "door.set", closed: e.target.checked }, e.target.checked ? "Door closed. New names will knock." : "Door open.")} /> Close the door
-        </label>
+        <Check checked={s.doorClosed} onChange={(v) => run({ type: "door.set", closed: v }, v ? "Door closed. New names will knock." : "Door open.")}>
+          Close the door
+        </Check>
         <div className="inline seats">
           <label>
             Seats at the table
@@ -138,12 +140,13 @@ function PlayerCard({ p }: { p: DmPlayer }) {
               D&amp;D Beyond
             </a>
           ) : null}
-          <label className="check">
-            <input type="checkbox" checked={p.away} onChange={(e) => run({ type: "player.update", playerId: p.id, patch: { away: e.target.checked } })} /> Away tonight
-          </label>
-          <label className="check">
-            <input type="checkbox" checked={p.dropIn} onChange={(e) => run({ type: "player.update", playerId: p.id, patch: { dropIn: e.target.checked } })} /> Drop-in
-          </label>
+          <Check checked={p.away} onChange={(v) => run({ type: "player.update", playerId: p.id, patch: { away: v } })}>
+            Away tonight
+          </Check>
+          <Check checked={p.dropIn} onChange={(v) => run({ type: "player.update", playerId: p.id, patch: { dropIn: v } })}>
+            Drop-in
+          </Check>
+          <InspireToggle playerId={p.id} name={p.name} on={!!p.inspired} />
         </div>
         <div className="inline">
           {p.hasKey ? (

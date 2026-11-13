@@ -57,6 +57,7 @@ export const dmCommand = z.discriminatedUnion("type", [
   z.object({ type: z.literal("player.archive"), playerId: id, archived: z.boolean() }),
   z.object({ type: z.literal("player.remove"), playerId: id }),
   z.object({ type: z.literal("player.clearKey"), playerId: id }),
+  z.object({ type: z.literal("player.inspire"), playerId: id, on: z.boolean() }),
 
   z.object({ type: z.literal("shop.add"), name: text(80), subtitle: text(160) }),
   z.object({ type: z.literal("shop.update"), shopId: id, patch: z.object({ name: text(80), subtitle: text(160) }).partial() }),
@@ -77,6 +78,7 @@ export const dmCommand = z.discriminatedUnion("type", [
   z.object({ type: z.literal("knock.dismiss"), knockId: id }),
 
   z.object({ type: z.literal("game.rename"), name: text(120).min(1) }),
+  z.object({ type: z.literal("game.vtt"), url: text(300) }),
 ]);
 
 /** Commands a player may send about themselves. */
