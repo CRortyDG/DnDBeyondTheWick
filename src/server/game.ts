@@ -1,12 +1,11 @@
-import "server-only";
 import { dmCommand, playerCommand, type Command } from "@/shared/commands";
 import { displayNameFrom, isReservedHandle, normaliseGameId, normaliseHandle } from "@/shared/handles";
 import { projectDm, projectPlayer, projectTv, type View } from "@/shared/projection";
 import { apply, CommandError } from "@/shared/reducer";
 import { seatedCount, seatsOf, seedGame } from "@/shared/seed";
-import type { Actor, GameState } from "@/shared/types";
-import { isDmKey, keyMatches, sha256 } from "./auth";
-import { getStore, type Store } from "./store";
+import type { Actor, GameState, LedgerEntry } from "@/shared/types";
+import { isDmKey, keyMatches, makeToken, sha256 } from "./auth";
+import type { Store } from "./store";
 
 export class HttpError extends Error {
   constructor(
@@ -27,10 +26,11 @@ export type Who =
   | { kind: "taken"; handle: string }
   | { kind: "invalid" };
 
-export function identify(state: GameState | null, rawPlayer: string | null, key: string | null): Who {
+/** dmKeyHash: the campaign's stored DM key hash (null = nobody can be the DM). */
+export function identify(state: GameState | null, rawPlayer: string | null, key: string | null, dmKeyHash: string | null): Who {
   const raw = (rawPlayer ?? "").trim();
   const lower = raw.toLowerCase();
-  if (lower === "dm") return isDmKey(key) ? { kind: "dm" } : { kind: "invalid" };
+  if (lower === "dm") return isDmKey(key, dmKeyHash) ? { kind: "dm" } : { kind: "invalid" };
   if (lower === "tv") return { kind: "tv" };
   const handle = normaliseHandle(raw);
   if (!handle || isReservedHandle(handle)) return { kind: "invalid" };
@@ -54,10 +54,14 @@ export async function execute(store: Store, game: string, actor: Actor, cmd: Com
     if (!state) throw new HttpError(404, "No game here yet.", "no-game");
     let result;
     try {
-      result = apply(state, cmd, { now, actor });
+      result = apply(state, cmd, { now, actor, token: makeToken });
     } catch (e) {
       if (e instanceof CommandError) throw new HttpError(400, e.message, e.code);
       throw e;
+    }
+    // Nothing changed (a repeat knock, a no-op toggle): don't save or wake every screen.
+    if (result.ledger.length === 0 && JSON.stringify(result.state) === JSON.stringify(state)) {
+      return { version, state: result.state, playerId: result.playerId, info: result.info };
     }
     const v = await store.commit(game, version, result.state, result.ledger);
     if (v !== null) {
@@ -72,11 +76,16 @@ export async function execute(store: Store, game: string, actor: Actor, cmd: Com
 export async function viewFor(store: Store, game: string, actor: Actor): Promise<View> {
   const { state, version } = await store.read(game);
   if (!state) throw new HttpError(404, "No game here yet.", "no-game");
-  if (actor.role === "dm") return projectDm(state, version, await store.ledger(game));
+  return projectFor(state, version, actor, () => store.ledger(game));
+}
+
+/** One screen's filtered view. ledger is only loaded for the DM and players. */
+export async function projectFor(state: GameState, version: number, actor: Actor, ledger: () => Promise<LedgerEntry[]> | LedgerEntry[]): Promise<View> {
+  if (actor.role === "dm") return projectDm(state, version, await ledger());
   if (actor.role === "tv") return projectTv(state, version);
   if (actor.role === "player") {
     if (!state.players.some((p) => p.id === actor.playerId)) throw new HttpError(404, "You're not at this table.", "unknown");
-    return projectPlayer(state, version, actor.playerId, await store.ledger(game));
+    return projectPlayer(state, version, actor.playerId, await ledger());
   }
   throw new HttpError(403, "Not allowed.");
 }
@@ -104,10 +113,11 @@ export type HelloResult =
  * First contact when a page loads. Creates an unknown ?player= (unless the
  * door is closed), records a visit, and returns the caller's view.
  */
-export async function hello(gameRaw: string | null, rawPlayer: string | null, key: string | null, store = getStore()): Promise<HelloResult> {
+export async function hello(gameRaw: string | null, rawPlayer: string | null, key: string | null, store: Store): Promise<HelloResult> {
   const game = normaliseGameId(gameRaw);
   let { state } = await store.read(game);
-  const who = identify(state, rawPlayer, key);
+  const dmHash = await store.dmKeyHash(game);
+  const who = identify(state, rawPlayer, key, dmHash);
   if (who.kind === "invalid") return { status: "invalid" }; // includes ?player=DM with a wrong key
   if (!state) return { status: "no-game" }; // the DM view then offers "Create the game"
   if (who.kind === "taken") return { status: "taken" };
@@ -132,7 +142,7 @@ export async function hello(gameRaw: string | null, rawPlayer: string | null, ke
     } catch (e) {
       // Someone else grabbed the name a moment ago: re-identify.
       ({ state } = await store.read(game));
-      const again = identify(state, rawPlayer, key);
+      const again = identify(state, rawPlayer, key, dmHash);
       if (again.kind !== "player") return { status: again.kind === "taken" ? "taken" : "invalid" };
       return { status: "ok", view: await viewFor(store, game, actorOf(again)) };
     }
@@ -141,11 +151,13 @@ export async function hello(gameRaw: string | null, rawPlayer: string | null, ke
   return { status: "ok", view: await viewFor(store, game, actorOf(who)), handle: normaliseHandle(rawPlayer ?? "") };
 }
 
-export async function createGame(store: Store, gameRaw: string) {
+/** A new campaign, seeded with the starter scenes, shops and items, owned by whoever holds the DM key. */
+export async function createGame(store: Store, gameRaw: string, dmKeyHash: string, name?: string) {
   const game = normaliseGameId(gameRaw);
   const { state } = await store.read(game);
-  if (state) throw new HttpError(409, "That game already exists.");
-  return store.overwrite(game, seedGame(game), []);
+  if (state) throw new HttpError(409, "That campaign code is taken.", "taken");
+  await store.setDmKeyHash(game, dmKeyHash);
+  return store.overwrite(game, seedGame(game, name), []);
 }
 
 export { normaliseGameId };

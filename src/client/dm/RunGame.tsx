@@ -73,6 +73,7 @@ export function RunGame({ onExit }: { onExit: () => void }) {
       } else if (k === "s" || k === "S") void run({ type: "live.shop", open: !s.live.shopOpen });
       else if (k === "p" || k === "P") void run({ type: "live.purse", visible: !s.live.purseVisible });
       else if (k === "b" || k === "B") setBank((v) => !v);
+      else if (k === "t" || k === "T") void run({ type: "arrival.showTable" });
       else if (k === "Escape") {
         if (bank) setBank(false);
         else if (drawer) setDrawer(false);

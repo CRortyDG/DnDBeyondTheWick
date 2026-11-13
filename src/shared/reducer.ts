@@ -9,6 +9,7 @@ import { availableCp, availableStock, boughtPhrase, heldStock, isSecretShop } fr
 import { candlefairMap, emptyProgress, SEED_ITEMS, SEED_SHOPS, swordCoastMap } from "./seed";
 import { creditCp, duesFor, firstChargeCp, installmentCp, keepsStake, liveEffects, priceOf, raisedCp, rollDice, sharesOf, splitByShare } from "./progress";
 import { shopVisibleTo } from "./projection";
+import { CHARACTER_MAX, TABLE_SCENE_ID, WHY_MAX } from "./arrival";
 import type { Actor, Beat, BeatAction, Episode, FlyerText, GameState, Item, ItemTier, LedgerEntry, LedgerKind, MapData, Pin, PinLink, Player, Scene, Session, SessionRun, Shop, TradeRequest } from "./types";
 import type { z } from "zod";
 
@@ -27,6 +28,8 @@ export interface Ctx {
   actor: Actor;
   /** Dice for income rolls. Defaults to Math.random; tests pass their own. */
   rand?: () => number;
+  /** Makes a random private link code. The server passes one; without it, new players get their link from the Arrival tab. */
+  token?: () => string;
 }
 
 export interface Result {
@@ -297,9 +300,24 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
       createdVia: via,
       ...(keyHash ? { keyHash } : {}),
     };
+    giveLink(p);
     s.players.push(p);
     out.playerId = p.id;
     markAttending(p.id);
+    return p;
+  };
+
+  /** A private Arrival link, unique in this game. */
+  const giveLink = (p: Player) => {
+    if (p.arrival?.token || !ctx.token) return;
+    let t = ctx.token();
+    while (s.players.some((x) => x.arrival?.token === t)) t = ctx.token();
+    p.arrival = { ...p.arrival, token: t };
+  };
+  /** The player a /api/arrival call is for (already matched to the link code by the server). */
+  const arriving = (playerId: string): Player => {
+    const p = player(playerId);
+    if (p.archived || !p.arrival) fail("That link doesn't work any more. Ask the DM for a new one.");
     return p;
   };
 
@@ -1050,6 +1068,45 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
       s.knocks = s.knocks.filter((x) => x.id !== cmd.knockId);
       break;
 
+    // ---------- the Arrival intro ----------
+    case "arrival.issueLinks":
+      if (!ctx.token) fail("Links can only be made on the server.");
+      for (const p of s.players) if (!p.archived) giveLink(p);
+      break;
+    case "arrival.copied": {
+      const p = player(cmd.playerId);
+      if (!p.arrival) fail("That player has no link yet.");
+      p.arrival.copiedAt = ctx.now;
+      break;
+    }
+    case "arrival.reset": {
+      const p = player(cmd.playerId);
+      if (p.arrival) p.arrival = { token: p.arrival.token, ...(p.arrival.copiedAt ? { copiedAt: p.arrival.copiedAt } : {}) };
+      delete p.character;
+      break;
+    }
+    case "arrival.settings": {
+      const a = (s.arrival ??= {});
+      if (cmd.template !== undefined) {
+        const t = cmd.template.trim();
+        if (t) a.template = t;
+        else delete a.template;
+      }
+      if (cmd.seatsLocked !== undefined) a.seatsLocked = cmd.seatsLocked;
+      break;
+    }
+    case "arrival.showTable": {
+      let sc = s.scenes.find((x) => x.kind === "table");
+      if (!sc) {
+        sc = { id: s.scenes.some((x) => x.id === TABLE_SCENE_ID) ? nextId("s") : TABLE_SCENE_ID, label: "The Table", kind: "table", hotkey: null, reveal: false, alt: "The round table from above, one candle per player" };
+        // Just before the black screen, so ← from the first scene still wraps to black.
+        const black = s.scenes.findIndex((x) => x.kind === "black");
+        s.scenes.splice(black < 0 ? s.scenes.length : black, 0, sc);
+      }
+      showScene(sc.id);
+      break;
+    }
+
     case "game.rename":
       s.name = cmd.name.trim();
       break;
@@ -1246,6 +1303,28 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
     }
 
     // ---------- issued by the server ----------
+    case "system.arrivalStep": {
+      const a = arriving(cmd.playerId).arrival!;
+      if (cmd.step === "open") a.openedAt ??= ctx.now;
+      else a.finishedAt ??= ctx.now;
+      break;
+    }
+    case "system.arrivalClaim": {
+      const p = arriving(cmd.playerId);
+      const a = p.arrival!;
+      // Once seats are locked, a first claim still works (a late arrival at the table), but nobody can change theirs.
+      if (a.claimedAt && s.arrival?.seatsLocked) fail("Seats are locked. Ask the DM if you need to change yours.", "locked");
+      const character = cmd.character.replace(/\s+/g, " ").trim().slice(0, CHARACTER_MAX);
+      const why = cmd.why.replace(/\s+/g, " ").trim().slice(0, WHY_MAX);
+      if (character) p.character = character;
+      else delete p.character;
+      if (why) a.why = why;
+      else delete a.why;
+      a.claimedAt ??= ctx.now;
+      a.finishedAt ??= ctx.now;
+      a.openedAt ??= ctx.now;
+      break;
+    }
     case "system.join": {
       const h = normaliseHandle(cmd.handle);
       if (!h || isReservedHandle(h)) fail("Pick a different name.");

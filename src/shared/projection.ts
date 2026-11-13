@@ -3,6 +3,7 @@
 
 import { creditLines, discountPct, firstChargeCp, priceOf, raisedCp, stakeTotals } from "./progress";
 import { heldCp, heldStock } from "./requests";
+import { projectTable, type TableView } from "./arrival";
 import type { Art, Banner, FlyerText, GameState, Item, ItemCategory, ItemKind, LedgerEntry, LegendStyle, LiveState, Player, RequestStatus, Scene, Shop } from "./types";
 
 export const GATED_ART = new Set(["merchant-sigil"]);
@@ -171,6 +172,8 @@ export interface TvView extends Common {
   scenes: PublicScene[];
   /** "Previously on…": only while the DM is showing it. The only session text the TV ever gets. */
   recap: { number: number; title: string; text: string } | null;
+  /** The Table's seats and the QR links of unclaimed players: only while The Table is live. */
+  table?: TableView;
 }
 
 export interface MyLedgerLine {
@@ -359,6 +362,7 @@ export function projectTv(game: GameState, version: number): TvView {
     flyers: game.flyers.filter((f) => f.up).map((f) => ({ id: f.id, title: f.title, body: f.body, signedBy: f.signedBy })),
     scenes: game.scenes.filter((sc) => !sc.reveal || sc.id === game.live.sceneId).map((sc) => publicScene(game, sc)),
     recap: publicRecap(game),
+    ...(game.scenes.find((sc) => sc.id === game.live.sceneId)?.kind === "table" ? { table: projectTable(game) } : {}),
   };
 }
 

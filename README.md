@@ -2,18 +2,19 @@
 
 A table companion for **Tales from the Flickering Candle**. It runs next to D&D Beyond and covers what D&D Beyond doesn't: a TV display for the table, a party bank and shop, and session tools for the DM. Every screen stays in sync live.
 
+Anyone can start a campaign from the front page. Each campaign has a short code (like `wick7kq`) and its own DM key.
+
 | Who | Open | What it does |
 | --- | --- | --- |
-| The TV | `https://dnd.calebs.garden/?player=TV` | Full-screen scenes, the party purse, the shop when it's open. Controls only appear when the mouse moves. |
-| The DM | `https://dnd.calebs.garden/?player=DM&key=YOUR_DM_KEY` | Switch scenes, run the bank, edit shops and scenes, manage players. |
-| A player | `https://dnd.calebs.garden/?player=Sam` | Their gold, the party purse, the shop, their history. |
-| Anyone | `https://dnd.calebs.garden/` | "Who's at the table?": type a name and you're in. |
-
-Add `&game=<id>` to any link to use a different campaign (the default is `candlefair`).
+| Anyone | `https://dnd.calebs.garden/` | Join a table with its campaign code, or start a new campaign. |
+| The DM | the private DM link shown when the campaign was made (`/?game=CODE&player=DM#key=…`) | Switch scenes, run the bank, edit shops and scenes, manage players. |
+| The TV | `/?game=CODE&player=TV` | Full-screen scenes, the party purse, the shop when it's open. Controls only appear when the mouse moves. |
+| A player | `/?game=CODE&player=Sam` (or `/?game=CODE` to type a name) | Their gold, the party purse, the shop, their history. |
 
 ## How access works
 
-- **The DM** needs the secret `DM_KEY`. The server checks it on every request. After the first visit the key is saved on that device and removed from the address bar, so `?player=DM` alone works afterwards.
+- **Starting a campaign** (front page → *I'm a DM: start a new campaign*) makes a new campaign and a random DM key, and shows the DM's private link once. Only a hash of the key is stored. There are no accounts and no reset: if the DM loses every copy of the link, the campaign can't be run again. You can pick your own campaign code or get a random one.
+- **The DM** opens that link. The key sits after the `#`, so it's never sent to the server or logged. It's saved on the device and removed from the address bar, so `?game=CODE&player=DM` alone works afterwards. **DM view → Game → Links** copies the link again or makes a new key (old links stop working everywhere).
 - **Players** need no account. A new `?player=<name>` creates that player on the spot, and they show up in the DM view straight away. `Player1`, `player 1` and `PLAYER-1` are the same person.
 - **Locking a name:** add `&key=anything` the first time (or press "Lock my name" on the player page). After that, that name only opens with that key. The DM can reset a lock.
 - **Seats:** the table seats 6 by default; change it under Players. Once every seat is taken, a new name knocks instead of joining, and you can still let them in. Players marked "left the table" don't hold a seat.
@@ -22,7 +23,7 @@ Add `&game=<id>` to any link to use a different campaign (the default is `candle
 
 ### Spoiler safety
 
-DM-only data never leaves the server for the TV or a phone. The server builds each screen's data from an allow-list (`src/shared/projection.ts`); the UI doesn't just hide things.
+DM-only data never leaves the campaign's room for the TV or a phone. The room builds each screen's data from an allow-list (`src/shared/projection.ts`); the UI doesn't just hide things.
 
 - **Reveal scenes** aren't sent to the TV at all until the DM shows them.
 - **The merchant's sigil** isn't in the browser code at all. `/api/art/merchant-sigil` serves it only while its scene is live, or to the DM.
@@ -31,51 +32,51 @@ DM-only data never leaves the server for the TV or a phone. The server builds ea
 
 Tests in `tests/projection.test.ts` put a marker string in every DM-only field and check it never appears in the TV or player data.
 
+## Arrival: the intro texted before session 0
+
+Each player gets a private link, `/arrive/<code>`, from the DM view's **Arrival** tab (**Copy text** copies a ready-to-send message; edit the message there). On a phone it plays a short tap-through intro (their arrival in Candlefair by ship), then lands on their seat: a character name, an optional "Why did you get on that boat?" line, and **Take a seat**. After that the link opens straight on the seat page, with **Replay intro**.
+
+- **The DM's Arrival tab** shows, per player: link copied, intro opened, finished, seat claimed, character name. **Reset** puts a player back to new (same link). **Lock seats** stops name changes.
+- **The Table** on the TV (press `T`, or the button in the Arrival tab) shows one candle per player. Seats light live as players claim them; a QR code in the corner cycles through whoever hasn't claimed yet. When the last seat lights, every candle flares and the title fades in.
+- **The generic link** `/arrive` plays the intro and then asks for the link the DM sent. It can't claim a seat.
+- **Link previews** (iMessage, Android Messages) show *Tales from the Flickering Candle*, *Four days out of Baldur's Gate…* and `public/arrival/og.jpg`. They're identical for every player; the words are the `<meta>` tags at the top of `arrive.html`.
+- **Editing the words:** everything the intro says is in `src/client/arrival/content.ts` (`{SHIP}`, `{CAPTAIN}`, `{CHARACTER}` placeholders; the ship and captain names are at the top).
+- **Sound** is off by default, with a toggle that's remembered per device. The waves, creaking, wind, door and hearth are made in the browser, so there are no files to download. To use recordings instead, put them in `public/arrival/sounds/` and list them in `SOUND_FILES` in the content file.
+- **Spoiler safety:** the Arrival page is its own part of the site with its own small bundle; it loads none of the main app's code or styles. `/api/arrival` sends only the seat names and the player's own progress.
+
 ## Run it locally
 
 ```bash
 npm install
-npm run seed      # creates the "candlefair" game in .data/ (local file store)
-npm run dev
+npm run dev       # http://localhost:5173, with the Worker, rooms and image storage running locally
 ```
 
-Then open:
-
-- DM: http://localhost:3000/?player=DM&key=dev (with no `DM_KEY` set, the local key is `dev`)
-- TV: http://localhost:3000/?player=TV
-- A player: http://localhost:3000/?player=Sam
-
-With no Upstash or Blob credentials, data lives in `.data/games/*.json` and uploads in `.data/uploads/`. Delete `.data/` to start over.
-
-To use your real Upstash and Blob locally, run `vercel env pull .env.local`.
+Open http://localhost:5173/, start a campaign, and open the DM link it shows. Local data (campaigns and uploaded images) lives in `.wrangler/state/`; delete that folder to start over.
 
 ```bash
-npm test          # money, ledger, permissions, spoiler filtering, atomic saves
+npm test          # money, ledger, permissions, spoiler filtering, saves, campaigns
 npm run typecheck
+npm run build     # what gets deployed: dist/client (the pages) and dist/candlefair (the Worker)
 ```
 
-## Deploy (Vercel + Upstash Redis + Vercel Blob)
+## Deploy (Cloudflare Workers + Durable Objects + R2)
 
-1. **Import the repo.** In Vercel: Add New → Project → import `DnDBeyondTheWick`. Framework: Next.js. Leave the build settings as they are.
-2. **Add Redis.** In the project: Storage → Create → **Upstash** (Redis, from the Marketplace) → connect it to the project. This sets `KV_REST_API_URL` and `KV_REST_API_TOKEN`.
-3. **Add Blob.** Storage → Create → **Blob** → connect it. This sets `BLOB_READ_WRITE_TOKEN`.
-4. **Set the DM key.** Settings → Environment Variables → add `DM_KEY` with a long random value. You can make one with `npm run dm-key`. Keep it somewhere safe; it's the only way into the DM view.
-5. **Redeploy** so the new variables take effect (Deployments → … → Redeploy).
-6. **Domain.** Settings → Domains → add `dnd.calebs.garden`. In Cloudflare DNS, add a `CNAME` record for `dnd` pointing at the target Vercel shows (usually `cname.vercel-dns.com`), set to **DNS only** (grey cloud).
-7. **Create the game.** Open `https://dnd.calebs.garden/?player=DM&key=YOUR_DM_KEY` and press **Create the game**. That seeds Candlefair’s scenes, Players 1–4, the eight storefronts and every item (all hidden until you open them).
+One-time setup, in the Cloudflare dashboard of the account that already holds `calebs.garden`:
 
-Fluid compute is on by default for new Vercel projects. The live connection relies on it, so leave it on.
+1. **Turn on R2.** R2 Object Storage → Purchase/Enable. The free tier covers 10 GB, but Cloudflare asks for a payment method. Create a bucket named `candlefair-files`.
+2. **Connect the repo.** Workers & Pages → Create → Import a repository → `DnDBeyondTheWick`. Build command `npm run build`, deploy command `npx wrangler deploy`. Every push to `main` then deploys by itself. (Or deploy by hand with `npx wrangler login` then `npm run deploy`.)
+3. **Domain.** The Worker → Settings → Domains & Routes → Add → Custom domain → `dnd.calebs.garden`. Remove the old `dnd` CNAME that pointed at Vercel first.
+4. **Plan.** On the free plan, hitting a daily limit makes changes fail until midnight UTC. Before inviting the public, switch to Workers Paid ($5 a month): Workers & Pages → Plans.
+5. Turn off the Vercel project, Upstash and Blob once the new site works.
+
+Everything the Worker needs is in `wrangler.jsonc`: the `ROOMS` Durable Object (one per campaign), the `FILES` R2 bucket and a limit of 5 new campaigns a minute per address. There are no secrets to set.
 
 ### Running costs
 
-Everything is pay-per-use with no always-on server.
-
-- **Live screens:** each open screen keeps a light connection to Vercel. It reconnects every ~4.5 minutes and is mostly idle.
-- **Quiet spells:** after 15 quiet minutes, a screen drops that connection and just checks for changes every 15 seconds. So a TV left on all week is cheap, and the first change after a quiet spell can take up to 15 seconds to appear.
-- **Redis:** a few commands per change.
-- **Images:** stored once in Blob.
-
-Check Vercel's Usage tab after your first session to confirm.
+- **Each campaign is one Durable Object** that holds its game in memory and saves to its own SQLite. A click is one saved row (plus a row per ledger line) and no reads. Screens get their new view pushed over a WebSocket, and pushes are free.
+- **Idle campaigns hibernate** and cost nothing, even with a TV connected all week. A campaign untouched for six months is deleted, with its images.
+- **Rough capacity:** the free plan allows about 30 busy game nights a day; the $5 plan about 6,000 a month, then roughly $3 per 1,000 more. Images: 10 GB free, downloads free.
+- Check Workers & Pages → the Worker → Metrics after your first session.
 
 ## The TV on a Roku
 
@@ -91,28 +92,28 @@ In the DM view, **Open TV window** pops the TV page out. Drag it onto the TV and
 
 | Where | Keys |
 | --- | --- |
-| DM view | `0`–`9` scenes · `←` `→` step (while the shop is open: flip shops) · `S` shop on the TV · `P` purse · `B` bank · `I` requests from phones · `L` map legend · `Esc` closes the requests drawer, then the shop, then zooms a map back out |
+| DM view | `0`–`9` scenes · `←` `→` step (while the shop is open: flip shops) · `S` shop on the TV · `P` purse · `B` bank · `T` The Table (Arrival) · `I` requests from phones · `L` map legend · `Esc` closes the requests drawer, then the shop, then zooms a map back out |
 | Map editor | click the map to drop a pin · drag to move · `←` `↑` `→` `↓` nudge (Shift: bigger steps) · `Delete` removes · `Ctrl+Z` undo · `Esc` deselects, then closes |
-| Run-game mode | `Space` or `→` next beat · `Shift+Space` or `←` back · `0`–`9` `S` `P` as above · `B` opens the bank on top · `I` requests · `Esc` closes whatever is on top |
+| Run-game mode | `Space` or `→` next beat · `Shift+Space` or `←` back · `0`–`9` `S` `P` `T` as above · `B` opens the bank on top · `I` requests · `Esc` closes whatever is on top |
 | TV | `F` fullscreen · `H` hide the control bar |
 
 ## How it's built
 
-- **Next.js 16 (App Router), TypeScript, React 19.** One page reads `?player=` and shows the TV, DM or player view.
-- **One JSON document per game** plus an append-only ledger in Upstash Redis.
-- **Every write goes the same way:** the server checks who's asking, then runs a pure rules function (`src/shared/reducer.ts`). It then saves with a check-and-set Lua script, so two purchases can't spend the same gold.
-- **Live updates:** after each save the server publishes the new version number. Each screen holds a server-sent-event stream (`/api/stream`) that carries only version numbers, and fetches its own filtered view when the number changes. If the stream drops, the screen keeps showing what it has and reconnects quietly. A slow poll covers anything missed.
+- **Vite, React 19, TypeScript** for the pages: `index.html` (the TV, DM, player and front page, picked by `?player=`) and `arrive.html` (the Arrival intro, its own small bundle).
+- **A Cloudflare Worker** (`worker/index.ts`) is the front door: it serves the pages, starts campaigns, stores images in R2 and passes every other `/api/` call to the campaign's room.
+- **One Durable Object per campaign** (`worker/room.ts`) holds the game document, the ledger and the DM key's hash in SQLite. Requests to a room run one at a time, so two purchases can't spend the same gold.
+- **Every write goes the same way:** the room checks who's asking, then runs a pure rules function (`src/shared/reducer.ts`) and saves. The HTTP API itself is plain `Request → Response` code in `src/server/api.ts`, so tests run it against an in-memory store.
+- **Live updates:** each screen keeps one WebSocket to its room. After each save the room builds every connected screen's own filtered view and pushes it. If the connection drops, the screen keeps showing what it has and reconnects quietly.
 - **Money is integer copper** everywhere (`src/shared/money.ts`) and displays as `12 gp 5 sp 3 cp`. Gold "+25 gp" floats on the TV come from comparing balances, so they still show after a reconnect.
-- **Seed data** is in `src/shared/seed.ts`, copied from the prototype.
-- **The prototype's art** was ported to `src/client/scenes/` (notice board and Artum's handbill) and `public/art/` (portraits). The sigil is in `src/server/art/`.
+- **Seed data** is in `src/shared/seed.ts`. The sigil is in `src/server/art/`.
 
 ```
-app/                Next.js page and API routes
-src/shared/         rules, money, seed data, per-screen views (used by server and tests)
-src/server/         store (Upstash / local file), auth, game service
-src/client/         TV, DM and player screens
-tests/              vitest
-scripts/seed.ts     create or reset a game from the command line
+index.html, arrive.html   the two pages
+worker/                   the Worker (front door) and the campaign room
+src/shared/               rules, money, seed data, per-screen views (used by the room, the pages and tests)
+src/server/               the API, auth, game service (runs inside the room; never in the browser)
+src/client/               TV, DM, player and Arrival screens
+tests/                    vitest
 ```
 
 ## At the table

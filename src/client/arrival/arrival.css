@@ -1,0 +1,849 @@
+/* The Arrival intro and seat page. Phone-first, portrait. A grey winter day,
+   snow and wood, with Winterfest colour; warm light inside the Candle. */
+
+:root {
+  --ink: #03050a;
+  --mist: #c9d4df;
+  --mist-dim: #8b9aab;
+  --warm: #ffc46b;
+  --warm-deep: #e09a3e;
+  --serif: "IM Fell English", Georgia, "Times New Roman", serif;
+  --serif-sc: "IM Fell English SC", "IM Fell English", Georgia, serif;
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  color-scheme: dark;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  background: var(--ink);
+  color: var(--mist);
+  font-family: var(--serif);
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  overflow-x: hidden;
+}
+
+body {
+  min-height: 100dvh;
+}
+
+button,
+input,
+a {
+  font: inherit;
+  color: inherit;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.arrival-blank {
+  position: fixed;
+  inset: 0;
+  background: var(--ink);
+}
+
+/* ---------- the intro ---------- */
+
+.intro {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  background: var(--ink);
+  touch-action: pan-y;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  cursor: pointer;
+}
+
+.scene {
+  position: absolute;
+  inset: 0;
+  animation: scene-in 0.9s ease both;
+}
+
+@keyframes scene-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.stage {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* Slow camera drift and parallax: each layer moves a little more than the one behind it. */
+.cam {
+  transform-origin: 50% 60%;
+  animation: cam 22s ease-in-out infinite alternate;
+}
+.lay-far {
+  animation: drift 18s ease-in-out infinite alternate;
+}
+.lay-mid {
+  animation: drift-mid 14s ease-in-out infinite alternate;
+}
+.lay-near {
+  animation: drift-near 11s ease-in-out infinite alternate;
+}
+@keyframes cam {
+  from {
+    transform: scale(1.04) translate(-4px, 0);
+  }
+  to {
+    transform: scale(1.09) translate(5px, -6px);
+  }
+}
+@keyframes drift {
+  from {
+    transform: translateX(-3px);
+  }
+  to {
+    transform: translateX(3px);
+  }
+}
+@keyframes drift-mid {
+  from {
+    transform: translate(-7px, 1px);
+  }
+  to {
+    transform: translate(7px, -2px);
+  }
+}
+@keyframes drift-near {
+  from {
+    transform: translate(-13px, 3px) rotate(-0.4deg);
+  }
+  to {
+    transform: translate(13px, -3px) rotate(0.4deg);
+  }
+}
+
+.fog-a {
+  animation: fog 26s ease-in-out infinite alternate;
+}
+.fog-b {
+  animation: fog 34s ease-in-out infinite alternate-reverse;
+}
+@keyframes fog {
+  from {
+    transform: translateX(-40px);
+  }
+  to {
+    transform: translateX(50px);
+  }
+}
+
+.wave-a {
+  animation: wave 6s ease-in-out infinite alternate;
+}
+.wave-b {
+  animation: wave 7.5s ease-in-out infinite alternate-reverse;
+}
+@keyframes wave {
+  from {
+    transform: translateX(-12px);
+  }
+  to {
+    transform: translateX(12px);
+  }
+}
+
+.sway {
+  transform-box: view-box;
+  transform-origin: 0 -400px;
+  animation: sway 4.6s ease-in-out infinite alternate;
+}
+@keyframes sway {
+  from {
+    transform: rotate(-3deg);
+  }
+  to {
+    transform: rotate(3deg);
+  }
+}
+.s-lantern .fade-in-slow {
+  animation: fade-in 3.2s ease 0.3s both;
+}
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.lantern-glow {
+  animation: glow 3.8s ease-in-out infinite alternate;
+}
+@keyframes glow {
+  from {
+    opacity: 0.75;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.creak {
+  animation: creak 5s ease-in-out infinite alternate;
+}
+@keyframes creak {
+  from {
+    opacity: 0.85;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* The one window: dark, then slowly warm. */
+.window-lit,
+.window-glow {
+  animation: window 3.5s ease 1.4s both;
+}
+@keyframes window {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.gangplank {
+  transform-box: fill-box;
+  transform-origin: 0 50%;
+  animation: plank 1.6s cubic-bezier(0.5, 0, 0.75, 1) 0.6s both;
+}
+@keyframes plank {
+  from {
+    transform: rotate(-58deg);
+  }
+  70% {
+    transform: rotate(2deg);
+  }
+  to {
+    transform: rotate(0deg);
+  }
+}
+
+/* The walk uphill: the camera pans between three glimpses. */
+.pan {
+  transition: transform 1.4s cubic-bezier(0.45, 0, 0.25, 1);
+}
+.steam path {
+  animation: steam 4s ease-in-out infinite;
+}
+@keyframes steam {
+  0% {
+    transform: translateY(6px);
+    opacity: 0;
+  }
+  30% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(-26px);
+    opacity: 0;
+  }
+}
+
+/* Daytime life: gulls, the sail, chimney smoke, a wobbly ladder, sidelong glances. */
+.gull-a {
+  animation: gull 5s ease-in-out infinite alternate;
+}
+.gull-b {
+  animation: gull 6.5s ease-in-out infinite alternate-reverse;
+}
+@keyframes gull {
+  from {
+    transform: translate(-10px, 4px);
+  }
+  to {
+    transform: translate(14px, -6px);
+  }
+}
+.sail {
+  transform-box: fill-box;
+  transform-origin: 0 50%;
+  animation: sail 6s ease-in-out infinite alternate;
+}
+@keyframes sail {
+  from {
+    transform: scaleX(0.97);
+  }
+  to {
+    transform: scaleX(1.02);
+  }
+}
+.smoke {
+  animation: steam 5s ease-in-out infinite;
+}
+.smoke-1 {
+  animation-delay: -1.7s;
+}
+.smoke-2 {
+  animation-delay: -3.3s;
+}
+.wobble {
+  transform-box: fill-box;
+  transform-origin: 20% 100%;
+  animation: wobble 2.4s ease-in-out infinite;
+}
+@keyframes wobble {
+  0%,
+  100% {
+    transform: rotate(0deg);
+  }
+  30% {
+    transform: rotate(2.5deg);
+  }
+  60% {
+    transform: rotate(-1.5deg);
+  }
+}
+.glance {
+  animation: fade-in 1.2s ease both;
+}
+.glance-1 {
+  animation-delay: 0.5s;
+}
+.glance-2 {
+  animation-delay: 1s;
+}
+.glance-3 {
+  animation-delay: 1.5s;
+}
+
+/* Mags close up, then the camera pulls back to the whole (empty) room. */
+.mags-close,
+.mags-room {
+  position: absolute;
+  inset: 0;
+  transition:
+    opacity 1.4s ease,
+    transform 1.8s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.mags-room {
+  opacity: 0;
+  transform: scale(1.25);
+}
+.mags-scene.wide .mags-close {
+  opacity: 0;
+  transform: scale(0.75);
+}
+.mags-scene.wide .mags-room {
+  opacity: 1;
+  transform: scale(1);
+}
+
+/* The tavern door, then the warm room behind it. */
+.door-scene {
+  position: absolute;
+  inset: 0;
+}
+.door-room {
+  opacity: 0;
+  transition: opacity 1.2s ease 0.5s;
+}
+.door-front {
+  transition: opacity 1.4s ease 0.7s;
+}
+.door-leaf {
+  transform-box: view-box;
+  transform-origin: 70px 0;
+  transition: transform 1.2s cubic-bezier(0.5, 0, 0.3, 1);
+}
+.door-scene.open .door-leaf {
+  transform: perspective(600px) rotateY(-80deg);
+}
+.door-scene.open .door-front {
+  opacity: 0;
+}
+.door-scene.open .door-room {
+  opacity: 1;
+}
+.door-flood {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 50% 60%, rgba(255, 196, 107, 0.95), rgba(255, 160, 70, 0.55) 45%, rgba(255, 160, 70, 0) 80%);
+  opacity: 0;
+  pointer-events: none;
+}
+.door-scene.open .door-flood {
+  animation: flood 2.4s ease 0.4s both;
+}
+@keyframes flood {
+  0% {
+    opacity: 0;
+  }
+  35% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+.under-door {
+  animation: glow 2.8s ease-in-out infinite alternate;
+}
+.hearth-fire {
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+  animation: hearth 1.4s ease-in-out infinite alternate;
+}
+@keyframes hearth {
+  from {
+    transform: scaleY(0.92);
+  }
+  to {
+    transform: scaleY(1.06);
+  }
+}
+
+/* Mags behind the bar. */
+.mags-scene {
+  position: absolute;
+  inset: 0;
+}
+.mags-portrait {
+  position: absolute;
+  left: 50%;
+  top: 41%;
+  width: min(68vw, 46vh, 340px);
+  height: auto;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  box-shadow:
+    0 0 0 6px #3a2212,
+    0 0 0 9px #8f6a2a,
+    0 20px 60px rgba(0, 0, 0, 0.6);
+  animation: mags-in 1.2s ease 0.2s both;
+}
+@keyframes mags-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -46%);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%);
+  }
+}
+.mags-bar {
+  pointer-events: none;
+}
+
+.snow {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+/* Chrome: progress, sound, skip. Kept clear of the notch. */
+.progress {
+  position: absolute;
+  left: 16px;
+  right: 16px;
+  top: calc(var(--safe-top) + 10px);
+  height: 2px;
+  background: rgba(201, 212, 223, 0.18);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.progress div {
+  height: 100%;
+  background: rgba(201, 212, 223, 0.75);
+  transform-origin: 0 50%;
+  transition: transform 0.6s ease;
+}
+.top-buttons {
+  position: absolute;
+  top: calc(var(--safe-top) + 18px);
+  left: 8px;
+  right: 8px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.icon-btn,
+.skip {
+  background: rgba(3, 5, 10, 0.35);
+  border: 1px solid rgba(201, 212, 223, 0.2);
+  color: var(--mist);
+  border-radius: 999px;
+  min-height: 40px;
+  min-width: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.skip {
+  padding: 0 16px;
+  font-size: 15px;
+  letter-spacing: 0.04em;
+}
+
+.narration {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 80px max(24px, 7vw) calc(var(--safe-bottom) + 56px);
+  background: linear-gradient(to bottom, rgba(3, 5, 10, 0), rgba(3, 5, 10, 0.78) 45%, rgba(3, 5, 10, 0.92));
+  pointer-events: none;
+}
+.line {
+  margin: 0 0 0.45em;
+  font-size: clamp(22px, 6.4vw, 30px);
+  line-height: 1.3;
+  color: #e3e9ef;
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.8);
+  text-wrap: balance;
+}
+.line.narr {
+  font-style: italic;
+}
+.line.speech {
+  color: #f1ece2;
+}
+.unrevealed {
+  opacity: 0;
+}
+.hint {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: calc(var(--safe-bottom) + 20px);
+  text-align: center;
+  font-family: var(--serif-sc);
+  font-size: 15px;
+  letter-spacing: 0.12em;
+  color: var(--mist-dim);
+  animation: hint 2.2s ease-in-out infinite;
+  pointer-events: none;
+}
+@keyframes hint {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 0.9;
+  }
+}
+
+/* ---------- the seat page ---------- */
+
+.seat-fade {
+  animation: scene-in 1.2s ease both;
+}
+.seat-page {
+  min-height: 100dvh;
+  max-width: 480px;
+  margin: 0 auto;
+  padding: calc(var(--safe-top) + 64px) 20px calc(var(--safe-bottom) + 32px);
+  background: radial-gradient(circle at 50% 18%, rgba(255, 180, 90, 0.14), rgba(0, 0, 0, 0) 55%);
+  color: #ece4d6;
+}
+html:has(.seat-page),
+body:has(.seat-page) {
+  background: #120a06;
+}
+.seat-top {
+  position: fixed;
+  top: calc(var(--safe-top) + 12px);
+  right: 12px;
+  z-index: 2;
+}
+.seat-header {
+  text-align: center;
+}
+.seat-header h1 {
+  margin: 0;
+  font-family: var(--serif-sc);
+  font-weight: 400;
+  font-size: clamp(30px, 9vw, 40px);
+  color: #f4dcae;
+  letter-spacing: 0.02em;
+}
+.seat-table {
+  display: block;
+  margin: 8px auto 4px;
+  max-width: 60vw;
+  height: auto;
+}
+.seat-page h2 {
+  font-weight: 400;
+  font-style: italic;
+  font-size: clamp(24px, 7vw, 30px);
+  margin: 20px 0 14px;
+  text-align: center;
+  color: #f1ece2;
+}
+.seat-form label {
+  display: block;
+  margin-bottom: 16px;
+}
+.seat-form label > span {
+  display: block;
+  font-size: 18px;
+  margin-bottom: 6px;
+  color: #d9cdb8;
+}
+.seat-form em {
+  color: #a8987f;
+  font-size: 15px;
+}
+.seat-form input {
+  display: block;
+  width: 100%;
+  /* 16px or more stops iOS zooming in on focus. */
+  font-size: 19px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid #6b5338;
+  background: #1e130b;
+  color: #fbf4e6;
+  font-family: var(--serif);
+}
+.seat-form input:focus {
+  outline: 2px solid var(--warm);
+  outline-offset: 1px;
+}
+.count {
+  display: block;
+  min-height: 1.2em;
+  text-align: right;
+  font-size: 14px;
+  color: #a8987f;
+}
+.seat-btn {
+  display: block;
+  width: 100%;
+  min-height: 50px;
+  margin: 10px 0;
+  padding: 12px 16px;
+  border-radius: 12px;
+  border: 1px solid #8a6a3e;
+  background: rgba(255, 196, 107, 0.06);
+  color: #f4dcae;
+  font-size: 19px;
+  text-align: center;
+  text-decoration: none;
+  cursor: pointer;
+}
+.seat-btn.primary {
+  background: linear-gradient(#e7b062, #c88a3c);
+  color: #24140a;
+  border-color: #f0c27a;
+  font-family: var(--serif-sc);
+  font-size: 21px;
+}
+.seat-btn:disabled {
+  opacity: 0.6;
+}
+.seat-link {
+  display: block;
+  margin: 8px auto 0;
+  background: none;
+  border: 0;
+  color: #d4b98a;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  font-size: 17px;
+  min-height: 44px;
+  cursor: pointer;
+}
+.seat-error {
+  color: #ffb4a0;
+  font-size: 17px;
+}
+.seat-note {
+  text-align: center;
+  font-size: 18px;
+  line-height: 1.45;
+  color: #d9cdb8;
+  margin: 18px 0;
+}
+.seat-claimed {
+  text-align: center;
+}
+.speech {
+  font-size: clamp(22px, 6.4vw, 28px);
+  margin: 12px 0 4px;
+  color: #f8efdc;
+}
+.seat-why {
+  font-style: italic;
+  color: #c9b99c;
+  font-size: 18px;
+  margin: 4px 0 0;
+  overflow-wrap: anywhere;
+}
+.claim-line .speech {
+  animation: fade-in 1s ease 0.4s both;
+}
+.claim-note {
+  font-style: italic;
+  color: #c9b99c;
+  font-size: 18px;
+  margin: 4px 0 0;
+  animation: fade-in 1s ease 1.3s both;
+}
+.seat-list {
+  list-style: none;
+  padding: 0;
+  margin: 0 auto;
+  max-width: 340px;
+  text-align: left;
+}
+.seat-list li {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 4px;
+  font-size: 19px;
+  border-bottom: 1px solid rgba(255, 220, 170, 0.08);
+  overflow-wrap: anywhere;
+}
+.seat-list .dot {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #4a4238;
+}
+.seat-list li.lit .dot {
+  background: var(--warm);
+  box-shadow: 0 0 10px 2px rgba(255, 196, 107, 0.7);
+}
+.seat-list .empty {
+  color: #8d7f6b;
+  font-style: italic;
+}
+.seat-actions {
+  margin-top: 28px;
+}
+
+/* the round table (also used on the TV) */
+.rt-flame {
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+  animation: rt-flare 1.3s ease-out both;
+}
+.rt-glow {
+  animation: rt-glow 1.6s ease-out both;
+}
+@keyframes rt-flare {
+  0% {
+    transform: scale(0.2);
+    opacity: 0;
+  }
+  35% {
+    transform: scale(1.9);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+@keyframes rt-glow {
+  0% {
+    opacity: 0;
+    transform: scale(0.4);
+  }
+  35% {
+    opacity: 1;
+    transform: scale(1.5);
+  }
+  100% {
+    transform: scale(1);
+    opacity: 0.85;
+  }
+}
+.rt-name {
+  font-family: var(--serif);
+  font-size: 22px;
+  fill: #f4dcae;
+}
+
+/* Reduce motion: nothing drifts, sways or falls; scenes and lines only crossfade. */
+@media (prefers-reduced-motion: reduce) {
+  .cam,
+  .lay-far,
+  .lay-mid,
+  .lay-near,
+  .fog-a,
+  .fog-b,
+  .wave-a,
+  .wave-b,
+  .sway,
+  .creak,
+  .lantern-glow,
+  .steam path,
+  .gull-a,
+  .gull-b,
+  .sail,
+  .smoke,
+  .wobble,
+  .glance,
+  .hearth-fire,
+  .under-door,
+  .hint,
+  .gangplank,
+  .rt-flame,
+  .rt-glow,
+  .mags-portrait,
+  .claim-line .speech,
+  .claim-note {
+    animation: none !important;
+  }
+  .pan,
+  .mags-close,
+  .mags-room,
+  .door-leaf {
+    transition: opacity 0.6s ease !important;
+  }
+  .door-scene.open .door-leaf {
+    transform: none;
+  }
+  .door-scene.open .door-flood {
+    animation: none;
+  }
+  .mags-portrait {
+    transform: translate(-50%, -50%);
+  }
+}
+
+/* Indoors, the text sits on warm dark, not night. */
+.intro:has(.scene-mags) .narration,
+.intro:has(.door-scene.open) .narration {
+  background: linear-gradient(to bottom, rgba(18, 10, 6, 0), rgba(18, 10, 6, 0.8) 45%, rgba(18, 10, 6, 0.94));
+}

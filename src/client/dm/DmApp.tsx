@@ -1,4 +1,3 @@
-"use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { DmCommand } from "@/shared/commands";
@@ -27,13 +26,15 @@ import { MapEditor } from "./MapEditor";
 import { Inbox } from "./Inbox";
 import { EndSessionDialog } from "./Dues";
 import { duesFor } from "@/shared/progress";
+import { ArrivalPanel } from "./ArrivalPanel";
 
-type Tab = "bank" | "shop" | "scenes" | "players" | "episodes" | "game";
+type Tab = "bank" | "shop" | "scenes" | "players" | "arrival" | "episodes" | "game";
 const TABS: [Tab, string, string][] = [
   ["bank", "Bank", "B"],
   ["shop", "Shop", ""],
   ["scenes", "Scenes", ""],
   ["players", "Players", ""],
+  ["arrival", "Arrival", ""],
   ["episodes", "Episodes", ""],
   ["game", "Game", ""],
 ];
@@ -45,7 +46,7 @@ export function DmApp({ ident: initial }: { ident: Ident }) {
   if (g.phase === "invalid") {
     return <KeyPrompt game={ident.game} onKey={(key) => (rememberKey(ident, key), setIdent({ ...ident, key }))} wrong={!!ident.key} />;
   }
-  if (g.phase === "no-game") return <CreateGame ident={ident} onCreated={g.retryHello} />;
+  if (g.phase === "no-game") return <NoCampaign game={ident.game} />;
   if (!g.view || g.view.role !== "dm") {
     if (g.phase === "error") return <Notice title="Can't reach the server">{g.error ?? "Trying again"}...</Notice>;
     return <div className="dm-root" aria-busy="true" />;
@@ -64,7 +65,7 @@ function KeyPrompt({ game, onKey, wrong }: { game: string; onKey: (k: string) =>
           if (k.trim()) onKey(k.trim());
         }}
       >
-        {wrong ? <p className="error-text">That key didn&rsquo;t work.</p> : <p>Enter the DM key to continue.</p>}
+        {wrong ? <p className="error-text">That key didn&rsquo;t work.</p> : <p>Open your saved DM link on this device, or paste the key from it (the part after <code>#key=</code>).</p>}
         <label>
           DM key
           <input className="fld" type="password" autoComplete="current-password" value={k} onChange={(e) => setK(e.target.value)} autoFocus />
@@ -80,26 +81,12 @@ function KeyPrompt({ game, onKey, wrong }: { game: string; onKey: (k: string) =>
   );
 }
 
-function CreateGame({ ident, onCreated }: { ident: Ident; onCreated: () => void }) {
-  const [err, setErr] = useState<string | null>(null);
+function NoCampaign({ game }: { game: string }) {
   return (
-    <Notice title={`Set up “${ident.game}”`}>
-      <p>There&rsquo;s no game here yet. Create it with Candlefair&rsquo;s scenes, shops and items, and Players 1&ndash;4.</p>
-      {err ? <p className="error-text">{err}</p> : null}
-      <button
-        className="btn primary"
-        type="button"
-        onClick={async () => {
-          try {
-            await api("/api/game", ident, { method: "POST" });
-            onCreated();
-          } catch (e) {
-            setErr(e instanceof Error ? e.message : String(e));
-          }
-        }}
-      >
-        Create the game
-      </button>
+    <Notice title="No campaign here">
+      <p>
+        There&rsquo;s no campaign with the code <b>{game}</b>. Check the DM link you saved, or <a href="/">start a new campaign</a>.
+      </p>
     </Notice>
   );
 }
@@ -211,7 +198,7 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
     askedShop.current = s.live.shopId;
   }, [s.live.shopId, view.version]);
 
-  // Keyboard: 0-9 scenes, arrows step, S shop on TV, P purse, B bank, L map legend, Esc closes the shop (or zooms the map back out).
+  // Keyboard: 0-9 scenes, arrows step, S shop on TV, P purse, B bank, T The Table, L map legend, Esc closes the shop (or zooms the map back out).
   useEffect(() => {
     if (runOpen) return; // run-game mode has its own keys
     const onKey = (e: KeyboardEvent) => {
@@ -236,6 +223,7 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
       else if (k === "s" || k === "S") toggleShop();
       else if (k === "p" || k === "P") void run({ type: "live.purse", visible: !s.live.purseVisible });
       else if (k === "b" || k === "B") setTab("bank");
+      else if (k === "t" || k === "T") void run({ type: "arrival.showTable" });
       else if (k === "Escape" && s.live.shopOpen) void run({ type: "live.shop", open: false });
       else if (k === "Escape" && s.live.focus) void run({ type: "live.focus", pinId: null });
       else if (k === "l" || k === "L") {
@@ -359,7 +347,7 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
               </span>
             </div>
             <div className="preview" aria-label={`Preview: ${live.label}`}>
-              <SceneView scene={previewScene} gated={gated} flyers={tvView.flyers} emptyHint="No image yet. Add one under Scenes." />
+              <SceneView scene={previewScene} gated={gated} table={tvView.table} flyers={tvView.flyers} emptyHint="No image yet. Add one under Scenes." />
               {s.live.shopOpen && liveShop ? (
                 <div className="preview-shop" aria-label={`Shop open on the TV: ${liveShop.name}`}>
                   <Stage w={1920} h={1080}>
@@ -424,7 +412,7 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
               })}
             </div>
             <p className="note hint">
-              Keys: 0&ndash;9 scenes &middot; &larr; &rarr; step (or flip shops while the shop is open) &middot; S shop &middot; P purse &middot; B bank &middot; I requests &middot; L map legend &middot; Esc closes the shop or zooms the map out
+              Keys: 0&ndash;9 scenes &middot; &larr; &rarr; step (or flip shops while the shop is open) &middot; S shop &middot; P purse &middot; B bank &middot; T The Table &middot; I requests &middot; L map legend &middot; Esc closes the shop or zooms the map out
             </p>
           </section>
 
@@ -443,6 +431,7 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
               {tab === "shop" ? <ShopPanel /> : null}
               {tab === "scenes" ? <ScenesPanel /> : null}
               {tab === "players" ? <PlayersPanel /> : null}
+              {tab === "arrival" ? <ArrivalPanel /> : null}
               {tab === "episodes" ? <EpisodesPanel onRun={startRun} /> : null}
               {tab === "game" ? <GamePanel /> : null}
             </div>

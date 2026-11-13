@@ -1,0 +1,9 @@
+{
+  "/api/art/[name]/route": "app/api/art/[name]/route.js",
+  "/api/command/route": "app/api/command/route.js",
+  "/api/hello/route": "app/api/hello/route.js",
+  "/api/stream/route": "app/api/stream/route.js",
+  "/api/version/route": "app/api/version/route.js",
+  "/api/view/route": "app/api/view/route.js",
+  "/page": "app/page.js"
+}

@@ -54,7 +54,7 @@ function TvScreen({ view, online }: { view: TvView; online: boolean }) {
     <div className={`tv-root${idle ? " idle" : ""}`}>
       {layers.map((l) => (
         <div key={l.key} className={`tv-layer${l.entering ? " entering" : ""}`} aria-hidden={l.leaving}>
-          <SceneView scene={l.scene} flyers={view.flyers} />
+          <SceneView scene={l.scene} table={view.table} flyers={view.flyers} />
         </div>
       ))}
 
