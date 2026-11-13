@@ -4,7 +4,8 @@
 import type { Command } from "./commands";
 import { displayNameFrom, isReservedHandle, normaliseHandle } from "./handles";
 import { canAfford, formatCp } from "./money";
-import type { Actor, GameState, LedgerEntry, LedgerKind, Player, Scene } from "./types";
+import { candlefairMap, swordCoastMap } from "./seed";
+import type { Actor, GameState, LedgerEntry, LedgerKind, MapData, Pin, PinLink, Player, Scene } from "./types";
 
 export class CommandError extends Error {}
 
@@ -93,6 +94,24 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
   const showScene = (id: string) => {
     s.live.sceneId = id;
     s.live.shopOpen = false;
+    delete s.live.focus;
+    delete s.live.banner;
+  };
+
+  const mapOf = (sceneId: string): MapData => {
+    const sc = scene(sceneId);
+    if (sc.kind !== "map") fail("That scene isn't a map.");
+    return (sc.map ??= emptyMap());
+  };
+  const pinOf = (m: MapData, pinId: string): Pin => m.pins.find((p) => p.id === pinId) ?? fail("That location isn't on this map.");
+  const checkLink = (link: PinLink) => {
+    if (link.kind === "shop" && !s.shops.some((x) => x.id === link.shopId)) fail("That shop doesn't exist.");
+    if (link.kind === "scene" && !s.scenes.some((x) => x.id === link.sceneId)) fail("That scene doesn't exist.");
+  };
+  /** Stop zooming the TV toward a pin that's gone or hidden. */
+  const dropFocus = (pinId: string) => {
+    if (s.live.focus?.pinId === pinId) delete s.live.focus;
+    if (s.live.banner?.pinId === pinId) delete s.live.banner;
   };
 
   switch (cmd.type) {
@@ -116,6 +135,7 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
       const free = [1, 2, 3, 4, 5, 6, 7, 8, 9, 0].find((k) => !used.has(k)) ?? null;
       const sc: Scene = { id: nextId("s"), label: cmd.label.trim() || "New scene", kind: cmd.kind, hotkey: free, reveal: false, art: {} };
       if (cmd.kind === "portrait") Object.assign(sc, { name: sc.label, title: "" });
+      if (cmd.kind === "map") sc.map = emptyMap();
       s.scenes.push(sc);
       break;
     }
@@ -128,13 +148,20 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
       if (patch.art?.url && !/^(https:\/\/|\/api\/files\/)/.test(patch.art.url)) fail("Images must be uploaded first.");
       Object.assign(sc, patch);
       if (patch.label !== undefined) sc.label = patch.label.trim() || sc.label;
+      // Pins survive a kind change, so switching to Image and back loses nothing.
+      if (sc.kind === "map") sc.map ??= emptyMap();
       break;
     }
     case "scene.remove": {
       if (s.scenes.length <= 1) fail("Keep at least one scene.");
       scene(cmd.sceneId);
       s.scenes = s.scenes.filter((x) => x.id !== cmd.sceneId);
-      if (s.live.sceneId === cmd.sceneId) s.live.sceneId = homeScene();
+      if (s.live.sceneId === cmd.sceneId) {
+        s.live.sceneId = homeScene();
+        delete s.live.focus;
+        delete s.live.banner;
+      }
+      for (const sc of s.scenes) for (const p of sc.map?.pins ?? []) if (p.link?.kind === "scene" && p.link.sceneId === cmd.sceneId) delete p.link;
       break;
     }
     case "scene.move": {
@@ -142,6 +169,98 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
       if (i < 0) fail("That scene doesn't exist.");
       const j = i + cmd.dir;
       if (j >= 0 && j < s.scenes.length) [s.scenes[i], s.scenes[j]] = [s.scenes[j], s.scenes[i]];
+      break;
+    }
+
+    // ---------- maps ----------
+    case "pin.add": {
+      const m = mapOf(cmd.sceneId);
+      if (m.pins.some((p) => p.id === cmd.pinId)) fail("That location already exists.");
+      m.pins.push({ id: cmd.pinId, number: lowestFreeNumber(m.pins), showsAs: "", name: "", type: "", description: "", dmNotes: "", discovered: false, x: cmd.x, y: cmd.y });
+      m.pins.sort((a, b) => a.number - b.number);
+      break;
+    }
+    case "pin.update": {
+      const m = mapOf(cmd.sceneId);
+      const p = pinOf(m, cmd.pinId);
+      const { link, ...rest } = cmd.patch;
+      Object.assign(p, rest);
+      if (rest.showsAs !== undefined) p.showsAs = rest.showsAs.trim();
+      if (rest.name !== undefined) p.name = rest.name.trim();
+      if (rest.type !== undefined) p.type = rest.type.trim();
+      if (link === null) delete p.link;
+      else if (link) {
+        checkLink(link);
+        p.link = link;
+      }
+      break;
+    }
+    case "pin.remove": {
+      const m = mapOf(cmd.sceneId);
+      pinOf(m, cmd.pinId);
+      m.pins = m.pins.filter((p) => p.id !== cmd.pinId);
+      dropFocus(cmd.pinId);
+      break;
+    }
+    case "pin.restore": {
+      const m = mapOf(cmd.sceneId);
+      if (m.pins.some((p) => p.id === cmd.pin.id)) fail("That location is already back.");
+      const { link, ...rest } = cmd.pin;
+      const number = m.pins.some((p) => p.number === rest.number) ? lowestFreeNumber(m.pins) : rest.number;
+      const pin: Pin = { ...rest, number };
+      if (link && (link.kind === "shop" ? s.shops.some((x) => x.id === link.shopId) : s.scenes.some((x) => x.id === link.sceneId))) pin.link = link;
+      m.pins.push(pin);
+      m.pins.sort((a, b) => a.number - b.number);
+      break;
+    }
+    case "pin.discover": {
+      const m = mapOf(cmd.sceneId);
+      const p = pinOf(m, cmd.pinId);
+      const was = p.discovered;
+      p.discovered = cmd.discovered;
+      if (!cmd.discovered) dropFocus(p.id);
+      else if (!was && cmd.announce && s.live.sceneId === cmd.sceneId) s.live.banner = { pinId: p.id, n: ++s.seq };
+      break;
+    }
+    case "map.legend": {
+      const m = mapOf(cmd.sceneId);
+      if (cmd.on !== undefined) m.legendOn = cmd.on;
+      if (cmd.style !== undefined) m.legendStyle = cmd.style;
+      break;
+    }
+    case "live.focus": {
+      if (cmd.pinId === null) {
+        delete s.live.focus;
+        break;
+      }
+      const m = mapOf(s.live.sceneId);
+      const p = pinOf(m, cmd.pinId);
+      if (!p.discovered) fail("Discover that location first; the TV can't see it yet.");
+      s.live.focus = { pinId: p.id, n: ++s.seq };
+      break;
+    }
+    case "map.addSeedMaps": {
+      // Turn the old empty "Town map" image scene into the Candlefair map (keeping any image), then add the Sword Coast.
+      let cf = s.scenes.find((x) => x.id === "s-map");
+      if (cf && cf.kind === "image") {
+        cf.kind = "map";
+        if (cf.label === "Town map") cf.label = "Candlefair map";
+        cf.map = candlefairMap();
+      } else if (!s.scenes.some((x) => x.kind === "map" && x.label === "Candlefair map")) {
+        cf = { id: nextId("s"), label: "Candlefair map", kind: "map", hotkey: null, reveal: false, art: {}, alt: "Map of Candlefair", map: candlefairMap() };
+        s.scenes.push(cf);
+      } else cf = s.scenes.find((x) => x.kind === "map" && x.label === "Candlefair map");
+      if (!s.scenes.some((x) => x.kind === "map" && x.label === "Sword Coast map")) {
+        const used = new Set(s.scenes.map((x) => x.hotkey));
+        s.scenes.push({ id: s.scenes.some((x) => x.id === "s-swordcoast") ? nextId("s") : "s-swordcoast", label: "Sword Coast map", kind: "map", hotkey: used.has(9) ? null : 9, reveal: false, art: {}, alt: "Map of the Sword Coast", map: swordCoastMap(cf!.id) });
+      }
+      // Drop shop links to shops this game no longer has.
+      for (const sc of s.scenes) {
+        for (const p of sc.map?.pins ?? []) {
+          const l = p.link;
+          if (l?.kind === "shop" && !s.shops.some((x) => x.id === l.shopId)) delete p.link;
+        }
+      }
       break;
     }
 
@@ -243,6 +362,7 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
       if (!s.shops.some((x) => x.id === cmd.shopId)) fail("That shop doesn't exist.");
       s.shops = s.shops.filter((x) => x.id !== cmd.shopId);
       s.items = s.items.filter((x) => x.shopId !== cmd.shopId);
+      for (const sc of s.scenes) for (const p of sc.map?.pins ?? []) if (p.link?.kind === "shop" && p.link.shopId === cmd.shopId) delete p.link;
       if (s.live.shopId === cmd.shopId) s.live.shopId = s.shops[0].id;
       break;
     }
@@ -387,6 +507,18 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
   }
 
   return out;
+}
+
+export function emptyMap(): MapData {
+  return { pins: [], legendOn: false, legendStyle: "names" };
+}
+
+/** The lowest number from 1 up that no pin on the map uses. */
+export function lowestFreeNumber(pins: Pick<Pin, "number">[]): number {
+  const used = new Set(pins.map((p) => p.number));
+  let n = 1;
+  while (used.has(n)) n++;
+  return n;
 }
 
 /** One more than the highest session number, so deleting old sessions never causes a clash. */

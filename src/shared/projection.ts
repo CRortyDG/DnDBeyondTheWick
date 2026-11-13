@@ -1,7 +1,7 @@
 // Spoiler safety lives here. Each role gets a view built field-by-field from
 // an explicit allow-list, so a new DM-only field can't leak by accident.
 
-import type { Art, GameState, Item, LedgerEntry, LiveState, Player, Scene, Shop } from "./types";
+import type { Art, GameState, Item, LedgerEntry, LegendStyle, LiveState, Player, Scene, Shop } from "./types";
 
 export const GATED_ART = new Set(["merchant-sigil"]);
 
@@ -12,6 +12,28 @@ export interface PublicScene {
   name?: string;
   title?: string;
   alt?: string;
+  map?: PublicMap;
+}
+
+/** A discovered pin, as the TV sees it. Hidden pins, DM notes and links are never sent. */
+export interface PublicPin {
+  id: string;
+  /** What's printed in the seal. */
+  label: string;
+  x: number;
+  y: number;
+  /** Only sent with the "numbers and names" legend, or while the DM is focusing this pin. */
+  name?: string;
+  type?: string;
+  description?: string;
+}
+
+export interface PublicMap {
+  pins: PublicPin[];
+  legend: { on: boolean; style: LegendStyle };
+  /** Only on the live map. */
+  focus?: { pinId: string; n: number };
+  banner?: { n: number; name: string };
 }
 
 export interface PublicPlayer {
@@ -49,7 +71,7 @@ interface Common {
 
 export interface TvView extends Common {
   role: "tv";
-  live: LiveState;
+  live: Pick<LiveState, "sceneId" | "shopOpen" | "shopId" | "purseVisible">;
   /** Every non-reveal scene (for instant switching), plus the live scene even if it's a reveal. */
   scenes: PublicScene[];
 }
@@ -108,7 +130,38 @@ function publicScene(game: GameState, sc: Scene): PublicScene {
   if (sc.name !== undefined) out.name = sc.name;
   if (sc.title !== undefined) out.title = sc.title;
   if (sc.alt !== undefined) out.alt = sc.alt;
+  if (sc.kind === "map" && sc.map) out.map = publicMap(game, sc);
   return out;
+}
+
+/** Only discovered pins, field by field. With the "numbers only" legend, names stay on the server. */
+export function publicMap(game: GameState, sc: Scene): PublicMap {
+  const m = sc.map!;
+  const isLive = game.live.sceneId === sc.id;
+  const shown = m.pins.filter((p) => p.discovered);
+  const focus = isLive && game.live.focus && shown.some((p) => p.id === game.live.focus!.pinId) ? game.live.focus : undefined;
+  const out: PublicMap = {
+    pins: shown.map((p) => {
+      const pin: PublicPin = { id: p.id, label: sealText(p), x: p.x, y: p.y };
+      if (m.legendStyle === "names" || focus?.pinId === p.id) {
+        pin.name = p.name;
+        pin.type = p.type;
+        pin.description = p.description;
+      }
+      return pin;
+    }),
+    legend: { on: m.legendOn, style: m.legendStyle },
+  };
+  if (focus) out.focus = { pinId: focus.pinId, n: focus.n };
+  const b = isLive ? game.live.banner : undefined;
+  const bannerPin = b && shown.find((p) => p.id === b.pinId);
+  if (b && bannerPin) out.banner = { n: b.n, name: bannerPin.name };
+  return out;
+}
+
+/** What's printed in a pin's seal: its "shows as" text, or its number. */
+export function sealText(p: { number: number; showsAs: string }): string {
+  return p.showsAs.trim() || String(p.number);
 }
 
 function publicItem(it: Item): PublicItem {

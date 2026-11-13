@@ -10,7 +10,8 @@ import { Check } from "./Check";
 import { uploadImage } from "./upload";
 
 const KINDS: [SceneKind, string][] = [
-  ["image", "Image (map or any picture)"],
+  ["map", "Map with numbered locations"],
+  ["image", "Image"],
   ["portrait", "NPC portrait"],
   ["handout", "Handout on paper"],
   ["notice", "Notice board"],
@@ -18,8 +19,9 @@ const KINDS: [SceneKind, string][] = [
 ];
 
 export function ScenesPanel() {
-  const { view, run } = useDm();
+  const { view, run, openMap } = useDm();
   const s = view.state;
+  const hasSeedMaps = s.scenes.some((x) => x.kind === "map" && x.label === "Candlefair map") && s.scenes.some((x) => x.kind === "map" && x.label === "Sword Coast map");
   const [openId, setOpenId] = useState<string | null>(null);
   const [newKind, setNewKind] = useState<SceneKind>("image");
   const [newLabel, setNewLabel] = useState("");
@@ -37,6 +39,7 @@ export function ScenesPanel() {
               <span className="scene-label">
                 {sc.label}
                 {sc.reveal ? <span className="tag wax">reveal</span> : null}
+                {sc.kind === "map" ? <span className="tag">map · {sc.map?.pins.length ?? 0}</span> : null}
                 {sc.id === s.live.sceneId ? <span className="tag">on the TV</span> : null}
               </span>
               <span className="spacer" />
@@ -49,6 +52,11 @@ export function ScenesPanel() {
               <button className="btn small" type="button" onClick={() => run({ type: "scene.show", sceneId: sc.id })}>
                 Show
               </button>
+              {sc.kind === "map" ? (
+                <button className="btn small" type="button" onClick={() => openMap(sc.id)}>
+                  Pins
+                </button>
+              ) : null}
               <button className="btn small" type="button" aria-expanded={openId === sc.id} onClick={() => setOpenId(openId === sc.id ? null : sc.id)}>
                 {openId === sc.id ? "Done" : "Edit"}
               </button>
@@ -57,6 +65,18 @@ export function ScenesPanel() {
           </li>
         ))}
       </ol>
+
+      {!hasSeedMaps ? (
+        <div className="box form">
+          <h3>Maps</h3>
+          <p className="note">
+            Add the Candlefair map (8 locations, the first three discovered) and the Sword Coast map (5 locations). Your Town map scene becomes the Candlefair map and keeps its image and hotkey.
+          </p>
+          <button className="btn" type="button" onClick={() => run({ type: "map.addSeedMaps" }, "Maps added. Upload their images and drag the pins into place.")}>
+            Add the Candlefair and Sword Coast maps
+          </button>
+        </div>
+      ) : null}
 
       <form
         className="box form add-scene"
@@ -91,7 +111,7 @@ export function ScenesPanel() {
 }
 
 function SceneEditor({ scene }: { scene: Scene }) {
-  const { view, run, ident, toast, gated } = useDm();
+  const { view, run, ident, toast, gated, openMap } = useDm();
   const [busy, setBusy] = useState(false);
   const file = useRef<HTMLInputElement>(null);
   const usedKeys = new Map(view.state.scenes.filter((x) => x.id !== scene.id && x.hotkey !== null).map((x) => [x.hotkey, x.label]));
@@ -121,8 +141,17 @@ function SceneEditor({ scene }: { scene: Scene }) {
         void onFile(e.dataTransfer.files[0]);
       }}
     >
-      <div className="scene-editor-preview" aria-hidden="true">
-        <SceneView scene={scene} gated={gated} emptyHint="No image yet" />
+      <div className="scene-editor-preview" aria-hidden={scene.kind !== "map"}>
+        {scene.kind === "map" ? (
+          <div className="map-editor-cta">
+            <p className="note">{scene.map?.pins.length ?? 0} locations.</p>
+            <button className="btn primary" type="button" onClick={() => openMap(scene.id)}>
+              Open the map editor
+            </button>
+          </div>
+        ) : (
+          <SceneView scene={{ ...scene, map: undefined }} gated={gated} emptyHint="No image yet" />
+        )}
       </div>
       <div className="form">
         <Field label="Name in your list" value={scene.label} onCommit={(v) => patch({ label: v })} />
@@ -171,7 +200,7 @@ function SceneEditor({ scene }: { scene: Scene }) {
                 Remove image
               </button>
             ) : null}
-            <span className="note">or drop an image here. Maps from the settlement generator work too (download the .jpg).</span>
+            <span className="note">or drop an image here. Maps from the settlement generator work too (download the .jpg).{scene.kind === "map" ? " Pins keep their spot on a new image." : ""}</span>
             <input ref={file} type="file" accept="image/*" hidden onChange={(e) => void onFile(e.target.files?.[0])} />
           </div>
         ) : null}

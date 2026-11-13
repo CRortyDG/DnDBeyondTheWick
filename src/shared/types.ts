@@ -1,7 +1,7 @@
 // The whole campaign ("game") lives in one JSON document, plus an append-only ledger.
 // Anything marked DM-ONLY must never reach the TV or a player: see projection.ts.
 
-export type SceneKind = "notice" | "portrait" | "handout" | "image" | "black";
+export type SceneKind = "notice" | "portrait" | "handout" | "image" | "black" | "map";
 
 /** Built-in art. "merchant-sigil" is DM-only and served through a gated route. */
 export type BuiltinArt = "candlefair-board" | "artum-notice" | "artum" | "mags-wick" | "chef" | "merchant-sigil";
@@ -26,6 +26,43 @@ export interface Scene {
   alt?: string;
   /** DM-ONLY */
   dmNote?: string;
+  /** Map scenes only: the numbered locations and the TV legend. */
+  map?: MapData;
+}
+
+/** What a pin can open from the DM view: a shop on the TV, or another scene (a portrait or a map). DM-ONLY. */
+export type PinLink = { kind: "shop"; shopId: string } | { kind: "scene"; sceneId: string };
+
+/** A numbered location on a map. */
+export interface Pin {
+  id: string;
+  /** Lowest free number on the map when it was placed. */
+  number: number;
+  /** Printed in the seal, up to 4 characters. Empty means the number. */
+  showsAs: string;
+  name: string;
+  /** Short, e.g. tavern, temple, docks, danger. */
+  type: string;
+  /** One or two lines players can read. */
+  description: string;
+  /** DM-ONLY */
+  dmNotes: string;
+  /** Hidden pins are DM-ONLY: they never leave the server for the TV. */
+  discovered: boolean;
+  /** Position as fractions (0-1) of the image's width and height. */
+  x: number;
+  y: number;
+  /** DM-ONLY */
+  link?: PinLink;
+}
+
+export type LegendStyle = "numbers" | "names";
+
+export interface MapData {
+  pins: Pin[];
+  legendOn: boolean;
+  /** "numbers": seals only, players ask what's what (names aren't sent). "names": seal, name and type. */
+  legendStyle: LegendStyle;
 }
 
 export interface Player {
@@ -89,6 +126,10 @@ export interface LiveState {
   shopOpen: boolean;
   shopId: string;
   purseVisible: boolean;
+  /** The pin the TV is zoomed toward on the live map. n changes each time, so the TV restarts the pulse. */
+  focus?: { pinId: string; n: number };
+  /** The last "Discovered: …" banner on the live map. The TV shows it when n changes. */
+  banner?: { pinId: string; n: number };
 }
 
 export interface GameState {

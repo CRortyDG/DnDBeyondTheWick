@@ -12,6 +12,8 @@ export interface DmCtx {
   run: (cmd: DmCommand, success?: string) => Promise<boolean>;
   toast: (msg: string) => void;
   gated: Record<string, string>;
+  /** Open the full-screen editor for a map scene. */
+  openMap: (sceneId: string) => void;
 }
 
 export const DmContext = createContext<DmCtx | null>(null);
