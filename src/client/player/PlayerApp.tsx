@@ -38,6 +38,15 @@ export function PlayerApp({ ident: initial }: { ident: Ident }) {
       </Notice>
     );
   if (g.phase === "no-game") return <Notice title="No table here yet">Ask the DM to set up this game.</Notice>;
+  if (g.phase === "removed")
+    return (
+      <Notice title={"You\u2019ve left the table"}>
+        <p>The DM removed or renamed you. Ask them for your link, or join again under a name.</p>
+        <a className="btn primary" href={hrefFor(ident.game)}>
+          Join again
+        </a>
+      </Notice>
+    );
   if (!g.view || g.view.role !== "player") {
     if (g.phase === "error") return <Notice title="Can't reach the table">Trying again&hellip;</Notice>;
     return <div className="player-root" aria-busy="true" />;

@@ -3,7 +3,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { View } from "@/shared/projection";
 import { api, ApiError, liveUrl, type Ident } from "./api";
 
-export type Phase = "loading" | "ok" | "taken" | "knocking" | "full" | "invalid" | "no-game" | "error";
+/** "removed": this player was on the page, then the DM deleted or renamed them. */
+export type Phase = "loading" | "ok" | "taken" | "knocking" | "full" | "invalid" | "no-game" | "removed" | "error";
 
 export interface GameHook<V extends View = View> {
   phase: Phase;
@@ -64,8 +65,10 @@ export function useGame<V extends View = View>(ident: Ident | null): GameHook<V>
         setOnline(true);
       } catch (e) {
         if (e instanceof ApiError && e.status < 500) {
-          // We were removed, renamed or locked out: go back through hello.
-          setHelloTick((t) => t + 1);
+          // Deleted or renamed by the DM: stop here, or hello would add us straight back.
+          if (e.code === "unknown" && phaseRef.current === "ok") setPhase("removed");
+          // Locked out: go back through hello.
+          else setHelloTick((t) => t + 1);
         } else {
           setOnline(false);
         }
@@ -134,7 +137,8 @@ export function useGame<V extends View = View>(ident: Ident | null): GameHook<V>
         downTimer = null;
         setOnline(true);
         if (ev.data === "pong") return;
-        let msg: { t?: string; view?: View; status?: number };
+        if (phaseRef.current === "removed") return;
+        let msg: { t?: string; view?: View; status?: number; code?: string | null };
         try {
           msg = JSON.parse(String(ev.data)) as typeof msg;
         } catch {
@@ -144,9 +148,10 @@ export function useGame<V extends View = View>(ident: Ident | null): GameHook<V>
           if (phaseRef.current === "ok") accept(msg.view);
           else if (phaseRef.current !== "loading") setHelloTick((t) => t + 1);
         } else if (msg.t === "error" && (msg.status ?? 500) < 500) {
-          // We were removed, renamed or locked out, or we're knocking and the
-          // table changed: go back through hello.
-          if (phaseRef.current !== "loading") setHelloTick((t) => t + 1);
+          // Deleted or renamed by the DM: stop here, or hello would add us straight back.
+          if (msg.code === "unknown" && phaseRef.current === "ok") setPhase("removed");
+          // Locked out, or we're knocking and the table changed: go back through hello.
+          else if (phaseRef.current !== "loading") setHelloTick((t) => t + 1);
         }
       };
       sock.onclose = () => {
