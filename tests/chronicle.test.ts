@@ -2,16 +2,13 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { execute, viewFor } from "@/server/game";
 import { seedEpisodes } from "@/server/seed-episodes";
-import { createFileStore, type Store } from "@/server/store";
+import { createMemoryStore, type Store } from "@/server/store";
 import { chronicleMarkdown, NEXT_CHAPTER, projectChronicle, tagSuggestions } from "@/shared/chronicle";
 import type { Command } from "@/shared/commands";
 import { projectDm, projectPlayer, projectTv, type PlayerView } from "@/shared/projection";
 import { apply, CommandError } from "@/shared/reducer";
 import { freshStart, seedGame } from "@/shared/seed";
 import type { Actor, GameState } from "@/shared/types";
-import fs from "node:fs";
-import os from "node:os";
-import path from "node:path";
 
 const DM: Actor = { role: "dm" };
 const P1: Actor = { role: "player", playerId: "p1" };
@@ -301,10 +298,8 @@ describe("export", () => {
 
 describe("through the real server", () => {
   let store: Store;
-  let dir: string;
   beforeEach(async () => {
-    dir = fs.mkdtempSync(path.join(os.tmpdir(), "chron-"));
-    store = createFileStore(dir);
+    store = createMemoryStore();
     await store.overwrite("t", game(), []);
   });
 
