@@ -15,6 +15,8 @@ export interface DmCtx {
   /** Send a command and get the error code and server note back, with no toast. */
   call: (cmd: DmCommand) => Promise<CallResult>;
   gated: Record<string, string>;
+  /** Open the full-screen editor for a map scene. */
+  openMap: (sceneId: string) => void;
 }
 
 export const DmContext = createContext<DmCtx | null>(null);

@@ -1,6 +1,8 @@
 "use client";
 
+import type { PublicMap } from "@/shared/projection";
 import type { Art, SceneKind } from "@/shared/types";
+import { MapView } from "./MapView";
 import { ArtumNotice } from "../scenes/ArtumNotice";
 import { NoticeBoard } from "../scenes/NoticeBoard";
 import { Stage } from "./Stage";
@@ -12,6 +14,8 @@ export interface RenderableScene {
   name?: string;
   title?: string;
   alt?: string;
+  /** Map scenes: what the TV sees (discovered pins only). */
+  map?: PublicMap;
 }
 
 const PUBLIC_ART = new Set(["artum", "mags-wick", "chef"]);
@@ -30,6 +34,10 @@ export function SceneView({ scene, gated, emptyHint }: { scene: RenderableScene;
   const src = artSrc(scene.art, gated);
 
   if (scene.kind === "black") return <div className="scene-fill scene-black" />;
+
+  if (scene.kind === "map") {
+    return <MapView src={src ?? undefined} alt={scene.alt} map={scene.map ?? { pins: [], legend: { on: false, style: "names" } }} emptyHint={emptyHint} />;
+  }
 
   if (scene.kind === "notice") {
     return (

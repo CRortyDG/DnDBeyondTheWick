@@ -1,5 +1,5 @@
 import { GP, SP } from "./money";
-import type { GameState, Item, Scene, Shop } from "./types";
+import type { GameState, Item, MapData, Pin, PinLink, Scene, Shop } from "./types";
 
 export const DEFAULT_SEATS = 6;
 
@@ -147,13 +147,72 @@ export const SEED_ITEMS: Item[] = [
   it("p-wind", "peddler", "A Second Wind, Bottled", 0, "Uncork it when you’re down. You’ll get back up.", { ...FREE, finePrint: "*Payment will be collected later." }),
 ];
 
+// ---------- maps ----------
+
+type RawPin = [name: string, type: string, description: string, discovered?: boolean, link?: PinLink];
+
+/** Seed pins start in a loose grid so they're easy to grab and drag into place once the image is up. */
+function pins(raw: RawPin[], prefix: string): Pin[] {
+  return raw.map(([name, type, description, discovered, link], i) => ({
+    id: `${prefix}${i + 1}`,
+    number: i + 1,
+    showsAs: "",
+    name,
+    type,
+    description,
+    dmNotes: "",
+    discovered: !!discovered,
+    x: 0.2 + (i % 4) * 0.2,
+    y: 0.3 + Math.floor(i / 4) * 0.4,
+    ...(link ? { link } : {}),
+  }));
+}
+
+function mapData(p: Pin[]): MapData {
+  return { pins: p, legendOn: false, legendStyle: "names" };
+}
+
+export function candlefairMap(): MapData {
+  return mapData(
+    pins(
+      [
+        ["The Flickering Candle", "tavern", "The finest tavern this side of the Winding Water.", true],
+        ["The Banquet Hall", "hall", "Where the Winterfest feast is held.", true],
+        ["The Docks", "docks", "Fishing boats, the ferry, and the odd ship up from Baldur’s Gate.", true, { kind: "shop", shopId: "docks" }],
+        ["The Temple", "temple", "Quiet, cold, and always a candle lit."],
+        ["The Smithy", "shop", "Hammering from dawn to dusk.", false, { kind: "shop", shopId: "smith" }],
+        ["The Market Square", "square", "Winterfest’s heart."],
+        ["Lathtarl’s Lantern", "village", "The little fishing village across the river."],
+        ["Warlock’s Crypt", "danger", "The old crypt on the hill above town."],
+      ],
+      "cf",
+    ),
+  );
+}
+
+export function swordCoastMap(candlefairSceneId = "s-map"): MapData {
+  return mapData(
+    pins(
+      [
+        ["Candlefair", "home", "Home.", true, { kind: "scene", sceneId: candlefairSceneId }],
+        ["Baldur’s Gate", "city", "A week south."],
+        ["Daggerford", "town", "A small river town up the road."],
+        ["Orlumbor", "island", "Shipwrights’ island offshore."],
+        ["The Trollbark Forest", "danger", "Locals don’t go in after dark."],
+      ],
+      "sc",
+    ),
+  );
+}
+
 export const SEED_SCENES: Scene[] = [
   { id: "s-board", label: "Notice board", kind: "notice", hotkey: 1, reveal: false, art: { builtin: "candlefair-board" } },
   { id: "s-artum", label: "Artum", kind: "portrait", hotkey: 2, reveal: false, art: { builtin: "artum" }, name: "Artum", title: "Planner of Winterfest", alt: "Portrait of Artum, Winterfest’s harried planner: balding, spectacles, worried brows, a quill behind his ear and a scarf" },
   { id: "s-mags", label: "Mags Wick", kind: "portrait", hotkey: 3, reveal: false, art: { builtin: "mags-wick" }, name: "Mags Wick", title: "Keeper of the Flickering Candle", alt: "Portrait of Mags Wick, the halfling who runs the Flickering Candle: gray hair in a bun, rosy cheeks, a wide smile and an apron" },
   { id: "s-chef", label: "The chef", kind: "portrait", hotkey: 4, reveal: false, art: { builtin: "chef" }, name: "The Chef", title: "Head cook of the Winterfest feast", alt: "Portrait of the chef: a tall puffy chef’s hat, a big ginger beard, a proud smile, a flour smudge and a wooden spoon" },
   { id: "s-notice", label: "Artum’s notice", kind: "handout", hotkey: 5, reveal: false, art: { builtin: "artum-notice" }, alt: "Artum’s handbill: Winterfest Needs Hands!" },
-  { id: "s-map", label: "Town map", kind: "image", hotkey: 6, reveal: false, art: {}, alt: "Map of Candlefair" },
+  { id: "s-map", label: "Candlefair map", kind: "map", hotkey: 6, reveal: false, art: {}, alt: "Map of Candlefair", map: candlefairMap() },
+  { id: "s-swordcoast", label: "Sword Coast map", kind: "map", hotkey: 9, reveal: false, art: {}, alt: "Map of the Sword Coast", map: swordCoastMap() },
   { id: "s-extra", label: "Extra image", kind: "image", hotkey: 7, reveal: false, art: {}, alt: "Scene image" },
   { id: "s-symbol", label: "The symbol", kind: "handout", hotkey: 8, reveal: true, art: { builtin: "merchant-sigil" }, alt: "A symbol drawn on paper" },
   { id: "s-black", label: "Black screen", kind: "black", hotkey: 0, reveal: false },

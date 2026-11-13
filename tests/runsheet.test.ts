@@ -3,7 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { beforeEach, describe, expect, it } from "vitest";
 import { execute, viewFor } from "@/server/game";
-import { JUST_DESSERTS_MD, seedEpisodes } from "@/server/seed-episodes";
+import { JUST_DESSERTS_MD, seedEpisodes, seedSceneResolver } from "@/server/seed-episodes";
 import { createFileStore, type Store } from "@/server/store";
 import type { DmCommand } from "@/shared/commands";
 import { projectPlayer, projectTv } from "@/shared/projection";
@@ -21,7 +21,7 @@ const game = () => {
 };
 
 describe("importing the seed episode", () => {
-  const p = parseEpisode(JUST_DESSERTS_MD, sceneResolver(SEED_SCENES));
+  const p = parseEpisode(JUST_DESSERTS_MD, seedSceneResolver(SEED_SCENES));
   const beat = (title: string) => p.beats.find((b) => b.title === title)!;
 
   it("finds 15 beats in order", () => {
@@ -101,7 +101,7 @@ describe("importing the seed episode", () => {
 
   it("exports back to Markdown that imports to the same beats", () => {
     const md = episodeMarkdown({ title: p.title, beats: p.beats.map((b, i) => ({ id: String(i), ...b })) }, SEED_SCENES);
-    const again = parseEpisode(md, sceneResolver(SEED_SCENES));
+    const again = parseEpisode(md, seedSceneResolver(SEED_SCENES));
     expect(again.title).toBe("Just Desserts");
     expect(again.beats).toEqual(p.beats);
   });

@@ -27,7 +27,7 @@ DM-only data never leaves the server for the TV or a phone. The server builds ea
 - **Reveal scenes** aren't sent to the TV at all until the DM shows them.
 - **The merchant's sigil** isn't in the browser code at all. `/api/art/merchant-sigil` serves it only while its scene is live, or to the DM.
 - **Run sheets** (episodes, beats, quick notes, recaps) never reach the TV or a phone. Only what a beat's actions do (a scene switch, the purse) does. The one exception is a recap you choose to show as "Previously on…", and only while it's showing. The seed episode lives in `src/server/` so its text isn't even in the browser code.
-- **Never sent to the TV or players:** hidden prices (they see `??? gp`), DM notes, name-lock hashes and last-seen times.
+- **Never sent to the TV or players:** hidden prices (they see `??? gp`), DM notes, name-lock hashes, last-seen times, hidden map locations and map DM notes and links.
 
 Tests in `tests/projection.test.ts` put a marker string in every DM-only field and check it never appears in the TV or player data.
 
@@ -91,7 +91,8 @@ In the DM view, **Open TV window** pops the TV page out. Drag it onto the TV and
 
 | Where | Keys |
 | --- | --- |
-| DM view | `0`–`9` scenes · `←` `→` step (while the shop is open: flip shops) · `S` shop on the TV · `P` purse · `B` bank · `I` requests from phones · `Esc` closes the shop (or the requests drawer first) |
+| DM view | `0`–`9` scenes · `←` `→` step (while the shop is open: flip shops) · `S` shop on the TV · `P` purse · `B` bank · `I` requests from phones · `L` map legend · `Esc` closes the requests drawer, then the shop, then zooms a map back out |
+| Map editor | click the map to drop a pin · drag to move · `←` `↑` `→` `↓` nudge (Shift: bigger steps) · `Delete` removes · `Ctrl+Z` undo · `Esc` deselects, then closes |
 | Run-game mode | `Space` or `→` next beat · `Shift+Space` or `←` back · `0`–`9` `S` `P` as above · `B` opens the bank on top · `I` requests · `Esc` closes whatever is on top |
 | TV | `F` fullscreen · `H` hide the control bar |
 
@@ -118,6 +119,7 @@ scripts/seed.ts     create or reset a game from the command line
 
 - **Gold lives here, not on D&D Beyond.** Players keep D&D Beyond's coins at 0. Anything bought here, they add to their D&D Beyond inventory themselves; the ledger keeps the purchase history.
 - **Heroic Inspiration:** tap the d20 beside a player's name in the Bank (or "Inspiration" on their card under Players). A gold d20 then shows beside their name in the TV purse; tap again when it's spent.
+- **Maps:** a Map scene shows an uploaded image letterboxed on the TV, with numbered wax-seal locations you place yourself (Scenes → Pins, or Edit map under the preview). Each location has a seal label (up to 4 characters), name, type, description, private DM notes, and an optional link (a shop, an NPC portrait or another map). Only **discovered** locations reach the TV; hidden ones and every DM note stay on the server. While a map is on the TV, tap a location to zoom the TV to it (tap again or Esc to zoom out), reveal it with a "Discovered: …" banner or quietly, and toggle the legend with L. With the "numbers only" legend, names aren't sent to the TV until you focus a location. Games created before maps existed get an **Add the Candlefair and Sword Coast maps** button under Scenes.
 - **Launch VTT:** paste the campaign's D&D Beyond game link under Game. It shows as a Launch VTT button at the top of your view and on every player's phone.
 
 ## Shops
