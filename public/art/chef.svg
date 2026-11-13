@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400" role="img" aria-label="Portrait of the chef: a tall puffy chef's hat, a big ginger beard, a proud smile, a flour smudge and a wooden spoon">
+    <circle cx="200" cy="200" r="196" fill="#3a4a5c"></circle>
+    <path d="M58 400 C68 306 134 274 200 274 C266 274 332 306 342 400 Z" fill="#f3ecdc"></path>
+    <line x1="200" y1="300" x2="200" y2="400" stroke="#2b2118" stroke-opacity="0.12" stroke-width="3"></line>
+    <circle cx="176" cy="330" r="5" fill="#c9bfae"></circle>
+    <circle cx="176" cy="364" r="5" fill="#c9bfae"></circle>
+    <circle cx="224" cy="330" r="5" fill="#c9bfae"></circle>
+    <circle cx="224" cy="364" r="5" fill="#c9bfae"></circle>
+    <path d="M160 274 L240 274 L224 304 L200 312 L176 304 Z" fill="#7a2a1f"></path>
+    <rect x="182" y="238" width="36" height="40" fill="#cf9772"></rect>
+    <ellipse cx="139" cy="186" rx="12" ry="18" fill="#d9a07b"></ellipse>
+    <ellipse cx="261" cy="186" rx="12" ry="18" fill="#d9a07b"></ellipse>
+    <ellipse cx="200" cy="184" rx="62" ry="70" fill="#e0a982"></ellipse>
+    <path d="M140 190 C138 262 174 290 200 290 C226 290 262 262 260 190 C250 216 230 224 200 224 C170 224 150 216 140 190 Z" fill="#b5552b"></path>
+    <path d="M166 214 C180 202 194 206 200 212 C206 206 220 202 234 214 C240 210 244 204 244 198 C248 212 238 222 226 222 C214 222 206 216 200 216 C194 216 186 222 174 222 C162 222 152 212 156 198 C156 204 160 210 166 214 Z" fill="#b5552b" stroke="#2b2118" stroke-opacity="0.25" stroke-width="1.5"></path>
+    <path d="M186 236 C194 244 206 244 214 236" fill="none" stroke="#5a2a1a" stroke-width="3" stroke-linecap="round"></path>
+    <path d="M160 152 C168 144 180 144 188 150" fill="none" stroke="#8a3f1f" stroke-width="5" stroke-linecap="round"></path>
+    <path d="M212 150 C220 144 232 144 240 152" fill="none" stroke="#8a3f1f" stroke-width="5" stroke-linecap="round"></path>
+    <path d="M168 174 C174 168 182 168 188 174" fill="none" stroke="#2b2118" stroke-width="4" stroke-linecap="round"></path>
+    <path d="M212 174 C218 168 226 168 232 174" fill="none" stroke="#2b2118" stroke-width="4" stroke-linecap="round"></path>
+    <path d="M200 176 C192 196 196 204 208 200" fill="none" stroke="#a8684a" stroke-width="3" stroke-linecap="round"></path>
+    <ellipse cx="238" cy="198" rx="10" ry="6" fill="#ffffff" opacity="0.7"></ellipse>
+    <circle cx="228" cy="192" r="3" fill="#ffffff" opacity="0.6"></circle>
+    <rect x="146" y="112" width="108" height="26" rx="4" fill="#f6f1e4" stroke="#d8cfbf" stroke-width="2"></rect>
+    <circle cx="160" cy="92" r="26" fill="#f6f1e4" stroke="#d8cfbf" stroke-width="2"></circle>
+    <circle cx="240" cy="92" r="26" fill="#f6f1e4" stroke="#d8cfbf" stroke-width="2"></circle>
+    <circle cx="200" cy="74" r="32" fill="#f6f1e4" stroke="#d8cfbf" stroke-width="2"></circle>
+    <rect x="148" y="96" width="104" height="20" fill="#f6f1e4"></rect>
+    <line x1="300" y1="400" x2="334" y2="290" stroke="#8a5a30" stroke-width="9" stroke-linecap="round"></line>
+    <ellipse cx="338" cy="272" rx="14" ry="22" transform="rotate(17 338 272)" fill="#9c6a3a"></ellipse>
+  </svg>

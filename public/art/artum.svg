@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400" role="img" aria-label="Portrait of Artum, Winterfest's harried planner: balding, spectacles, worried brows, a quill behind his ear and a scarf">
+    <circle cx="200" cy="200" r="196" fill="#2e4a3a"></circle>
+    <g fill="#ffffff" opacity="0.55">
+      <circle cx="70" cy="90" r="3"></circle>
+      <circle cx="105" cy="55" r="2"></circle>
+      <circle cx="320" cy="70" r="3"></circle>
+      <circle cx="345" cy="130" r="2"></circle>
+      <circle cx="52" cy="160" r="2"></circle>
+      <circle cx="300" cy="40" r="2"></circle>
+      <circle cx="350" cy="210" r="3"></circle>
+      <circle cx="60" cy="240" r="3"></circle>
+    </g>
+    <path d="M62 400 C72 302 136 268 200 268 C264 268 328 302 338 400 Z" fill="#7a2a1f"></path>
+    <path d="M96 400 C104 352 120 318 140 304" fill="none" stroke="#000000" stroke-opacity="0.18" stroke-width="3"></path>
+    <path d="M304 400 C296 352 280 318 260 304" fill="none" stroke="#000000" stroke-opacity="0.18" stroke-width="3"></path>
+    <rect x="102" y="322" width="46" height="34" rx="3" transform="rotate(-14 125 339)" fill="#efe3c8" stroke="#2b2118" stroke-width="2"></rect>
+    <line x1="110" y1="334" x2="140" y2="327" stroke="#2b2118" stroke-width="1.5"></line>
+    <line x1="112" y1="342" x2="136" y2="336" stroke="#2b2118" stroke-width="1.5"></line>
+    <rect x="180" y="232" width="40" height="44" fill="#d39f74"></rect>
+    <ellipse cx="139" cy="182" rx="12" ry="18" fill="#e3b088"></ellipse>
+    <ellipse cx="261" cy="182" rx="12" ry="18" fill="#e3b088"></ellipse>
+    <ellipse cx="200" cy="176" rx="62" ry="72" fill="#ebbd93"></ellipse>
+    <path d="M142 158 C128 124 148 104 164 116 C152 124 152 142 150 160 Z" fill="#6b5a4a"></path>
+    <path d="M258 158 C272 124 252 104 236 116 C248 124 248 142 250 160 Z" fill="#6b5a4a"></path>
+    <path d="M186 108 C190 94 204 92 210 106" fill="none" stroke="#6b5a4a" stroke-width="3" stroke-linecap="round"></path>
+    <path d="M196 106 C200 96 208 98 212 104" fill="none" stroke="#6b5a4a" stroke-width="2.5" stroke-linecap="round"></path>
+    <circle cx="165" cy="198" r="10" fill="#d9776a" opacity="0.35"></circle>
+    <circle cx="235" cy="198" r="10" fill="#d9776a" opacity="0.35"></circle>
+    <path d="M162 152 L189 141" stroke="#4a3a2c" stroke-width="5" stroke-linecap="round"></path>
+    <path d="M211 141 L238 152" stroke="#4a3a2c" stroke-width="5" stroke-linecap="round"></path>
+    <circle cx="178" cy="169" r="4.5" fill="#2b2118"></circle>
+    <circle cx="222" cy="169" r="4.5" fill="#2b2118"></circle>
+    <circle cx="178" cy="168" r="15" fill="#ffffff" fill-opacity="0.18" stroke="#2b2118" stroke-width="3"></circle>
+    <circle cx="222" cy="168" r="15" fill="#ffffff" fill-opacity="0.18" stroke="#2b2118" stroke-width="3"></circle>
+    <line x1="193" y1="167" x2="207" y2="167" stroke="#2b2118" stroke-width="3"></line>
+    <path d="M200 176 C193 192 195 201 206 199" fill="none" stroke="#a8724e" stroke-width="3" stroke-linecap="round"></path>
+    <path d="M168 213 C184 200 195 205 200 211 C205 205 216 200 232 213 C221 223 206 219 200 215 C194 219 179 223 168 213 Z" fill="#6b5a4a"></path>
+    <path d="M190 230 C197 225 203 225 210 230" fill="none" stroke="#7a3b2e" stroke-width="3" stroke-linecap="round"></path>
+    <path d="M252 128 C247 139 247 146 252 148 C257 146 257 139 252 128 Z" fill="#a8d0e6"></path>
+    <line x1="258" y1="178" x2="296" y2="92" stroke="#2b2118" stroke-width="2.5" stroke-linecap="round"></line>
+    <path d="M296 92 C310 108 294 140 272 152 C276 130 282 108 296 92 Z" fill="#f6f1e4" stroke="#2b2118" stroke-width="2"></path>
+    <path d="M136 268 C158 290 242 290 264 268 L266 300 C242 320 158 320 134 300 Z" fill="#c99a3a"></path>
+    <path d="M148 286 C170 302 230 302 252 286" fill="none" stroke="#ffffff" stroke-opacity="0.5" stroke-width="4"></path>
+    <path d="M214 300 L242 298 L238 372 L210 370 Z" fill="#c99a3a"></path>
+    <line x1="213" y1="330" x2="240" y2="328" stroke="#ffffff" stroke-opacity="0.5" stroke-width="4"></line>
+    <line x1="211" y1="352" x2="239" y2="350" stroke="#ffffff" stroke-opacity="0.5" stroke-width="4"></line>
+  </svg>
