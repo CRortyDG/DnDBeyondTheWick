@@ -40,7 +40,7 @@ export function SceneView({ scene, gated, emptyHint, table, flyers }: { scene: R
   if (scene.kind === "table") return <TableScene table={table} />;
 
   if (scene.kind === "map") {
-    return <MapView src={src ?? undefined} alt={scene.alt} map={scene.map ?? { pins: [], legend: { on: false, style: "names" } }} emptyHint={emptyHint} />;
+    return <MapView src={src ?? undefined} alt={scene.alt} map={scene.map ?? { pins: [], legend: { on: false, style: "names" }, sealScale: 1 }} emptyHint={emptyHint} />;
   }
 
   if (scene.kind === "notice") {

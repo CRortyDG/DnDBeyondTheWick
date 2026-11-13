@@ -13,6 +13,8 @@ const artSchema = z.object({
 
 const SCENE_KINDS = ["notice", "portrait", "handout", "image", "black", "map", "table"] as const;
 const frac = z.number().min(0).max(1);
+export const SEAL_SCALE_MIN = 0.25;
+export const SEAL_SCALE_MAX = 2;
 const pinId = z.string().regex(/^[A-Za-z0-9_-]{1,40}$/);
 const pinLink = z.discriminatedUnion("kind", [z.object({ kind: z.literal("shop"), shopId: id }), z.object({ kind: z.literal("scene"), sceneId: id })]);
 const pinFields = {
@@ -111,6 +113,8 @@ export const dmCommand = z.discriminatedUnion("type", [
   /** announce: show "Discovered: …" on the TV. */
   z.object({ type: z.literal("pin.discover"), sceneId: id, pinId: id, discovered: z.boolean(), announce: z.boolean() }),
   z.object({ type: z.literal("map.legend"), sceneId: id, on: z.boolean().optional(), style: z.enum(["numbers", "names"]).optional() }),
+  /** How big the dots are on this map. */
+  z.object({ type: z.literal("map.sealScale"), sceneId: id, scale: z.number().min(SEAL_SCALE_MIN).max(SEAL_SCALE_MAX) }),
   /** Zoom the TV toward a pin on the live map, or back out with null. */
   z.object({ type: z.literal("live.focus"), pinId: id.nullable() }),
   /** Add the Candlefair and Sword Coast maps to a game created before maps existed. */

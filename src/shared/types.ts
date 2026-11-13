@@ -63,6 +63,8 @@ export interface MapData {
   legendOn: boolean;
   /** "numbers": seals only, players ask what's what (names aren't sent). "names": seal, name and type. */
   legendStyle: LegendStyle;
+  /** Size of the dots on the map, 1 = standard (about 64px on a 1080p TV). Missing on maps made before it existed. */
+  sealScale?: number;
 }
 
 export interface Player {

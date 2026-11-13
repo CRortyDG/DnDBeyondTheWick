@@ -34,6 +34,8 @@ export interface PublicPin {
 export interface PublicMap {
   pins: PublicPin[];
   legend: { on: boolean; style: LegendStyle };
+  /** Dot size, 1 = standard. */
+  sealScale: number;
   /** Only on the live map. */
   focus?: { pinId: string; n: number };
   banner?: { n: number; name: string };
@@ -259,6 +261,7 @@ export function publicMap(game: GameState, sc: Scene): PublicMap {
       return pin;
     }),
     legend: { on: m.legendOn, style: m.legendStyle },
+    sealScale: m.sealScale ?? 1,
   };
   if (focus) out.focus = { pinId: focus.pinId, n: focus.n };
   const b = isLive ? game.live.banner : undefined;
