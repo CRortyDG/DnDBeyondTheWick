@@ -46,8 +46,8 @@ describe("the starter catalog", () => {
     expect(by("Splint")).toMatchObject({ tier: "locked", reason: "The smith needs iron from Orlumbor" });
     expect(by("Greater Healing")).toMatchObject({ tier: "locked", reason: "The priestess needs moonpetal from the Trollbark" });
     expect(by("Moonshae")).toMatchObject({ tier: "rumored", hint: "No captain will sail there. Yet." });
-    expect(by("Back Room")).toMatchObject({ tier: "locked", reason: "Mags only rents it to people she trusts" });
-    expect(by("Elfsong")).toMatchObject({ tier: "rumored" });
+    expect(by("Back Room")).toMatchObject({ tier: "locked", reason: "Mags only rents it to people she trusts." });
+    expect(by("Sorcerous Sundries")).toMatchObject({ tier: "rumored", hint: "Wands, scrolls, and things that hum" });
     expect(SEED_SHOPS.find((s) => s.id === "peddler")).toMatchObject({ closed: true, subtitle: "Comes once a year. Sells exactly what you need." });
     expect(SEED_ITEMS.filter((i) => i.shopId === "peddler").every((i) => i.priceLabel === "Free*" && i.finePrint)).toBe(true);
   });
@@ -93,9 +93,9 @@ describe("visibility", () => {
   it("rumored items send only the hint: no name, price or description", () => {
     const { state } = run(seedGame("t"), [{ type: "shop.visibility", shopId: "bg", visibility: "all" }]);
     const tv = projectTv(state, 1);
-    const rumor = tv.items.find((i) => i.id === "bg-elfsong")!;
-    expect(rumor).toEqual({ id: "bg-elfsong", shopId: "bg", name: "???", priceCp: null, description: "", tier: "rumored", hint: "They say you can still hear her singing.", stock: null });
-    expect(tvJson(state)).not.toContain("Elfsong Tavern");
+    const rumor = tv.items.find((i) => i.id === "bg-flametongue")!;
+    expect(rumor).toEqual({ id: "bg-flametongue", shopId: "bg", name: "???", priceCp: null, description: "", tier: "rumored", hint: "Only in the city itself", stock: null, category: "magic", kind: "order" });
+    expect(tvJson(state)).not.toContain("Flame Tongue");
   });
 
   it("DM notes on items never leave the server", () => {
@@ -144,25 +144,25 @@ describe("buying with tiers and stock", () => {
 
 describe("special orders", () => {
   it("pay now, arrive two sessions later, with a TV banner", () => {
-    let { state, ledger } = run(rich(seedGame("t")), [{ type: "session.start" }, { type: "money.buy", playerId: "p2", itemId: "d-silver" }]);
-    expect(ledger.at(-1)).toMatchObject({ amountCp: -110 * GP, note: "Ordered Special Order: Silvered Dagger (arrives session 3)" });
+    let { state, ledger } = run(rich(seedGame("t")), [{ type: "session.start" }, { type: "money.buy", playerId: "p2", itemId: "bg-climbing" }]);
+    expect(ledger.at(-1)).toMatchObject({ amountCp: -100 * GP, note: "Ordered Potion of Climbing (arrives session 3)" });
     expect(state.orders).toMatchObject([{ playerId: "p2", arrivesAtSession: 3, arrived: false }]);
-    expect(projectPlayer(state, 1, "p2", []).myOrders).toEqual([{ id: state.orders[0].id, itemName: "Special Order: Silvered Dagger", arrivesAtSession: 3, arrived: false }]);
+    expect(projectPlayer(state, 1, "p2", []).myOrders).toEqual([{ id: state.orders[0].id, itemName: "Potion of Climbing", arrivesAtSession: 3, arrived: false }]);
     expect(projectPlayer(state, 1, "p1", []).myOrders).toEqual([]);
     state = run(state, [{ type: "session.end" }, { type: "session.start" }]).state; // session 2
     expect(state.orders[0].arrived).toBe(false);
     state = run(state, [{ type: "session.end" }, { type: "session.start" }]).state; // session 3
     expect(state.orders[0].arrived).toBe(true);
-    expect(state.banner?.text).toBe("Arrived from Baldur’s Gate: Special Order: Silvered Dagger for Player 2");
+    expect(state.banner?.text).toBe("Arrived from Baldur’s Gate: Potion of Climbing for Player 2");
   });
 
   it("can be cancelled with a refund", () => {
-    let { state } = run(rich(seedGame("t")), [{ type: "money.buy", playerId: "p2", itemId: "d-pastry" }]);
+    let { state } = run(rich(seedGame("t")), [{ type: "money.buy", playerId: "p2", itemId: "bg-climbing" }]);
     const before = state.players.find((p) => p.id === "p2")!.balanceCp;
     const r = apply(state, { type: "order.cancel", orderId: state.orders[0].id, refund: true }, DM);
     expect(r.state.orders).toEqual([]);
-    expect(r.state.players.find((p) => p.id === "p2")!.balanceCp).toBe(before + 2 * GP);
-    expect(r.ledger[0]).toMatchObject({ amountCp: 2 * GP, note: "Refund: Special Order: Lower City Pastry Box" });
+    expect(r.state.players.find((p) => p.id === "p2")!.balanceCp).toBe(before + 100 * GP);
+    expect(r.ledger[0]).toMatchObject({ amountCp: 100 * GP, note: "Refund: Potion of Climbing" });
   });
 });
 

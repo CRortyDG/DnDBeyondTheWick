@@ -7,7 +7,7 @@ import { useGame, type CallResult } from "../useGame";
 import { Notice } from "../ui/Notice";
 import { Purse } from "../ui/Purse";
 import { SceneView } from "../ui/SceneView";
-import { ShopBoard } from "../ui/ShopBoard";
+import { categoriesWith, ShopBoard } from "../ui/ShopBoard";
 import { Stage } from "../ui/Stage";
 import { projectTv } from "@/shared/projection";
 import type { GameState } from "@/shared/types";
@@ -24,6 +24,8 @@ import { RunGame } from "./RunGame";
 import { LiveMapControls } from "./LiveMapControls";
 import { MapEditor } from "./MapEditor";
 import { Inbox } from "./Inbox";
+import { EndSessionDialog } from "./Dues";
+import { duesFor } from "@/shared/progress";
 import { ArrivalPanel } from "./ArrivalPanel";
 
 type Tab = "bank" | "shop" | "scenes" | "players" | "arrival" | "episodes" | "game";
@@ -146,6 +148,7 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
 
   const gated = useGatedArt(ident, ["merchant-sigil"]);
   const [editingMap, setEditingMap] = useState<string | null>(null);
+  const [ending, setEnding] = useState(false);
   const closeMap = useCallback(() => setEditingMap(null), []);
   const ctx: DmCtx = useMemo(() => ({ view, ident, run, toast, gated, call, openMap: setEditingMap }), [view, ident, run, toast, gated, call]);
 
@@ -278,8 +281,9 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
           </span>
           <span className="spacer" />
           <Inbox />
+          {ending && session ? <EndSessionDialog session={session} onClose={() => setEnding(false)} /> : null}
           {session ? (
-            <button className="btn" type="button" onClick={() => run({ type: "session.end" }, `${session.title} ended.`)}>
+            <button className="btn" type="button" onClick={() => (duesFor(s, session.number).length ? setEnding(true) : void run({ type: "session.end" }, `${session.title} ended.`))}>
               End session
             </button>
           ) : (
@@ -343,11 +347,11 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
               </span>
             </div>
             <div className="preview" aria-label={`Preview: ${live.label}`}>
-              <SceneView scene={previewScene} gated={gated} table={tvView.table} emptyHint="No image yet. Add one under Scenes." />
+              <SceneView scene={previewScene} gated={gated} table={tvView.table} flyers={tvView.flyers} emptyHint="No image yet. Add one under Scenes." />
               {s.live.shopOpen && liveShop ? (
                 <div className="preview-shop" aria-label={`Shop open on the TV: ${liveShop.name}`}>
                   <Stage w={1920} h={1080}>
-                    <ShopBoard shops={tvView.shops} items={tvView.items} shopId={liveShop.id} size="tv" />
+                    <ShopBoard shops={tvView.shops} items={tvView.items} shopId={liveShop.id} size="tv" mode={s.live.shopCategory ? "category" : "shop"} category={s.live.shopCategory} />
                   </Stage>
                 </div>
               ) : null}
@@ -389,8 +393,17 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
               {s.shops.filter((sh) => sh.visibility === "all").length === 0 ? (
                 <span className="note">Every shop is hidden. Open one to everyone under Shop first.</span>
               ) : null}
+              {categoriesWith(tvView.items).map((c) => {
+                const on = s.live.shopOpen && s.live.shopCategory === c.id;
+                return (
+                  <button key={c.id} type="button" className={`btn small${on ? " on" : ""}`} aria-pressed={on} onClick={() => run({ type: "live.shop", open: true, category: c.id })}>
+                    {c.label}
+                  </button>
+                );
+              })}
+              {s.shops.filter((sh) => sh.visibility === "all").length ? <span className="note">or a storefront:</span> : null}
               {s.shops.filter((sh) => sh.visibility === "all").map((sh) => {
-                const on = s.live.shopOpen && sh.id === s.live.shopId;
+                const on = s.live.shopOpen && !s.live.shopCategory && sh.id === s.live.shopId;
                 return (
                   <button key={sh.id} type="button" className={`btn small${on ? " on" : ""}`} aria-pressed={on} onClick={() => run({ type: "live.shop", open: true, shopId: sh.id })}>
                     {sh.name}

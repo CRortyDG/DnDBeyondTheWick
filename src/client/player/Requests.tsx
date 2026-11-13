@@ -14,27 +14,68 @@ export function freeStock(it: PublicItem): number | null {
   return it.stock === null ? null : Math.max(0, it.stock - (it.held ?? 0));
 }
 
+/** What asking for one holds now: the price, or a training's first lesson. */
+export function dueNow(it: PublicItem): number {
+  return it.dueNowCp ?? it.priceCp ?? 0;
+}
+
 /** Why this can't be requested right now, or null if it can. */
 export function whyNot(it: PublicItem, availableCp: number, qty = 1): string | null {
   if (it.tier !== "sale" || it.priceCp === null) return it.tier === "locked" ? it.reason || "Not for sale yet" : "Not for sale";
+  if (it.kind === "earned") return "Can’t be bought";
+  if (it.kind === "project") return it.funded ? "Funded" : availableCp <= 0 ? "You have 0 gp available" : null;
   const left = freeStock(it);
   if (it.stock === 0) return "Sold out";
   if (left === 0) return "On hold for someone else";
   if (left !== null && left < qty) return `Only ${left} left`;
-  if (it.priceCp * qty > availableCp) return `You have ${formatCp(Math.max(0, availableCp))} available`;
+  if (dueNow(it) * qty > availableCp) return `You have ${formatCp(Math.max(0, availableCp))} available`;
   return null;
+}
+
+/** The button on a card. */
+export function askLabel(it: PublicItem): string {
+  if (it.tier !== "sale") return "Details";
+  switch (it.kind) {
+    case "recurring":
+      return "Ask to rent";
+    case "service":
+      return it.flyer ? "Write a flyer" : "Ask";
+    case "training":
+      return "Ask to enroll";
+    case "project":
+      return it.funded ? "Details" : "Put gold toward it";
+    case "earned":
+      return "Details";
+    case "order":
+      return "Ask to order";
+    default:
+      return "Ask to buy";
+  }
 }
 
 /** The item up close, with quantity and a note to the DM. */
 export function RequestSheet({ item, availableCp, send, onClose, onDone }: { item: PublicItem; availableCp: number; send: Send; onClose: () => void; onDone: (msg: string) => void }) {
   const [qty, setQty] = useState(1);
   const [note, setNote] = useState("");
+  const [question, setQuestion] = useState("");
+  const [flyer, setFlyer] = useState({ title: "", body: "", signedBy: "" });
+  const [amount, setAmount] = useState("");
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const left = freeStock(item);
   const maxQty = item.oneAtATime ? 1 : Math.max(1, Math.min(99, left ?? 99, item.priceCp ? Math.floor(Math.max(0, availableCp) / item.priceCp) || 1 : 99));
-  const reason = whyNot(item, availableCp, qty);
-  const total = (item.priceCp ?? 0) * qty;
+  const project = item.kind === "project";
+  const pledgeCp = parseAmount(amount);
+  const needCp = Math.max(0, (item.priceCp ?? 0) - (item.raisedCp ?? 0));
+  const reason =
+    whyNot(item, availableCp, qty) ??
+    (project && !amount.trim() ? "How much will you put in?" : null) ??
+    (project && (pledgeCp === null || pledgeCp <= 0) ? "Enter an amount, like 5 or 2 gp 5 sp" : null) ??
+    (project && pledgeCp! > availableCp ? `You have ${formatCp(Math.max(0, availableCp))} available` : null) ??
+    (project && pledgeCp! > needCp ? `It only needs ${formatCp(needCp)} more` : null) ??
+    (item.prompt && !question.trim() ? item.prompt : null) ??
+    (item.flyer && !flyer.title.trim() ? "Give your flyer a title" : null);
+  const total = project ? (pledgeCp ?? 0) : dueNow(item) * qty;
   const dialog = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -46,10 +87,20 @@ export function RequestSheet({ item, availableCp, send, onClose, onDone }: { ite
 
   const submit = async () => {
     setBusy(true);
-    const e = await send({ type: "me.requestBuy", itemId: item.id, qty, note: note.trim(), expectedUnitCp: item.priceCp ?? undefined });
+    const e = project
+      ? await send({ type: "me.contribute", itemId: item.id, amountCp: pledgeCp, note: note.trim() })
+      : await send({
+          type: "me.requestBuy",
+          itemId: item.id,
+          qty,
+          note: note.trim(),
+          expectedUnitCp: item.priceCp === null ? undefined : dueNow(item),
+          ...(question.trim() ? { question: question.trim() } : {}),
+          ...(item.flyer ? { flyer } : {}),
+        });
     setBusy(false);
     if (e) return setErr(e);
-    onDone(`Asked the DM for ${qty > 1 ? `${qty} × ` : ""}${item.name}. Your gold is held until they decide.`);
+    onDone(project ? `Pledged ${formatCp(total)} toward ${item.name}. It's held until the DM approves.` : `Asked the DM for ${qty > 1 ? `${qty} × ` : ""}${item.name}. Your gold is held until they decide.`);
   };
 
   return (
@@ -57,8 +108,39 @@ export function RequestSheet({ item, availableCp, send, onClose, onDone }: { ite
       <div className="sheet" role="dialog" aria-modal="true" aria-label={item.name} tabIndex={-1} ref={dialog} onClick={(e) => e.stopPropagation()}>
         <ItemCard item={item} />
         {item.held && left !== 0 ? <p className="note">{item.held} on hold for other requests.</p> : null}
-        {item.tier === "sale" ? (
+        {item.tier === "sale" && item.kind !== "earned" && !item.funded ? (
           <div className="form">
+            {project ? (
+              <label>
+                How much will you put in? ({formatCp(needCp)} still needed)
+                <input className="fld amt" inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="5 or 2 gp 5 sp" />
+              </label>
+            ) : null}
+            {item.kind === "training" ? <p className="note">You pay the first lesson now, then one lesson at the end of each session.</p> : null}
+            {item.kind === "recurring" ? <p className="note">You pay the first month now, then rent is due at the end of each session. Cancel any time from your page.</p> : null}
+            {item.prompt ? (
+              <label>
+                {item.prompt}
+                <input className="fld" value={question} maxLength={300} onChange={(e) => setQuestion(e.target.value)} />
+              </label>
+            ) : null}
+            {item.flyer ? (
+              <>
+                <label>
+                  Title
+                  <input className="fld" value={flyer.title} maxLength={60} onChange={(e) => setFlyer({ ...flyer, title: e.target.value })} placeholder="LOST: one ham" />
+                </label>
+                <label>
+                  A few lines
+                  <textarea className="fld" rows={3} value={flyer.body} maxLength={400} onChange={(e) => setFlyer({ ...flyer, body: e.target.value })} />
+                </label>
+                <label>
+                  Signed
+                  <input className="fld" value={flyer.signedBy} maxLength={60} onChange={(e) => setFlyer({ ...flyer, signedBy: e.target.value })} placeholder="Your character's name" />
+                </label>
+                <p className="note">Mags (the DM) reads it first, and may tidy it up.</p>
+              </>
+            ) : null}
             {!item.oneAtATime ? (
               <div className="qty" role="group" aria-label="Quantity">
                 <button type="button" className="btn" aria-label="One fewer" disabled={qty <= 1} onClick={() => setQty((q) => Math.max(1, q - 1))}>
@@ -84,7 +166,8 @@ export function RequestSheet({ item, availableCp, send, onClose, onDone }: { ite
               </p>
             ) : null}
             <button type="button" className="btn primary big" disabled={!!reason || busy} onClick={submit}>
-              Ask to buy{qty > 1 ? ` ${qty}` : ""} · {item.priceLabel && total === 0 ? item.priceLabel : formatCp(total)}
+              {project ? "Pledge" : askLabel(item)}
+              {qty > 1 ? ` ${qty}` : ""} · {item.priceLabel && total === 0 ? item.priceLabel : formatCp(total)}
             </button>
           </div>
         ) : null}
@@ -100,6 +183,8 @@ const STATUS = { pending: "Waiting for the DM", approved: "Approved", declined: 
 
 function title(r: MyRequest) {
   if (r.kind === "give") return `Send ${formatCp(r.totalCp)} to ${r.toPlayerName}`;
+  if (r.kind === "contribute") return `${formatCp(r.totalCp)} toward ${r.itemName}`;
+  if (r.flyerTitle) return `Flyer: ${r.flyerTitle}`;
   return `${r.qty > 1 ? `${r.qty} × ` : ""}${r.itemName}`;
 }
 
@@ -117,10 +202,12 @@ export function MyRequests({ requests, send, onMsg }: { requests: MyRequest[]; s
               <div className="req-title">{title(r)}</div>
               <div className="req-meta">
                 <span className={`req-status st-${r.status}`}>{STATUS[r.status]}</span>
-                {r.kind === "buy" ? <span className="purse-amt">{formatCp(r.chargedCp ?? r.totalCp)}</span> : null}
+                {r.kind !== "give" ? <span className="purse-amt">{formatCp(r.chargedCp ?? r.totalCp)}</span> : null}
                 {r.chargedCp !== undefined && r.chargedCp !== r.totalCp ? <span className="note">(asked {formatCp(r.totalCp)})</span> : null}
               </div>
+              {r.question ? <div className="note">You asked: &ldquo;{r.question}&rdquo;</div> : null}
               {r.note ? <div className="note">&ldquo;{r.note}&rdquo;</div> : null}
+              {r.answer ? <div className="req-answer">{r.answer}</div> : null}
               {r.status === "declined" && r.reason ? <div className="req-reason">DM: {r.reason}</div> : null}
             </div>
             {r.status === "pending" ? (
@@ -195,6 +282,7 @@ export function DecisionBanners({ view }: { view: PlayerView }) {
           <strong>{r.status === "approved" ? "Approved" : "Declined"}:</strong> {title(r)}
           {r.status === "approved" && r.kind === "buy" ? <> for {formatCp(r.chargedCp ?? r.totalCp)}</> : null}
           {r.status === "declined" && r.reason ? <div className="decision-reason">{r.reason}</div> : null}
+          {r.answer ? <div className="decision-reason">{r.answer}</div> : null}
         </div>
       ))}
       <button type="button" className="btn big" onClick={dismiss}>
