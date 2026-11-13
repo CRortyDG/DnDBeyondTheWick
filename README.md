@@ -36,6 +36,8 @@ Tests in `tests/projection.test.ts` put a marker string in every DM-only field a
 
 Each player gets a private link, `/arrive/<code>`, from the DM view's **Arrival** tab (**Copy text** copies a ready-to-send message; edit the message there). On a phone it plays a short tap-through intro (their arrival in Candlefair by ship), then lands on their seat: a character name, an optional "Why did you get on that boat?" line, and **Take a seat**. After that the link opens straight on the seat page, with **Replay intro**.
 
+For first-time players, the seat page has **Pick a starting point**: six kinds of hero in plain words (The Protector, The Sneak, The Spellcaster, The Healer, The Wild One, The Charmer), each with what you do on your turn and the D&D Beyond recipe (2024 rules: class, species, background, best ability). **Help me choose** asks three questions and suggests one. Picking fills in a sample name and line they can change; the pick shows on their row in the Arrival tab. Edit the cards in `src/shared/starters.ts`.
+
 - **The DM's Arrival tab** shows, per player: link copied, intro opened, finished, seat claimed, character name. **Reset** puts a player back to new (same link). **Lock seats** stops name changes.
 - **The Table** on the TV (press `T`, or the button in the Arrival tab) shows one candle per player. Seats light live as players claim them; a QR code in the corner cycles through whoever hasn't claimed yet. When the last seat lights, every candle flares and the title fades in.
 - **The generic link** `/arrive` plays the intro and then asks for the link the DM sent. It can't claim a seat.

@@ -83,6 +83,8 @@ export interface ArrivalView {
   me: {
     character: string;
     why: string;
+    /** The starting point they picked, or "". */
+    pick: string;
     claimed: boolean;
     finished: boolean;
     /** Their usual player page ("Go to your table"). */
@@ -105,6 +107,7 @@ export function projectArrival(g: GameState, version: number, token: string | nu
     me: {
       character: p.character ?? "",
       why: a.why ?? "",
+      pick: a.pick ?? "",
       claimed: !!a.claimedAt,
       finished: !!a.finishedAt,
       tableHref: `/?${q}`,

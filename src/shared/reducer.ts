@@ -10,6 +10,7 @@ import { candlefairMap, emptyProgress, SEED_ITEMS, SEED_SHOPS, STINGER_SCENE, sw
 import { creditCp, duesFor, firstChargeCp, installmentCp, keepsStake, liveEffects, priceOf, raisedCp, rollDice, sharesOf, splitByShare } from "./progress";
 import { shopVisibleTo } from "./projection";
 import { CHARACTER_MAX, STINGER_SCENE_ID, TABLE_SCENE_ID, WHY_MAX } from "./arrival";
+import { starterById } from "./starters";
 import { chapterSessionId, cleanTags, cleanText, defaultChapterId, NOTES_MAX, penName } from "./chronicle";
 import { DM_AUTHOR } from "./types";
 import type { Actor, Beat, BeatAction, Episode, FlyerText, GameState, Item, ItemTier, LedgerEntry, LedgerKind, MapData, Note, Pin, PinLink, Player, Scene, Session, SessionRun, Shop, TradeRequest } from "./types";
@@ -1437,6 +1438,10 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
       else delete p.character;
       if (why) a.why = why;
       else delete a.why;
+      if (cmd.pick !== undefined) {
+        if (cmd.pick && starterById(cmd.pick)) a.pick = cmd.pick;
+        else delete a.pick;
+      }
       a.claimedAt ??= ctx.now;
       a.finishedAt ??= ctx.now;
       a.openedAt ??= ctx.now;

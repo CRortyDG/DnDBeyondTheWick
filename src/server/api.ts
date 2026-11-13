@@ -4,6 +4,7 @@ import { isDmKey, KEY_HEADER, newDmKey, sha256 } from "./auth";
 import { actorOf, createGame, execute, hello, HttpError, identify, parseClientCommand, viewFor } from "./game";
 import type { Store } from "./store";
 import { CHARACTER_MAX, isToken, playerByToken, projectArrival, WHY_MAX } from "@/shared/arrival";
+import { STARTER_IDS } from "@/shared/starters";
 import { normaliseGameId } from "@/shared/handles";
 import { upgrade } from "@/shared/migrate";
 import { gatedArtIsLive } from "@/shared/projection";
@@ -46,7 +47,7 @@ async function requireDm(req: Request, store: Store, game: string) {
 const arrivalBody = z.discriminatedUnion("type", [
   z.object({ type: z.literal("open") }),
   z.object({ type: z.literal("finish") }),
-  z.object({ type: z.literal("claim"), character: z.string().max(CHARACTER_MAX * 2), why: z.string().max(WHY_MAX * 2) }),
+  z.object({ type: z.literal("claim"), character: z.string().max(CHARACTER_MAX * 2), why: z.string().max(WHY_MAX * 2), pick: z.enum(STARTER_IDS).nullable().optional() }),
 ]);
 
 const createBody = z.object({ dmKeyHash: z.string().regex(/^[0-9a-f]{64}$/), name: z.string().trim().max(80).optional() });
@@ -111,7 +112,7 @@ export async function handleApi(req: Request, store: Store): Promise<Response> {
         const b = r.data;
         const cmd =
           b.type === "claim"
-            ? ({ type: "system.arrivalClaim", playerId: p.id, character: b.character, why: b.why } as const)
+            ? ({ type: "system.arrivalClaim", playerId: p.id, character: b.character, why: b.why, pick: b.pick } as const)
             : ({ type: "system.arrivalStep", playerId: p.id, step: b.type } as const);
         const out = await execute(store, game, { role: "system" }, cmd);
         return json(projectArrival(out.state, out.version, token));
