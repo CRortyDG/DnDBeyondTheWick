@@ -1,6 +1,39 @@
 // Ported from the prototype's inline HTML. Rendered inside a fixed-size stage that scales to the screen.
+// Player flyers are a layer on top, pinned over the printed notices.
+import type { PublicFlyer } from "@/shared/projection";
+
+/** Where player flyers get pinned: left, top, tilt. The newest go up first. */
+const SLOTS: [number, number, number][] = [
+  [1300, 290, -4],
+  [110, 290, 3],
+  [990, 600, -3],
+  [1620, 250, 4],
+  [1460, 640, 3],
+  [330, 860, -2],
+  [700, 520, 2],
+  [1660, 700, -4],
+];
+export const MAX_FLYERS = SLOTS.length;
+
+export function Flyers({ flyers }: { flyers: PublicFlyer[] }) {
+  return (
+    <>
+      {flyers.slice(-MAX_FLYERS).map((f, i) => {
+        const [left, top, tilt] = SLOTS[i];
+        return (
+          <div key={f.id} className={`flyer${i % 2 ? " alt" : ""}`} style={{ left: `${left}px`, top: `${top}px`, transform: `rotate(${tilt}deg)` }}>
+            <div className="flyer-title">{f.title}</div>
+            {f.body ? <div className="flyer-body">{f.body}</div> : null}
+            <div className="flyer-sign">{f.signedBy}</div>
+          </div>
+        );
+      })}
+    </>
+  );
+}
+
 /* eslint-disable */
-export function NoticeBoard() {
+export function NoticeBoard({ flyers = [] }: { flyers?: PublicFlyer[] }) {
   return (
     <>
 <div style={{ width: "1920px", height: "1080px", boxSizing: "border-box", background: "#4a3020", padding: "36px", fontFamily: "'IM Fell English', Georgia, serif", color: "#2b2118" }}>
@@ -107,6 +140,7 @@ export function NoticeBoard() {
       <div style={{ fontFamily: "'Caveat', cursive", fontSize: "27px", lineHeight: "1.1" }}>Whoever took the festival bunting: put it back and nobody gets hurt.</div>
       <div style={{ fontFamily: "'Caveat', cursive", fontSize: "24px", textAlign: "right" }}>A.</div>
     </div>
+    <Flyers flyers={flyers} />
   </div>
 </div>
     </>

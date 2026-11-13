@@ -62,7 +62,7 @@ npm run typecheck
 4. **Set the DM key.** Settings → Environment Variables → add `DM_KEY` with a long random value. You can make one with `npm run dm-key`. Keep it somewhere safe; it's the only way into the DM view.
 5. **Redeploy** so the new variables take effect (Deployments → … → Redeploy).
 6. **Domain.** Settings → Domains → add `dnd.calebs.garden`. In Cloudflare DNS, add a `CNAME` record for `dnd` pointing at the target Vercel shows (usually `cname.vercel-dns.com`), set to **DNS only** (grey cloud).
-7. **Create the game.** Open `https://dnd.calebs.garden/?player=DM&key=YOUR_DM_KEY` and press **Create the game**. That seeds Candlefair's scenes, Players 1–4, the seven shops and every item.
+7. **Create the game.** Open `https://dnd.calebs.garden/?player=DM&key=YOUR_DM_KEY` and press **Create the game**. That seeds Candlefair’s scenes, Players 1–4, the eight storefronts and every item (all hidden until you open them).
 
 Fluid compute is on by default for new Vercel projects. The live connection relies on it, so leave it on.
 

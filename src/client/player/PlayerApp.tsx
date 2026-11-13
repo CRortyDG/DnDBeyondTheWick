@@ -6,10 +6,11 @@ import type { PlayerView, PublicItem } from "@/shared/projection";
 import { hrefFor, rememberKey, type Ident } from "../api";
 import { useGame } from "../useGame";
 import { Notice } from "../ui/Notice";
-import { ShopBoard } from "../ui/ShopBoard";
+import { ShopBoard, type ShopMode } from "../ui/ShopBoard";
+import type { ItemCategory } from "@/shared/types";
 import { BannerToast } from "../ui/BannerToast";
 import { InspirationIcon, LockIcon } from "../ui/icons";
-import { DecisionBanners, MyRequests, RequestSheet, SendGold, whyNot } from "./Requests";
+import { askLabel, DecisionBanners, MyRequests, RequestSheet, SendGold, whyNot } from "./Requests";
 
 export function PlayerApp({ ident: initial }: { ident: Ident }) {
   const [ident, setIdent] = useState(initial);
@@ -78,8 +79,12 @@ function PlayerScreen({ view, online, send, ident, setIdent }: { view: PlayerVie
   const [msg, setMsg] = useState<string | null>(null);
   const [purseOpen, setPurseOpen] = useState(false);
   const [looking, setLooking] = useState<string | null>(null);
+  const [mode, setMode] = useState<ShopMode>("category");
+  const [category, setCategory] = useState<ItemCategory | undefined>(undefined);
   const me = view.me;
   const availableCp = me.balanceCp - me.heldCp;
+  /** Mags's tab only counts at her own storefront. */
+  const availableAt = (shopId: string) => availableCp + (view.mine.credit.find((c) => c.shopId === shopId)?.limitCp ?? 0);
   // Keep the sheet in step with live changes (stock, price); close it if the item disappears.
   const lookingAt: PublicItem | undefined = looking ? view.items.find((i) => i.id === looking) : undefined;
 
@@ -127,6 +132,11 @@ function PlayerScreen({ view, online, send, ident, setIdent }: { view: PlayerVie
         </div>
       </header>
       <DecisionBanners view={view} />
+      {me.balanceCp < 0 && view.mine.credit.length ? (
+        <p className="note owe-note" role="status">
+          You owe {formatCp(-me.balanceCp)} on your tab at {view.mine.credit.map((c) => c.shopName).join(" and ")}. Pay it off before Mags remembers.
+        </p>
+      ) : null}
       <p className="note gold-note">Your gold lives here, not on D&amp;D Beyond: keep D&amp;D Beyond&rsquo;s coins at 0. Anything you buy, add to your D&amp;D Beyond inventory yourself.</p>
       {!online ? (
         <p className="player-offline" role="status">
@@ -168,16 +178,20 @@ function PlayerScreen({ view, online, send, ident, setIdent }: { view: PlayerVie
               items={view.items}
               shopId={shopId ?? ""}
               onShop={setShopId}
+              mode={mode}
+              onMode={setMode}
+              category={category}
+              onCategory={setCategory}
               size="page"
               actions={(it) => {
-                if (it.tier === "rumored") return null;
-                const why = whyNot(it, availableCp);
+                if (it.tier === "rumored" || it.kind === "earned") return null;
+                const why = whyNot(it, it.kind === "project" ? availableCp : availableAt(it.shopId));
                 return (
                   <>
                     <button type="button" className={`btn${why ? "" : " primary"} grow-btn`} onClick={() => setLooking(it.id)}>
-                      {it.tier === "sale" ? "Ask to buy" : "Details"}
+                      {askLabel(it)}
                     </button>
-                    {why && it.tier === "sale" ? <span className="card-why">{why}</span> : null}
+                    {why && it.tier === "sale" && !it.funded ? <span className="card-why">{why}</span> : null}
                   </>
                 );
               }}
@@ -204,7 +218,7 @@ function PlayerScreen({ view, online, send, ident, setIdent }: { view: PlayerVie
       {lookingAt ? (
         <RequestSheet
           item={lookingAt}
-          availableCp={availableCp}
+          availableCp={lookingAt.kind === "project" ? availableCp : availableAt(lookingAt.shopId)}
           send={send}
           onClose={() => setLooking(null)}
           onDone={(m) => {
@@ -215,6 +229,8 @@ function PlayerScreen({ view, online, send, ident, setIdent }: { view: PlayerVie
       ) : null}
 
       <MyRequests requests={view.myRequests} send={send} onMsg={setMsg} />
+
+      <Yours view={view} send={send} onMsg={setMsg} />
 
       {pendingOrders.length ? (
         <section className="box">
@@ -271,6 +287,76 @@ function PlayerScreen({ view, online, send, ident, setIdent }: { view: PlayerVie
         </div>
       </section>
     </div>
+  );
+}
+
+/** What I have going: rentals, lessons, shares, titles and honours. */
+function Yours({ view, send, onMsg }: { view: PlayerView; send: (c: object) => Promise<string | null>; onMsg: (m: string) => void }) {
+  const { rentals, trainings, stakes, awards, credit } = view.mine;
+  if (!rentals.length && !trainings.length && !stakes.length && !awards.length && !credit.length) return null;
+  return (
+    <section className="box" aria-label="Yours">
+      <h2>Yours</h2>
+      <ul className="mine-list">
+        {awards.map((a) => (
+          <li key={a.id}>
+            <span>
+              <span className="earned-badge">Earned</span> <b>{a.itemName}</b>
+              {a.note ? <span className="note"> · {a.note}</span> : null}
+            </span>
+          </li>
+        ))}
+        {stakes
+          .filter((k) => !k.project)
+          .map((k) => (
+            <li key={k.itemId}>
+              <b>{k.itemName}</b>
+            </li>
+          ))}
+        {rentals.map((r) => (
+          <li key={r.id}>
+            <span>
+              <b>{r.itemName}</b> <span className="note">· {formatCp(r.monthlyCp)} at the end of each session</span>
+            </span>
+            <button
+              type="button"
+              className="btn small"
+              onClick={async () => {
+                if (!confirm(`Give up ${r.itemName}? Rent stops from now on.`)) return;
+                onMsg((await send({ type: "me.cancelRental", rentalId: r.id })) ?? `You gave up ${r.itemName}.`);
+              }}
+            >
+              Cancel
+            </button>
+          </li>
+        ))}
+        {trainings.map((t) => (
+          <li key={t.id}>
+            <span>
+              <b>{t.itemName}</b>
+              {t.what ? ` (${t.what})` : ""} <span className="note">· {t.done ? "finished!" : `${t.paid} of ${t.of} lessons paid`}</span>
+            </span>
+          </li>
+        ))}
+        {stakes
+          .filter((k) => k.project)
+          .map((k) => (
+            <li key={k.itemId}>
+              <span>
+                <b>{k.itemName}</b> <span className="note">· you put in {formatCp(k.cp)}</span>
+              </span>
+              <span className="note">{k.funded ? "Funded!" : `${formatCp(k.raisedCp ?? 0)} of ${formatCp(k.goalCp ?? 0)}`}</span>
+            </li>
+          ))}
+        {credit.map((c) => (
+          <li key={c.shopId}>
+            <span>
+              <b>A tab at {c.shopName}</b> <span className="note">· up to {formatCp(c.limitCp)}</span>
+            </span>
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }
 

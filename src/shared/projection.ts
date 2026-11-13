@@ -136,7 +136,7 @@ export interface MyThings {
   stakes: { itemId: string; itemName: string; cp: number; project: boolean; goalCp?: number; raisedCp?: number; funded?: boolean }[];
   awards: { id: string; itemName: string; at: number; note: string }[];
   /** Mags's tab: how far below zero I may go, and where. */
-  credit: { shopName: string; limitCp: number }[];
+  credit: { shopId: string; shopName: string; limitCp: number }[];
 }
 
 export interface MyOrder {
@@ -426,7 +426,7 @@ function myThings(game: GameState, playerId: string): MyThings {
       return [{ itemId, itemName: it.name, cp, project, ...(project ? { goalCp: it.priceCp, raisedCp: raisedCp(game, itemId), funded: !!game.effectsOn[itemId] } : {}) }];
     }),
     awards: game.awards.filter((a) => a.playerIds.includes(playerId)).map((a) => ({ id: a.id, itemName: a.itemName, at: a.at, note: a.note })),
-    credit: creditLines(game, playerId).map((c) => ({ shopName: game.shops.find((x) => x.id === c.shopId)?.name ?? "the shop", limitCp: c.limitCp })),
+    credit: creditLines(game, playerId).map((c) => ({ shopId: c.shopId, shopName: game.shops.find((x) => x.id === c.shopId)?.name ?? "the shop", limitCp: c.limitCp })),
   };
 }
 

@@ -257,7 +257,7 @@ describe("Mags's tab", () => {
     // Not at other storefronts.
     open("general");
     expect(fails(P(1), { type: "me.requestBuy", itemId: "i2", qty: 1, note: "" })).toMatch(/available/);
-    expect(projectPlayer(g, 1, "p1", []).mine.credit).toEqual([{ shopName: "The Flickering Candle", limitCp: 10 * GP }]);
+    expect(projectPlayer(g, 1, "p1", []).mine.credit).toEqual([{ shopId: "candle", shopName: "The Flickering Candle", limitCp: 10 * GP }]);
   });
 
   it("can't be pushed past the limit at approval either", () => {
