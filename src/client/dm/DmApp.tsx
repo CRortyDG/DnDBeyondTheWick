@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { DmCommand } from "@/shared/commands";
 import type { DmView } from "@/shared/projection";
 import { api, absoluteHref, authHeaders, hrefFor, rememberKey, type Ident } from "../api";
-import { useGame } from "../useGame";
+import { useGame, type CallResult } from "../useGame";
 import { Notice } from "../ui/Notice";
 import { Purse } from "../ui/Purse";
 import { SceneView } from "../ui/SceneView";
@@ -20,6 +20,7 @@ import { ShopPanel } from "./ShopPanel";
 import { ScenesPanel } from "./ScenesPanel";
 import { PlayersPanel } from "./PlayersPanel";
 import { GamePanel } from "./GamePanel";
+import { Inbox } from "./Inbox";
 
 type Tab = "bank" | "shop" | "scenes" | "players" | "game";
 const TABS: [Tab, string, string][] = [
@@ -42,7 +43,7 @@ export function DmApp({ ident: initial }: { ident: Ident }) {
     if (g.phase === "error") return <Notice title="Can't reach the server">{g.error ?? "Trying again"}...</Notice>;
     return <div className="dm-root" aria-busy="true" />;
   }
-  return <DmConsole view={g.view} ident={ident} online={g.online} send={g.send} />;
+  return <DmConsole view={g.view} ident={ident} online={g.online} send={g.send} call={g.call} />;
 }
 
 function KeyPrompt({ game, onKey, wrong }: { game: string; onKey: (k: string) => void; wrong: boolean }) {
@@ -126,7 +127,7 @@ function useGatedArt(ident: Ident, names: string[]) {
   return urls;
 }
 
-function DmConsole({ view, ident, online, send }: { view: DmView; ident: Ident; online: boolean; send: (c: object) => Promise<string | null> }) {
+function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: Ident; online: boolean; send: (c: object) => Promise<string | null>; call: (c: object) => Promise<CallResult> }) {
   const [tab, setTab] = useState<Tab>("bank");
   const [toastMsg, setToastMsg] = useState<{ text: string; n: number } | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -152,7 +153,7 @@ function DmConsole({ view, ident, online, send }: { view: DmView; ident: Ident; 
   );
 
   const gated = useGatedArt(ident, ["merchant-sigil"]);
-  const ctx: DmCtx = useMemo(() => ({ view, ident, run, toast, gated }), [view, ident, run, toast, gated]);
+  const ctx: DmCtx = useMemo(() => ({ view, ident, run, toast, gated, call }), [view, ident, run, toast, gated, call]);
 
   /** S: open the shop on the TV (at a shop the party can see), or close it. */
   const toggleShop = () => {
@@ -226,6 +227,7 @@ function DmConsole({ view, ident, online, send }: { view: DmView; ident: Ident; 
             {online ? "Live" : "Reconnecting"}
           </span>
           <span className="spacer" />
+          <Inbox />
           {session ? (
             <button className="btn" type="button" onClick={() => run({ type: "session.end" }, `${session.title} ended.`)}>
               End session
@@ -325,7 +327,7 @@ function DmConsole({ view, ident, online, send }: { view: DmView; ident: Ident; 
               })}
             </div>
             <p className="note hint">
-              Keys: 0&ndash;9 scenes &middot; &larr; &rarr; step (or flip shops while the shop is open) &middot; S shop &middot; P purse &middot; B bank &middot; Esc closes the shop
+              Keys: 0&ndash;9 scenes &middot; &larr; &rarr; step (or flip shops while the shop is open) &middot; S shop &middot; P purse &middot; B bank &middot; I requests &middot; Esc closes the shop
             </p>
           </section>
 

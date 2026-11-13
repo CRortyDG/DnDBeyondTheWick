@@ -38,6 +38,7 @@ const itemFields = {
   priceLabel: text(24),
   finePrint: text(300),
   arrivesInSessions: z.number().int().min(0).max(20),
+  oneAtATime: z.boolean(),
   dmNote: text(2000),
 };
 const itemPatch = z.object(itemFields).partial();
@@ -67,7 +68,7 @@ export const dmCommand = z.discriminatedUnion("type", [
   z.object({ type: z.literal("player.inspire"), playerId: id, on: z.boolean() }),
 
   z.object({ type: z.literal("shop.add"), name: text(80), subtitle: text(160) }),
-  z.object({ type: z.literal("shop.update"), shopId: id, patch: z.object({ name: text(80), subtitle: text(160), closed: z.boolean() }).partial() }),
+  z.object({ type: z.literal("shop.update"), shopId: id, patch: z.object({ name: text(80), subtitle: text(160), closed: z.boolean(), secretSales: z.boolean() }).partial() }),
   /** Who can see a shop. quiet: no "Now open" banner on the TV. */
   z.object({
     type: z.literal("shop.visibility"),
@@ -97,6 +98,14 @@ export const dmCommand = z.discriminatedUnion("type", [
   z.object({ type: z.literal("knock.admit"), knockId: id }),
   z.object({ type: z.literal("knock.dismiss"), knockId: id }),
 
+  // Phone requests (buy / send gold). totalCp: approve at a different price (haggling).
+  // override: approve even though the player can no longer afford it (allows debt) or it's out of stock.
+  z.object({ type: z.literal("request.approve"), requestId: id, totalCp: cp.optional(), override: z.boolean().optional() }),
+  z.object({ type: z.literal("request.decline"), requestId: id, reason: text(120) }),
+  /** Approve every pending request that still works; the rest stay pending. */
+  z.object({ type: z.literal("request.approveAll") }),
+  z.object({ type: z.literal("game.tvPurchases"), on: z.boolean() }),
+
   z.object({ type: z.literal("game.rename"), name: text(120).min(1) }),
   z.object({ type: z.literal("game.vtt"), url: text(300) }),
 ]);
@@ -105,6 +114,10 @@ export const dmCommand = z.discriminatedUnion("type", [
 export const playerCommand = z.discriminatedUnion("type", [
   z.object({ type: z.literal("me.update"), patch: z.object({ name: text(32), dndbUrl: text(300) }).partial() }),
   z.object({ type: z.literal("me.lock"), key: z.string().min(4).max(128) }),
+  /** expectedUnitCp: the price the phone showed; refused if it has changed since. */
+  z.object({ type: z.literal("me.requestBuy"), itemId: id, qty: z.number().int().min(1).max(99), note: text(120), expectedUnitCp: cp.optional() }),
+  z.object({ type: z.literal("me.requestGive"), toPlayerId: id, amountCp: cp.min(1), note: text(120) }),
+  z.object({ type: z.literal("me.cancelRequest"), requestId: id }),
 ]);
 
 /** Commands the server issues itself; never accepted from a client. */

@@ -21,6 +21,6 @@ export async function POST(req: Request) {
     let cmd = parseClientCommand(actor, body);
     if (cmd.type === "me.lock") cmd = { type: "me.lockHashed", keyHash: sha256(cmd.key) };
     const r = await execute(store, game, actor, cmd);
-    return json({ ok: true, version: r.version });
+    return json({ ok: true, version: r.version, ...(r.info ? { info: r.info } : {}) });
   });
 }

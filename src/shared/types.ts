@@ -65,6 +65,8 @@ export interface Shop {
   playerIds: string[];
   /** A visible but closed shop: name and tagline only, no goods ("Comes once a year."). */
   closed?: boolean;
+  /** Purchases here are secret (the Peddler): never on the TV or other players' screens. */
+  secretSales?: boolean;
 }
 
 /**
@@ -98,8 +100,47 @@ export interface Item {
   finePrint?: string;
   /** Pay now, arrives this many sessions later (special orders from Baldur's Gate). */
   arrivesInSessions?: number;
+  /** Sold one at a time: a phone request can't ask for more than 1. */
+  oneAtATime?: boolean;
   /** DM-ONLY */
   dmNote?: string;
+}
+
+export type RequestStatus = "pending" | "approved" | "declined" | "cancelled";
+
+/**
+ * A player's request from their phone: buy something, or send gold to another
+ * player. While pending it holds the gold (and the stock), so nobody can
+ * request more than they have or claim an item someone else is waiting on.
+ */
+export interface TradeRequest {
+  id: string;
+  kind: "buy" | "give";
+  playerId: string;
+  playerName: string;
+  at: number;
+  status: RequestStatus;
+  /** What it holds while pending: price × quantity, or the gold being sent. */
+  totalCp: number;
+  /** The player's note to the DM ("for the bard"). */
+  note: string;
+  /** Bought from a secret shop (the Peddler): never shown on the TV or to other players. */
+  secret: boolean;
+  // buy
+  itemId?: string;
+  itemName?: string;
+  shopId?: string;
+  qty: number;
+  unitCp: number;
+  // give
+  toPlayerId?: string;
+  toPlayerName?: string;
+  // decided
+  decidedAt?: number;
+  /** Decline reason the player sees. */
+  reason?: string;
+  /** What was actually charged (differs from totalCp after haggling). */
+  chargedCp?: number;
 }
 
 /** A special order: paid for, on its way. */
@@ -169,10 +210,14 @@ export interface GameState {
   orders: Order[];
   /** The latest TV banner; the TV shows it briefly when it changes. */
   banner: Banner | null;
+  /** Purchase and gold-transfer requests from phones, oldest first. */
+  requests: TradeRequest[];
+  /** "Mira bought a Shield." on the TV when a request is approved. undefined = on. */
+  tvPurchases?: boolean;
   seq: number;
 }
 
-export type LedgerKind = "grant" | "charge" | "purchase" | "payAll";
+export type LedgerKind = "grant" | "charge" | "purchase" | "payAll" | "transfer";
 
 export interface LedgerEntry {
   id: string;
@@ -186,6 +231,10 @@ export interface LedgerEntry {
   sessionId: string | null;
   itemId?: string;
   batchId?: string;
+  /** Approved at a different price: the price before haggling. */
+  listCp?: number;
+  /** The phone request this came from. */
+  requestId?: string;
 }
 
 export type Role = "dm" | "tv" | "player";

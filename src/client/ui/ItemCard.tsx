@@ -21,6 +21,8 @@ export interface CardItem {
   restockNote?: string;
   finePrint?: string;
   arrivesInSessions?: number;
+  /** Units waiting on a pending phone request. */
+  held?: number;
 }
 
 const TIER_LABEL = { sale: "For sale", locked: "Locked", rumored: "Rumored", hidden: "Hidden" } as const;
@@ -54,10 +56,16 @@ export function ItemCard({ item, children, dm }: { item: CardItem; children?: Re
         <p className="card-order">Special order: arrives {item.arrivesInSessions === 1 ? "next session" : `${item.arrivesInSessions} sessions after you buy`}</p>
       ) : null}
       {item.stock !== null && tier !== "rumored" ? (
-        <p className="card-stock">{soldOut ? `Sold out${item.restockNote ? `. ${item.restockNote}` : ""}` : `${item.stock} in stock`}</p>
+        <p className="card-stock">{soldOut ? `Sold out${item.restockNote ? `. ${item.restockNote}` : ""}` : stockText(item.stock, item.held ?? 0)}</p>
       ) : null}
       {item.finePrint && tier !== "rumored" ? <p className="card-fine">{item.finePrint}</p> : null}
       {children ? <div className="card-acts">{children}</div> : null}
     </article>
   );
+}
+
+function stockText(stock: number, held: number): string {
+  if (!held) return `${stock} in stock`;
+  if (held >= stock) return "On hold";
+  return `${stock - held} in stock, ${held} on hold`;
 }

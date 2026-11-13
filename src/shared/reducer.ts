@@ -4,10 +4,20 @@
 import type { Command } from "./commands";
 import { displayNameFrom, isReservedHandle, normaliseHandle } from "./handles";
 import { canAfford, formatCp } from "./money";
+import { availableCp, availableStock, boughtPhrase, heldStock, isSecretShop } from "./requests";
 import { SEED_ITEMS, SEED_SHOPS } from "./seed";
-import type { Actor, GameState, Item, ItemTier, LedgerEntry, LedgerKind, Player, Scene, Shop } from "./types";
+import { shopVisibleTo } from "./projection";
+import type { Actor, GameState, Item, ItemTier, LedgerEntry, LedgerKind, Player, Scene, Shop, TradeRequest } from "./types";
 
-export class CommandError extends Error {}
+export class CommandError extends Error {
+  /** "recheck": a phone request no longer works at approval time; the DM may override or decline. */
+  constructor(
+    message: string,
+    public code?: string,
+  ) {
+    super(message);
+  }
+}
 
 export interface Ctx {
   now: number;
@@ -19,10 +29,12 @@ export interface Result {
   ledger: LedgerEntry[];
   /** Created player id for system.join / player.add / knock.admit. */
   playerId?: string;
+  /** A note for whoever sent the command ("2 approved, 1 still needs you"). */
+  info?: string;
 }
 
-function fail(msg: string): never {
-  throw new CommandError(msg);
+function fail(msg: string, code?: string): never {
+  throw new CommandError(msg, code);
 }
 
 export function isDmCommand(type: string): boolean {
@@ -70,6 +82,79 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
       sessionId: s.currentSessionId,
       ...extra,
     });
+  };
+
+  /** Take stock, write the ledger, and place special orders. Checks are the caller's job. */
+  const buyItem = (p: Player, item: Item, qty: number, chargeCp: number, extra: Partial<LedgerEntry> = {}) => {
+    if (item.stock !== null) item.stock = Math.max(0, item.stock - qty);
+    const listCp = item.priceCp * qty;
+    const haggled = chargeCp !== listCp ? ` (${formatCp(listCp)}, settled at ${formatCp(chargeCp)})` : "";
+    const what = qty > 1 ? `${qty} × ${item.name}` : item.name;
+    const ledgerExtra: Partial<LedgerEntry> = { itemId: item.id, ...(chargeCp !== listCp ? { listCp } : {}), ...extra };
+    if (item.arrivesInSessions) {
+      const now = s.sessions.find((x) => x.id === s.currentSessionId)?.number ?? nextSessionNumber(s) - 1;
+      const arrivesAtSession = now + item.arrivesInSessions;
+      for (let i = 0; i < qty; i++) {
+        s.orders.push({ id: nextId("o"), playerId: p.id, itemId: item.id, itemName: item.name, priceCp: Math.round(chargeCp / qty), orderedAt: ctx.now, arrivesAtSession, arrived: false });
+      }
+      move(p, -chargeCp, `Ordered ${what} (arrives session ${arrivesAtSession})${haggled}`, "purchase", ledgerExtra);
+    } else {
+      move(p, -chargeCp, `Bought ${what}${haggled}`, "purchase", ledgerExtra);
+    }
+  };
+
+  const request = (id: string): TradeRequest => s.requests.find((r) => r.id === id) ?? fail("That request doesn't exist.");
+
+  /** Keep every pending request and the latest 150 decided ones. */
+  const pruneRequests = () => {
+    const decided = s.requests.filter((r) => r.status !== "pending");
+    if (decided.length <= 150) return;
+    const drop = new Set(decided.slice(0, decided.length - 150).map((r) => r.id));
+    s.requests = s.requests.filter((r) => !drop.has(r.id));
+  };
+
+  /**
+   * Approve one request. Every check runs before anything changes, so a
+   * failed check leaves the state untouched (Approve all relies on that).
+   */
+  const approve = (r: TradeRequest, totalCp: number | undefined, override: boolean) => {
+    if (r.status !== "pending") fail(`That request was already ${r.status}.`);
+    const p = player(r.playerId);
+    if (r.kind === "give") {
+      const to = player(r.toPlayerId ?? "");
+      if (!override && p.balanceCp < r.totalCp) fail(`${p.name} only has ${formatCp(p.balanceCp)} now, not ${formatCp(r.totalCp)}.`, "recheck");
+      if (!override && to.archived) fail(`${to.name} has left the table.`, "recheck");
+      const batchId = nextId("b");
+      const note = r.note ? `: ${r.note}` : "";
+      move(p, -r.totalCp, `Sent ${formatCp(r.totalCp)} to ${to.name}${note}`, "transfer", { batchId, requestId: r.id });
+      move(to, r.totalCp, `From ${p.name}${note}`, "transfer", { batchId, requestId: r.id });
+      r.chargedCp = r.totalCp;
+    } else {
+      const item = s.items.find((x) => x.id === r.itemId) ?? fail(`${r.itemName ?? "That item"} is no longer in the shop. Decline it instead.`);
+      const charge = totalCp ?? r.totalCp;
+      if (!override) {
+        if (p.archived) fail(`${p.name} has left the table.`, "recheck");
+        if (p.balanceCp < charge) fail(`${p.name} only has ${formatCp(p.balanceCp)} now, not ${formatCp(charge)}.`, "recheck");
+        if (item.stock !== null && item.stock - heldStock(s, item.id, r.id) < r.qty) {
+          fail(item.stock === 0 ? `${item.name} is sold out now.` : `Only ${item.stock} ${item.name} left now.`, "recheck");
+        }
+        if (item.tier !== "sale") fail(`${item.name} isn't for sale any more.`, "recheck");
+      }
+      buyItem(p, item, r.qty, charge, { requestId: r.id });
+      r.chargedCp = charge;
+      if (s.tvPurchases !== false && !r.secret && !isSecretShop(s.shops.find((x) => x.id === item.shopId))) {
+        announce(`${p.name} bought ${boughtPhrase(item.name, r.qty)}`);
+      }
+    }
+    r.status = "approved";
+    r.decidedAt = ctx.now;
+  };
+
+  /** The player sending a me.* command. */
+  const me = (): Player => {
+    const p = player(ctx.actor.role === "player" ? ctx.actor.playerId : "");
+    if (p.archived) fail("You've left the table. Ask the DM to bring you back.");
+    return p;
   };
 
   const uniqueHandle = (base: string, exceptId?: string) => {
@@ -205,15 +290,7 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
       if (item.tier !== "sale") fail(`${item.name} isn't for sale.`);
       if (item.stock === 0) fail(`${item.name} is sold out.${item.restockNote ? " " + item.restockNote : ""}`);
       if (!canAfford(p.balanceCp, item.priceCp)) fail(`${p.name} can't afford ${item.name}.`);
-      if (item.stock !== null) item.stock -= 1;
-      if (item.arrivesInSessions) {
-        const now = s.sessions.find((x) => x.id === s.currentSessionId)?.number ?? nextSessionNumber(s) - 1;
-        const arrivesAtSession = now + item.arrivesInSessions;
-        s.orders.push({ id: nextId("o"), playerId: p.id, itemId: item.id, itemName: item.name, priceCp: item.priceCp, orderedAt: ctx.now, arrivesAtSession, arrived: false });
-        move(p, -item.priceCp, `Ordered ${item.name} (arrives session ${arrivesAtSession})`, "purchase", { itemId: item.id });
-      } else {
-        move(p, -item.priceCp, `Bought ${item.name}`, "purchase", { itemId: item.id });
-      }
+      buyItem(p, item, 1, item.priceCp);
       break;
     }
 
@@ -263,6 +340,7 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
       const sh = shop(cmd.shopId);
       if (cmd.patch.name !== undefined) sh.name = cmd.patch.name.trim() || sh.name;
       if (cmd.patch.subtitle !== undefined) sh.subtitle = cmd.patch.subtitle.trim();
+      if (cmd.patch.secretSales !== undefined) sh.secretSales = cmd.patch.secretSales || undefined;
       if (cmd.patch.closed !== undefined) {
         const opening = sh.closed && !cmd.patch.closed;
         sh.closed = cmd.patch.closed || undefined;
@@ -430,6 +508,117 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
       break;
     }
 
+    // ---------- phone requests: the DM decides ----------
+    case "request.approve":
+      approve(request(cmd.requestId), cmd.totalCp, !!cmd.override);
+      pruneRequests();
+      break;
+    case "request.decline": {
+      const r = request(cmd.requestId);
+      if (r.status !== "pending") fail(`That request was already ${r.status}.`);
+      r.status = "declined";
+      r.decidedAt = ctx.now;
+      const reason = cmd.reason.trim();
+      if (reason) r.reason = reason;
+      pruneRequests();
+      break;
+    }
+    case "request.approveAll": {
+      const pending = s.requests.filter((r) => r.status === "pending");
+      if (!pending.length) fail("Nothing is waiting.");
+      let ok = 0;
+      const stuck: string[] = [];
+      for (const r of pending) {
+        try {
+          approve(r, undefined, false);
+          ok++;
+        } catch (e) {
+          if (!(e instanceof CommandError)) throw e;
+          stuck.push(`${r.playerName}: ${e.message}`);
+        }
+      }
+      out.info = stuck.length ? `Approved ${ok}. Still waiting on you: ${stuck.join(" ")}` : `Approved ${ok}.`;
+      pruneRequests();
+      break;
+    }
+    case "game.tvPurchases":
+      if (cmd.on) delete s.tvPurchases;
+      else s.tvPurchases = false;
+      break;
+
+    // ---------- phone requests: the player asks ----------
+    case "me.requestBuy": {
+      const p = me();
+      // Anything this player can't see gets the same answer, so the API can't be used to probe for hidden goods.
+      const unseen = "That item isn't available.";
+      const item = s.items.find((x) => x.id === cmd.itemId) ?? fail(unseen);
+      const where = s.shops.find((x) => x.id === item.shopId);
+      if (!where || !shopVisibleTo(where, { tv: false, playerId: p.id }) || item.tier === "hidden" || item.tier === "rumored") fail(unseen);
+      if (where.closed) fail(`${where.name} isn't open yet.`);
+      if (item.tier === "locked") fail(`${item.name} is locked: ${item.reason || "not for sale yet"}.`);
+      if (cmd.expectedUnitCp !== undefined && cmd.expectedUnitCp !== item.priceCp) fail(`The price of ${item.name} just changed to ${formatCp(item.priceCp)}. Have another look.`);
+      if (cmd.qty > 1 && (item.oneAtATime || item.arrivesInSessions)) fail(`${item.name} is sold one at a time.`);
+      const left = availableStock(s, item);
+      if (left !== null && left < cmd.qty) {
+        if (item.stock === 0) fail(`${item.name} is sold out.${item.restockNote ? " " + item.restockNote : ""}`);
+        fail(left === 0 ? `Someone has already asked for the last ${item.name}.` : `Only ${left} ${item.name} left.`);
+      }
+      const totalCp = item.priceCp * cmd.qty;
+      const avail = availableCp(s, p.id);
+      if (totalCp > avail) fail(`That costs ${formatCp(totalCp)} and you have ${formatCp(Math.max(0, avail))} available.`);
+      if (s.requests.filter((r) => r.status === "pending" && r.playerId === p.id).length >= 20) fail("You have 20 requests waiting. Let the DM catch up.");
+      s.requests.push({
+        id: nextId("rq"),
+        kind: "buy",
+        playerId: p.id,
+        playerName: p.name,
+        at: ctx.now,
+        status: "pending",
+        totalCp,
+        note: cmd.note.trim(),
+        secret: isSecretShop(where),
+        itemId: item.id,
+        itemName: item.name,
+        shopId: where.id,
+        qty: cmd.qty,
+        unitCp: item.priceCp,
+      });
+      break;
+    }
+    case "me.requestGive": {
+      const p = me();
+      const to = s.players.find((x) => x.id === cmd.toPlayerId && !x.archived) ?? fail("That player isn't at the table.");
+      if (to.id === p.id) fail("You can't send gold to yourself.");
+      const avail = availableCp(s, p.id);
+      if (cmd.amountCp > avail) fail(`You have ${formatCp(Math.max(0, avail))} available.`);
+      if (s.requests.filter((r) => r.status === "pending" && r.playerId === p.id).length >= 20) fail("You have 20 requests waiting. Let the DM catch up.");
+      s.requests.push({
+        id: nextId("rq"),
+        kind: "give",
+        playerId: p.id,
+        playerName: p.name,
+        at: ctx.now,
+        status: "pending",
+        totalCp: cmd.amountCp,
+        note: cmd.note.trim(),
+        secret: false,
+        qty: 1,
+        unitCp: cmd.amountCp,
+        toPlayerId: to.id,
+        toPlayerName: to.name,
+      });
+      break;
+    }
+    case "me.cancelRequest": {
+      const p = player(ctx.actor.role === "player" ? ctx.actor.playerId : "");
+      const r = s.requests.find((x) => x.id === cmd.requestId && x.playerId === p.id) ?? fail("That request doesn't exist.");
+      if (r.status !== "pending") fail(`That request was already ${r.status}.`);
+      r.status = "cancelled";
+      r.decidedAt = ctx.now;
+      pruneRequests();
+      break;
+    }
+
     // ---------- players acting on themselves ----------
     case "me.update": {
       const p = player(ctx.actor.role === "player" ? ctx.actor.playerId : "");
@@ -494,6 +683,7 @@ function tidyItem(it: Item): Item {
     else delete it[k];
   }
   if (!it.arrivesInSessions) delete it.arrivesInSessions;
+  if (!it.oneAtATime) delete it.oneAtATime;
   return it;
 }
 

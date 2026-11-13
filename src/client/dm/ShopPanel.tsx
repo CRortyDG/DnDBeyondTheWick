@@ -130,6 +130,9 @@ export function ShopPanel() {
             <Check checked={!!shop.closed} onChange={(v) => run({ type: "shop.update", shopId: shop.id, patch: { closed: v } })}>
               Closed: players see the name and tagline, but no goods
             </Check>
+            <Check checked={!!shop.secretSales || shop.visibility === "some"} onChange={(v) => run({ type: "shop.update", shopId: shop.id, patch: { secretSales: v } })}>
+              Secret sales: purchases here never show on the TV or other players&rsquo; phones{shop.visibility === "some" ? " (always, while it's for selected players)" : ""}
+            </Check>
             <button
               className="btn small danger"
               type="button"
@@ -268,6 +271,9 @@ function ItemEditor({ it, quiet }: { it: Item; quiet: boolean }) {
           />
           <Field label="Price shown as" value={it.priceLabel ?? ""} placeholder="e.g. Free*" onCommit={(v) => patch({ priceLabel: v })} />
         </div>
+        <Check checked={!it.oneAtATime && !it.arrivesInSessions} onChange={(v) => patch({ oneAtATime: !v })}>
+          Players can ask for several at once{it.arrivesInSessions ? " (special orders are one at a time)" : ""}
+        </Check>
         <Field label="Fine print" value={it.finePrint ?? ""} placeholder="e.g. *Payment will be collected later." onCommit={(v) => patch({ finePrint: v })} />
         <Field label="DM note (only you see this)" value={it.dmNote ?? ""} multiline onCommit={(v) => patch({ dmNote: v })} />
         <div className="inline">
