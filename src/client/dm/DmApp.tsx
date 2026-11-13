@@ -20,6 +20,8 @@ import { ShopPanel } from "./ShopPanel";
 import { ScenesPanel } from "./ScenesPanel";
 import { PlayersPanel } from "./PlayersPanel";
 import { GamePanel } from "./GamePanel";
+import { LiveMapControls } from "./LiveMapControls";
+import { MapEditor } from "./MapEditor";
 import { Inbox } from "./Inbox";
 
 type Tab = "bank" | "shop" | "scenes" | "players" | "game";
@@ -153,7 +155,9 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
   );
 
   const gated = useGatedArt(ident, ["merchant-sigil"]);
-  const ctx: DmCtx = useMemo(() => ({ view, ident, run, toast, gated, call }), [view, ident, run, toast, gated, call]);
+  const [editingMap, setEditingMap] = useState<string | null>(null);
+  const closeMap = useCallback(() => setEditingMap(null), []);
+  const ctx: DmCtx = useMemo(() => ({ view, ident, run, toast, gated, call, openMap: setEditingMap }), [view, ident, run, toast, gated, call]);
 
   /** S: open the shop on the TV (at a shop the party can see), or close it. */
   const toggleShop = () => {
@@ -169,7 +173,7 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
     askedShop.current = s.live.shopId;
   }, [s.live.shopId, view.version]);
 
-  // Keyboard: 0-9 scenes, arrows step, S shop on TV, P purse, B bank, Esc closes the shop.
+  // Keyboard: 0-9 scenes, arrows step, S shop on TV, P purse, B bank, L map legend, Esc closes the shop (or zooms the map back out).
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement | null;
@@ -194,17 +198,24 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
       else if (k === "p" || k === "P") void run({ type: "live.purse", visible: !s.live.purseVisible });
       else if (k === "b" || k === "B") setTab("bank");
       else if (k === "Escape" && s.live.shopOpen) void run({ type: "live.shop", open: false });
-      else return;
+      else if (k === "Escape" && s.live.focus) void run({ type: "live.focus", pinId: null });
+      else if (k === "l" || k === "L") {
+        const m = s.scenes.find((x) => x.id === s.live.sceneId);
+        if (m?.kind !== "map" || !m.map) return;
+        void run({ type: "map.legend", sceneId: m.id, on: !m.map.legendOn });
+      } else return;
       e.preventDefault();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [s.scenes, s.shops, s.live.shopOpen, s.live.shopId, s.live.purseVisible, run]);
+  }, [s.scenes, s.shops, s.live.shopOpen, s.live.shopId, s.live.purseVisible, s.live.sceneId, s.live.focus, run]);
 
   const live = s.scenes.find((x) => x.id === s.live.sceneId) ?? s.scenes[0];
   const purse = s.players.filter((p) => !p.archived && !p.away).map((p) => ({ id: p.id, name: p.name, balanceCp: p.balanceCp, inspired: !!p.inspired }));
   // What the TV sees, for the preview (hidden prices stay hidden here too).
   const tvView = projectTv(s as unknown as GameState, view.version);
+  // Maps preview exactly what the TV gets: discovered pins only.
+  const previewScene = tvView.scenes.find((x) => x.id === live.id) ?? { ...live, map: undefined };
   const session = s.sessions.find((x) => x.id === s.currentSessionId);
   const liveShop = s.shops.find((x) => x.id === s.live.shopId);
 
@@ -273,7 +284,7 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
               </span>
             </div>
             <div className="preview" aria-label={`Preview: ${live.label}`}>
-              <SceneView scene={live} gated={gated} emptyHint="No image yet. Add one under Scenes." />
+              <SceneView scene={previewScene} gated={gated} emptyHint="No image yet. Add one under Scenes." />
               {s.live.shopOpen && liveShop ? (
                 <div className="preview-shop" aria-label={`Shop open on the TV: ${liveShop.name}`}>
                   <Stage w={1920} h={1080}>
@@ -285,6 +296,8 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
                 <Purse players={purse} visible={s.live.purseVisible} size="small" />
               </div>
             </div>
+
+            {live.kind === "map" && live.map ? <LiveMapControls scene={live} /> : null}
 
             <div className="scene-buttons" role="group" aria-label="Scenes">
               {s.scenes.map((sc) => (
@@ -327,7 +340,7 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
               })}
             </div>
             <p className="note hint">
-              Keys: 0&ndash;9 scenes &middot; &larr; &rarr; step (or flip shops while the shop is open) &middot; S shop &middot; P purse &middot; B bank &middot; I requests &middot; Esc closes the shop
+              Keys: 0&ndash;9 scenes &middot; &larr; &rarr; step (or flip shops while the shop is open) &middot; S shop &middot; P purse &middot; B bank &middot; I requests &middot; L map legend &middot; Esc closes the shop or zooms the map out
             </p>
           </section>
 
@@ -350,6 +363,8 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
             </div>
           </section>
         </div>
+
+        {editingMap ? <MapEditor sceneId={editingMap} onClose={closeMap} /> : null}
 
         <div className={`toast${toastMsg ? " show" : ""}`} role="status" aria-live="polite">
           {toastMsg?.text}

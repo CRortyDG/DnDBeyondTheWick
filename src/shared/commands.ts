@@ -10,10 +10,27 @@ const artSchema = z.object({
   url: z.string().max(2048).optional(),
 });
 
+const SCENE_KINDS = ["notice", "portrait", "handout", "image", "black", "map"] as const;
+const frac = z.number().min(0).max(1);
+const pinId = z.string().regex(/^[A-Za-z0-9_-]{1,40}$/);
+const pinLink = z.discriminatedUnion("kind", [z.object({ kind: z.literal("shop"), shopId: id }), z.object({ kind: z.literal("scene"), sceneId: id })]);
+const pinFields = {
+  showsAs: text(4),
+  name: text(120),
+  type: text(40),
+  description: text(600),
+  dmNotes: text(4000),
+  x: frac,
+  y: frac,
+};
+const pinPatch = z.object({ ...pinFields, link: pinLink.nullable() }).partial();
+/** A whole pin, for undoing a delete. */
+const fullPin = z.object({ id: pinId, number: z.number().int().min(1).max(999), discovered: z.boolean(), ...pinFields, link: pinLink.optional() });
+
 const scenePatch = z
   .object({
     label: text(80),
-    kind: z.enum(["notice", "portrait", "handout", "image", "black"]),
+    kind: z.enum(SCENE_KINDS),
     hotkey,
     reveal: z.boolean(),
     art: artSchema,
@@ -48,10 +65,22 @@ export const dmCommand = z.discriminatedUnion("type", [
   z.object({ type: z.literal("scene.show"), sceneId: id }),
   z.object({ type: z.literal("scene.step"), dir: z.union([z.literal(1), z.literal(-1)]) }),
   z.object({ type: z.literal("scene.hotkey"), key: z.number().int().min(0).max(9) }),
-  z.object({ type: z.literal("scene.add"), kind: z.enum(["notice", "portrait", "handout", "image", "black"]), label: text(80) }),
+  z.object({ type: z.literal("scene.add"), kind: z.enum(SCENE_KINDS), label: text(80) }),
   z.object({ type: z.literal("scene.update"), sceneId: id, patch: scenePatch }),
   z.object({ type: z.literal("scene.remove"), sceneId: id }),
   z.object({ type: z.literal("scene.move"), sceneId: id, dir: z.union([z.literal(1), z.literal(-1)]) }),
+
+  z.object({ type: z.literal("pin.add"), sceneId: id, pinId, x: frac, y: frac }),
+  z.object({ type: z.literal("pin.update"), sceneId: id, pinId: id, patch: pinPatch }),
+  z.object({ type: z.literal("pin.remove"), sceneId: id, pinId: id }),
+  z.object({ type: z.literal("pin.restore"), sceneId: id, pin: fullPin }),
+  /** announce: show "Discovered: …" on the TV. */
+  z.object({ type: z.literal("pin.discover"), sceneId: id, pinId: id, discovered: z.boolean(), announce: z.boolean() }),
+  z.object({ type: z.literal("map.legend"), sceneId: id, on: z.boolean().optional(), style: z.enum(["numbers", "names"]).optional() }),
+  /** Zoom the TV toward a pin on the live map, or back out with null. */
+  z.object({ type: z.literal("live.focus"), pinId: id.nullable() }),
+  /** Add the Candlefair and Sword Coast maps to a game created before maps existed. */
+  z.object({ type: z.literal("map.addSeedMaps") }),
 
   z.object({ type: z.literal("live.shop"), open: z.boolean(), shopId: id.optional() }),
   z.object({ type: z.literal("live.purse"), visible: z.boolean() }),
