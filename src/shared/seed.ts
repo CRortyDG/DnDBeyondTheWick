@@ -31,10 +31,10 @@ export const SEED_SHOPS: Shop[] = [
   shop("town", "Invest in Candlefair", "Put your gold into the town"),
   shop("bg", "Baldur’s Gate Catalog", "Big-city goods. Ask around once you’ve been."),
   shop("training", "Training", "Learn something new"),
-  shop("peddler", "A Traveling Peddler", "Comes once a year. Sells exactly what you need.", { closed: true }),
+  shop("peddler", "A Traveling Peddler", "Comes once a year. Sells exactly what you need.", { closed: true, secretSales: true }),
 ];
 
-type Opts = Partial<Pick<Item, "tier" | "reason" | "hint" | "hidePrice" | "stock" | "restockNote" | "priceLabel" | "finePrint" | "arrivesInSessions">>;
+type Opts = Partial<Pick<Item, "tier" | "reason" | "hint" | "hidePrice" | "stock" | "restockNote" | "priceLabel" | "finePrint" | "arrivesInSessions" | "oneAtATime">>;
 const it = (id: string, shopId: string, name: string, priceCp: number, description: string, o: Opts = {}): Item => ({
   id,
   shopId,
@@ -54,7 +54,9 @@ const rumored = (hint: string): Opts => ({ tier: "rumored", hint });
 const BG = "Ships once you’ve been to Baldur’s Gate";
 const ORDER = "Ships up the coast. Pay now; it arrives in 2 sessions.";
 const order: Opts = { arrivesInSessions: 2 };
-const FREE: Opts = { priceLabel: "Free*" };
+const FREE: Opts = { priceLabel: "Free*", oneAtATime: true };
+/** Gear you buy one of, not a stack. */
+const ONE: Opts = { oneAtATime: true };
 
 // prettier-ignore
 export const SEED_ITEMS: Item[] = [
@@ -71,22 +73,22 @@ export const SEED_ITEMS: Item[] = [
   it("i7", "general", "Healer’s Kit", 5 * GP, "Bandages and salves. Stabilize a dying friend without a roll. Ten uses."),
   it("i9", "general", "Fine Clothes", 15 * GP, "For when you’re invited to sit at the banquet, not serve it."),
   it("i8", "general", "Climber’s Kit", 25 * GP, "Pitons, harness, boot tips. Better than Artum’s ladders."),
-  it("g-lute", "general", "A Masterwork Lute", 35 * GP, "Spruce and maple, strung in Waterdeep. The shopkeeper won’t let you touch it until you can pay.", { stock: 1, restockNote: "Sold. Another may come up the coast someday." }),
+  it("g-lute", "general", "A Masterwork Lute", 35 * GP, "Spruce and maple, strung in Waterdeep. The shopkeeper won’t let you touch it until you can pay.", { ...ONE, stock: 1, restockNote: "Sold. Another may come up the coast someday." }),
 
   // The Smithy
   it("s-javelin", "smith", "Javelin", 5 * SP, "A thrown spear anyone can use."),
   it("i10", "smith", "Dagger", 2 * GP, "Every adventurer’s first friend."),
   it("i17", "smith", "Arrows (20)", 1 * GP, "Fletched with gull feathers. Locally sourced."),
-  it("i11", "smith", "Shortsword", 10 * GP, "Quick and light."),
-  it("i14", "smith", "Shield", 10 * GP, "Wood and iron. +2 AC."),
-  it("i12", "smith", "Longsword", 15 * GP, "The classic."),
-  it("i13", "smith", "Warhammer", 15 * GP, "For problems that need flattening."),
-  it("i15", "smith", "Shortbow", 25 * GP, "Easy to carry, quick to draw."),
-  it("i16", "smith", "Longbow", 50 * GP, "Reaches farther than trouble does."),
-  it("i18", "smith", "Chain Shirt", 50 * GP, "Medium armor, quiet enough. Your first armor upgrade."),
-  it("i19", "smith", "Chain Mail", 75 * GP, "Heavy armor. You’ll hear yourself coming."),
-  it("i20", "smith", "Splint Armor", 200 * GP, "Heavy plates on leather.", locked("The smith needs iron from Orlumbor")),
-  it("i21", "smith", "Plate Armor", 1500 * GP, "The dream. Every fighter in Candlefair stops to stare.", locked("Made to order, arrives at level 5")),
+  it("i11", "smith", "Shortsword", 10 * GP, "Quick and light.", ONE),
+  it("i14", "smith", "Shield", 10 * GP, "Wood and iron. +2 AC.", ONE),
+  it("i12", "smith", "Longsword", 15 * GP, "The classic.", ONE),
+  it("i13", "smith", "Warhammer", 15 * GP, "For problems that need flattening.", ONE),
+  it("i15", "smith", "Shortbow", 25 * GP, "Easy to carry, quick to draw.", ONE),
+  it("i16", "smith", "Longbow", 50 * GP, "Reaches farther than trouble does.", ONE),
+  it("i18", "smith", "Chain Shirt", 50 * GP, "Medium armor, quiet enough. Your first armor upgrade.", ONE),
+  it("i19", "smith", "Chain Mail", 75 * GP, "Heavy armor. You’ll hear yourself coming.", ONE),
+  it("i20", "smith", "Splint Armor", 200 * GP, "Heavy plates on leather.", locked("The smith needs iron from Orlumbor", ONE)),
+  it("i21", "smith", "Plate Armor", 1500 * GP, "The dream. Every fighter in Candlefair stops to stare.", locked("Made to order, arrives at level 5", ONE)),
 
   // Apothecary & Temple
   it("a-salts", "apoth", "Smelling Salts", 2 * GP, "Wake an unconscious ally: they’re stable and wake up."),
@@ -113,9 +115,9 @@ export const SEED_ITEMS: Item[] = [
   it("d-charm", "docks", "Lantern-Village Charm", 5 * SP, "“Brings luck at sea.” Does nothing. Or does it?"),
   it("i33", "docks", "Guide into the Trollbark (1 day)", 2 * GP, "A local who knows which paths come back out."),
   it("i36", "docks", "Passage to Baldur’s Gate (each)", 20 * GP, "About four days by sea, weather permitting."),
-  it("i34", "docks", "Rowboat", 50 * GP, "Two oars, one bucket for bailing."),
-  it("i37", "docks", "Riding Horse", 75 * GP, "Freedom to travel. For the long road south."),
-  it("i35", "docks", "Fennick’s Boat", 120 * GP, "Good fishing boat. Barely sank.", { stock: 1, restockNote: "Sold. Fennick is already building another." }),
+  it("i34", "docks", "Rowboat", 50 * GP, "Two oars, one bucket for bailing.", ONE),
+  it("i37", "docks", "Riding Horse", 75 * GP, "Freedom to travel. For the long road south.", ONE),
+  it("i35", "docks", "Fennick’s Boat", 120 * GP, "Good fishing boat. Barely sank.", { ...ONE, stock: 1, restockNote: "Sold. Fennick is already building another." }),
   it("d-pastry", "docks", "Special Order: Lower City Pastry Box", 2 * GP, `Sweets from a Baldur’s Gate bakery. Probably stale by the time they arrive. ${ORDER}`, order),
   it("d-spellbook", "docks", "Special Order: Blank Spellbook", 50 * GP, `Vellum, a lock, and room for a career. ${ORDER}`, order),
   it("d-silver", "docks", "Special Order: Silvered Dagger", 110 * GP, `For the things plain steel won’t hurt. ${ORDER}`, order),
@@ -185,6 +187,7 @@ export function seedGame(id: string, name = "Tales from the Flickering Candle", 
     knocks: [],
     orders: [],
     banner: null,
+    requests: [],
     seq: 100,
   };
 }
@@ -202,6 +205,7 @@ export function freshStart(g: GameState): GameState {
   s.knocks = [];
   s.orders = [];
   s.banner = null;
+  s.requests = [];
   const home = s.scenes.find((x) => x.kind === "notice" && !x.reveal) ?? s.scenes.find((x) => !x.reveal) ?? s.scenes[0];
   if (home) s.live.sceneId = home.id;
   s.live.shopOpen = false;

@@ -6,7 +6,7 @@ type Any = Record<string, unknown>;
 
 export function upgrade(raw: unknown): GameState {
   const g = raw as Any & { schema?: number };
-  if (g.schema === 2) return g as unknown as GameState;
+  if (g.schema === 2) return withRequests(g as unknown as GameState);
 
   // 1 -> 2: shop visibility, item tiers, stock, special orders, banners.
   const shops = ((g.shops as Any[]) ?? []).map(
@@ -36,5 +36,10 @@ export function upgrade(raw: unknown): GameState {
     };
   });
   const live = { ...(g.live as Any), shopOpen: false } as unknown as GameState["live"];
-  return { ...(g as unknown as GameState), schema: 2, shops, items, live, orders: [], banner: null };
+  return withRequests({ ...(g as unknown as GameState), schema: 2, shops, items, live, orders: [], banner: null });
+}
+
+/** Phone purchase requests arrived after schema 2; older saves just have none. */
+function withRequests(g: GameState): GameState {
+  return Array.isArray(g.requests) ? g : { ...g, requests: [] };
 }

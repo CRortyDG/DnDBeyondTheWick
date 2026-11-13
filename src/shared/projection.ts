@@ -1,7 +1,8 @@
 // Spoiler safety lives here. Each role gets a view built field-by-field from
 // an explicit allow-list, so a new DM-only field can't leak by accident.
 
-import type { Art, Banner, GameState, Item, LedgerEntry, LiveState, Player, Scene, Shop } from "./types";
+import { heldCp, heldStock } from "./requests";
+import type { Art, Banner, GameState, Item, LedgerEntry, LiveState, Player, RequestStatus, Scene, Shop } from "./types";
 
 export const GATED_ART = new Set(["merchant-sigil"]);
 
@@ -56,6 +57,26 @@ export interface PublicItem {
   finePrint?: string;
   /** Special order: arrives this many sessions after buying. */
   arrivesInSessions?: number;
+  /** Units waiting on someone's pending request (only when stock is limited). */
+  held?: number;
+  /** Sold one at a time: no quantity picker. */
+  oneAtATime?: boolean;
+}
+
+/** One of my phone requests, as I see it. */
+export interface MyRequest {
+  id: string;
+  kind: "buy" | "give";
+  at: number;
+  status: RequestStatus;
+  totalCp: number;
+  note: string;
+  itemName?: string;
+  qty: number;
+  toPlayerName?: string;
+  decidedAt?: number;
+  reason?: string;
+  chargedCp?: number;
 }
 
 export interface MyOrder {
@@ -106,9 +127,15 @@ export interface PlayerView extends Common {
     dndbUrl?: string;
     locked: boolean;
     archived: boolean;
+    /** Gold held by my pending requests. */
+    heldCp: number;
   };
   myLedger: MyLedgerLine[];
   myOrders: MyOrder[];
+  /** My purchase and gold requests, newest first. Never anyone else's. */
+  myRequests: MyRequest[];
+  /** Everyone I could send gold to (names only). */
+  table: { id: string; name: string }[];
   /** The campaign's D&D Beyond game link, if the DM set one. */
   vttUrl?: string;
 }
@@ -156,7 +183,7 @@ export function shopVisibleTo(shop: Shop, viewer: Viewer): boolean {
   return false;
 }
 
-function publicItem(it: Item): PublicItem | null {
+function publicItem(game: GameState, it: Item): PublicItem | null {
   if (it.tier === "hidden") return null;
   if (it.tier === "rumored") {
     // Name, price and description stay on the server; only the hint goes out.
@@ -176,6 +203,11 @@ function publicItem(it: Item): PublicItem | null {
   if (it.finePrint) out.finePrint = it.finePrint;
   if (it.arrivesInSessions) out.arrivesInSessions = it.arrivesInSessions;
   if (it.stock === 0 && it.restockNote) out.restockNote = it.restockNote;
+  if (it.oneAtATime || it.arrivesInSessions) out.oneAtATime = true;
+  if (it.stock !== null) {
+    const held = Math.min(it.stock, heldStock(game, it.id));
+    if (held > 0) out.held = held;
+  }
   return out;
 }
 
@@ -188,7 +220,7 @@ function common(game: GameState, version: number, viewer: Viewer): Common {
     game: { id: game.id, name: game.name },
     purse: game.players.filter((p) => !p.archived && !p.away).map((p) => ({ id: p.id, name: p.name, balanceCp: p.balanceCp, inspired: !!p.inspired })),
     shops: shops.map((x) => ({ id: x.id, name: x.name, subtitle: x.subtitle, closed: !!x.closed })),
-    items: game.items.filter((it) => open.has(it.shopId)).map(publicItem).filter((x): x is PublicItem => x !== null),
+    items: game.items.filter((it) => open.has(it.shopId)).map((it) => publicItem(game, it)).filter((x): x is PublicItem => x !== null),
     session: cur ? { number: cur.number, title: cur.title } : null,
     banner: game.banner ? { ...game.banner } : null,
   };
@@ -229,7 +261,22 @@ export function projectPlayer(game: GameState, version: number, playerId: string
       ...(p.dndbUrl ? { dndbUrl: p.dndbUrl } : {}),
       locked: !!p.keyHash,
       archived: p.archived,
+      heldCp: heldCp(game, p.id),
     },
+    myRequests: game.requests
+      .filter((r) => r.playerId === p.id)
+      .slice(-50)
+      .reverse()
+      .map((r) => {
+        const out: MyRequest = { id: r.id, kind: r.kind, at: r.at, status: r.status, totalCp: r.totalCp, note: r.note, qty: r.qty };
+        if (r.itemName !== undefined) out.itemName = r.itemName;
+        if (r.toPlayerName !== undefined) out.toPlayerName = r.toPlayerName;
+        if (r.decidedAt !== undefined) out.decidedAt = r.decidedAt;
+        if (r.reason !== undefined) out.reason = r.reason;
+        if (r.chargedCp !== undefined) out.chargedCp = r.chargedCp;
+        return out;
+      }),
+    table: game.players.filter((x) => !x.archived && x.id !== p.id).map((x) => ({ id: x.id, name: x.name })),
     myLedger: ledger
       .filter((l) => l.playerId === p.id)
       .slice(-100)
