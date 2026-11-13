@@ -1,4 +1,3 @@
-import "server-only";
 
 // DM-only reveal art. Served by /api/art/merchant-sigil only while its scene is live.
 export const MERCHANT_SIGIL_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" role="img" aria-label="A symbol drawn on paper">\n    <path d="M169.3 109.7 A70 70 0 1 1 169.3 90.3" fill="none" stroke="#2b2118" stroke-width="6" stroke-linecap="round"></path>\n    <path d="M100 100 a6 6 0 0 1 12 0 a12 12 0 0 1 -24 0 a18 18 0 0 1 36 0 a24 24 0 0 1 -48 0 a30 30 0 0 1 60 0 L182 100 a7 7 0 0 1 -4 12" fill="none" stroke="#2b2118" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"></path>\n  </svg>';

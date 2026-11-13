@@ -2,29 +2,30 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { sha256 } from "@/server/auth";
 import { execute, hello, HttpError, identify, viewFor } from "@/server/game";
-import { createFileStore, type Store } from "@/server/store";
+import { createMemoryStore, type MemoryStore } from "@/server/store";
 import { seedGame } from "@/shared/seed";
 
-let store: Store;
+let store: MemoryStore;
+const DM_HASH = sha256("the-real-dm-key");
 const DM = { role: "dm" as const };
 
 beforeEach(async () => {
-  process.env.DM_KEY = "the-real-dm-key";
-  store = createFileStore(null);
+  store = createMemoryStore();
   await store.overwrite("candlefair", seedGame("candlefair"), []);
+  await store.setDmKeyHash("candlefair", DM_HASH);
 });
 
 describe("who's asking", () => {
   it("only accepts the real DM key", async () => {
     const { state } = await store.read("candlefair");
-    expect(identify(state, "DM", "the-real-dm-key").kind).toBe("dm");
-    expect(identify(state, "dm", "wrong").kind).toBe("invalid");
-    expect(identify(state, "DM", null).kind).toBe("invalid");
+    expect(identify(state, "DM", "the-real-dm-key", DM_HASH).kind).toBe("dm");
+    expect(identify(state, "dm", "wrong", DM_HASH).kind).toBe("invalid");
+    expect(identify(state, "DM", null, DM_HASH).kind).toBe("invalid");
   });
   it("treats ?player=Player-1 and ?player=player1 as the same player", async () => {
     const { state } = await store.read("candlefair");
-    expect(identify(state, "Player-1", null)).toEqual({ kind: "player", playerId: "p1" });
-    expect(identify(state, "player 1", null)).toEqual({ kind: "player", playerId: "p1" });
+    expect(identify(state, "Player-1", null, DM_HASH)).toEqual({ kind: "player", playerId: "p1" });
+    expect(identify(state, "player 1", null, DM_HASH)).toEqual({ kind: "player", playerId: "p1" });
   });
 });
 
@@ -80,11 +81,9 @@ describe("atomic saves", () => {
   });
 
   it("publishes the new version after each change", async () => {
-    const seen: number[] = [];
-    const off = store.subscribe("candlefair", (v) => seen.push(v));
+    const before = store.published.length;
     const r = await execute(store, "candlefair", DM, { type: "live.purse", visible: false });
-    off();
-    expect(seen).toEqual([r.version]);
+    expect(store.published.slice(before).map((x) => x.version)).toEqual([r.version]);
   });
 
   it("player key hashes are stored, never the key", async () => {

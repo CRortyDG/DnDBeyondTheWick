@@ -1,5 +1,3 @@
-"use client";
-
 import { normaliseGameId } from "@/shared/handles";
 
 export const KEY_HEADER = "x-candlefair-key";
@@ -29,22 +27,32 @@ function safeSet(k: string, v: string | null) {
   } catch {}
 }
 
+/** Is there a ?game= in the address bar? Without one, the home page offers to start or join a campaign. */
+export function hasGameInUrl(): boolean {
+  return !!new URL(window.location.href).searchParams.get("game");
+}
+
 /**
- * Read ?game= ?player= ?key= from the address bar. A key in the URL is saved
- * on this device and then removed from the address bar, so it isn't left on
- * screen, in history, or shared by accident.
+ * Read ?game= ?player= and the key from the address bar. The key can be in
+ * ?key= or after the # (#key=..., what the DM's private link uses, so the key
+ * never reaches a server log). Either way it is saved on this device and then
+ * removed from the address bar, so it isn't left on screen, in history, or
+ * shared by accident.
  */
 export function readIdent(): Ident {
   const url = new URL(window.location.href);
   const game = normaliseGameId(url.searchParams.get("game"));
   const player = url.searchParams.get("player");
-  const urlKey = url.searchParams.get("key");
+  const hash = new URLSearchParams(url.hash.replace(/^#/, ""));
+  const urlKey = url.searchParams.get("key") || hash.get("key");
   let key: string | null = null;
   if (player) {
     if (urlKey) {
       safeSet(keySlot(game, player), urlKey);
       url.searchParams.delete("key");
-      window.history.replaceState(null, "", url.pathname + (url.search ? url.search : "") + url.hash);
+      hash.delete("key");
+      const rest = hash.toString();
+      window.history.replaceState(null, "", url.pathname + (url.search ? url.search : "") + (rest ? "#" + rest : ""));
     }
     key = urlKey ?? safeGet(keySlot(game, player));
   }
@@ -57,7 +65,7 @@ export function rememberKey(ident: Ident, key: string | null) {
 
 export function hrefFor(game: string, player?: string | null, extra: Record<string, string> = {}) {
   const q = new URLSearchParams();
-  if (game !== "candlefair") q.set("game", game);
+  q.set("game", game);
   if (player) q.set("player", player);
   for (const [k, v] of Object.entries(extra)) q.set(k, v);
   const s = q.toString();
@@ -99,6 +107,13 @@ export async function api<T>(path: string, ident: Ident, init: RequestInit = {})
   return data;
 }
 
-export function streamUrl(ident: Ident) {
-  return `/api/stream?game=${encodeURIComponent(ident.game)}`;
+/** The live connection to the campaign's room. */
+export function liveUrl(game: string, extra: Record<string, string> = {}) {
+  const q = new URLSearchParams({ game, ...extra });
+  return `${window.location.protocol === "https:" ? "wss" : "ws"}://${window.location.host}/api/live?${q}`;
+}
+
+/** The DM's private link: the key sits after the #, so it is never sent to the server. */
+export function dmLink(game: string, key: string) {
+  return `${window.location.origin}${hrefFor(game, "DM")}#key=${encodeURIComponent(key)}`;
 }

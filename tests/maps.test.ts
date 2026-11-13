@@ -8,7 +8,7 @@ import { apply, type Ctx } from "@/shared/reducer";
 import { seedGame } from "@/shared/seed";
 import type { GameState, Pin } from "@/shared/types";
 import { execute, viewFor } from "@/server/game";
-import { createFileStore, type Store } from "@/server/store";
+import { createMemoryStore, type Store } from "@/server/store";
 
 const DM: Ctx = { now: 1_700_000_000_000, actor: { role: "dm" } };
 const CANARY = "CANARY_MAP_SECRET_91c2";
@@ -197,7 +197,7 @@ describe("spoiler safety", () => {
 describe("spoiler safety through the server", () => {
   let store: Store;
   beforeEach(async () => {
-    store = createFileStore(null);
+    store = createMemoryStore();
     await store.overwrite("candlefair", spoilerGame(), []);
   });
 

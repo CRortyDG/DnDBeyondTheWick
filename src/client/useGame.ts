@@ -1,8 +1,7 @@
-"use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { View } from "@/shared/projection";
-import { api, ApiError, streamUrl, type Ident } from "./api";
+import { api, ApiError, liveUrl, type Ident } from "./api";
 
 export type Phase = "loading" | "ok" | "taken" | "knocking" | "full" | "invalid" | "no-game" | "error";
 
@@ -25,15 +24,13 @@ export interface CallResult {
   info?: string;
 }
 
-const IDLE_AFTER_MS = 15 * 60_000;
-
 type HelloResult = { status: "ok"; view: View } | { status: Exclude<Phase, "ok" | "loading" | "error"> };
 
 /**
  * Keeps a live, filtered copy of the game for this page.
  * - hello once on load (creates ?player= names)
- * - a server-sent-event stream says "version N"; if N is newer we refetch our view
- * - a slow poll and online/visibility events cover anything the stream misses
+ * - a WebSocket to the campaign's room pushes our filtered view on every change
+ * - coming back to the tab or back online refetches, in case we missed something
  * - if the network drops, the last view stays on screen and we reconnect quietly
  */
 export function useGame<V extends View = View>(ident: Ident | null): GameHook<V> {
@@ -49,15 +46,8 @@ export function useGame<V extends View = View>(ident: Ident | null): GameHook<V>
 
   phaseRef.current = phase;
 
-  /** Set by the stream effect: marks activity and leaves idle mode. */
-  const activity = useRef<() => void>(() => {});
-  /** True while a session is running: never go idle then. */
-  const inSession = useRef(false);
-
   const accept = useCallback((v: View) => {
     if (v.version < versionRef.current) return;
-    if (v.version > versionRef.current) activity.current();
-    inSession.current = v.role === "dm" ? !!v.state.currentSessionId : !!v.session;
     versionRef.current = v.version;
     setView(v as V);
   }, []);
@@ -116,83 +106,84 @@ export function useGame<V extends View = View>(ident: Ident | null): GameHook<V>
     };
   }, [ident, accept, helloTick]);
 
-  // live stream
+  // live connection
   useEffect(() => {
     if (!ident) return;
-    let es: EventSource | null = null;
-    let downTimer: ReturnType<typeof setTimeout> | null = null;
+    let ws: WebSocket | null = null;
     let closed = false;
+    let attempt = 0;
+    let lastHeard = Date.now();
+    let retryTimer: ReturnType<typeof setTimeout> | null = null;
+    let downTimer: ReturnType<typeof setTimeout> | null = null;
 
-    // Live mode: an open event stream. Idle mode (after a long quiet spell): no
-    // stream, just a cheap version check every 15 s, so a TV left on all week
-    // doesn't hold a server connection open. Any change switches back to live.
-    let lastChange = Date.now();
-    let idle = false;
-
-    const markActive = () => {
-      lastChange = Date.now();
-      if (idle) {
-        idle = false;
-        open();
-      }
-    };
-    activity.current = markActive;
-
-    const seen = (v: number) => {
-      if (v > versionRef.current) markActive();
-      if (phaseRef.current !== "ok") {
-        // Knocking or waiting for the game: something changed, try again.
-        if (phaseRef.current !== "loading") setHelloTick((t) => t + 1);
-        return;
-      }
-      if (v > versionRef.current) refresh();
-    };
-
+    // One WebSocket to the campaign's room. The room pushes this screen its own
+    // filtered view whenever the game changes, so there is nothing to refetch.
+    // A sleeping campaign costs nothing with the socket open, so it stays open.
     const open = () => {
-      if (es || closed) return;
-      es = new EventSource(streamUrl(ident));
-      es.addEventListener("v", (ev) => {
+      if (closed || ws) return;
+      const sock = new WebSocket(liveUrl(ident.game, ident.player ? { player: ident.player } : {}));
+      ws = sock;
+      sock.onopen = () => {
+        attempt = 0;
+        lastHeard = Date.now();
+        sock.send(JSON.stringify({ t: "auth", key: ident.key }));
+      };
+      sock.onmessage = (ev) => {
+        lastHeard = Date.now();
         if (downTimer) clearTimeout(downTimer);
         downTimer = null;
         setOnline(true);
-        seen(Number((ev as MessageEvent).data));
-      });
-      es.onerror = () => {
-        // EventSource retries on its own; only show "reconnecting" if it stays down.
-        if (!downTimer) downTimer = setTimeout(() => setOnline(false), 3000);
-        if (es && es.readyState === EventSource.CLOSED && !closed) {
-          es = null;
-          setTimeout(() => !closed && !idle && open(), 2000);
+        if (ev.data === "pong") return;
+        let msg: { t?: string; view?: View; status?: number };
+        try {
+          msg = JSON.parse(String(ev.data)) as typeof msg;
+        } catch {
+          return;
         }
+        if (msg.t === "view" && msg.view) {
+          if (phaseRef.current === "ok") accept(msg.view);
+          else if (phaseRef.current !== "loading") setHelloTick((t) => t + 1);
+        } else if (msg.t === "error" && (msg.status ?? 500) < 500) {
+          // We were removed, renamed or locked out, or we're knocking and the
+          // table changed: go back through hello.
+          if (phaseRef.current !== "loading") setHelloTick((t) => t + 1);
+        }
+      };
+      sock.onclose = () => {
+        if (ws === sock) ws = null;
+        if (closed) return;
+        if (!downTimer) downTimer = setTimeout(() => setOnline(false), 3000);
+        const wait = Math.min(15_000, 1000 * 2 ** attempt++) + Math.random() * 500;
+        retryTimer = setTimeout(open, wait);
       };
     };
     open();
 
-    let polledAt = 0;
-    const tick = setInterval(async () => {
-      const now = Date.now();
-      if (inSession.current) lastChange = now; // game night: stay live
-      if (!idle && now - lastChange > IDLE_AFTER_MS) {
-        idle = true;
-        es?.close();
-        es = null;
-        if (downTimer) clearTimeout(downTimer);
-        downTimer = null;
+    // Keep-alive: the room answers "ping" without waking up. A socket that
+    // stops answering (a phone that slept, a dropped Wi-Fi) is replaced.
+    const tick = setInterval(() => {
+      if (!ws) return;
+      if (ws.readyState === WebSocket.OPEN) {
+        if (Date.now() - lastHeard > 75_000) {
+          ws.close();
+          ws = null;
+          open();
+          return;
+        }
+        try {
+          ws.send("ping");
+        } catch {}
       }
-      if (now - polledAt < (idle ? 15_000 : 30_000)) return;
-      polledAt = now;
-      try {
-        const { version } = await api<{ version: number }>("/api/version", ident);
-        setOnline(true);
-        seen(version);
-      } catch {
-        setOnline(false);
-      }
-    }, 5_000);
+    }, 25_000);
 
     const wake = () => {
       if (document.visibilityState !== "visible") return;
-      markActive();
+      if (!ws || ws.readyState === WebSocket.CLOSED || ws.readyState === WebSocket.CLOSING) {
+        if (retryTimer) clearTimeout(retryTimer);
+        ws = null;
+        attempt = 0;
+        open();
+      }
       refresh();
     };
     window.addEventListener("online", wake);
@@ -200,21 +191,22 @@ export function useGame<V extends View = View>(ident: Ident | null): GameHook<V>
 
     return () => {
       closed = true;
-      activity.current = () => {};
-      es?.close();
+      ws?.close();
       clearInterval(tick);
+      if (retryTimer) clearTimeout(retryTimer);
       if (downTimer) clearTimeout(downTimer);
       window.removeEventListener("online", wake);
       document.removeEventListener("visibilitychange", wake);
     };
-  }, [ident, refresh]);
+  }, [ident, accept, refresh]);
 
   const call = useCallback(
     async (cmd: object): Promise<CallResult> => {
       if (!ident) return { error: "Not ready." };
       try {
         const r = await api<{ version: number; info?: string }>("/api/command", ident, { method: "POST", body: JSON.stringify(cmd) });
-        if (r.version > versionRef.current) refresh();
+        // The room pushes the new view over the live connection; fetch it ourselves only if it doesn't arrive.
+        if (r.version > versionRef.current) setTimeout(() => r.version > versionRef.current && refresh(), 1500);
         return { error: null, ...(r.info ? { info: r.info } : {}) };
       } catch (e) {
         return { error: e instanceof Error ? e.message : String(e), ...(e instanceof ApiError && e.code ? { code: e.code } : {}) };

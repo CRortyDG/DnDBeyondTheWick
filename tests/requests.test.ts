@@ -1,7 +1,7 @@
 // Phone purchase and gold requests: holds, approval, haggling, privacy.
 import { beforeEach, describe, expect, it } from "vitest";
 import { execute, HttpError, parseClientCommand, viewFor } from "@/server/game";
-import { createFileStore, type Store } from "@/server/store";
+import { createMemoryStore, type Store } from "@/server/store";
 import type { Command } from "@/shared/commands";
 import { upgrade } from "@/shared/migrate";
 import { GP } from "@/shared/money";
@@ -77,7 +77,7 @@ describe("holding stock", () => {
   });
 
   it("two simultaneous requests for the last item through the server: only one is held", async () => {
-    const store: Store = createFileStore(null);
+    const store: Store = createMemoryStore();
     as(DM, { type: "money.adjust", playerId: "p1", amountCp: 10 * GP, note: "" });
     as(DM, { type: "money.adjust", playerId: "p2", amountCp: 10 * GP, note: "" });
     await store.overwrite("t", g, []);
@@ -258,7 +258,7 @@ describe("privacy of requests", () => {
     expect(JSON.stringify(projectTv(g, 1))).not.toContain("secret-note-xyz");
     expect(JSON.stringify(projectPlayer(g, 1, "p2", []))).not.toContain("secret-note-xyz");
     expect(projectPlayer(g, 1, "p1", []).myRequests[0].note).toBe("secret-note-xyz");
-    const store = createFileStore(null);
+    const store = createMemoryStore();
     await store.overwrite("t", g, []);
     const dm = await viewFor(store, "t", DM);
     expect(JSON.stringify(dm)).toContain("secret-note-xyz");

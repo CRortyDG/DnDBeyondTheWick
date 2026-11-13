@@ -11,10 +11,7 @@ export const NAMES = {
   CAPTAIN: "Orsa Dell",
 };
 
-export const LINK_PREVIEW = {
-  title: "Tales from the Flickering Candle",
-  description: "Four days out of Baldur’s Gate…",
-};
+// The link preview's title, line and image are in arrive.html (the <meta> tags at the top).
 
 /** Small extras in the pictures. */
 export const EXTRAS = {
