@@ -18,8 +18,8 @@ function spoilerGame(): GameState {
   symbol.name = `${CANARY} name`;
   g.players[0].keyHash = KEYHASH;
   g.players[0].lastSeenAt = 123456789;
-  const bag = g.items.find((i) => i.name === "Bag of Holding")!;
-  bag.priceCp = 987654321; // hidden price
+  g.items.find((i) => i.id === "bg-wand")!.priceCp = 987654321; // locked, price hidden
+  for (const i of g.items) i.dmNote = `${CANARY} item note`;
   g.sessions.push({ id: "sess1", number: 1, title: "One", startedAt: 1, endedAt: null, attendeeIds: [], dmNotes: CANARY });
   g.currentSessionId = "sess1";
   return g;
@@ -54,12 +54,13 @@ describe("TV payload", () => {
     expect(json).not.toContain("keyHash");
   });
 
-  it("hides locked prices", () => {
-    const tv = projectTv(spoilerGame(), 1);
-    const bag = tv.items.find((i) => i.name === "Bag of Holding")!;
-    expect(bag.priceCp).toBeNull();
-    const plate = tv.items.find((i) => i.name === "Plate Armor")!;
-    expect(plate.priceCp).toBe(150000); // locked, but its price is meant to be visible
+  it("hides locked prices only when asked to", () => {
+    const g = spoilerGame();
+    for (const sh of g.shops) sh.visibility = "all";
+    const tv = projectTv(g, 1);
+    expect(tv.items.find((i) => i.id === "bg-wand")!.priceCp).toBeNull(); // locked, ??? gp
+    expect(tv.items.find((i) => i.name === "Plate Armor")!.priceCp).toBe(150000); // locked, price visible
+    expect(JSON.stringify(tv)).not.toContain("987654321");
   });
 });
 

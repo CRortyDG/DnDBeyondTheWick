@@ -135,7 +135,7 @@ describe("players from the URL", () => {
 
 describe("scenes", () => {
   it("hotkeys pick scenes and close the shop", () => {
-    let { state } = run(seedGame("t"), [{ type: "live.shop", open: true }, { type: "scene.hotkey", key: 3 }]);
+    let { state } = run(seedGame("t"), [{ type: "shop.visibility", shopId: "general", visibility: "all" }, { type: "live.shop", open: true }, { type: "scene.hotkey", key: 3 }]);
     expect(state.live.sceneId).toBe("s-mags");
     expect(state.live.shopOpen).toBe(false);
   });

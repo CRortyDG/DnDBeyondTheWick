@@ -56,13 +56,13 @@ export async function execute(store: Store, game: string, actor: Actor, cmd: Com
     try {
       result = apply(state, cmd, { now, actor });
     } catch (e) {
-      if (e instanceof CommandError) throw new HttpError(400, e.message);
+      if (e instanceof CommandError) throw new HttpError(400, e.message, e.code);
       throw e;
     }
     const v = await store.commit(game, version, result.state, result.ledger);
     if (v !== null) {
       await store.publish(game, v);
-      return { version: v, state: result.state, playerId: result.playerId };
+      return { version: v, state: result.state, playerId: result.playerId, info: result.info };
     }
     await new Promise((r) => setTimeout(r, 20 + Math.random() * 60 * (attempt + 1)));
   }
