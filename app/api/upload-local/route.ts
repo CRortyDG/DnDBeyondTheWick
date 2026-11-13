@@ -2,6 +2,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { randomBytes } from "node:crypto";
 import { isDmKey } from "@/server/auth";
+import { blobToken, NO_BLOB_MESSAGE } from "@/server/blob";
 import { HttpError } from "@/server/game";
 import { guard, json, params } from "@/server/http";
 
@@ -19,7 +20,9 @@ const EXT: Record<string, string> = {
 /** Local development only: store uploads in .data/uploads. */
 export async function POST(req: Request) {
   return guard(async () => {
-    if (process.env.VERCEL || process.env.BLOB_READ_WRITE_TOKEN) throw new HttpError(404, "Not here.");
+    // Hosted servers can't keep files on disk; uploads there go to Vercel Blob.
+    if (blobToken()) throw new HttpError(409, "Uploads go to Vercel Blob here. Reload the page and try again.");
+    if (process.env.VERCEL) throw new HttpError(503, NO_BLOB_MESSAGE, "no-blob");
     if (!isDmKey(params(req).key)) throw new HttpError(401, "Only the DM can upload.", "bad-key");
     const form = await req.formData();
     const file = form.get("file");

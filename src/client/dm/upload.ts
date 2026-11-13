@@ -2,12 +2,16 @@
 
 import { authHeaders, type Ident } from "../api";
 
-let modePromise: Promise<"blob" | "local"> | null = null;
+type Mode = "blob" | "local" | "missing";
+let modePromise: Promise<Mode> | null = null;
 function uploadMode() {
   modePromise ??= fetch("/api/upload", { cache: "no-store" })
     .then((r) => r.json())
-    .then((d: { mode: "blob" | "local" }) => d.mode)
-    .catch(() => "local" as const);
+    .then((d: { mode: Mode }) => d.mode)
+    .catch(() => {
+      modePromise = null; // ask again next time instead of guessing
+      return "local" as const;
+    });
   return modePromise;
 }
 
@@ -16,6 +20,10 @@ export async function uploadImage(ident: Ident, file: File): Promise<string> {
   if (!file.type.startsWith("image/")) throw new Error("That isn't an image.");
   if (file.size > 25 * 1024 * 1024) throw new Error("That image is over 25 MB.");
   const mode = await uploadMode();
+  if (mode === "missing") {
+    modePromise = null; // pick up a Blob store connected since
+    throw new Error("Image uploads aren't set up on this server yet. In Vercel: Storage → connect a Blob store (public access) to this project, then redeploy.");
+  }
   if (mode === "blob") {
     const { upload } = await import("@vercel/blob/client");
     const safe = file.name.replace(/[^a-zA-Z0-9._-]+/g, "-").slice(-80) || "image";
