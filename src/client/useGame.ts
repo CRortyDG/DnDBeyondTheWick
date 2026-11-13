@@ -13,8 +13,16 @@ export interface GameHook<V extends View = View> {
   online: boolean;
   error: string | null;
   send: (cmd: object) => Promise<string | null>;
+  /** Like send, with the error code and any note from the server. */
+  call: (cmd: object) => Promise<CallResult>;
   refresh: () => void;
   retryHello: () => void;
+}
+
+export interface CallResult {
+  error: string | null;
+  code?: string;
+  info?: string;
 }
 
 const IDLE_AFTER_MS = 15 * 60_000;
@@ -201,21 +209,22 @@ export function useGame<V extends View = View>(ident: Ident | null): GameHook<V>
     };
   }, [ident, refresh]);
 
-  const send = useCallback(
-    async (cmd: object): Promise<string | null> => {
-      if (!ident) return "Not ready.";
+  const call = useCallback(
+    async (cmd: object): Promise<CallResult> => {
+      if (!ident) return { error: "Not ready." };
       try {
-        const r = await api<{ version: number }>("/api/command", ident, { method: "POST", body: JSON.stringify(cmd) });
+        const r = await api<{ version: number; info?: string }>("/api/command", ident, { method: "POST", body: JSON.stringify(cmd) });
         if (r.version > versionRef.current) refresh();
-        return null;
+        return { error: null, ...(r.info ? { info: r.info } : {}) };
       } catch (e) {
-        return e instanceof Error ? e.message : String(e);
+        return { error: e instanceof Error ? e.message : String(e), ...(e instanceof ApiError && e.code ? { code: e.code } : {}) };
       }
     },
     [ident, refresh],
   );
+  const send = useCallback(async (cmd: object) => (await call(cmd)).error, [call]);
 
   const retryHello = useCallback(() => setHelloTick((t) => t + 1), []);
 
-  return { phase, view, online, error, send, refresh, retryHello };
+  return { phase, view, online, error, send, call, refresh, retryHello };
 }

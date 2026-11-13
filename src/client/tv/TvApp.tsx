@@ -9,6 +9,7 @@ import { Purse } from "../ui/Purse";
 import { artSrc, SceneView } from "../ui/SceneView";
 import { ShopBoard } from "../ui/ShopBoard";
 import { Notice } from "../ui/Notice";
+import { BannerToast } from "../ui/BannerToast";
 
 const FADE_MS = 600;
 
@@ -79,6 +80,8 @@ function TvScreen({ view, online }: { view: TvView; online: boolean }) {
       ) : null}
 
       <Purse players={view.purse} visible={view.live.purseVisible} size="tv" />
+
+      <BannerToast banner={view.banner} className="tv-banner" />
 
       {showOffline ? (
         <div className="tv-offline" role="status">

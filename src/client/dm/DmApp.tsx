@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { DmCommand } from "@/shared/commands";
 import type { DmView } from "@/shared/projection";
 import { api, absoluteHref, authHeaders, hrefFor, rememberKey, type Ident } from "../api";
-import { useGame } from "../useGame";
+import { useGame, type CallResult } from "../useGame";
 import { Notice } from "../ui/Notice";
 import { Purse } from "../ui/Purse";
 import { SceneView } from "../ui/SceneView";
@@ -22,6 +22,7 @@ import { PlayersPanel } from "./PlayersPanel";
 import { GamePanel } from "./GamePanel";
 import { EpisodesPanel } from "./EpisodesPanel";
 import { RunGame } from "./RunGame";
+import { Inbox } from "./Inbox";
 
 type Tab = "bank" | "shop" | "scenes" | "players" | "episodes" | "game";
 const TABS: [Tab, string, string][] = [
@@ -45,7 +46,7 @@ export function DmApp({ ident: initial }: { ident: Ident }) {
     if (g.phase === "error") return <Notice title="Can't reach the server">{g.error ?? "Trying again"}...</Notice>;
     return <div className="dm-root" aria-busy="true" />;
   }
-  return <DmConsole view={g.view} ident={ident} online={g.online} send={g.send} />;
+  return <DmConsole view={g.view} ident={ident} online={g.online} send={g.send} call={g.call} />;
 }
 
 function KeyPrompt({ game, onKey, wrong }: { game: string; onKey: (k: string) => void; wrong: boolean }) {
@@ -129,7 +130,7 @@ function useGatedArt(ident: Ident, names: string[]) {
   return urls;
 }
 
-function DmConsole({ view, ident, online, send }: { view: DmView; ident: Ident; online: boolean; send: (c: object) => Promise<string | null> }) {
+function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: Ident; online: boolean; send: (c: object) => Promise<string | null>; call: (c: object) => Promise<CallResult> }) {
   const [tab, setTab] = useState<Tab>("bank");
   const [toastMsg, setToastMsg] = useState<{ text: string; n: number } | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -155,7 +156,16 @@ function DmConsole({ view, ident, online, send }: { view: DmView; ident: Ident; 
   );
 
   const gated = useGatedArt(ident, ["merchant-sigil"]);
-  const ctx: DmCtx = useMemo(() => ({ view, ident, run, toast, gated }), [view, ident, run, toast, gated]);
+  const ctx: DmCtx = useMemo(() => ({ view, ident, run, toast, gated, call }), [view, ident, run, toast, gated, call]);
+
+  /** S: open the shop on the TV (at a shop the party can see), or close it. */
+  const toggleShop = () => {
+    if (s.live.shopOpen) return void run({ type: "live.shop", open: false });
+    const open = s.shops.filter((x) => x.visibility === "all");
+    const target = open.find((x) => x.id === s.live.shopId) ?? open[0];
+    if (!target) return toast("Every shop is hidden. Open one to everyone under Shop first.");
+    void run({ type: "live.shop", open: true, shopId: target.id });
+  };
 
   // Run-game mode. It reopens on reload (or on another device) while an episode
   // is running, unless you left it on this device during this session.
@@ -205,17 +215,18 @@ function DmConsole({ view, ident, online, send }: { view: DmView; ident: Ident; 
       if (/^[0-9]$/.test(k)) {
         const sc = s.scenes.find((x) => x.hotkey === Number(k));
         if (sc) void run({ type: "scene.show", sceneId: sc.id });
-      } else if ((k === "ArrowRight" || k === "ArrowLeft") && s.live.shopOpen && s.shops.length) {
-        // While the shop is on the TV, the arrows flip through the shops.
+      } else if ((k === "ArrowRight" || k === "ArrowLeft") && s.live.shopOpen && s.shops.some((x) => x.visibility === "all")) {
+        // While the shop is on the TV, the arrows flip through the shops the party can see.
         // Count from the shop we last asked for, so quick presses add up before the server answers.
-        const i = Math.max(0, s.shops.findIndex((x) => x.id === askedShop.current));
-        const n = s.shops.length;
-        const next = s.shops[(i + (k === "ArrowRight" ? 1 : -1) + n) % n];
+        const open = s.shops.filter((x) => x.visibility === "all");
+        const i = Math.max(0, open.findIndex((x) => x.id === askedShop.current));
+        const n = open.length;
+        const next = open[(i + (k === "ArrowRight" ? 1 : -1) + n) % n];
         askedShop.current = next.id;
         void run({ type: "live.shop", open: true, shopId: next.id });
       } else if (k === "ArrowRight") void run({ type: "scene.step", dir: 1 });
       else if (k === "ArrowLeft") void run({ type: "scene.step", dir: -1 });
-      else if (k === "s" || k === "S") void run({ type: "live.shop", open: !s.live.shopOpen });
+      else if (k === "s" || k === "S") toggleShop();
       else if (k === "p" || k === "P") void run({ type: "live.purse", visible: !s.live.purseVisible });
       else if (k === "b" || k === "B") setTab("bank");
       else if (k === "Escape" && s.live.shopOpen) void run({ type: "live.shop", open: false });
@@ -267,6 +278,7 @@ function DmConsole({ view, ident, online, send }: { view: DmView; ident: Ident; 
             {online ? "Live" : "Reconnecting"}
           </span>
           <span className="spacer" />
+          <Inbox />
           {session ? (
             <button className="btn" type="button" onClick={() => run({ type: "session.end" }, `${session.title} ended.`)}>
               End session
@@ -364,7 +376,7 @@ function DmConsole({ view, ident, online, send }: { view: DmView; ident: Ident; 
             </div>
 
             <div className="live-toggles">
-              <button type="button" className={`btn${s.live.shopOpen ? " on" : ""}`} aria-pressed={s.live.shopOpen} onClick={() => run({ type: "live.shop", open: !s.live.shopOpen })}>
+              <button type="button" className={`btn${s.live.shopOpen ? " on" : ""}`} aria-pressed={s.live.shopOpen} onClick={toggleShop}>
                 <span className="key">S</span> {s.live.shopOpen ? "Close the shop" : "Shop on TV"}
               </button>
               <button type="button" className={`btn${s.live.purseVisible ? " on" : ""}`} aria-pressed={s.live.purseVisible} onClick={() => run({ type: "live.purse", visible: !s.live.purseVisible })}>
@@ -373,7 +385,10 @@ function DmConsole({ view, ident, online, send }: { view: DmView; ident: Ident; 
             </div>
             <div className={`live-shops${s.live.shopOpen ? " open" : ""}`} role="group" aria-label="Which shop the TV shows">
               <span className="note">{s.live.shopOpen ? "The TV is showing:" : "Open the shop on the TV at:"}</span>
-              {s.shops.map((sh) => {
+              {s.shops.filter((sh) => sh.visibility === "all").length === 0 ? (
+                <span className="note">Every shop is hidden. Open one to everyone under Shop first.</span>
+              ) : null}
+              {s.shops.filter((sh) => sh.visibility === "all").map((sh) => {
                 const on = s.live.shopOpen && sh.id === s.live.shopId;
                 return (
                   <button key={sh.id} type="button" className={`btn small${on ? " on" : ""}`} aria-pressed={on} onClick={() => run({ type: "live.shop", open: true, shopId: sh.id })}>
@@ -383,7 +398,7 @@ function DmConsole({ view, ident, online, send }: { view: DmView; ident: Ident; 
               })}
             </div>
             <p className="note hint">
-              Keys: 0&ndash;9 scenes &middot; &larr; &rarr; step (or flip shops while the shop is open) &middot; S shop &middot; P purse &middot; B bank &middot; Esc closes the shop
+              Keys: 0&ndash;9 scenes &middot; &larr; &rarr; step (or flip shops while the shop is open) &middot; S shop &middot; P purse &middot; B bank &middot; I requests &middot; Esc closes the shop
             </p>
           </section>
 

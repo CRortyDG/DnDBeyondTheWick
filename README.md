@@ -91,8 +91,8 @@ In the DM view, **Open TV window** pops the TV page out. Drag it onto the TV and
 
 | Where | Keys |
 | --- | --- |
-| DM view | `0`–`9` scenes · `←` `→` step (while the shop is open: flip shops) · `S` shop on the TV · `P` purse · `B` bank · `Esc` closes the shop |
-| Run-game mode | `Space` or `→` next beat · `Shift+Space` or `←` back · `0`–`9` `S` `P` as above · `B` opens the bank on top · `Esc` closes it |
+| DM view | `0`–`9` scenes · `←` `→` step (while the shop is open: flip shops) · `S` shop on the TV · `P` purse · `B` bank · `I` requests from phones · `Esc` closes the shop (or the requests drawer first) |
+| Run-game mode | `Space` or `→` next beat · `Shift+Space` or `←` back · `0`–`9` `S` `P` as above · `B` opens the bank on top · `I` requests · `Esc` closes whatever is on top |
 | TV | `F` fullscreen · `H` hide the control bar |
 
 ## How it's built
@@ -119,6 +119,36 @@ scripts/seed.ts     create or reset a game from the command line
 - **Gold lives here, not on D&D Beyond.** Players keep D&D Beyond's coins at 0. Anything bought here, they add to their D&D Beyond inventory themselves; the ledger keeps the purchase history.
 - **Heroic Inspiration:** tap the d20 beside a player's name in the Bank (or "Inspiration" on their card under Players). A gold d20 then shows beside their name in the TV purse; tap again when it's spent.
 - **Launch VTT:** paste the campaign's D&D Beyond game link under Game. It shows as a Launch VTT button at the top of your view and on every player's phone.
+
+## Shops
+
+- **Every shop starts hidden.** In DM view → Shop, each shop has **Hidden / Everyone / Selected players**.
+  - **Hidden:** nobody but the DM sees it.
+  - **Everyone:** the whole party gets it, and it can go on the TV.
+  - **Selected players:** a secret offer (the Peddler). It's never shown on the TV.
+- **Server-side filtering:** hidden shops, hidden items, rumored names and item DM notes never leave the server for anyone who can't see them.
+- **Item tiers** (Edit on a card → "Shown as"):
+  - **For sale:** players can buy it.
+  - **Locked:** visible with its price (or ??? gp) and a reason.
+  - **Rumored:** shows "???" and a one-line hint.
+  - **Hidden:** not shown at all.
+- **Stock** is optional ("1 in stock"); buying takes one, and "When sold out" says what happens next.
+- **Special orders:** set "arrives after N sessions". The buyer pays now, and the order arrives by itself when that session starts.
+- **Price labels and fine print:** "Free*" with fine print, for the Peddler.
+- **Banners:** opening a shop to everyone, or revealing or unlocking an item in an open shop, shows a short banner on the TV and on phones. Tick **Quietly** to skip it.
+- **Closed shops** (the Peddler) show only their name and tagline until you untick Closed.
+- **Starter catalog:** DM view → Game → **Load the starter catalog** swaps in the latest one, with all shops hidden. Gold and history aren't touched.
+
+## Buying from phones
+
+- **Players ask, you decide.** On their phone a player sees their gold, their *available* gold (gold minus anything waiting), and the shops you've opened to them. They tap an item, pick a quantity if it stacks, add an optional note ("for the bard"), and ask. They can cancel while it's waiting.
+- **Holds.** A waiting request holds the gold and the stock, so nobody can ask for more than they have, and two players can't both claim the last lute.
+- **The Requests drawer** (`I`, or the Requests button with its badge and a soft chime you can mute): Approve, Decline with a reason they'll see, or **Different price** to type a new total after haggling (the ledger keeps both prices). **Approve all** handles payday. If something no longer works when you approve (they spent the gold, it sold out), it tells you and offers *Approve anyway*.
+- **On the TV:** "Mira bought a Shield." (tick *Show purchases on the TV* in the drawer to turn it off). Never for secret shops.
+- **Secret sales:** tick it on a shop (the Peddler has it on). Shops shown only to selected players are always secret. Those purchases never reach the TV or other phones.
+- **Sending gold:** a player can ask to send gold to another player from the party purse. It goes through the same drawer and shows in both ledgers.
+- **One at a time:** untick *Players can ask for several at once* on gear like armor.
+- Phones get no push notifications; a banner appears on the page when you decide. Anyone who opens an unlocked name can ask to spend that player's gold, so players are nudged to lock their name; your approval is the safeguard either way.
 
 ## Running a session (run-game mode)
 

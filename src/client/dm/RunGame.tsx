@@ -9,6 +9,7 @@ import { previousRecap } from "@/shared/reducer";
 import { beatFirstLine } from "@/shared/runsheet";
 import type { Beat, BeatAction, Episode, Scene, Session, SessionRun } from "@/shared/types";
 import { BankPanel } from "./BankPanel";
+import { Inbox, isInboxOpen } from "./Inbox";
 import { useDm } from "./context";
 
 export function actionLabel(a: BeatAction, scenes: Scene[]): string {
@@ -61,6 +62,7 @@ export function RunGame({ onExit }: { onExit: () => void }) {
       const t = e.target as HTMLElement | null;
       if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT" || t.isContentEditable)) return;
       if (e.metaKey || e.ctrlKey || e.altKey) return;
+      if (isInboxOpen()) return; // the requests drawer has the keys while it's open
       const k = e.key;
       if ((k === " " && !e.shiftKey) || k === "ArrowRight" || k === "PageDown") next();
       else if ((k === " " && e.shiftKey) || k === "ArrowLeft" || k === "PageUp") back();
@@ -122,6 +124,7 @@ export function RunGame({ onExit }: { onExit: () => void }) {
           TV: {s.live.recapSessionId ? "Previously on…" : s.live.shopOpen ? "the shop" : (live?.label ?? "–")}
           {s.live.purseVisible ? " · purse" : ""}
         </span>
+        <Inbox />
         <button className="btn small" type="button" onClick={() => setBank(true)}>
           <span className="key">B</span> Bank
         </button>
