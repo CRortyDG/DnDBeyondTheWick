@@ -2996,3 +2996,43 @@ input.fld.inline-input {
     display: none;
   }
 }
+
+.beat-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  padding-top: 8px;
+}
+.beat-actions .note {
+  margin: 0;
+}
+.beat-action-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 1px solid var(--gold);
+  border-radius: 999px;
+  padding: 2px 4px 2px 12px;
+  font-size: 15px;
+}
+.chip-x {
+  font: inherit;
+  font-size: 18px;
+  line-height: 1;
+  color: var(--parchment);
+  background: none;
+  border: 0;
+  border-radius: 50%;
+  width: 32px;
+  height: 32px;
+  cursor: pointer;
+}
+.chip-x:hover {
+  background: var(--wax);
+}
+.fld.small-select {
+  min-height: 38px;
+  padding: 4px 8px;
+  font-size: 15px;
+}
