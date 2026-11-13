@@ -2,12 +2,14 @@
 
 import { useState } from "react";
 import { formatCp, formatDelta } from "@/shared/money";
-import type { PlayerView } from "@/shared/projection";
+import type { PlayerView, PublicItem } from "@/shared/projection";
 import { hrefFor, rememberKey, type Ident } from "../api";
 import { useGame } from "../useGame";
 import { Notice } from "../ui/Notice";
 import { ShopBoard } from "../ui/ShopBoard";
+import { BannerToast } from "../ui/BannerToast";
 import { InspirationIcon, LockIcon } from "../ui/icons";
+import { DecisionBanners, MyRequests, RequestSheet, SendGold, whyNot } from "./Requests";
 
 export function PlayerApp({ ident: initial }: { ident: Ident }) {
   const [ident, setIdent] = useState(initial);
@@ -72,8 +74,14 @@ function Taken({ ident, onKey }: { ident: Ident; onKey: (k: string) => void }) {
 
 function PlayerScreen({ view, online, send, ident, setIdent }: { view: PlayerView; online: boolean; send: (c: object) => Promise<string | null>; ident: Ident; setIdent: (i: Ident) => void }) {
   const [shopId, setShopId] = useState(view.live.shopOpen ? view.live.shopId : view.shops[0]?.id);
+  const pendingOrders = view.myOrders.filter((o) => !o.arrived);
   const [msg, setMsg] = useState<string | null>(null);
+  const [purseOpen, setPurseOpen] = useState(false);
+  const [looking, setLooking] = useState<string | null>(null);
   const me = view.me;
+  const availableCp = me.balanceCp - me.heldCp;
+  // Keep the sheet in step with live changes (stock, price); close it if the item disappears.
+  const lookingAt: PublicItem | undefined = looking ? view.items.find((i) => i.id === looking) : undefined;
 
   if (me.archived) {
     return (
@@ -100,10 +108,25 @@ function PlayerScreen({ view, online, send, ident, setIdent }: { view: PlayerVie
           <div className="player-hello">{view.game.name}</div>
           <h1 className="player-name">{me.name}</h1>
         </div>
-        <div className="player-gold" aria-label={`Your gold: ${formatCp(me.balanceCp)}`}>
-          {formatCp(me.balanceCp)}
+        <div className="player-gold-wrap">
+          <div className="player-gold" aria-label={`Your gold: ${formatCp(me.balanceCp)}`}>
+            {formatCp(me.balanceCp)}
+          </div>
+          <div className={`player-avail${me.heldCp ? " held" : ""}`}>
+            {me.heldCp ? (
+              <>
+                <span className="purse-amt">{formatCp(availableCp)}</span> available
+              </>
+            ) : (
+              "all available"
+            )}
+          </div>
+          <button type="button" className="btn small purse-btn" aria-expanded={purseOpen} aria-controls="party-purse" onClick={() => setPurseOpen((o) => !o)}>
+            {purseOpen ? "Hide party purse" : "Party purse"}
+          </button>
         </div>
       </header>
+      <DecisionBanners view={view} />
       <p className="note gold-note">Your gold lives here, not on D&amp;D Beyond: keep D&amp;D Beyond&rsquo;s coins at 0. Anything you buy, add to your D&amp;D Beyond inventory yourself.</p>
       {!online ? (
         <p className="player-offline" role="status">
@@ -116,7 +139,8 @@ function PlayerScreen({ view, online, send, ident, setIdent }: { view: PlayerVie
         </p>
       ) : null}
 
-      <section className="box">
+      {purseOpen ? (
+      <section className="box" id="party-purse">
         <h2>Party purse</h2>
         <ul className="purse-list">
           {view.purse.map((p) => (
@@ -130,12 +154,81 @@ function PlayerScreen({ view, online, send, ident, setIdent }: { view: PlayerVie
           ))}
         </ul>
         <p className="note">Party total: {formatCp(view.purse.reduce((a, p) => a + p.balanceCp, 0))}</p>
+        <SendGold view={view} availableCp={availableCp} send={send} onMsg={setMsg} />
       </section>
+      ) : null}
+
+      <BannerToast banner={view.banner} className="phone-banner" />
 
       <section className="box">
-        <ShopBoard shops={view.shops} items={view.items} shopId={shopId ?? ""} onShop={setShopId} size="page" />
-        <p className="note">To buy something, ask the DM. (Buying from your phone is coming next.)</p>
+        {view.shops.length ? (
+          <>
+            <ShopBoard
+              shops={view.shops}
+              items={view.items}
+              shopId={shopId ?? ""}
+              onShop={setShopId}
+              size="page"
+              actions={(it) => {
+                if (it.tier === "rumored") return null;
+                const why = whyNot(it, availableCp);
+                return (
+                  <>
+                    <button type="button" className={`btn${why ? "" : " primary"} grow-btn`} onClick={() => setLooking(it.id)}>
+                      {it.tier === "sale" ? "Ask to buy" : "Details"}
+                    </button>
+                    {why && it.tier === "sale" ? <span className="card-why">{why}</span> : null}
+                  </>
+                );
+              }}
+            />
+            <p className="note">Asking holds the gold until the DM approves or declines. You can cancel while it&rsquo;s waiting.</p>
+            {!me.locked ? (
+              <p className="note">
+                Tip: anyone who opens your link can ask to spend your gold.{" "}
+                <button type="button" className="linkish" onClick={lock}>
+                  Lock your name
+                </button>{" "}
+                so only you can.
+              </p>
+            ) : null}
+          </>
+        ) : (
+          <>
+            <h2>The market</h2>
+            <p className="note">No shops are open to you yet. Keep your eyes open around town.</p>
+          </>
+        )}
       </section>
+
+      {lookingAt ? (
+        <RequestSheet
+          item={lookingAt}
+          availableCp={availableCp}
+          send={send}
+          onClose={() => setLooking(null)}
+          onDone={(m) => {
+            setLooking(null);
+            setMsg(m);
+          }}
+        />
+      ) : null}
+
+      <MyRequests requests={view.myRequests} send={send} onMsg={setMsg} />
+
+      {pendingOrders.length ? (
+        <section className="box">
+          <h2>On its way</h2>
+          <ul className="ledger">
+            {pendingOrders.map((o) => (
+              <li key={o.id}>
+                <span>{o.itemName}</span>
+                <span className="note">arrives at session {o.arrivesAtSession}</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
 
       <section className="box">
         <h2>Your history</h2>

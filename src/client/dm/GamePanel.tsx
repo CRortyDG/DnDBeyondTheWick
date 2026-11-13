@@ -112,7 +112,20 @@ export function GamePanel() {
           <button className="btn danger" type="button" onClick={() => reset("all")}>
             Reset everything to the original Candlefair
           </button>
-          <p className="note">Back to Players 1&ndash;4, the prototype&rsquo;s scenes, shops and items. Your own edits, players and uploads are dropped.</p>
+          <p className="note">Back to Players 1&ndash;4, the starter scenes, shops and items. Your own edits, players and uploads are dropped.</p>
+          <button
+            className="btn danger"
+            type="button"
+            onClick={() => {
+              if (confirm("Replace every shop and item with the starter catalog? All shops start hidden. Gold, the ledger and special orders stay as they are."))
+                void run({ type: "catalog.reset" }, "Starter catalog loaded. Every shop is hidden until you open it.");
+            }}
+          >
+            Load the starter catalog
+          </button>
+          <p className="note">
+            Swaps your shops and items for the latest starter catalog: Temple Tonic and the other Candlefair goods, special orders from Baldur&rsquo;s Gate, Training and the Traveling Peddler. Your edits to shops and items are replaced; gold and history aren&rsquo;t touched.
+          </p>
         </div>
       </section>
     </div>

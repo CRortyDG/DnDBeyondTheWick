@@ -4,9 +4,20 @@
 import type { Command } from "./commands";
 import { displayNameFrom, isReservedHandle, normaliseHandle } from "./handles";
 import { canAfford, formatCp } from "./money";
-import type { Actor, GameState, LedgerEntry, LedgerKind, Player, Scene } from "./types";
+import { availableCp, availableStock, boughtPhrase, heldStock, isSecretShop } from "./requests";
+import { SEED_ITEMS, SEED_SHOPS } from "./seed";
+import { shopVisibleTo } from "./projection";
+import type { Actor, GameState, Item, ItemTier, LedgerEntry, LedgerKind, Player, Scene, Shop, TradeRequest } from "./types";
 
-export class CommandError extends Error {}
+export class CommandError extends Error {
+  /** "recheck": a phone request no longer works at approval time; the DM may override or decline. */
+  constructor(
+    message: string,
+    public code?: string,
+  ) {
+    super(message);
+  }
+}
 
 export interface Ctx {
   now: number;
@@ -18,10 +29,12 @@ export interface Result {
   ledger: LedgerEntry[];
   /** Created player id for system.join / player.add / knock.admit. */
   playerId?: string;
+  /** A note for whoever sent the command ("2 approved, 1 still needs you"). */
+  info?: string;
 }
 
-function fail(msg: string): never {
-  throw new CommandError(msg);
+function fail(msg: string, code?: string): never {
+  throw new CommandError(msg, code);
 }
 
 export function isDmCommand(type: string): boolean {
@@ -41,6 +54,20 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
   const nextId = (prefix: string) => prefix + (++s.seq).toString(36);
   const player = (id: string): Player => s.players.find((p) => p.id === id) ?? fail("That player isn't here.");
   const scene = (id: string): Scene => s.scenes.find((x) => x.id === id) ?? fail("That scene doesn't exist.");
+  const shop = (id: string): Shop => s.shops.find((x) => x.id === id) ?? fail("That shop doesn't exist.");
+
+  /** A short TV banner. */
+  const announce = (text: string) => {
+    s.banner = { id: nextId("bn"), text, at: ctx.now };
+  };
+  const RANK: Record<ItemTier, number> = { hidden: 0, rumored: 1, locked: 2, sale: 3 };
+  /** Banner when an item becomes more visible in a shop the whole party can see. */
+  const announceItem = (it: Item, was: ItemTier) => {
+    const sh = shop(it.shopId);
+    if (sh.visibility !== "all" || sh.closed || RANK[it.tier] <= RANK[was]) return;
+    if (it.tier === "rumored") announce(`A new rumor at ${sh.name}`);
+    else announce(`New at ${sh.name}: ${it.name}`);
+  };
 
   const move = (p: Player, amountCp: number, note: string, kind: LedgerKind, extra: Partial<LedgerEntry> = {}) => {
     p.balanceCp += amountCp;
@@ -55,6 +82,79 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
       sessionId: s.currentSessionId,
       ...extra,
     });
+  };
+
+  /** Take stock, write the ledger, and place special orders. Checks are the caller's job. */
+  const buyItem = (p: Player, item: Item, qty: number, chargeCp: number, extra: Partial<LedgerEntry> = {}) => {
+    if (item.stock !== null) item.stock = Math.max(0, item.stock - qty);
+    const listCp = item.priceCp * qty;
+    const haggled = chargeCp !== listCp ? ` (${formatCp(listCp)}, settled at ${formatCp(chargeCp)})` : "";
+    const what = qty > 1 ? `${qty} × ${item.name}` : item.name;
+    const ledgerExtra: Partial<LedgerEntry> = { itemId: item.id, ...(chargeCp !== listCp ? { listCp } : {}), ...extra };
+    if (item.arrivesInSessions) {
+      const now = s.sessions.find((x) => x.id === s.currentSessionId)?.number ?? nextSessionNumber(s) - 1;
+      const arrivesAtSession = now + item.arrivesInSessions;
+      for (let i = 0; i < qty; i++) {
+        s.orders.push({ id: nextId("o"), playerId: p.id, itemId: item.id, itemName: item.name, priceCp: Math.round(chargeCp / qty), orderedAt: ctx.now, arrivesAtSession, arrived: false });
+      }
+      move(p, -chargeCp, `Ordered ${what} (arrives session ${arrivesAtSession})${haggled}`, "purchase", ledgerExtra);
+    } else {
+      move(p, -chargeCp, `Bought ${what}${haggled}`, "purchase", ledgerExtra);
+    }
+  };
+
+  const request = (id: string): TradeRequest => s.requests.find((r) => r.id === id) ?? fail("That request doesn't exist.");
+
+  /** Keep every pending request and the latest 150 decided ones. */
+  const pruneRequests = () => {
+    const decided = s.requests.filter((r) => r.status !== "pending");
+    if (decided.length <= 150) return;
+    const drop = new Set(decided.slice(0, decided.length - 150).map((r) => r.id));
+    s.requests = s.requests.filter((r) => !drop.has(r.id));
+  };
+
+  /**
+   * Approve one request. Every check runs before anything changes, so a
+   * failed check leaves the state untouched (Approve all relies on that).
+   */
+  const approve = (r: TradeRequest, totalCp: number | undefined, override: boolean) => {
+    if (r.status !== "pending") fail(`That request was already ${r.status}.`);
+    const p = player(r.playerId);
+    if (r.kind === "give") {
+      const to = player(r.toPlayerId ?? "");
+      if (!override && p.balanceCp < r.totalCp) fail(`${p.name} only has ${formatCp(p.balanceCp)} now, not ${formatCp(r.totalCp)}.`, "recheck");
+      if (!override && to.archived) fail(`${to.name} has left the table.`, "recheck");
+      const batchId = nextId("b");
+      const note = r.note ? `: ${r.note}` : "";
+      move(p, -r.totalCp, `Sent ${formatCp(r.totalCp)} to ${to.name}${note}`, "transfer", { batchId, requestId: r.id });
+      move(to, r.totalCp, `From ${p.name}${note}`, "transfer", { batchId, requestId: r.id });
+      r.chargedCp = r.totalCp;
+    } else {
+      const item = s.items.find((x) => x.id === r.itemId) ?? fail(`${r.itemName ?? "That item"} is no longer in the shop. Decline it instead.`);
+      const charge = totalCp ?? r.totalCp;
+      if (!override) {
+        if (p.archived) fail(`${p.name} has left the table.`, "recheck");
+        if (p.balanceCp < charge) fail(`${p.name} only has ${formatCp(p.balanceCp)} now, not ${formatCp(charge)}.`, "recheck");
+        if (item.stock !== null && item.stock - heldStock(s, item.id, r.id) < r.qty) {
+          fail(item.stock === 0 ? `${item.name} is sold out now.` : `Only ${item.stock} ${item.name} left now.`, "recheck");
+        }
+        if (item.tier !== "sale") fail(`${item.name} isn't for sale any more.`, "recheck");
+      }
+      buyItem(p, item, r.qty, charge, { requestId: r.id });
+      r.chargedCp = charge;
+      if (s.tvPurchases !== false && !r.secret && !isSecretShop(s.shops.find((x) => x.id === item.shopId))) {
+        announce(`${p.name} bought ${boughtPhrase(item.name, r.qty)}`);
+      }
+    }
+    r.status = "approved";
+    r.decidedAt = ctx.now;
+  };
+
+  /** The player sending a me.* command. */
+  const me = (): Player => {
+    const p = player(ctx.actor.role === "player" ? ctx.actor.playerId : "");
+    if (p.archived) fail("You've left the table. Ask the DM to bring you back.");
+    return p;
   };
 
   const uniqueHandle = (base: string, exceptId?: string) => {
@@ -146,13 +246,13 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
     }
 
     // ---------- what the TV shows ----------
-    case "live.shop":
-      if (cmd.shopId) {
-        if (!s.shops.some((x) => x.id === cmd.shopId)) fail("That shop doesn't exist.");
-        s.live.shopId = cmd.shopId;
-      }
+    case "live.shop": {
+      const target = shop(cmd.shopId ?? s.live.shopId);
+      if (cmd.open && target.visibility !== "all") fail(`${target.name} is hidden from the party. Open it to everyone first.`);
+      s.live.shopId = target.id;
       s.live.shopOpen = cmd.open;
       break;
+    }
     case "live.purse":
       s.live.purseVisible = cmd.visible;
       break;
@@ -184,9 +284,13 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
       const p = player(cmd.playerId);
       if (p.archived) fail(`${p.name} has left the table.`);
       const item = s.items.find((x) => x.id === cmd.itemId) ?? fail("That item isn't for sale.");
-      if (item.lockReason) fail(`${item.name} is locked: ${item.lockReason}.`);
+      const where = shop(item.shopId);
+      if (where.closed) fail(`${where.name} isn't open yet.`);
+      if (item.tier === "locked") fail(`${item.name} is locked: ${item.reason || "not for sale yet"}.`);
+      if (item.tier !== "sale") fail(`${item.name} isn't for sale.`);
+      if (item.stock === 0) fail(`${item.name} is sold out.${item.restockNote ? " " + item.restockNote : ""}`);
       if (!canAfford(p.balanceCp, item.priceCp)) fail(`${p.name} can't afford ${item.name}.`);
-      move(p, -item.priceCp, `Bought ${item.name}`, "purchase", { itemId: item.id });
+      buyItem(p, item, 1, item.priceCp);
       break;
     }
 
@@ -230,12 +334,30 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
 
     // ---------- shops ----------
     case "shop.add":
-      s.shops.push({ id: nextId("shop"), name: cmd.name.trim() || "New shop", subtitle: cmd.subtitle.trim() });
+      s.shops.push({ id: nextId("shop"), name: cmd.name.trim() || "New shop", subtitle: cmd.subtitle.trim(), visibility: "hidden", playerIds: [] });
       break;
     case "shop.update": {
-      const sh = s.shops.find((x) => x.id === cmd.shopId) ?? fail("That shop doesn't exist.");
+      const sh = shop(cmd.shopId);
       if (cmd.patch.name !== undefined) sh.name = cmd.patch.name.trim() || sh.name;
       if (cmd.patch.subtitle !== undefined) sh.subtitle = cmd.patch.subtitle.trim();
+      if (cmd.patch.secretSales !== undefined) sh.secretSales = cmd.patch.secretSales || undefined;
+      if (cmd.patch.closed !== undefined) {
+        const opening = sh.closed && !cmd.patch.closed;
+        sh.closed = cmd.patch.closed || undefined;
+        if (opening && sh.visibility === "all") announce(`${sh.name} is open for business`);
+      }
+      break;
+    }
+    case "shop.visibility": {
+      const sh = shop(cmd.shopId);
+      const ids = [...new Set(cmd.playerIds ?? sh.playerIds)];
+      for (const pid of ids) player(pid);
+      if (cmd.visibility === "some" && !ids.length) fail("Pick at least one player.");
+      const wasPublic = sh.visibility === "all";
+      sh.visibility = cmd.visibility;
+      sh.playerIds = cmd.visibility === "some" ? ids : [];
+      if (cmd.visibility !== "all" && s.live.shopId === sh.id) s.live.shopOpen = false;
+      if (cmd.visibility === "all" && !wasPublic && !cmd.quiet) announce(sh.closed ? `${sh.name} has come to town` : `Now open: ${sh.name}`);
       break;
     }
     case "shop.remove": {
@@ -247,18 +369,58 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
       break;
     }
     case "item.add": {
-      if (!s.shops.some((x) => x.id === cmd.item.shopId)) fail("That shop doesn't exist.");
-      s.items.push({ id: nextId("i"), ...cmd.item, name: cmd.item.name.trim(), description: cmd.item.description.trim(), lockReason: cmd.item.lockReason.trim() });
+      shop(cmd.item.shopId);
+      const it = tidyItem({
+        id: nextId("i"),
+        description: "",
+        tier: "sale",
+        reason: "",
+        hint: "",
+        hidePrice: false,
+        stock: null,
+        restockNote: "",
+        ...cmd.item,
+      });
+      s.items.push(it);
+      if (!cmd.quiet) announceItem(it, "hidden");
       break;
     }
     case "item.update": {
       const it = s.items.find((x) => x.id === cmd.itemId) ?? fail("That item doesn't exist.");
-      if (cmd.patch.shopId && !s.shops.some((x) => x.id === cmd.patch.shopId)) fail("That shop doesn't exist.");
+      if (cmd.patch.shopId) shop(cmd.patch.shopId);
+      const before = { tier: it.tier, stock: it.stock, name: it.name };
       Object.assign(it, cmd.patch);
-      if (cmd.patch.name !== undefined) it.name = cmd.patch.name.trim() || it.name;
-      if (cmd.patch.lockReason !== undefined) it.lockReason = cmd.patch.lockReason.trim();
+      if (cmd.patch.name !== undefined) it.name = cmd.patch.name.trim() || before.name;
+      tidyItem(it);
+      if (!cmd.quiet) {
+        announceItem(it, before.tier);
+        if (before.stock === 0 && it.stock !== null && it.stock > 0 && it.tier === "sale" && shop(it.shopId).visibility === "all") {
+          announce(`Back in stock at ${shop(it.shopId).name}: ${it.name}`);
+        }
+      }
       break;
     }
+    case "order.arrive": {
+      const o = s.orders.find((x) => x.id === cmd.orderId) ?? fail("That order doesn't exist.");
+      if (!o.arrived) {
+        o.arrived = true;
+        announce(`Arrived from Baldur\u2019s Gate: ${o.itemName} for ${player(o.playerId).name}`);
+      }
+      break;
+    }
+    case "order.cancel": {
+      const o = s.orders.find((x) => x.id === cmd.orderId) ?? fail("That order doesn't exist.");
+      if (o.arrived) fail("That order already arrived.");
+      s.orders = s.orders.filter((x) => x.id !== o.id);
+      if (cmd.refund && o.priceCp > 0) move(player(o.playerId), o.priceCp, `Refund: ${o.itemName}`, "grant", { itemId: o.itemId });
+      break;
+    }
+    case "catalog.reset":
+      s.shops = structuredClone(SEED_SHOPS);
+      s.items = structuredClone(SEED_ITEMS);
+      s.live.shopOpen = false;
+      s.live.shopId = s.shops[0].id;
+      break;
     case "item.remove":
       s.items = s.items.filter((x) => x.id !== cmd.itemId);
       break;
@@ -278,6 +440,10 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
       s.sessions.push(sess);
       s.currentSessionId = sess.id;
       showScene(homeScene());
+      const due = s.orders.filter((o) => !o.arrived && o.arrivesAtSession <= number);
+      for (const o of due) o.arrived = true;
+      if (due.length === 1) announce(`Arrived from Baldur\u2019s Gate: ${due[0].itemName} for ${s.players.find((p) => p.id === due[0].playerId)?.name ?? "someone"}`);
+      else if (due.length > 1) announce(`${due.length} special orders have arrived from Baldur\u2019s Gate`);
       break;
     }
     case "session.end": {
@@ -342,6 +508,117 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
       break;
     }
 
+    // ---------- phone requests: the DM decides ----------
+    case "request.approve":
+      approve(request(cmd.requestId), cmd.totalCp, !!cmd.override);
+      pruneRequests();
+      break;
+    case "request.decline": {
+      const r = request(cmd.requestId);
+      if (r.status !== "pending") fail(`That request was already ${r.status}.`);
+      r.status = "declined";
+      r.decidedAt = ctx.now;
+      const reason = cmd.reason.trim();
+      if (reason) r.reason = reason;
+      pruneRequests();
+      break;
+    }
+    case "request.approveAll": {
+      const pending = s.requests.filter((r) => r.status === "pending");
+      if (!pending.length) fail("Nothing is waiting.");
+      let ok = 0;
+      const stuck: string[] = [];
+      for (const r of pending) {
+        try {
+          approve(r, undefined, false);
+          ok++;
+        } catch (e) {
+          if (!(e instanceof CommandError)) throw e;
+          stuck.push(`${r.playerName}: ${e.message}`);
+        }
+      }
+      out.info = stuck.length ? `Approved ${ok}. Still waiting on you: ${stuck.join(" ")}` : `Approved ${ok}.`;
+      pruneRequests();
+      break;
+    }
+    case "game.tvPurchases":
+      if (cmd.on) delete s.tvPurchases;
+      else s.tvPurchases = false;
+      break;
+
+    // ---------- phone requests: the player asks ----------
+    case "me.requestBuy": {
+      const p = me();
+      // Anything this player can't see gets the same answer, so the API can't be used to probe for hidden goods.
+      const unseen = "That item isn't available.";
+      const item = s.items.find((x) => x.id === cmd.itemId) ?? fail(unseen);
+      const where = s.shops.find((x) => x.id === item.shopId);
+      if (!where || !shopVisibleTo(where, { tv: false, playerId: p.id }) || item.tier === "hidden" || item.tier === "rumored") fail(unseen);
+      if (where.closed) fail(`${where.name} isn't open yet.`);
+      if (item.tier === "locked") fail(`${item.name} is locked: ${item.reason || "not for sale yet"}.`);
+      if (cmd.expectedUnitCp !== undefined && cmd.expectedUnitCp !== item.priceCp) fail(`The price of ${item.name} just changed to ${formatCp(item.priceCp)}. Have another look.`);
+      if (cmd.qty > 1 && (item.oneAtATime || item.arrivesInSessions)) fail(`${item.name} is sold one at a time.`);
+      const left = availableStock(s, item);
+      if (left !== null && left < cmd.qty) {
+        if (item.stock === 0) fail(`${item.name} is sold out.${item.restockNote ? " " + item.restockNote : ""}`);
+        fail(left === 0 ? `Someone has already asked for the last ${item.name}.` : `Only ${left} ${item.name} left.`);
+      }
+      const totalCp = item.priceCp * cmd.qty;
+      const avail = availableCp(s, p.id);
+      if (totalCp > avail) fail(`That costs ${formatCp(totalCp)} and you have ${formatCp(Math.max(0, avail))} available.`);
+      if (s.requests.filter((r) => r.status === "pending" && r.playerId === p.id).length >= 20) fail("You have 20 requests waiting. Let the DM catch up.");
+      s.requests.push({
+        id: nextId("rq"),
+        kind: "buy",
+        playerId: p.id,
+        playerName: p.name,
+        at: ctx.now,
+        status: "pending",
+        totalCp,
+        note: cmd.note.trim(),
+        secret: isSecretShop(where),
+        itemId: item.id,
+        itemName: item.name,
+        shopId: where.id,
+        qty: cmd.qty,
+        unitCp: item.priceCp,
+      });
+      break;
+    }
+    case "me.requestGive": {
+      const p = me();
+      const to = s.players.find((x) => x.id === cmd.toPlayerId && !x.archived) ?? fail("That player isn't at the table.");
+      if (to.id === p.id) fail("You can't send gold to yourself.");
+      const avail = availableCp(s, p.id);
+      if (cmd.amountCp > avail) fail(`You have ${formatCp(Math.max(0, avail))} available.`);
+      if (s.requests.filter((r) => r.status === "pending" && r.playerId === p.id).length >= 20) fail("You have 20 requests waiting. Let the DM catch up.");
+      s.requests.push({
+        id: nextId("rq"),
+        kind: "give",
+        playerId: p.id,
+        playerName: p.name,
+        at: ctx.now,
+        status: "pending",
+        totalCp: cmd.amountCp,
+        note: cmd.note.trim(),
+        secret: false,
+        qty: 1,
+        unitCp: cmd.amountCp,
+        toPlayerId: to.id,
+        toPlayerName: to.name,
+      });
+      break;
+    }
+    case "me.cancelRequest": {
+      const p = player(ctx.actor.role === "player" ? ctx.actor.playerId : "");
+      const r = s.requests.find((x) => x.id === cmd.requestId && x.playerId === p.id) ?? fail("That request doesn't exist.");
+      if (r.status !== "pending") fail(`That request was already ${r.status}.`);
+      r.status = "cancelled";
+      r.decidedAt = ctx.now;
+      pruneRequests();
+      break;
+    }
+
     // ---------- players acting on themselves ----------
     case "me.update": {
       const p = player(ctx.actor.role === "player" ? ctx.actor.playerId : "");
@@ -392,6 +669,22 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
 /** One more than the highest session number, so deleting old sessions never causes a clash. */
 export function nextSessionNumber(s: Pick<GameState, "sessions">): number {
   return s.sessions.reduce((m, x) => Math.max(m, x.number), 0) + 1;
+}
+
+function tidyItem(it: Item): Item {
+  it.name = it.name.trim();
+  it.description = it.description.trim();
+  it.reason = it.reason.trim();
+  it.hint = it.hint.trim();
+  it.restockNote = it.restockNote.trim();
+  for (const k of ["priceLabel", "finePrint", "dmNote"] as const) {
+    const v = it[k]?.trim();
+    if (v) it[k] = v;
+    else delete it[k];
+  }
+  if (!it.arrivesInSessions) delete it.arrivesInSessions;
+  if (!it.oneAtATime) delete it.oneAtATime;
+  return it;
 }
 
 function checkUrl(url: string): string | undefined {

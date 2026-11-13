@@ -1417,6 +1417,197 @@ label.check,
   padding: 10px 4px;
 }
 
+/* ---------- shop tiers, stock, orders, banners ---------- */
+
+.card.tier-rumored {
+  background: #2f2620;
+  color: #cdb995;
+  border: 1px dashed rgba(236, 198, 106, 0.45);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.4);
+}
+.card.tier-rumored .card-name {
+  letter-spacing: 0.15em;
+}
+.card.tier-hidden {
+  opacity: 0.55;
+  border: 1px dashed var(--muted);
+}
+.card.sold-out {
+  filter: grayscale(0.5);
+  opacity: 0.8;
+}
+.card-hint {
+  margin: 0;
+  font-family: var(--font-hand);
+  font-size: 22px;
+  line-height: 1.15;
+  color: var(--gold-bright);
+}
+.card-order,
+.card-stock {
+  margin: 0;
+  font-size: 14px;
+  font-style: italic;
+  color: var(--ink-soft);
+}
+.card.locked .card-order,
+.card.locked .card-stock {
+  color: var(--muted);
+}
+.card.sold-out .card-stock {
+  color: var(--wax);
+  font-style: normal;
+  font-weight: 600;
+}
+.card-fine {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.3;
+  color: var(--ink-soft);
+  border-top: 1px dotted rgba(91, 74, 58, 0.5);
+  padding-top: 4px;
+}
+.tier-badge {
+  align-self: flex-start;
+  font-size: 12px;
+  font-family: var(--font-body);
+  border-radius: 999px;
+  padding: 0 8px;
+  border: 1px solid currentColor;
+  color: var(--ink-soft);
+}
+.card.locked .tier-badge {
+  color: var(--muted);
+}
+.tier-badge-hidden {
+  color: var(--wax) !important;
+}
+.tab-note {
+  font-size: 12px;
+  margin-left: 6px;
+  color: var(--muted);
+  font-style: italic;
+}
+.tab.on .tab-note {
+  color: var(--parchment);
+}
+.shop-closed {
+  text-align: center;
+  padding: 24px 12px;
+  border: 1px dashed var(--line);
+  border-radius: 8px;
+}
+.shop-closed-name {
+  font-family: var(--font-sc);
+  font-size: 28px;
+  margin: 0;
+}
+.shop-closed-tag {
+  font-style: italic;
+  color: var(--gold);
+  margin: 4px 0;
+}
+.market-tv .shop-closed-name {
+  font-size: calc(56 * var(--u));
+}
+.market-tv .shop-closed-tag {
+  font-size: calc(36 * var(--u));
+}
+.market-tv .card-hint {
+  font-size: calc(32 * var(--u));
+  grid-column: 1 / -1;
+}
+.market-tv .card-order,
+.market-tv .card-stock,
+.market-tv .card-fine {
+  font-size: calc(24 * var(--u));
+  grid-column: 1 / -1;
+}
+.vis-box.vis-hidden {
+  border-style: dashed;
+}
+.vis-box.vis-all {
+  border-color: var(--pine);
+}
+.vis-box.vis-some {
+  border-color: var(--gold);
+}
+.orders {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+.orders li {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.tv-banner,
+.phone-banner {
+  position: fixed;
+  left: 50%;
+  z-index: 40;
+  transform: translateX(-50%);
+  background: var(--parchment);
+  color: var(--ink);
+  border: 2px solid var(--wax);
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.6);
+  font-family: var(--font-sc);
+  display: flex;
+  align-items: center;
+  white-space: nowrap;
+  animation: banner-in 7s ease both;
+}
+.tv-banner {
+  bottom: calc(70 * var(--u));
+  font-size: calc(48 * var(--u));
+  padding: calc(18 * var(--u)) calc(44 * var(--u));
+  gap: calc(20 * var(--u));
+  border-radius: calc(10 * var(--u));
+}
+.phone-banner {
+  top: 12px;
+  font-size: 18px;
+  padding: 10px 16px;
+  gap: 10px;
+  border-radius: 8px;
+  white-space: normal;
+  width: max-content;
+  max-width: calc(100vw - 32px);
+}
+.banner-seal {
+  width: 0.7em;
+  height: 0.7em;
+  border-radius: 50%;
+  background: var(--wax);
+  flex-shrink: 0;
+}
+@keyframes banner-in {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, 30%);
+  }
+  8%,
+  88% {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+  100% {
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tv-banner,
+  .phone-banner {
+    animation: none;
+  }
+}
+
 /* ---------- Heroic Inspiration ---------- */
 
 .insp {
@@ -1529,4 +1720,271 @@ label.check,
       opacity: 0;
     }
   }
+}
+
+/* ---------- phone requests (buy from your phone, DM approves) ---------- */
+
+.player-gold-wrap {
+  display: grid;
+  justify-items: end;
+  gap: 2px;
+}
+.player-avail {
+  font-size: 14px;
+  color: var(--muted);
+}
+.player-avail.held {
+  color: var(--gold);
+}
+.purse-btn {
+  margin-top: 4px;
+}
+.linkish {
+  font: inherit;
+  color: var(--gold-bright);
+  background: none;
+  border: 0;
+  padding: 0;
+  text-decoration: underline;
+  cursor: pointer;
+}
+.card-acts .grow-btn {
+  flex: 1 1 auto;
+}
+.card-why {
+  flex: 1 1 100%;
+  font-size: 14px;
+  font-style: italic;
+  color: var(--ink-soft);
+}
+.card.locked .card-why {
+  color: var(--muted);
+}
+
+.sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  background: rgba(8, 6, 4, 0.72);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+.sheet {
+  width: 100%;
+  max-width: 560px;
+  max-height: 92vh;
+  overflow-y: auto;
+  background: var(--tavern);
+  border: 1px solid var(--wood);
+  border-bottom: 0;
+  border-radius: 14px 14px 0 0;
+  padding: 18px 16px calc(18px + env(safe-area-inset-bottom));
+  display: grid;
+  gap: 12px;
+  outline: none;
+}
+.sheet .card {
+  transform: none;
+}
+.sheet-why {
+  margin: 0;
+  color: var(--gold-bright);
+  font-size: 16px;
+}
+.qty {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.qty .btn {
+  min-width: 52px;
+  min-height: 52px;
+  font-size: 24px;
+}
+.qty-n {
+  font-family: var(--font-num);
+  font-size: 26px;
+  min-width: 2ch;
+  text-align: center;
+}
+.qty-total {
+  margin-left: auto;
+  font-family: var(--font-num);
+  font-size: 20px;
+  color: var(--gold-bright);
+}
+
+.requests {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 8px;
+  display: grid;
+  gap: 10px;
+}
+.req {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--wood);
+}
+.req-main {
+  min-width: 0;
+}
+.req-title {
+  font-size: 18px;
+}
+.req-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: baseline;
+  font-size: 15px;
+}
+.req-status {
+  font-family: var(--font-sc);
+}
+.st-pending {
+  color: var(--gold-bright);
+}
+.st-approved {
+  color: var(--up);
+}
+.st-declined {
+  color: var(--down);
+}
+.st-cancelled {
+  color: var(--muted);
+}
+.req-reason {
+  font-size: 15px;
+  color: var(--parchment-2);
+}
+
+.decisions {
+  position: fixed;
+  left: 12px;
+  right: 12px;
+  bottom: calc(12px + env(safe-area-inset-bottom));
+  z-index: 45;
+  max-width: 560px;
+  margin: 0 auto;
+  max-height: 60vh;
+  overflow-y: auto;
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.7);
+  display: grid;
+  gap: 8px;
+  padding: 14px;
+  border: 2px solid var(--gold);
+  border-radius: 10px;
+  background: var(--wood-2);
+}
+.decision {
+  font-size: 19px;
+}
+.decision-approved strong {
+  color: var(--up);
+}
+.decision-declined strong {
+  color: var(--down);
+}
+.decision-reason {
+  font-size: 16px;
+  color: var(--parchment-2);
+  margin-top: 2px;
+}
+
+/* ---------- DM request inbox ---------- */
+
+.inbox-btn.has {
+  border-color: var(--gold);
+}
+.inbox-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  background: rgba(8, 6, 4, 0.55);
+  display: flex;
+  justify-content: flex-end;
+}
+.inbox-drawer {
+  width: min(520px, 100vw);
+  height: 100%;
+  overflow-y: auto;
+  background: var(--tavern);
+  border-left: 1px solid var(--wood);
+  padding: 18px 16px 40px;
+  display: grid;
+  align-content: start;
+  gap: 12px;
+  color: var(--parchment);
+  outline: none;
+}
+.inbox-drawer h2 {
+  font-size: 26px;
+  color: var(--gold);
+}
+.inbox-drawer h3 {
+  font-size: 20px;
+  color: var(--gold);
+  margin-top: 8px;
+}
+.inbox-settings {
+  gap: 4px 16px;
+}
+.inbox-list,
+.inbox-recent {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 12px;
+}
+.inbox-req {
+  border: 1px solid var(--wood);
+  border-radius: 8px;
+  padding: 12px;
+  display: grid;
+  gap: 6px;
+  background: var(--tavern-deep);
+}
+.inbox-who {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  font-size: 18px;
+}
+.inbox-who .note {
+  margin-left: auto;
+}
+.inbox-what {
+  font-size: 18px;
+}
+.inbox-note {
+  font-style: italic;
+  color: var(--parchment-2);
+}
+.inbox-fine {
+  color: var(--gold-bright);
+  font-style: italic;
+  font-size: 14px;
+}
+.inbox-warn,
+.inbox-problem p {
+  color: var(--gold-bright);
+  margin: 0;
+}
+.inbox-problem {
+  display: grid;
+  gap: 8px;
+  border-top: 1px dashed var(--line);
+  padding-top: 8px;
+}
+.inbox-recent li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 15px;
 }
