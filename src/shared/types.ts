@@ -97,6 +97,8 @@ export interface GameState {
   live: LiveState;
   /** When true, unknown ?player= names knock instead of being created. */
   doorClosed: boolean;
+  /** Seats at the table. Once this many players (not counting those who left) exist, new names knock. Default 6. */
+  maxPlayers?: number;
   players: Player[];
   scenes: Scene[];
   shops: Shop[];

@@ -10,6 +10,7 @@ import { Purse } from "../ui/Purse";
 import { SceneView } from "../ui/SceneView";
 import { TvIcon, CandleIcon } from "../ui/icons";
 import { DmContext, type DmCtx } from "./context";
+import { nextSessionNumber } from "@/shared/reducer";
 import { BankPanel } from "./BankPanel";
 import { ShopPanel } from "./ShopPanel";
 import { ScenesPanel } from "./ScenesPanel";
@@ -202,7 +203,7 @@ function DmConsole({ view, ident, online, send }: { view: DmView; ident: Ident; 
             </button>
           ) : (
             <button className="btn primary" type="button" onClick={() => run({ type: "session.start" }, "Session started. The TV is back on the notice board.")}>
-              Start session {s.sessions.length + 1}
+              Start session {nextSessionNumber(s)}
             </button>
           )}
           <button className="btn" type="button" onClick={openTv} title={absoluteHref(ident.game, "TV")}>

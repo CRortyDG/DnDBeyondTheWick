@@ -25,11 +25,11 @@ export function BankPanel() {
 
   const ledger = useMemo(() => {
     if (sessionFilter === "all") return view.ledger;
-    if (sessionFilter === "none") return view.ledger.filter((l) => !l.sessionId);
+    if (sessionFilter === "none") return view.ledger.filter((l) => !l.sessionId || !s.sessions.some((x) => x.id === l.sessionId));
     return view.ledger.filter((l) => l.sessionId === sessionFilter);
-  }, [view.ledger, sessionFilter]);
+  }, [view.ledger, sessionFilter, s.sessions]);
 
-  const sessionName = (id: string | null) => (id ? s.sessions.find((x) => x.id === id)?.title ?? "Session" : "Between sessions");
+  const sessionName = (id: string | null) => (id && s.sessions.find((x) => x.id === id)?.title) || "Between sessions";
 
   return (
     <div className="panel-grid">

@@ -14,6 +14,12 @@ export function PlayerApp({ ident: initial }: { ident: Ident }) {
   const g = useGame<PlayerView>(ident);
 
   if (g.phase === "taken") return <Taken ident={ident} onKey={(key) => (rememberKey(ident, key), setIdent({ ...ident, key }))} />;
+  if (g.phase === "full")
+    return (
+      <Notice title="The table is full">
+        <p>Every seat is taken tonight, so you&rsquo;ve knocked instead. If the DM lets you in, this page will open by itself.</p>
+      </Notice>
+    );
   if (g.phase === "knocking")
     return (
       <Notice title="You knocked">

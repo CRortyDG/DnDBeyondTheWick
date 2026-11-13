@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { View } from "@/shared/projection";
 import { api, ApiError, streamUrl, type Ident } from "./api";
 
-export type Phase = "loading" | "ok" | "taken" | "knocking" | "invalid" | "no-game" | "error";
+export type Phase = "loading" | "ok" | "taken" | "knocking" | "full" | "invalid" | "no-game" | "error";
 
 export interface GameHook<V extends View = View> {
   phase: Phase;

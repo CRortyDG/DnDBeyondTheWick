@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Command } from "@/shared/commands";
 import { apply, CommandError, type Ctx } from "@/shared/reducer";
-import { seedGame } from "@/shared/seed";
+import { freshStart, seedGame } from "@/shared/seed";
 import type { GameState, LedgerEntry } from "@/shared/types";
 
 const DM: Ctx = { now: 1_700_000_000_000, actor: { role: "dm" } };
@@ -153,5 +153,52 @@ describe("scenes", () => {
   });
   it("refuses image URLs that weren't uploaded", () => {
     expect(() => apply(seedGame("t"), { type: "scene.update", sceneId: "s-map", patch: { art: { url: "javascript:alert(1)" } } }, DM)).toThrow();
+  });
+});
+
+describe("managing sessions", () => {
+  it("renames, renumbers, reopens and deletes", () => {
+    let { state } = run(seedGame("t"), [{ type: "session.start" }, { type: "session.end" }, { type: "session.start" }, { type: "session.end" }]);
+    const [one, two] = state.sessions;
+    expect(two.number).toBe(2);
+    expect(() => apply(state, { type: "session.update", sessionId: two.id, patch: { number: 1 } }, DM)).toThrow(/already number 1/);
+    state = run(state, [{ type: "session.remove", sessionId: one.id }, { type: "session.update", sessionId: two.id, patch: { number: 1 } }]).state;
+    expect(state.sessions).toHaveLength(1);
+    expect(state.sessions[0]).toMatchObject({ number: 1, title: "Session 1" });
+    state = run(state, [{ type: "session.reopen", sessionId: two.id }]).state;
+    expect(state.currentSessionId).toBe(two.id);
+    expect(state.sessions[0].endedAt).toBeNull();
+    expect(() => apply(state, { type: "session.reopen", sessionId: two.id }, DM)).toThrow(/running/);
+  });
+
+  it("numbers the next session after the highest, even after deletions", () => {
+    let { state } = run(seedGame("t"), [{ type: "session.start" }, { type: "session.end" }, { type: "session.start" }, { type: "session.end" }]);
+    state = run(state, [{ type: "session.remove", sessionId: state.sessions[0].id }, { type: "session.start" }]).state;
+    expect(state.sessions.map((x) => x.number)).toEqual([2, 3]);
+  });
+
+  it("deleting every session starts again at 1", () => {
+    let { state } = run(seedGame("t"), [{ type: "session.start" }, { type: "session.end" }]);
+    state = run(state, [{ type: "session.remove", sessionId: state.sessions[0].id }, { type: "session.start" }]).state;
+    expect(state.sessions[0].number).toBe(1);
+  });
+
+  it("start fresh zeroes purses and clears sessions but keeps the table", () => {
+    let { state } = run(seedGame("t"), [{ type: "session.start" }, { type: "money.adjust", playerId: "p1", amountCp: 500, note: "" }, { type: "scene.show", sceneId: "s-mags" }]);
+    const fresh = freshStart(state);
+    expect(fresh.players.map((p) => p.balanceCp)).toEqual([0, 0, 0, 0]);
+    expect(fresh.sessions).toEqual([]);
+    expect(fresh.currentSessionId).toBeNull();
+    expect(fresh.live.sceneId).toBe("s-board");
+    expect(fresh.items).toEqual(state.items);
+    expect(fresh.players.map((p) => p.name)).toEqual(state.players.map((p) => p.name));
+  });
+});
+
+describe("seats", () => {
+  it("the DM can change how many seats the table has", () => {
+    const s = apply(seedGame("t"), { type: "table.seats", max: 8 }, DM).state;
+    expect(s.maxPlayers).toBe(8);
+    expect(() => apply(s, { type: "table.seats", max: 8 }, { now: 0, actor: { role: "player", playerId: "p1" } })).toThrow();
   });
 });

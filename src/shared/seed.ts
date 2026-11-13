@@ -1,6 +1,18 @@
 import { GP, SP } from "./money";
 import type { GameState, Item, Scene, Shop } from "./types";
 
+export const DEFAULT_SEATS = 6;
+
+/** Seats at the table, for games created before the setting existed too. */
+export function seatsOf(g: Pick<GameState, "maxPlayers">): number {
+  return g.maxPlayers ?? DEFAULT_SEATS;
+}
+
+/** Players who hold a seat: everyone except those who left the table. */
+export function seatedCount(g: Pick<GameState, "players">): number {
+  return g.players.filter((p) => !p.archived).length;
+}
+
 // Copied from the prototype (candlefair-tv-prototype.html). Spoiler-free.
 
 export const SEED_SHOPS: Shop[] = [
@@ -101,6 +113,7 @@ export function seedGame(id: string, name = "Tales from the Flickering Candle", 
     createdAt: now,
     live: { sceneId: "s-board", shopOpen: false, shopId: "general", purseVisible: true },
     doorClosed: false,
+    maxPlayers: DEFAULT_SEATS,
     players: [1, 2, 3, 4].map((n) => ({
       id: "p" + n,
       handle: "player" + n,
@@ -120,4 +133,21 @@ export function seedGame(id: string, name = "Tales from the Flickering Candle", 
     knocks: [],
     seq: 100,
   };
+}
+
+/**
+ * "Start fresh" after testing: keeps players, scenes, shops and items, but
+ * zeroes every purse and clears sessions and knocks. The ledger is wiped
+ * separately by the caller. Everything else is untouched.
+ */
+export function freshStart(g: GameState): GameState {
+  const s = structuredClone(g);
+  for (const p of s.players) p.balanceCp = 0;
+  s.sessions = [];
+  s.currentSessionId = null;
+  s.knocks = [];
+  const home = s.scenes.find((x) => x.kind === "notice" && !x.reveal) ?? s.scenes.find((x) => !x.reveal) ?? s.scenes[0];
+  if (home) s.live.sceneId = home.id;
+  s.live.shopOpen = false;
+  return s;
 }

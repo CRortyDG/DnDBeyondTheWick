@@ -67,8 +67,12 @@ export const dmCommand = z.discriminatedUnion("type", [
 
   z.object({ type: z.literal("session.start"), title: text(120).optional() }),
   z.object({ type: z.literal("session.end") }),
+  z.object({ type: z.literal("session.update"), sessionId: id, patch: z.object({ title: text(120), number: z.number().int().min(1).max(9999) }).partial() }),
+  z.object({ type: z.literal("session.reopen"), sessionId: id }),
+  z.object({ type: z.literal("session.remove"), sessionId: id }),
 
   z.object({ type: z.literal("door.set"), closed: z.boolean() }),
+  z.object({ type: z.literal("table.seats"), max: z.number().int().min(1).max(12) }),
   z.object({ type: z.literal("knock.admit"), knockId: id }),
   z.object({ type: z.literal("knock.dismiss"), knockId: id }),
 
