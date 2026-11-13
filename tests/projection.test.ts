@@ -1,0 +1,98 @@
+// Spoiler safety: DM-only data must never appear in the TV or player payloads.
+import { describe, expect, it } from "vitest";
+import { gatedArtIsLive, projectDm, projectPlayer, projectTv } from "@/shared/projection";
+import { apply } from "@/shared/reducer";
+import { seedGame } from "@/shared/seed";
+import type { GameState, LedgerEntry } from "@/shared/types";
+
+const CANARY = "CANARY_DM_ONLY_7f3a";
+const KEYHASH = "c".repeat(64);
+
+/** A game with a canary string in every DM-only field. */
+function spoilerGame(): GameState {
+  const g = seedGame("t");
+  for (const sc of g.scenes) sc.dmNote = `${CANARY} note for ${sc.id}`;
+  const symbol = g.scenes.find((s) => s.id === "s-symbol")!;
+  symbol.label = `${CANARY} label`;
+  symbol.alt = `${CANARY} alt`;
+  symbol.name = `${CANARY} name`;
+  g.players[0].keyHash = KEYHASH;
+  g.players[0].lastSeenAt = 123456789;
+  const bag = g.items.find((i) => i.name === "Bag of Holding")!;
+  bag.priceCp = 987654321; // hidden price
+  g.sessions.push({ id: "sess1", number: 1, title: "One", startedAt: 1, endedAt: null, attendeeIds: [], dmNotes: CANARY });
+  g.currentSessionId = "sess1";
+  return g;
+}
+
+const ledger: LedgerEntry[] = [
+  { id: "l1", at: 1, playerId: "p1", playerName: "Player 1", amountCp: 100, note: "mine", kind: "grant", sessionId: null },
+  { id: "l2", at: 2, playerId: "p2", playerName: "Player 2", amountCp: 200, note: "someone else's", kind: "grant", sessionId: null },
+];
+
+function leaks(json: string) {
+  return [CANARY, KEYHASH, "987654321", "123456789", "merchant-sigil\"", "dmNote", "keyHash", "lastSeenAt", "dmNotes"].filter((x) => json.includes(x));
+}
+
+describe("TV payload", () => {
+  it("contains no DM-only data while a normal scene is live", () => {
+    const json = JSON.stringify(projectTv(spoilerGame(), 1));
+    expect(leaks(json)).toEqual([]);
+    expect(json).not.toContain("s-symbol");
+  });
+
+  it("includes the reveal scene only once it's live, still without DM notes", () => {
+    let g = spoilerGame();
+    g = apply(g, { type: "scene.show", sceneId: "s-symbol" }, { now: 0, actor: { role: "dm" } }).state;
+    const tv = projectTv(g, 2);
+    const sym = tv.scenes.find((s) => s.id === "s-symbol")!;
+    expect(sym).toBeTruthy();
+    expect(sym.art.url).toMatch(/^\/api\/art\/merchant-sigil/);
+    const json = JSON.stringify(tv);
+    expect(json).not.toContain("dmNote");
+    expect(json).not.toContain(`${CANARY} label`);
+    expect(json).not.toContain("keyHash");
+  });
+
+  it("hides locked prices", () => {
+    const tv = projectTv(spoilerGame(), 1);
+    const bag = tv.items.find((i) => i.name === "Bag of Holding")!;
+    expect(bag.priceCp).toBeNull();
+    const plate = tv.items.find((i) => i.name === "Plate Armor")!;
+    expect(plate.priceCp).toBe(150000); // locked, but its price is meant to be visible
+  });
+});
+
+describe("player payload", () => {
+  it("contains no DM-only data and no scenes", () => {
+    const view = projectPlayer(spoilerGame(), 1, "p1", ledger);
+    const json = JSON.stringify(view);
+    expect(leaks(json)).toEqual([]);
+    expect(json).not.toContain("s-symbol");
+    expect(json).not.toContain("scenes");
+    expect(view.me.locked).toBe(true);
+  });
+  it("only shows the player's own history", () => {
+    const view = projectPlayer(spoilerGame(), 1, "p1", ledger);
+    expect(view.myLedger.map((l) => l.note)).toEqual(["mine"]);
+  });
+});
+
+describe("DM payload", () => {
+  it("has everything except key hashes", () => {
+    const dm = projectDm(spoilerGame(), 1, ledger);
+    const json = JSON.stringify(dm);
+    expect(json).toContain(CANARY);
+    expect(json).not.toContain(KEYHASH);
+    expect(dm.state.players[0].hasKey).toBe(true);
+  });
+});
+
+describe("gated art", () => {
+  it("is only served while its scene is live", () => {
+    let g = seedGame("t");
+    expect(gatedArtIsLive(g, "merchant-sigil")).toBe(false);
+    g = apply(g, { type: "scene.show", sceneId: "s-symbol" }, { now: 0, actor: { role: "dm" } }).state;
+    expect(gatedArtIsLive(g, "merchant-sigil")).toBe(true);
+  });
+});

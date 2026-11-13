@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400" role="img" aria-label="Portrait of Mags Wick, the halfling who runs the Flickering Candle: gray hair in a bun, rosy cheeks, a wide smile and an apron">
+    <circle cx="200" cy="200" r="196" fill="#6b3f22"></circle>
+    <circle cx="200" cy="190" r="132" fill="#ffffff" opacity="0.08"></circle>
+    <path d="M66 400 C76 312 136 280 200 280 C264 280 324 312 334 400 Z" fill="#3a4a5c"></path>
+    <path d="M150 300 L250 300 L268 400 L132 400 Z" fill="#f3ecdc"></path>
+    <line x1="150" y1="300" x2="132" y2="290" stroke="#f3ecdc" stroke-width="8" stroke-linecap="round"></line>
+    <line x1="250" y1="300" x2="268" y2="290" stroke="#f3ecdc" stroke-width="8" stroke-linecap="round"></line>
+    <path d="M160 340 L240 340" stroke="#2b2118" stroke-opacity="0.15" stroke-width="3"></path>
+    <rect x="262" y="282" width="34" height="74" rx="4" transform="rotate(18 279 319)" fill="#7a2a1f"></rect>
+    <line x1="268" y1="300" x2="298" y2="310" stroke="#ffffff" stroke-opacity="0.6" stroke-width="4"></line>
+    <line x1="260" y1="324" x2="290" y2="334" stroke="#ffffff" stroke-opacity="0.6" stroke-width="4"></line>
+    <rect x="184" y="246" width="32" height="40" fill="#e2ad85"></rect>
+    <path d="M136 188 L118 168 L138 174 Z" fill="#ebb791"></path>
+    <path d="M264 188 L282 168 L262 174 Z" fill="#ebb791"></path>
+    <ellipse cx="200" cy="192" rx="66" ry="64" fill="#f0c39b"></ellipse>
+    <circle cx="200" cy="112" r="28" fill="#b8b2a8"></circle>
+    <path d="M134 190 C128 124 272 124 266 190 C258 154 236 138 200 138 C164 138 142 154 134 190 Z" fill="#c4beb4"></path>
+    <path d="M176 142 C186 150 196 150 204 142" fill="none" stroke="#a39d93" stroke-width="2.5" stroke-linecap="round"></path>
+    <path d="M168 168 C174 162 182 162 188 166" fill="none" stroke="#8a8278" stroke-width="3.5" stroke-linecap="round"></path>
+    <path d="M212 166 C218 162 226 162 232 168" fill="none" stroke="#8a8278" stroke-width="3.5" stroke-linecap="round"></path>
+    <path d="M168 186 C174 179 182 179 188 186" fill="none" stroke="#2b2118" stroke-width="4" stroke-linecap="round"></path>
+    <path d="M212 186 C218 179 226 179 232 186" fill="none" stroke="#2b2118" stroke-width="4" stroke-linecap="round"></path>
+    <path d="M160 184 L154 180 M160 190 L153 190" stroke="#c48f6a" stroke-width="2" stroke-linecap="round"></path>
+    <path d="M240 184 L246 180 M240 190 L247 190" stroke="#c48f6a" stroke-width="2" stroke-linecap="round"></path>
+    <circle cx="162" cy="206" r="13" fill="#e0675a" opacity="0.4"></circle>
+    <circle cx="238" cy="206" r="13" fill="#e0675a" opacity="0.4"></circle>
+    <circle cx="200" cy="202" r="7" fill="#e6a982"></circle>
+    <path d="M176 220 C188 238 212 238 224 220 C212 226 188 226 176 220 Z" fill="#7a3b2e"></path>
+    <path d="M182 223 C192 228 208 228 218 223" fill="none" stroke="#ffffff" stroke-width="3" stroke-linecap="round"></path>
+  </svg>
