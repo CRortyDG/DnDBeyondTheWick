@@ -158,10 +158,14 @@ function SSea() {
         </g>
         <g className="lay-near">
           {/* the bow, pushing through */}
-          <path d="M90 820 L200 610 L310 820 Z" fill={WOOD} />
-          <path d="M200 610 L200 820" stroke={WOOD_DK} strokeWidth="3" />
-          <line x1="200" y1="610" x2="200" y2="540" stroke={WOOD_DK} strokeWidth="5" />
-          <path d="M110 800 C150 760 170 720 200 640" stroke="#ffffff" strokeOpacity="0.5" strokeWidth="3" fill="none" />
+          {/* the bow from on board: deck planks running to the point, gunwales either side */}
+          <path d="M-40 820 L200 520 L440 820 Z" fill="#6b5039" />
+          {[0, 1, 2, 3, 4, 5].map((i) => (
+            <line key={i} x1={200} y1={520} x2={-20 + i * 88} y2={820} stroke={WOOD_DK} strokeWidth="1.5" opacity="0.5" />
+          ))}
+          <path d="M-40 820 L200 520 L440 820" stroke={WOOD} strokeWidth="18" fill="none" strokeLinejoin="round" />
+          <line x1="200" y1="524" x2="236" y2="430" stroke={WOOD_DK} strokeWidth="6" strokeLinecap="round" />
+          <path d="M120 600 l16 -4 l0 30 l-16 6 z M280 600 l-16 -4 l0 30 l16 6 z" fill={WOOD_DK} opacity="0.7" />
         </g>
       </g>
     </Stage>
@@ -193,7 +197,7 @@ function SDeck() {
           {/* cargo */}
           <g>
             <rect x="250" y="560" width="70" height="56" fill="#8a6a46" stroke={WOOD_DK} strokeWidth="3" />
-            <rect x="300" y="520" width="60" height="50" fill="#9a7850" stroke={WOOD_DK} strokeWidth="3" />
+            <rect x="262" y="512" width="52" height="48" fill="#9a7850" stroke={WOOD_DK} strokeWidth="3" />
             <ellipse cx="350" cy="612" rx="22" ry="30" fill="#7a5a3a" stroke={WOOD_DK} strokeWidth="3" />
           </g>
           {/* the captain at the wheel: broad shoulders, coat, hat, looking ahead */}
@@ -221,10 +225,10 @@ function SDeck() {
 /** The other passengers along the rail. Cloaks only: no faces, nothing that decides anyone's character. */
 function SPassengers() {
   const cloaks: [number, number, number, string, boolean][] = [
-    [70, 560, 1.25, "#7b4a3a", false],
-    [168, 520, 1.0, "#4e6a55", true],
-    [262, 536, 1.1, "#5a5470", false],
-    [345, 566, 1.3, "#6d7a86", true],
+    [70, 592, 1.2, "#7b4a3a", false],
+    [168, 572, 0.95, "#4e6a55", true],
+    [262, 584, 1.05, "#5a5470", false],
+    [345, 606, 1.25, "#6d7a86", true],
   ];
   return (
     <Stage>
@@ -232,16 +236,19 @@ function SPassengers() {
       <g className="cam">
         <rect width="400" height="800" fill="url(#sky-day)" />
         <g className="lay-far">
-          <rect y="500" width="400" height="300" fill="url(#water)" />
-          <Waves y={520} />
-          <path d="M-20 500 C80 488 180 492 260 498 L260 506 L-20 506 Z" fill={FAR} opacity="0.6" />
+          <rect y="430" width="400" height="370" fill="url(#water)" />
+          <Waves y={450} />
+          <path d="M-20 430 C80 418 180 422 260 428 L260 436 L-20 436 Z" fill={FAR} opacity="0.6" />
         </g>
-        <Haze y={500} opacity={0.8} />
+        <Haze y={430} opacity={0.8} />
         <g className="lay-mid">
           <Gulls />
         </g>
         <g className="lay-near">
-          <Rail y={580} />
+          <Rail y={510} />
+          {cloaks.map(([x, y, s]) => (
+            <ellipse key={`sh${x}`} cx={x} cy={y} rx={30 * s} ry={6 * s} fill="#000" opacity="0.25" />
+          ))}
           {cloaks.map(([x, y, s, c, f], i) => (
             <g key={i} className={`glance glance-${i}`}>
               <Cloaked x={x} y={y} s={s} color={c} flip={f} />
@@ -305,14 +312,17 @@ function Town() {
   return (
     <g>
       <path d="M-20 520 C60 470 140 440 220 430 C300 420 360 440 420 470 L420 560 L-20 560 Z" fill={SNOW} />
+      {/* the bell tower, standing among the houses */}
+      <rect x="200" y="380" width="22" height="110" fill="#a69c88" />
+      <path d="M196 380 L211 350 L226 380 Z" fill="#4c5f6f" />
       {houses.map(([x, w, h], i) => {
         const b = base(x);
         const top = b - h;
         return (
           <g key={i}>
             {/* chimney smoke */}
-            {i % 2 === 0 ? <path className={`smoke smoke-${i % 3}`} d={`M${x + w * 0.7} ${top - w * 0.4} c-6 -14 8 -22 0 -36 c-6 -10 6 -18 2 -28`} stroke="#ffffff" strokeOpacity="0.7" strokeWidth="5" fill="none" strokeLinecap="round" /> : null}
-            <rect x={x + w * 0.62} y={top - w * 0.45} width="7" height="16" fill={MID} />
+            {i % 2 === 0 && i !== 4 ? <path className={`smoke smoke-${i % 3}`} d={`M${x + w * 0.62 + 3.5} ${top - w * 0.45} c-6 -14 8 -22 0 -36 c-6 -10 6 -18 2 -28`} stroke="#ffffff" strokeOpacity="0.7" strokeWidth="5" fill="none" strokeLinecap="round" /> : null}
+            {i !== 4 ? <rect x={x + w * 0.62} y={top - w * 0.45} width="7" height="16" fill={MID} /> : null}
             <rect x={x} y={top} width={w} height={h + 20} fill={i % 2 ? "#c9c0ad" : "#b7ad98"} />
             <path d={`M${x - 4} ${top} L${x + w / 2} ${top - w * 0.55} L${x + w + 4} ${top} Z`} fill={ROOFS[i % ROOFS.length]} />
             <path d={`M${x - 4} ${top} L${x + w / 2} ${top - w * 0.55} L${x + w + 4} ${top}`} stroke={SNOW} strokeWidth="4" fill="none" />
@@ -320,15 +330,12 @@ function Town() {
           </g>
         );
       })}
-      {/* the bell tower */}
-      <rect x="200" y="380" width="22" height="80" fill="#a69c88" />
-      <path d="M196 380 L211 350 L226 380 Z" fill="#4c5f6f" />
       {/* garlands strung between the houses */}
       <Bunting x1={52} y1={base(52) - 64} x2={140} y2={base(140) - 76} sag={8} n={8} size={6} />
       <Bunting x1={174} y1={base(174) - 60} x2={272} y2={base(272) - 70} sag={8} n={9} size={6} />
       <Bunting x1={272} y1={base(272) - 70} x2={360} y2={base(360) - 66} sag={8} n={8} size={6} />
       {/* someone up on a roof with a garland */}
-      <g transform={`translate(${246} ${base(230) - 118})`} fill={NEAR}>
+      <g transform={`translate(284 ${base(272) - 70 - 15})`} fill={NEAR}>
         <circle r="4" cy="-12" />
         <rect x="-3" y="-8" width="6" height="12" />
       </g>
@@ -374,12 +381,14 @@ function SDocking() {
           {[170, 230, 290, 350, 400].map((x, i) => (
             <rect key={x} x={x} y={560 - i * 4} width="9" height={110} fill={WOOD_DK} />
           ))}
-          <Bunting x1={170} y1={540} x2={400} y2={524} sag={10} n={10} size={8} />
+          <rect x="172" y="500" width="6" height="60" fill={WOOD_DK} />
+          <rect x="398" y="484" width="6" height="58" fill={WOOD_DK} />
+          <Bunting x1={175} y1={502} x2={401} y2={486} sag={10} n={10} size={8} />
         </g>
         <g className="lay-near">
           <path d="M-20 560 L120 580 L140 820 L-20 820 Z" fill={WOOD} />
           <g className="gangplank">
-            <rect x="110" y="572" width="170" height="12" rx="2" fill="#8a6a46" />
+            <path d="M104 578 L240 548 L242 558 L106 590 Z" fill="#8a6a46" stroke={WOOD_DK} strokeWidth="2" />
           </g>
         </g>
       </g>
@@ -398,7 +407,7 @@ function SUphill({ shot }: { shot: number }) {
         {/* rooftops climbing to the right */}
         {Array.from({ length: 16 }, (_, i) => (
           <g key={i}>
-            <rect x={i * 80 - 10} y={380 - i * 8} width="80" height="200" fill={i % 2 ? "#c9c0ad" : "#b7ad98"} />
+            <rect x={i * 80 - 10} y={380 - i * 8} width="80" height={280 + i * 8 - ((i * 80 - 10) * 80) / W} fill={i % 2 ? "#c9c0ad" : "#b7ad98"} />
             <path d={`M${i * 80 - 14} ${380 - i * 8} l44 -38 l44 38 z`} fill={ROOFS[i % ROOFS.length]} />
             <path d={`M${i * 80 - 14} ${380 - i * 8} l44 -38 l44 38`} stroke={SNOW} strokeWidth="4" fill="none" />
             <rect x={i * 80 + 20} y={420 - i * 8} width="14" height="16" fill={WARM} opacity="0.8" />
@@ -432,28 +441,29 @@ function SUphill({ shot }: { shot: number }) {
           <path d="M54 -260 l76 -60 l76 60 z" fill="#7a3d30" />
           <g className="wobble">
             <g stroke={WOOD} strokeWidth="5" strokeLinecap="round">
-              <line x1="-30" y1="10" x2="20" y2="-200" />
-              <line x1="10" y1="10" x2="52" y2="-196" />
-              {[0, 1, 2, 3, 4, 5, 6].map((i) => (
-                <line key={i} x1={-26 + i * 7} y1={-10 - i * 28} x2={12 + i * 6} y2={-10 - i * 27} strokeWidth="3" />
-              ))}
+              <line x1="-30" y1="10" x2="28" y2="-200" />
+              <line x1="10" y1="10" x2="60" y2="-196" />
+              {[1, 2, 3, 4, 5, 6, 7].map((i) => {
+                const t = i / 8;
+                return <line key={i} x1={-30 + 58 * t} y1={10 - 210 * t} x2={10 + 50 * t} y2={10 - 206 * t} strokeWidth="3" />;
+              })}
             </g>
-            <g transform="translate(34 -200)">
+            <g transform="translate(34 -160)">
               <path d="M-12 0 C-14 -26 -8 -40 0 -44 C8 -40 14 -26 12 0 Z" fill="#4e6a55" />
               <circle cy="-52" r="8" fill="#d9b48f" />
               <path d="M-8 -56 h16 l-3 -7 h-10 z" fill="#3b2d21" />
-              <line x1="8" y1="-30" x2="40" y2="-60" stroke="#4e6a55" strokeWidth="5" strokeLinecap="round" />
+              <line x1="6" y1="-34" x2="26" y2="-74" stroke="#4e6a55" strokeWidth="5" strokeLinecap="round" />
             </g>
           </g>
-          <Bunting x1={74} y1={-262} x2={200} y2={-240} sag={10} n={7} size={9} />
+          <Bunting x1={60} y1={-234} x2={200} y2={-252} sag={10} n={7} size={9} />
         </g>
 
         {/* 3: the bakery vent */}
         <g transform="translate(1000 400)">
           <rect x="-90" y="0" width="200" height="200" fill="#c9c0ad" />
+          <rect x="40" y="-60" width="22" height="40" fill={MID} />
           <path d="M-100 0 L10 -70 L120 0 Z" fill="#8a4a36" />
           <path d="M-100 0 L10 -70 L120 0" stroke={SNOW} strokeWidth="5" fill="none" />
-          <rect x="40" y="-60" width="22" height="40" fill={MID} />
           <g className="steam" fill="none" stroke="#ffffff" strokeWidth="6" strokeLinecap="round" opacity="0.8">
             <path d="M51 -66 c-14 -20 14 -30 0 -52 c-12 -18 10 -30 2 -50" />
           </g>
@@ -471,6 +481,8 @@ function EmptyRoom() {
   return (
     <>
       <rect width="400" height="800" fill="url(#warm-room)" />
+      <rect y="640" width="400" height="160" fill="#2e1a0d" />
+      <path d="M0 640 H400" stroke="#1d0f07" strokeWidth="4" />
       {/* the hearth */}
       <g transform="translate(200 520)">
         <path d="M-150 120 L-150 -80 L150 -80 L150 120 Z" fill="#4a2c18" />
@@ -490,7 +502,7 @@ function EmptyRoom() {
         <path d="M-160 -78 C-100 -50 -40 -50 0 -70 C40 -50 100 -50 160 -78" stroke="#3f7a5c" strokeWidth="8" fill="none" strokeLinecap="round" />
       </g>
       {/* the tall candle in its brass holder, perfectly still */}
-      <g transform="translate(200 250)">
+      <g transform="translate(200 290)">
         <circle cx="0" cy="-16" r="70" fill="url(#glow-soft)" />
         <path d="M0 -40 c7 12 7 20 0 26 c-7 -6 -7 -14 0 -26 z" fill={WARM} />
         <rect x="-9" y="-12" width="18" height="120" fill="#efe3c8" />
@@ -546,7 +558,7 @@ function SDoor({ open }: { open: boolean }) {
         </g>
         {/* light under the door */}
         <rect x="76" y="696" width="248" height="6" fill={WARM} className="under-door" />
-        <rect y="712" width="400" height="90" fill="url(#snowground)" />
+        <rect y="702" width="400" height="100" fill="url(#snowground)" />
       </Stage>
     </div>
   );
@@ -581,26 +593,34 @@ function SMags({ shot }: { shot: number }) {
       <Stage className="mags-room">
         <Defs />
         <rect width="400" height="800" fill="url(#warm-room)" />
-        {/* the bar along the back, Mags small behind it */}
-        <rect x="40" y="220" width="320" height="40" fill="#6b4426" />
-        <rect x="40" y="216" width="320" height="8" fill="#8a5a32" />
-        <g transform="translate(200 220)">
+        {/* floor from the foot of the bar to the front */}
+        <rect y="258" width="400" height="542" fill="#3a2212" />
+        <path d="M0 258 H400" stroke="#1d0f07" strokeWidth="3" />
+        {/* the bar along the back, Mags small behind it, the candle on the bar */}
+        <g transform="translate(200 216)">
           <circle cy="-24" r="10" fill="#e8c9a8" />
           <circle cy="-36" r="6" fill="#b9b3ab" />
-          <path d="M-14 0 C-14 -12 14 -12 14 0 Z" fill="#3d5f8a" />
+          <path d="M-16 6 C-16 -14 16 -14 16 6 Z" fill="#3d5f8a" />
         </g>
-        <g transform="translate(200 120)">
-          <circle r="40" fill="url(#glow-soft)" />
-          <rect x="-3" y="-4" width="6" height="30" fill="#efe3c8" />
+        <rect x="40" y="220" width="320" height="38" fill="#6b4426" />
+        <rect x="40" y="216" width="320" height="8" fill="#8a5a32" />
+        <g transform="translate(320 190)">
+          <circle cy="-6" r="40" fill="url(#glow-soft)" />
+          <rect x="-3" y="-4" width="6" height="26" fill="#efe3c8" />
+          <rect x="-7" y="22" width="14" height="4" fill="#b8893a" />
           <path d="M0 -14 c3 5 3 8 0 10 c-3 -2 -3 -5 0 -10 z" fill={WARM} />
         </g>
         {seats.map(([x, y, c], i) => (
           <g key={i} transform={`translate(${x} ${y})`}>
-            <ellipse rx="44" ry="12" fill="#6b4426" />
-            <rect x="-3" y="0" width="6" height="36" fill="#3b2414" />
-            <g transform="translate(-8 -2) scale(0.62)">
+            {/* sitting behind the table: the tabletop hides their lap */}
+            <g transform="translate(0 4) scale(0.5)">
               <Cloaked x={0} y={0} color={c} flip={i % 2 === 1} />
             </g>
+            <ellipse cy="44" rx="40" ry="7" fill="#000" opacity="0.25" />
+            <rect x="-3" y="0" width="6" height="42" fill="#3b2414" />
+            <ellipse cy="42" rx="14" ry="4" fill="#3b2414" />
+            <ellipse rx="44" ry="12" fill="#6b4426" />
+            <ellipse cy="-2" rx="44" ry="10" fill="#7a4e2c" />
           </g>
         ))}
       </Stage>
