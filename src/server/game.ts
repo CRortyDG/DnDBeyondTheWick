@@ -3,7 +3,7 @@ import { dmCommand, playerCommand, type Command } from "@/shared/commands";
 import { displayNameFrom, isReservedHandle, normaliseGameId, normaliseHandle } from "@/shared/handles";
 import { projectDm, projectPlayer, projectTv, type View } from "@/shared/projection";
 import { apply, CommandError } from "@/shared/reducer";
-import { seedGame } from "@/shared/seed";
+import { seatedCount, seatsOf, seedGame } from "@/shared/seed";
 import type { Actor, GameState } from "@/shared/types";
 import { isDmKey, keyMatches, sha256 } from "./auth";
 import { getStore, type Store } from "./store";
@@ -98,7 +98,7 @@ export function parseClientCommand(actor: Actor, body: unknown): Command | { typ
 
 export type HelloResult =
   | { status: "ok"; view: View; handle?: string }
-  | { status: "taken" | "knocking" | "invalid" | "no-game" };
+  | { status: "taken" | "knocking" | "full" | "invalid" | "no-game" };
 
 /**
  * First contact when a page loads. Creates an unknown ?player= (unless the
@@ -115,9 +115,11 @@ export async function hello(gameRaw: string | null, rawPlayer: string | null, ke
 
   const system: Actor = { role: "system" };
   if (who.kind === "unknown") {
-    if (state.doorClosed) {
+    // A closed door, or a full table: knock and let the DM decide.
+    const full = seatedCount(state) >= seatsOf(state);
+    if (state.doorClosed || full) {
       await execute(store, game, system, { type: "system.knock", handle: who.handle });
-      return { status: "knocking" };
+      return { status: state.doorClosed ? "knocking" : "full" };
     }
     try {
       const r = await execute(store, game, system, {

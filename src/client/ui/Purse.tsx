@@ -42,7 +42,7 @@ export function Purse({ players, visible, size = "tv" }: { players: PublicPlayer
   const total = players.reduce((a, p) => a + p.balanceCp, 0);
 
   return (
-    <aside className={`purse purse-${size}${visible ? "" : " purse-off"}`} aria-label="Party purse" aria-hidden={!visible}>
+    <aside className={`purse purse-${size}${players.length > 6 ? " purse-many" : ""}${visible ? "" : " purse-off"}`} aria-label="Party purse" aria-hidden={!visible}>
       <h2>Party Purse</h2>
       {players.length === 0 ? <div className="purse-empty">Nobody at the table yet</div> : null}
       {players.map((p) => (

@@ -6,6 +6,7 @@ import type { DmPlayer } from "@/shared/projection";
 import { absoluteHref } from "../api";
 import { LinkIcon, LockIcon } from "../ui/icons";
 import { useDm } from "./context";
+import { seatedCount, seatsOf } from "@/shared/seed";
 import { Field } from "./Field";
 
 export function PlayersPanel() {
@@ -26,6 +27,21 @@ export function PlayersPanel() {
         <label className="check">
           <input type="checkbox" checked={s.doorClosed} onChange={(e) => run({ type: "door.set", closed: e.target.checked }, e.target.checked ? "Door closed. New names will knock." : "Door open.")} /> Close the door
         </label>
+        <div className="inline seats">
+          <label>
+            Seats at the table
+            <select className="fld" value={seatsOf(s)} onChange={(e) => run({ type: "table.seats", max: Number(e.target.value) }, `The table now seats ${e.target.value}.`)}>
+              {Array.from({ length: 12 }, (_, i) => i + 1).map((n) => (
+                <option key={n} value={n}>
+                  {n}
+                </option>
+              ))}
+            </select>
+          </label>
+          <span className="note">
+            {seatedCount(s)} of {seatsOf(s)} taken. When every seat is taken, new names knock. You can always let someone in, and players who &ldquo;left the table&rdquo; don&rsquo;t hold a seat.
+          </span>
+        </div>
         {s.knocks.length ? (
           <ul className="knock-list">
             {s.knocks.map((k) => (

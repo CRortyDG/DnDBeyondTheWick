@@ -94,3 +94,25 @@ describe("atomic saves", () => {
     expect(raw).toContain(sha256("hunter22"));
   });
 });
+
+describe("seats at the table", () => {
+  it("lets names join until six seats are taken, then they knock", async () => {
+    expect((await hello("candlefair", "Ysolde", null, store)).status).toBe("ok"); // 5th
+    expect((await hello("candlefair", "Kip", null, store)).status).toBe("ok"); // 6th
+    expect((await hello("candlefair", "Seventh", null, store)).status).toBe("full");
+    const { state } = await store.read("candlefair");
+    expect(state!.players).toHaveLength(6);
+    expect(state!.knocks.map((k) => k.handle)).toEqual(["seventh"]);
+    // The DM can still let them in.
+    await execute(store, "candlefair", DM, { type: "knock.admit", knockId: state!.knocks[0].id });
+    expect((await hello("candlefair", "Seventh", null, store)).status).toBe("ok");
+  });
+
+  it("players who left don't hold a seat, and existing players always get back in", async () => {
+    await hello("candlefair", "Ysolde", null, store);
+    await hello("candlefair", "Kip", null, store);
+    expect((await hello("candlefair", "Player 3", null, store)).status).toBe("ok");
+    await execute(store, "candlefair", DM, { type: "player.archive", playerId: "p4", archived: true });
+    expect((await hello("candlefair", "Newcomer", null, store)).status).toBe("ok");
+  });
+});

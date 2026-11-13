@@ -444,7 +444,15 @@ label.check,
   justify-content: space-between;
   position: relative;
 }
+/* One line per player, however long the name. */
+.purse-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .purse-amt {
+  flex-shrink: 0;
   color: var(--gold-bright);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
@@ -508,6 +516,14 @@ label.check,
   font-size: calc(34 * var(--u));
   line-height: 1.45;
   gap: calc(28 * var(--u));
+}
+/* More than six at the table: tighten the TV purse so it doesn't swallow the scene. */
+.purse-tv.purse-many .purse-row {
+  font-size: calc(29 * var(--u));
+  line-height: 1.35;
+}
+.purse-tv.purse-many h2 {
+  font-size: calc(28 * var(--u));
 }
 .purse-tv .purse-total,
 .purse-tv .purse-empty {
@@ -1378,6 +1394,37 @@ label.check,
   padding: 10px 4px;
 }
 
+/* ---------- sessions & resets ---------- */
+
+.session-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+.session-list li {
+  border: 1px solid var(--wood);
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+.session-list li.running {
+  border-color: var(--gold);
+}
+.session-list .inline label:first-child {
+  width: 90px;
+}
+.session-list .inline label:nth-child(2) {
+  flex: 1 1 200px;
+}
+.danger-zone {
+  border-color: #6a2f25;
+}
+.seats {
+  margin-top: 8px;
+  align-items: center;
+}
+
 /* ---------- numbers ---------- */
 
 .purse-amt,
@@ -1389,7 +1436,9 @@ label.check,
 .ledger .up,
 .ledger .down,
 .key,
-.purse-list .purse-amt {
+.purse-list .purse-amt,
+.fld[type="number"],
+.fld.amt {
   font-family: var(--font-num);
   font-variant-numeric: lining-nums tabular-nums;
   font-feature-settings: "lnum" 1, "tnum" 1;

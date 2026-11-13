@@ -16,6 +16,7 @@ Add `&game=<id>` to any link to use a different campaign (the default is `candle
 - **The DM** needs the secret `DM_KEY`. The server checks it on every request. After the first visit the key is saved on that device and removed from the address bar, so `?player=DM` alone works afterwards.
 - **Players** need no account. A new `?player=<name>` creates that player on the spot, and they show up in the DM view straight away. `Player1`, `player 1` and `PLAYER-1` are the same person.
 - **Locking a name:** add `&key=anything` the first time (or press "Lock my name" on the player page). After that, that name only opens with that key. The DM can reset a lock.
+- **Seats:** the table seats 6 by default; change it under Players. Once every seat is taken, a new name knocks instead of joining, and you can still let them in. Players marked "left the table" don't hold a seat.
 - **Griefing:** players can't move money themselves; only the DM can. If silly names start appearing, tick **Close the door** in the DM view: new names then knock, and you choose who to let in.
 - **The TV** is read-only.
 
@@ -110,6 +111,14 @@ src/client/         TV, DM and player screens
 tests/              vitest
 scripts/seed.ts     create or reset a game from the command line
 ```
+
+## Sessions and starting over
+
+- **Start or end a session** with the button at the top of the DM view. Ledger lines are tagged with the running session.
+- **DM view → Game → Sessions:** rename or renumber a session, reopen one you ended by mistake, or delete one. Deleted sessions' ledger lines read as "between sessions". The next session is always one higher than the highest left, so deleting every test session starts you at Session 1 again.
+- **DM view → Game → Start fresh** offers two resets:
+  - **Clear gold, ledger and sessions:** zeroes every purse and keeps players, scenes, shops and items. Use it after a test run.
+  - **Reset everything to the original Candlefair:** returns the whole game to the original seed.
 
 ## Backups
 

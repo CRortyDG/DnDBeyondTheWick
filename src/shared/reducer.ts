@@ -263,7 +263,7 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
     // ---------- sessions ----------
     case "session.start": {
       if (s.currentSessionId) fail("A session is already running. End it first.");
-      const number = s.sessions.length + 1;
+      const number = nextSessionNumber(s);
       const sess = {
         id: nextId("sess"),
         number,
@@ -284,10 +284,40 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
       showScene(homeScene());
       break;
     }
+    case "session.update": {
+      const sess = s.sessions.find((x) => x.id === cmd.sessionId) ?? fail("That session doesn't exist.");
+      if (cmd.patch.number !== undefined) {
+        const clash = s.sessions.find((x) => x.number === cmd.patch.number && x.id !== sess.id);
+        if (clash) fail(`\u201c${clash.title}\u201d is already number ${clash.number}.`);
+        // Keep a default title in step with its number.
+        if (sess.title === `Session ${sess.number}`) sess.title = `Session ${cmd.patch.number}`;
+        sess.number = cmd.patch.number;
+      }
+      if (cmd.patch.title !== undefined) sess.title = cmd.patch.title.trim() || `Session ${sess.number}`;
+      s.sessions.sort((a, b) => a.number - b.number);
+      break;
+    }
+    case "session.reopen": {
+      if (s.currentSessionId) fail("Another session is running. End it first.");
+      const sess = s.sessions.find((x) => x.id === cmd.sessionId) ?? fail("That session doesn't exist.");
+      sess.endedAt = null;
+      s.currentSessionId = sess.id;
+      break;
+    }
+    case "session.remove": {
+      if (!s.sessions.some((x) => x.id === cmd.sessionId)) fail("That session doesn't exist.");
+      // Ledger lines keep their (now unknown) session id and read as "between sessions".
+      s.sessions = s.sessions.filter((x) => x.id !== cmd.sessionId);
+      if (s.currentSessionId === cmd.sessionId) s.currentSessionId = null;
+      break;
+    }
 
     // ---------- the door ----------
     case "door.set":
       s.doorClosed = cmd.closed;
+      break;
+    case "table.seats":
+      s.maxPlayers = cmd.max;
       break;
     case "knock.admit": {
       const k = s.knocks.find((x) => x.id === cmd.knockId) ?? fail("Nobody's knocking.");
@@ -348,6 +378,11 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
   }
 
   return out;
+}
+
+/** One more than the highest session number, so deleting old sessions never causes a clash. */
+export function nextSessionNumber(s: Pick<GameState, "sessions">): number {
+  return s.sessions.reduce((m, x) => Math.max(m, x.number), 0) + 1;
 }
 
 function checkUrl(url: string): string | undefined {
