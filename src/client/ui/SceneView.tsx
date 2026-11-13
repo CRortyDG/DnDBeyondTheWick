@@ -7,6 +7,7 @@ import { ArtumNotice } from "../scenes/ArtumNotice";
 import { Flyers, NoticeBoard } from "../scenes/NoticeBoard";
 import { Stage } from "./Stage";
 import { TableScene } from "./TableScene";
+import { Stinger } from "../scenes/Stinger";
 import type { TableView } from "@/shared/arrival";
 
 export interface RenderableScene {
@@ -36,6 +37,8 @@ export function SceneView({ scene, gated, emptyHint, table, flyers }: { scene: R
   const src = artSrc(scene.art, gated);
 
   if (scene.kind === "black") return <div className="scene-fill scene-black" />;
+
+  if (scene.kind === "stinger") return <Stinger />;
 
   if (scene.kind === "table") return <TableScene table={table} />;
 

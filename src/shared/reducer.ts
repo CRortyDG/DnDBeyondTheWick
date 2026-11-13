@@ -6,10 +6,10 @@ import { displayNameFrom, isReservedHandle, normaliseHandle } from "./handles";
 import { canAfford, formatCp } from "./money";
 import { beatBody } from "./commands";
 import { availableCp, availableStock, boughtPhrase, heldStock, isSecretShop } from "./requests";
-import { candlefairMap, emptyProgress, SEED_ITEMS, SEED_SHOPS, swordCoastMap } from "./seed";
+import { candlefairMap, emptyProgress, SEED_ITEMS, SEED_SHOPS, STINGER_SCENE, swordCoastMap } from "./seed";
 import { creditCp, duesFor, firstChargeCp, installmentCp, keepsStake, liveEffects, priceOf, raisedCp, rollDice, sharesOf, splitByShare } from "./progress";
 import { shopVisibleTo } from "./projection";
-import { CHARACTER_MAX, TABLE_SCENE_ID, WHY_MAX } from "./arrival";
+import { CHARACTER_MAX, STINGER_SCENE_ID, TABLE_SCENE_ID, WHY_MAX } from "./arrival";
 import { chapterSessionId, cleanTags, cleanText, defaultChapterId, NOTES_MAX, penName } from "./chronicle";
 import { DM_AUTHOR } from "./types";
 import type { Actor, Beat, BeatAction, Episode, FlyerText, GameState, Item, ItemTier, LedgerEntry, LedgerKind, MapData, Note, Pin, PinLink, Player, Scene, Session, SessionRun, Shop, TradeRequest } from "./types";
@@ -401,6 +401,15 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
     } else if (a.type === "black") {
       const black = s.scenes.find((x) => x.kind === "black");
       if (black) showScene(black.id);
+    } else if (a.type === "stinger") {
+      // Games made before the stinger get its scene the first time it plays.
+      let sc = s.scenes.find((x) => x.kind === "stinger");
+      if (!sc) {
+        sc = { ...STINGER_SCENE, id: s.scenes.some((x) => x.id === STINGER_SCENE_ID) ? nextId("s") : STINGER_SCENE_ID };
+        const black = s.scenes.findIndex((x) => x.kind === "black");
+        s.scenes.splice(black < 0 ? s.scenes.length : black, 0, sc);
+      }
+      showScene(sc.id);
     } else if (a.type === "bank") {
       // The bank is the DM's screen; the TV shows the purse.
       s.live.purseVisible = true;

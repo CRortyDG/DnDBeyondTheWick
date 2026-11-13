@@ -170,6 +170,8 @@ function parseAction(v: string, resolve: SceneResolver): { action: BeatAction } 
       return { action: { type: "black" } };
     case "bank":
       return { action: { type: "bank" } };
+    case "stinger":
+      return { action: { type: "stinger" } };
     case "initiative":
       return { warning: "there's no initiative tracker yet, so “action: initiative” was left off." };
     default:
@@ -183,6 +185,7 @@ function parseAction(v: string, resolve: SceneResolver): { action: BeatAction } 
 export function actionMarkdown(a: BeatAction, scenes: Pick<Scene, "id" | "label">[]): string | null {
   if (a.type === "black") return "action: black";
   if (a.type === "bank") return "action: bank";
+  if (a.type === "stinger") return "action: stinger";
   const sc = scenes.find((s) => s.id === a.sceneId);
   return sc ? `action: scene ${sc.label}` : null;
 }

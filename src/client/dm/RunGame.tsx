@@ -16,6 +16,7 @@ import { useDm } from "./context";
 export function actionLabel(a: BeatAction, scenes: Scene[]): string {
   if (a.type === "black") return "TV → black screen";
   if (a.type === "bank") return "Bank opens · purse on the TV";
+  if (a.type === "stinger") return "TV → plays the stinger";
   const sc = scenes.find((x) => x.id === a.sceneId);
   if (!sc) return "TV → a scene that was deleted";
   return sc.kind === "portrait" ? `TV → ${sc.label}’s portrait` : `TV → ${sc.label}`;
