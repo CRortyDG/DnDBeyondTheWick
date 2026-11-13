@@ -431,6 +431,9 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
       if (cmd.style !== undefined) m.legendStyle = cmd.style;
       break;
     }
+    case "map.sealScale":
+      mapOf(cmd.sceneId).sealScale = Math.round(cmd.scale * 100) / 100;
+      break;
     case "live.focus": {
       if (cmd.pinId === null) {
         delete s.live.focus;

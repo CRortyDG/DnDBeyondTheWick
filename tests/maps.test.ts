@@ -250,3 +250,15 @@ describe("adding the maps to an existing game", () => {
     expect(sword[0].map!.pins[0].link).toEqual({ kind: "scene", sceneId: "s-map" });
   });
 });
+
+describe("dot size", () => {
+  it("is saved per map, sent to the TV, and kept within limits", () => {
+    let g = seedGame("t");
+    expect(projectTv(g, 1).scenes.find((s) => s.id === "s-map")!.map!.sealScale).toBe(1);
+    g = run(g, [{ type: "map.sealScale", sceneId: "s-map", scale: 0.45 }]);
+    expect(projectTv(g, 2).scenes.find((s) => s.id === "s-map")!.map!.sealScale).toBe(0.45);
+    expect(projectTv(g, 2).scenes.find((s) => s.id === "s-swordcoast")!.map!.sealScale).toBe(1);
+    expect(dmCommand.safeParse({ type: "map.sealScale", sceneId: "s-map", scale: 0.1 }).success).toBe(false);
+    expect(dmCommand.safeParse({ type: "map.sealScale", sceneId: "s-map", scale: 3 }).success).toBe(false);
+  });
+});

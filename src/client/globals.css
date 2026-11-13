@@ -3195,3 +3195,21 @@ input.fld.inline-input {
 .arrival-steps small {
   opacity: 0.7;
 }
+
+/* Dot size slider for a map. */
+.dot-size {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+}
+.dot-size input[type="range"] {
+  width: 120px;
+  accent-color: var(--wax);
+}
+.dot-size-val {
+  font-family: var(--font-num);
+  font-variant-numeric: lining-nums tabular-nums;
+  min-width: 3.5ch;
+  color: var(--muted);
+}
