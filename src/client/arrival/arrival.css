@@ -1,5 +1,5 @@
-/* The Arrival intro and seat page. Phone-first, portrait. Cold blues and greys;
-   candlelight is the only warm colour until the tavern. */
+/* The Arrival intro and seat page. Phone-first, portrait. A grey winter day,
+   snow and wood, with Winterfest colour; warm light inside the Candle. */
 
 :root {
   --ink: #03050a;
@@ -271,40 +271,93 @@ a {
   }
 }
 
-/* The poster is the real handbill, small and flapping on its post. */
-.poster-wrap {
-  position: absolute;
-  left: 0;
-  top: 0;
-  transition:
-    transform 1.4s cubic-bezier(0.45, 0, 0.25, 1),
-    opacity 1s ease;
-  opacity: 0;
-  pointer-events: none;
+/* Daytime life: gulls, the sail, chimney smoke, a wobbly ladder, sidelong glances. */
+.gull-a {
+  animation: gull 5s ease-in-out infinite alternate;
 }
-.poster-wrap.here {
-  opacity: 1;
+.gull-b {
+  animation: gull 6.5s ease-in-out infinite alternate-reverse;
 }
-.poster {
-  width: 816px;
-  height: 1056px;
-  transform-origin: 0 0;
-  transform: scale(var(--s));
-  filter: brightness(0.62) saturate(0.55) hue-rotate(185deg);
-  animation: flap 2.6s ease-in-out infinite;
-  box-shadow: 0 0 60px rgba(0, 0, 0, 0.6);
+@keyframes gull {
+  from {
+    transform: translate(-10px, 4px);
+  }
+  to {
+    transform: translate(14px, -6px);
+  }
 }
-@keyframes flap {
+.sail {
+  transform-box: fill-box;
+  transform-origin: 0 50%;
+  animation: sail 6s ease-in-out infinite alternate;
+}
+@keyframes sail {
+  from {
+    transform: scaleX(0.97);
+  }
+  to {
+    transform: scaleX(1.02);
+  }
+}
+.smoke {
+  animation: steam 5s ease-in-out infinite;
+}
+.smoke-1 {
+  animation-delay: -1.7s;
+}
+.smoke-2 {
+  animation-delay: -3.3s;
+}
+.wobble {
+  transform-box: fill-box;
+  transform-origin: 20% 100%;
+  animation: wobble 2.4s ease-in-out infinite;
+}
+@keyframes wobble {
   0%,
   100% {
-    transform: scale(var(--s)) skewY(0deg);
+    transform: rotate(0deg);
   }
-  40% {
-    transform: scale(var(--s)) skewY(-2.5deg) scaleX(0.96);
+  30% {
+    transform: rotate(2.5deg);
   }
   60% {
-    transform: scale(var(--s)) skewY(1deg);
+    transform: rotate(-1.5deg);
   }
+}
+.glance {
+  animation: fade-in 1.2s ease both;
+}
+.glance-1 {
+  animation-delay: 0.5s;
+}
+.glance-2 {
+  animation-delay: 1s;
+}
+.glance-3 {
+  animation-delay: 1.5s;
+}
+
+/* Mags close up, then the camera pulls back to the whole (empty) room. */
+.mags-close,
+.mags-room {
+  position: absolute;
+  inset: 0;
+  transition:
+    opacity 1.4s ease,
+    transform 1.8s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.mags-room {
+  opacity: 0;
+  transform: scale(1.25);
+}
+.mags-scene.wide .mags-close {
+  opacity: 0;
+  transform: scale(0.75);
+}
+.mags-scene.wide .mags-room {
+  opacity: 1;
+  transform: scale(1);
 }
 
 /* The tavern door, then the warm room behind it. */
@@ -654,23 +707,15 @@ body:has(.seat-page) {
   margin: 4px 0 0;
   overflow-wrap: anywhere;
 }
-.key-slide .key {
-  display: block;
-  margin: 10px auto 0;
-  animation: key-slide 1.4s cubic-bezier(0.2, 0.7, 0.2, 1) 0.3s both;
+.claim-line .speech {
+  animation: fade-in 1s ease 0.4s both;
 }
-.key-slide .speech {
-  animation: fade-in 1s ease 1.2s both;
-}
-@keyframes key-slide {
-  from {
-    transform: translateX(-60vw) rotate(-12deg);
-    opacity: 0;
-  }
-  to {
-    transform: translateX(0) rotate(0);
-    opacity: 1;
-  }
+.claim-note {
+  font-style: italic;
+  color: #c9b99c;
+  font-size: 18px;
+  margin: 4px 0 0;
+  animation: fade-in 1s ease 1.3s both;
 }
 .seat-list {
   list-style: none;
@@ -763,7 +808,12 @@ body:has(.seat-page) {
   .creak,
   .lantern-glow,
   .steam path,
-  .poster,
+  .gull-a,
+  .gull-b,
+  .sail,
+  .smoke,
+  .wobble,
+  .glance,
   .hearth-fire,
   .under-door,
   .hint,
@@ -771,14 +821,13 @@ body:has(.seat-page) {
   .rt-flame,
   .rt-glow,
   .mags-portrait,
-  .key-slide .key {
+  .claim-line .speech,
+  .claim-note {
     animation: none !important;
   }
-  .poster {
-    transform: scale(var(--s));
-  }
   .pan,
-  .poster-wrap,
+  .mags-close,
+  .mags-room,
   .door-leaf {
     transition: opacity 0.6s ease !important;
   }

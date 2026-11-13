@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { ArrivalView } from "@/shared/arrival";
-import { fill, SEAT_PAGE } from "./content";
+import { SEAT_PAGE } from "./content";
 import { SoundIcon } from "./Intro";
 import { RoundTable } from "./RoundTable";
 
@@ -56,7 +56,6 @@ export function SeatPage({
   }
 
   const seats = (view?.seats ?? []).map((s) => ({ ...s, flare: s.me ? claimedNow : 0 }));
-  const keyLine = me?.character?.trim() ? fill(SEAT_PAGE.keyLine, me.character) : SEAT_PAGE.keyLineNoName;
 
   return (
     <main className="seat-page">
@@ -119,12 +118,9 @@ export function SeatPage({
       {me?.claimed && !showForm ? (
         <section className="seat-claimed">
           {claimedNow ? (
-            <div className="key-slide" key={claimedNow} aria-live="polite">
-              <svg viewBox="0 0 80 30" width="64" height="24" aria-hidden="true" className="key">
-                <circle cx="12" cy="15" r="9" fill="none" stroke="#c9a14a" strokeWidth="4" />
-                <path d="M21 15 H74 M62 15 v8 M70 15 v6" stroke="#c9a14a" strokeWidth="4" fill="none" />
-              </svg>
-              <p className="speech">{keyLine}</p>
+            <div className="claim-line" key={claimedNow} aria-live="polite">
+              <p className="speech">{me.character ? me.character : "A stranger, for now."}</p>
+              <p className="claim-note">{SEAT_PAGE.claimLine}</p>
             </div>
           ) : (
             <p className="speech mine">{me.character ? me.character : "A stranger, for now."}</p>

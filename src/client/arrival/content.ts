@@ -19,13 +19,13 @@ export const EXTRAS = {
   uphillDetail: true,
 };
 
-export type SceneId = "lantern" | "deck" | "rivermouth" | "town" | "docking" | "uphill" | "door" | "mags";
+export type SceneId = "sea" | "deck" | "passengers" | "rivermouth" | "town" | "docking" | "uphill" | "door" | "mags";
 export type SoundBed = "ship" | "wind" | "hearth" | null;
 
 export interface Step {
   /** Lines appear one after another. */
   lines: string[];
-  /** Which part of the scene to show (panel 6's glimpses, panel 7's door). */
+  /** Which part of the scene to show (the walk uphill, the door, the room). */
   shot?: number;
   /** A one-off sound when this step starts. */
   cue?: "door";
@@ -38,17 +38,18 @@ export interface Panel {
 }
 
 export const PANELS: Panel[] = [
-  { scene: "lantern", sound: "ship", steps: [{ lines: ["*Four days out of Baldur’s Gate.*"] }] },
-  { scene: "deck", sound: "ship", steps: [{ lines: ["*{CAPTAIN} doesn’t look at you.*", "“Candlefair by dark. Don’t fall in.”"] }] },
-  { scene: "rivermouth", sound: "ship", steps: [{ lines: ["*Across the water, the old lighthouse at Lathtarl’s Lantern. Dark.*"] }] },
-  { scene: "town", sound: "ship", steps: [{ lines: ["*The whole town is dark. Except one window.*"] }] },
-  { scene: "docking", sound: "ship", steps: [{ lines: ["*You don’t know anyone here.*"] }] },
+  { scene: "sea", sound: "ship", steps: [{ lines: ["*Four days out of Baldur\u2019s Gate.*"] }] },
+  { scene: "deck", sound: "ship", steps: [{ lines: ["*{CAPTAIN} doesn\u2019t look at you.*", "\u201CCandlefair by noon. Don\u2019t fall in.\u201D"] }] },
+  { scene: "passengers", sound: "ship", steps: [{ lines: ["*A few other passengers. Nobody\u2019s said much.*", "*You\u2019ve all caught each other looking.*"] }] },
+  { scene: "rivermouth", sound: "ship", steps: [{ lines: ["*Across the water, the old lighthouse at Lathtarl\u2019s Lantern.*"] }] },
+  { scene: "town", sound: "ship", steps: [{ lines: ["*Candlefair. Somebody\u2019s hanging garlands from every roof.*"] }] },
+  { scene: "docking", sound: "ship", steps: [{ lines: ["*You don\u2019t know anyone here.*"] }] },
   {
     scene: "uphill",
     sound: "wind",
     steps: [
       { shot: 0, lines: ["*A fisherman losing an argument with a rope.*"] },
-      { shot: 1, lines: ["*A notice nailed to a post: HELP WANTED.*"] },
+      { shot: 1, lines: ["*A ladder that\u2019s seen better days. Everyone holds their breath.*"] },
       { shot: 2, lines: ["*Something sweet on the cold air.*"] },
     ],
   },
@@ -56,11 +57,18 @@ export const PANELS: Panel[] = [
     scene: "door",
     sound: "wind",
     steps: [
-      { shot: 0, lines: ["*You follow the light.*"] },
-      { shot: 1, lines: [], cue: "door" },
+      { shot: 0, lines: ["*Somewhere warm. Finally.*"] },
+      { shot: 1, lines: ["*Empty. A fire, a tall candle, and one halfling behind the bar.*"], cue: "door" },
     ],
   },
-  { scene: "mags", sound: "hearth", steps: [{ lines: ["“New faces. Sit anywhere.”", "“…Not that stool.”"] }] },
+  {
+    scene: "mags",
+    sound: "hearth",
+    steps: [
+      { shot: 0, lines: ["\u201CNew faces. Sit anywhere.\u201D", "\u201C\u2026Not that stool.\u201D"] },
+      { shot: 1, lines: ["*Strangers, every one of you. Each at your own table.*"] },
+    ],
+  },
 ];
 
 /** The last panel is the seat page. */
@@ -71,8 +79,8 @@ export const SEAT_PAGE = {
   whyLabel: "Why did you get on that boat?",
   takeSeat: "Take a seat",
   decideLater: "Decide later",
-  keyLine: "“Room’s yours, {CHARACTER}.”",
-  keyLineNoName: "“Room’s yours.”",
+  /** Shown as their candle lights. */
+  claimLine: "You find a seat. Nobody bothers you. Yet.",
   seatsHeading: "Around the table",
   emptySeat: "An empty seat",
   replay: "Replay intro",
