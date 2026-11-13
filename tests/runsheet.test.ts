@@ -303,7 +303,10 @@ describe("spoiler safety", () => {
     const tv = projectTv(g, 1);
     expect(tv.recap).toEqual({ number: 1, title: "Session 1", text: "They saved the feast." });
     expect(leaks(JSON.stringify(tv)).filter((x) => x !== "recap\":{")).toEqual([]);
-    expect(JSON.stringify(projectPlayer(g, 1, "p1", []))).not.toContain("saved the feast");
+    // Players read an ended session's recap in the Chronicle, never in the TV card's slot.
+    const phone = projectPlayer(g, 1, "p1", []);
+    expect(phone.chronicle.chapters.find((c) => c.id === first)!.recap).toBe("They saved the feast.");
+    expect(JSON.stringify({ ...phone, chronicle: null })).not.toContain("saved the feast");
     g = run(g, { type: "scene.show", sceneId: "s-board" });
     expect(projectTv(g, 2).recap).toBeNull();
   });

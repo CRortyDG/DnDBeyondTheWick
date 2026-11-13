@@ -8,6 +8,7 @@ import { useGame } from "../useGame";
 import { Notice } from "../ui/Notice";
 import { ShopBoard, type ShopMode } from "../ui/ShopBoard";
 import type { ItemCategory } from "@/shared/types";
+import { Chronicle } from "../ui/Chronicle";
 import { BannerToast } from "../ui/BannerToast";
 import { InspirationIcon, LockIcon } from "../ui/icons";
 import { askLabel, DecisionBanners, MyRequests, RequestSheet, SendGold, whyNot } from "./Requests";
@@ -79,6 +80,8 @@ function PlayerScreen({ view, online, send, ident, setIdent }: { view: PlayerVie
   const [msg, setMsg] = useState<string | null>(null);
   const [purseOpen, setPurseOpen] = useState(false);
   const [looking, setLooking] = useState<string | null>(null);
+  // During a session the phone opens on the Chronicle, so a note is one tap away.
+  const [screen, setScreen] = useState<"chronicle" | "purse">(view.session ? "chronicle" : "purse");
   const [mode, setMode] = useState<ShopMode>("category");
   const [category, setCategory] = useState<ItemCategory | undefined>(undefined);
   const me = view.me;
@@ -132,17 +135,29 @@ function PlayerScreen({ view, online, send, ident, setIdent }: { view: PlayerVie
         </div>
       </header>
       <DecisionBanners view={view} />
+      <BannerToast banner={view.banner} className="phone-banner" />
+      <div className="tabs player-screens" role="tablist" aria-label="Your page">
+        <button type="button" role="tab" aria-selected={screen === "chronicle"} className={`btn tab${screen === "chronicle" ? " on" : ""}`} onClick={() => setScreen("chronicle")}>
+          The Chronicle
+        </button>
+        <button type="button" role="tab" aria-selected={screen === "purse"} className={`btn tab${screen === "purse" ? " on" : ""}`} onClick={() => setScreen("purse")}>
+          Gold &amp; shops
+        </button>
+      </div>
+      {!online ? (
+        <p className="player-offline" role="status">
+          Reconnecting&hellip;
+        </p>
+      ) : null}
+      {screen === "chronicle" ? <Chronicle view={view.chronicle} gameName={view.game.name} send={send} /> : null}
+      {screen === "purse" ? (
+      <>
       {me.balanceCp < 0 && view.mine.credit.length ? (
         <p className="note owe-note" role="status">
           You owe {formatCp(-me.balanceCp)} on your tab at {view.mine.credit.map((c) => c.shopName).join(" and ")}. Pay it off before Mags remembers.
         </p>
       ) : null}
       <p className="note gold-note">Your gold lives here, not on D&amp;D Beyond: keep D&amp;D Beyond&rsquo;s coins at 0. Anything you buy, add to your D&amp;D Beyond inventory yourself.</p>
-      {!online ? (
-        <p className="player-offline" role="status">
-          Reconnecting&hellip;
-        </p>
-      ) : null}
       {msg ? (
         <p className="player-msg" role="status">
           {msg}
@@ -167,8 +182,6 @@ function PlayerScreen({ view, online, send, ident, setIdent }: { view: PlayerVie
         <SendGold view={view} availableCp={availableCp} send={send} onMsg={setMsg} />
       </section>
       ) : null}
-
-      <BannerToast banner={view.banner} className="phone-banner" />
 
       <section className="box">
         {view.shops.length ? (
@@ -286,6 +299,8 @@ function PlayerScreen({ view, online, send, ident, setIdent }: { view: PlayerVie
           )}
         </div>
       </section>
+      </>
+      ) : null}
     </div>
   );
 }

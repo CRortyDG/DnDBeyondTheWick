@@ -370,6 +370,17 @@ function StartStep({ session }: { session: Session }) {
   const s = view.state;
   const prev = previousRecap(s);
   const showing = !!prev && s.live.recapSessionId === prev.id;
+  // Starred Chronicle notes from last time can go up with the recap.
+  const starred = prev ? view.chronicle.notes.filter((n) => n.chapterId === prev.id && n.starred && !n.hidden) : [];
+  const [unpicked, setUnpicked] = useState<Set<string>>(() => new Set());
+  const picked = starred.filter((n) => !unpicked.has(n.id)).map((n) => n.id);
+  const toggle = (id: string, on: boolean) => {
+    const next = new Set(unpicked);
+    if (on) next.delete(id);
+    else next.add(id);
+    setUnpicked(next);
+    if (showing && prev) void run({ type: "live.recap", sessionId: prev.id, noteIds: starred.filter((n) => !next.has(n.id)).map((n) => n.id) });
+  };
   const players = s.players.filter((p) => !p.archived);
   return (
     <article className="run-beat">
@@ -411,7 +422,22 @@ function StartStep({ session }: { session: Session }) {
                 <p key={i}>{p.trim()}</p>
               ))}
           </blockquote>
-          <button className={`btn${showing ? " on" : ""}`} type="button" aria-pressed={showing} onClick={() => run({ type: "live.recap", sessionId: showing ? null : prev.id })}>
+          {starred.length ? (
+            <div className="run-starred">
+              <div className="note">Starred notes from the Chronicle to show with it:</div>
+              {starred.map((n) => (
+                <label key={n.id} className="check run-starred-note">
+                  <input type="checkbox" checked={!unpicked.has(n.id)} onChange={(e) => toggle(n.id, e.target.checked)} />
+                  <span>
+                    <span className="run-starred-text">{n.text}</span> <span className="note">&mdash; {n.author}</span>
+                  </span>
+                </label>
+              ))}
+            </div>
+          ) : (
+            <p className="note">Star notes in the Chronicle to show them on the TV with the recap.</p>
+          )}
+          <button className={`btn${showing ? " on" : ""}`} type="button" aria-pressed={showing} onClick={() => run(showing ? { type: "live.recap", sessionId: null } : { type: "live.recap", sessionId: prev.id, noteIds: picked })}>
             {showing ? "Take it off the TV" : "Show it on the TV"}
           </button>
         </section>
@@ -423,6 +449,8 @@ function StartStep({ session }: { session: Session }) {
 function EndStep({ session, episode, onBank, onEnded }: { session: Session; episode: Episode; onBank: () => void; onEnded: () => void }) {
   const { run } = useDm();
   const recap = useAutosave(session.recap ?? "", (text) => run({ type: "run.recap", sessionId: session.id, text }));
+  const { view } = useDm();
+  const tableNotes = view.chronicle.notes.filter((n) => n.chapterId === session.id).sort((a, b) => a.at - b.at);
   const notes = episode.beats.map((b, i) => ({ b, i, text: session.run?.notes[b.id] })).filter((x) => x.text?.trim());
   return (
     <article className="run-beat">
@@ -444,6 +472,25 @@ function EndStep({ session, episode, onBank, onEnded }: { session: Session; epis
           <span className="note">Saved with this session. Next time it&rsquo;s your &ldquo;Previously on&hellip;&rdquo; card. {recap.state === "saved" ? "Saved." : recap.state === "saving" ? "Saving…" : ""}</span>
           <textarea className="fld run-recap" rows={8} value={recap.text} onChange={(e) => recap.onChange(e.target.value)} onBlur={() => void recap.flush()} />
         </label>
+      </section>
+      <section className="run-section">
+        <h2>The table&rsquo;s notes</h2>
+        {tableNotes.length ? (
+          <ol className="run-notelist">
+            {tableNotes.map((n) => (
+              <li key={n.id}>
+                <b>
+                  {n.starred ? "\u2605 " : ""}
+                  {n.author}
+                </b>
+                {n.hidden ? <span className="tag wax">hidden</span> : null}
+                <div className="run-notelist-text">{n.text}</div>
+              </li>
+            ))}
+          </ol>
+        ) : (
+          <p className="note">Nobody added to the Chronicle this session.</p>
+        )}
       </section>
       <section className="run-section">
         <h2>Your quick notes</h2>
