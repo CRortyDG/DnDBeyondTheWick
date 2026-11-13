@@ -122,6 +122,17 @@ export interface ChronicleView {
   dm: boolean;
   /** DM only: who can be the note-taker. */
   noteTakers?: { id: string; name: string }[];
+  /** DM only: everyone who has written in the Chronicle, for hiding or deleting all of someone's notes. */
+  authors?: ChronicleAuthor[];
+}
+
+export interface ChronicleAuthor {
+  id: string;
+  name: string;
+  /** "deleted": the player is gone from the game; "left": archived. */
+  status: "player" | "left" | "deleted" | "dm";
+  notes: number;
+  hidden: number;
 }
 
 type Viewer = { dm: true } | { dm: false; playerId: string };
@@ -184,7 +195,22 @@ export function projectChronicle(g: GameState, viewer: Viewer): ChronicleView {
   });
 
   const view: ChronicleView = { chapters, notes, tags: tagSuggestions(g), defaultChapterId: defaultChapterId(g), dm: viewer.dm };
-  if (viewer.dm) view.noteTakers = g.players.filter((p) => !p.archived).map((p) => ({ id: p.id, name: penName(p) }));
+  if (viewer.dm) {
+    view.noteTakers = g.players.filter((p) => !p.archived).map((p) => ({ id: p.id, name: penName(p) }));
+    const authors = new Map<string, ChronicleAuthor>();
+    for (const n of all) {
+      let a = authors.get(n.authorId);
+      if (!a) {
+        const p = names.get(n.authorId);
+        const status = n.authorId === DM_AUTHOR ? "dm" : !p ? "deleted" : p.archived ? "left" : "player";
+        a = { id: n.authorId, name: n.authorId === DM_AUTHOR ? "The DM" : p ? penName(p) : n.authorName, status, notes: 0, hidden: 0 };
+        authors.set(n.authorId, a);
+      }
+      a.notes++;
+      if (n.hidden) a.hidden++;
+    }
+    view.authors = [...authors.values()].sort((a, b) => (a.status === "deleted" ? 0 : 1) - (b.status === "deleted" ? 0 : 1) || a.name.localeCompare(b.name));
+  }
   return view;
 }
 

@@ -3868,3 +3868,45 @@ input.fld.inline-input {
     animation-iteration-count: 1 !important;
   }
 }
+
+/* DM: manage the Chronicle by author */
+.chron-manage {
+  margin-bottom: 14px;
+}
+.chron-manage summary {
+  cursor: pointer;
+  font-family: var(--font-sc);
+  color: var(--gold);
+  font-size: 20px;
+  min-height: 32px;
+}
+.chron-authors {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+.chron-authors li {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--wood);
+}
+.chron-authors-who {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 8px;
+}
+.chron-authors-who .tag {
+  margin-left: 0;
+}
+.chron-authors-acts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}

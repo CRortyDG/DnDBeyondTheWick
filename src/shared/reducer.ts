@@ -1002,6 +1002,24 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
       }
       break;
     }
+    case "note.hideAuthor": {
+      const mine = (s.notes ?? []).filter((n) => n.authorId === cmd.authorId);
+      if (!mine.length) fail("They have no notes in the Chronicle.");
+      for (const n of mine) {
+        if (cmd.hidden) n.hidden = true;
+        else delete n.hidden;
+      }
+      out.info = `${mine.length} note${mine.length === 1 ? "" : "s"} ${cmd.hidden ? "hidden" : "shown again"}.`;
+      break;
+    }
+    case "note.removeAuthor": {
+      const before = (s.notes ?? []).length;
+      s.notes = (s.notes ?? []).filter((n) => n.authorId !== cmd.authorId);
+      const gone = before - s.notes.length;
+      if (!gone) fail("They have no notes in the Chronicle.");
+      out.info = `${gone} note${gone === 1 ? "" : "s"} deleted.`;
+      break;
+    }
     case "note.remove":
       noteById(cmd.noteId);
       s.notes = (s.notes ?? []).filter((n) => n.id !== cmd.noteId);

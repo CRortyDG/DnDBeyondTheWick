@@ -183,6 +183,9 @@ export const dmCommand = z.discriminatedUnion("type", [
   z.object({ type: z.literal("note.add"), text: noteText, tags: noteTags.optional(), chapterId: id.optional() }),
   z.object({ type: z.literal("note.update"), noteId: id, patch: notePatch.extend({ starred: z.boolean(), hidden: z.boolean() }).partial() }),
   z.object({ type: z.literal("note.remove"), noteId: id }),
+  /** Every note by one author (a player, a deleted player, or "dm"): hide or show them all, or delete them all. */
+  z.object({ type: z.literal("note.hideAuthor"), authorId: id, hidden: z.boolean() }),
+  z.object({ type: z.literal("note.removeAuthor"), authorId: id }),
   /** A portrait's NPC: the players have met them (feeds the Chronicle's tag picker). */
   z.object({ type: z.literal("scene.known"), sceneId: id, known: z.boolean() }),
 

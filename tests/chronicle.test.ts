@@ -178,6 +178,37 @@ describe("chapters", () => {
   });
 });
 
+describe("managing a deleted player's notes", () => {
+  it("lists them for the DM and hides or deletes them all at once", () => {
+    let g = act(game(), DM, { type: "session.start" });
+    g = act(g, P2, { type: "me.noteAdd", text: "one" });
+    g = act(g, P2, { type: "me.noteAdd", text: "two" });
+    g = act(g, P1, { type: "me.noteAdd", text: "stays" });
+    g = act(g, DM, { type: "player.remove", playerId: "p2" });
+    const author = projectChronicle(g, { dm: true }).authors!.find((a) => a.id === "p2")!;
+    expect(author).toMatchObject({ name: "Player 2", status: "deleted", notes: 2, hidden: 0 });
+    // Players never get the list.
+    expect(projectChronicle(g, { dm: false, playerId: "p1" }).authors).toBeUndefined();
+
+    g = act(g, DM, { type: "note.hideAuthor", authorId: "p2", hidden: true });
+    expect(projectChronicle(g, { dm: false, playerId: "p1" }).notes.map((n) => n.text)).toEqual(["stays"]);
+    g = act(g, DM, { type: "note.hideAuthor", authorId: "p2", hidden: false });
+    expect(projectChronicle(g, { dm: false, playerId: "p1" }).notes).toHaveLength(3);
+
+    g = act(g, DM, { type: "note.removeAuthor", authorId: "p2" });
+    expect(notes(g).map((n) => n.text)).toEqual(["stays"]);
+    expect(projectChronicle(g, { dm: true }).authors!.map((a) => a.id)).toEqual(["p1"]);
+    fails(g, DM, { type: "note.removeAuthor", authorId: "p2" });
+  });
+
+  it("is DM only", () => {
+    let g = act(game(), DM, { type: "session.start" });
+    g = act(g, P2, { type: "me.noteAdd", text: "mine" });
+    fails(g, P1, { type: "note.removeAuthor", authorId: "p2" } as Command);
+    fails(g, P1, { type: "note.hideAuthor", authorId: "p2", hidden: true } as Command);
+  });
+});
+
 describe("tag suggestions", () => {
   /** A game where everything secret is named with a canary. */
   function secretGame(): GameState {
