@@ -25,13 +25,15 @@ import { RunGame } from "./RunGame";
 import { LiveMapControls } from "./LiveMapControls";
 import { MapEditor } from "./MapEditor";
 import { Inbox } from "./Inbox";
+import { ArrivalPanel } from "./ArrivalPanel";
 
-type Tab = "bank" | "shop" | "scenes" | "players" | "episodes" | "game";
+type Tab = "bank" | "shop" | "scenes" | "players" | "arrival" | "episodes" | "game";
 const TABS: [Tab, string, string][] = [
   ["bank", "Bank", "B"],
   ["shop", "Shop", ""],
   ["scenes", "Scenes", ""],
   ["players", "Players", ""],
+  ["arrival", "Arrival", ""],
   ["episodes", "Episodes", ""],
   ["game", "Game", ""],
 ];
@@ -208,7 +210,7 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
     askedShop.current = s.live.shopId;
   }, [s.live.shopId, view.version]);
 
-  // Keyboard: 0-9 scenes, arrows step, S shop on TV, P purse, B bank, L map legend, Esc closes the shop (or zooms the map back out).
+  // Keyboard: 0-9 scenes, arrows step, S shop on TV, P purse, B bank, T The Table, L map legend, Esc closes the shop (or zooms the map back out).
   useEffect(() => {
     if (runOpen) return; // run-game mode has its own keys
     const onKey = (e: KeyboardEvent) => {
@@ -233,6 +235,7 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
       else if (k === "s" || k === "S") toggleShop();
       else if (k === "p" || k === "P") void run({ type: "live.purse", visible: !s.live.purseVisible });
       else if (k === "b" || k === "B") setTab("bank");
+      else if (k === "t" || k === "T") void run({ type: "arrival.showTable" });
       else if (k === "Escape" && s.live.shopOpen) void run({ type: "live.shop", open: false });
       else if (k === "Escape" && s.live.focus) void run({ type: "live.focus", pinId: null });
       else if (k === "l" || k === "L") {
@@ -355,7 +358,7 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
               </span>
             </div>
             <div className="preview" aria-label={`Preview: ${live.label}`}>
-              <SceneView scene={previewScene} gated={gated} emptyHint="No image yet. Add one under Scenes." />
+              <SceneView scene={previewScene} gated={gated} table={tvView.table} emptyHint="No image yet. Add one under Scenes." />
               {s.live.shopOpen && liveShop ? (
                 <div className="preview-shop" aria-label={`Shop open on the TV: ${liveShop.name}`}>
                   <Stage w={1920} h={1080}>
@@ -411,7 +414,7 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
               })}
             </div>
             <p className="note hint">
-              Keys: 0&ndash;9 scenes &middot; &larr; &rarr; step (or flip shops while the shop is open) &middot; S shop &middot; P purse &middot; B bank &middot; I requests &middot; L map legend &middot; Esc closes the shop or zooms the map out
+              Keys: 0&ndash;9 scenes &middot; &larr; &rarr; step (or flip shops while the shop is open) &middot; S shop &middot; P purse &middot; B bank &middot; T The Table &middot; I requests &middot; L map legend &middot; Esc closes the shop or zooms the map out
             </p>
           </section>
 
@@ -430,6 +433,7 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
               {tab === "shop" ? <ShopPanel /> : null}
               {tab === "scenes" ? <ScenesPanel /> : null}
               {tab === "players" ? <PlayersPanel /> : null}
+              {tab === "arrival" ? <ArrivalPanel /> : null}
               {tab === "episodes" ? <EpisodesPanel onRun={startRun} /> : null}
               {tab === "game" ? <GamePanel /> : null}
             </div>

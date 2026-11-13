@@ -6,6 +6,8 @@ import { MapView } from "./MapView";
 import { ArtumNotice } from "../scenes/ArtumNotice";
 import { NoticeBoard } from "../scenes/NoticeBoard";
 import { Stage } from "./Stage";
+import { TableScene } from "./TableScene";
+import type { TableView } from "@/shared/arrival";
 
 export interface RenderableScene {
   id: string;
@@ -30,10 +32,12 @@ export function artSrc(art: Art | undefined, gated?: Record<string, string>): st
 }
 
 /** One scene, filling its parent. */
-export function SceneView({ scene, gated, emptyHint }: { scene: RenderableScene; gated?: Record<string, string>; emptyHint?: string }) {
+export function SceneView({ scene, gated, emptyHint, table }: { scene: RenderableScene; gated?: Record<string, string>; emptyHint?: string; table?: TableView }) {
   const src = artSrc(scene.art, gated);
 
   if (scene.kind === "black") return <div className="scene-fill scene-black" />;
+
+  if (scene.kind === "table") return <TableScene table={table} />;
 
   if (scene.kind === "map") {
     return <MapView src={src ?? undefined} alt={scene.alt} map={scene.map ?? { pins: [], legend: { on: false, style: "names" } }} emptyHint={emptyHint} />;

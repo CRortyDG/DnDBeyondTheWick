@@ -10,7 +10,7 @@ const artSchema = z.object({
   url: z.string().max(2048).optional(),
 });
 
-const SCENE_KINDS = ["notice", "portrait", "handout", "image", "black", "map"] as const;
+const SCENE_KINDS = ["notice", "portrait", "handout", "image", "black", "map", "table"] as const;
 const frac = z.number().min(0).max(1);
 const pinId = z.string().regex(/^[A-Za-z0-9_-]{1,40}$/);
 const pinLink = z.discriminatedUnion("kind", [z.object({ kind: z.literal("shop"), shopId: id }), z.object({ kind: z.literal("scene"), sceneId: id })]);
@@ -171,6 +171,16 @@ export const dmCommand = z.discriminatedUnion("type", [
   z.object({ type: z.literal("request.approveAll") }),
   z.object({ type: z.literal("game.tvPurchases"), on: z.boolean() }),
 
+  // The Arrival intro (the link texted before session 0).
+  /** Give every seated player without one a private link. */
+  z.object({ type: z.literal("arrival.issueLinks") }),
+  z.object({ type: z.literal("arrival.copied"), playerId: id }),
+  /** Back to new: the intro plays again, the seat is unclaimed, the character name and line are cleared. The link stays the same. */
+  z.object({ type: z.literal("arrival.reset"), playerId: id }),
+  z.object({ type: z.literal("arrival.settings"), template: text(300).optional(), seatsLocked: z.boolean().optional() }),
+  /** Show The Table on the TV, adding the scene first if this game doesn't have it. */
+  z.object({ type: z.literal("arrival.showTable") }),
+
   z.object({ type: z.literal("game.rename"), name: text(120).min(1) }),
   z.object({ type: z.literal("game.vtt"), url: text(300) }),
 ]);
@@ -190,7 +200,10 @@ export type SystemCommand =
   | { type: "system.join"; handle: string; name: string; keyHash?: string }
   | { type: "system.hello"; playerId: string }
   | { type: "system.knock"; handle: string }
-  | { type: "me.lockHashed"; keyHash: string };
+  | { type: "me.lockHashed"; keyHash: string }
+  /** From /api/arrival: the server has already matched the link code to playerId. */
+  | { type: "system.arrivalStep"; playerId: string; step: "open" | "finish" }
+  | { type: "system.arrivalClaim"; playerId: string; character: string; why: string };
 
 export type DmCommand = z.infer<typeof dmCommand>;
 export type PlayerCommand = z.infer<typeof playerCommand>;

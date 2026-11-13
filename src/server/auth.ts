@@ -1,5 +1,5 @@
 import "server-only";
-import { createHash, timingSafeEqual } from "node:crypto";
+import { createHash, randomInt, timingSafeEqual } from "node:crypto";
 
 export const KEY_HEADER = "x-candlefair-key";
 
@@ -35,4 +35,13 @@ export function keyMatches(key: string | null | undefined, hash: string | undefi
   if (!hash) return true; // unlocked name
   if (!key) return false;
   return sameHash(sha256(key), hash);
+}
+
+const TOKEN_CHARS = "abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+
+/** A private Arrival link code: 10 characters with no look-alikes (about 58 bits). */
+export function makeToken(): string {
+  let t = "";
+  for (let i = 0; i < 10; i++) t += TOKEN_CHARS[randomInt(TOKEN_CHARS.length)];
+  return t;
 }

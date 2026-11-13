@@ -5,7 +5,7 @@ import { projectDm, projectPlayer, projectTv, type View } from "@/shared/project
 import { apply, CommandError } from "@/shared/reducer";
 import { seatedCount, seatsOf, seedGame } from "@/shared/seed";
 import type { Actor, GameState } from "@/shared/types";
-import { isDmKey, keyMatches, sha256 } from "./auth";
+import { isDmKey, keyMatches, makeToken, sha256 } from "./auth";
 import { getStore, type Store } from "./store";
 
 export class HttpError extends Error {
@@ -54,7 +54,7 @@ export async function execute(store: Store, game: string, actor: Actor, cmd: Com
     if (!state) throw new HttpError(404, "No game here yet.", "no-game");
     let result;
     try {
-      result = apply(state, cmd, { now, actor });
+      result = apply(state, cmd, { now, actor, token: makeToken });
     } catch (e) {
       if (e instanceof CommandError) throw new HttpError(400, e.message, e.code);
       throw e;

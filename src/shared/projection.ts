@@ -2,6 +2,7 @@
 // an explicit allow-list, so a new DM-only field can't leak by accident.
 
 import { heldCp, heldStock } from "./requests";
+import { projectTable, type TableView } from "./arrival";
 import type { Art, Banner, GameState, Item, LedgerEntry, LegendStyle, LiveState, Player, RequestStatus, Scene, Shop } from "./types";
 
 export const GATED_ART = new Set(["merchant-sigil"]);
@@ -131,6 +132,8 @@ export interface TvView extends Common {
   scenes: PublicScene[];
   /** "Previously on…": only while the DM is showing it. The only session text the TV ever gets. */
   recap: { number: number; title: string; text: string } | null;
+  /** The Table's seats and the QR links of unclaimed players: only while The Table is live. */
+  table?: TableView;
 }
 
 export interface MyLedgerLine {
@@ -295,6 +298,7 @@ export function projectTv(game: GameState, version: number): TvView {
     live: { sceneId: game.live.sceneId, ...liveShop(game, { tv: true }), purseVisible: game.live.purseVisible },
     scenes: game.scenes.filter((sc) => !sc.reveal || sc.id === game.live.sceneId).map((sc) => publicScene(game, sc)),
     recap: publicRecap(game),
+    ...(game.scenes.find((sc) => sc.id === game.live.sceneId)?.kind === "table" ? { table: projectTable(game) } : {}),
   };
 }
 
