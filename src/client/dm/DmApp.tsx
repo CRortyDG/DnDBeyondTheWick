@@ -26,8 +26,9 @@ import { LiveMapControls } from "./LiveMapControls";
 import { MapEditor } from "./MapEditor";
 import { Inbox } from "./Inbox";
 import { ArrivalPanel } from "./ArrivalPanel";
+import { ChroniclePanel } from "./ChroniclePanel";
 
-type Tab = "bank" | "shop" | "scenes" | "players" | "arrival" | "episodes" | "game";
+type Tab = "bank" | "shop" | "scenes" | "players" | "arrival" | "episodes" | "chronicle" | "game";
 const TABS: [Tab, string, string][] = [
   ["bank", "Bank", "B"],
   ["shop", "Shop", ""],
@@ -35,6 +36,7 @@ const TABS: [Tab, string, string][] = [
   ["players", "Players", ""],
   ["arrival", "Arrival", ""],
   ["episodes", "Episodes", ""],
+  ["chronicle", "Chronicle", ""],
   ["game", "Game", ""],
 ];
 
@@ -435,6 +437,7 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
               {tab === "players" ? <PlayersPanel /> : null}
               {tab === "arrival" ? <ArrivalPanel /> : null}
               {tab === "episodes" ? <EpisodesPanel onRun={startRun} /> : null}
+              {tab === "chronicle" ? <ChroniclePanel /> : null}
               {tab === "game" ? <GamePanel /> : null}
             </div>
           </section>

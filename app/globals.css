@@ -3195,3 +3195,328 @@ input.fld.inline-input {
 .arrival-steps small {
   opacity: 0.7;
 }
+
+/* ---------- the Chronicle: pages of a parchment journal ---------- */
+
+.player-screens .tab {
+  flex: 1 1 0;
+}
+.chron {
+  display: grid;
+  gap: 14px;
+}
+.chron-add {
+  display: grid;
+  gap: 8px;
+  padding: 14px;
+  border: 1px solid var(--wood);
+  border-radius: 8px;
+  background: var(--tavern);
+}
+.chron-add-label {
+  font-family: var(--font-sc);
+  color: var(--gold);
+  font-size: 20px;
+}
+.chron-add-text {
+  font-family: var(--font-num);
+  font-size: 19px;
+  line-height: 1.4;
+  min-height: 88px;
+}
+.chron-add-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.chron-post {
+  flex: 1 1 auto;
+  min-height: 52px;
+  font-size: 19px;
+}
+.chron-add-more,
+.chron-edit {
+  display: grid;
+  gap: 10px;
+}
+.chron-add-more label,
+.chron-edit label,
+.chron-tag-editor label,
+.chron-chapter-pick {
+  display: grid;
+  gap: 4px;
+  font-size: 14px;
+  color: var(--muted);
+}
+.chron-chapter-pick select {
+  width: 100%;
+}
+.chron-tools {
+  display: grid;
+  gap: 8px;
+}
+.chron-toggles {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.chron-filter {
+  margin: 0;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+  color: var(--muted);
+}
+.chron-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.chron-tag {
+  font: inherit;
+  font-size: 14px;
+  line-height: 1.2;
+  padding: 5px 11px;
+  min-height: 32px;
+  border-radius: 999px;
+  border: 1px solid rgba(91, 74, 58, 0.55);
+  background: rgba(201, 154, 58, 0.12);
+  color: inherit;
+  cursor: pointer;
+}
+.chron-tag.on {
+  background: var(--wax);
+  border-color: var(--gold);
+  color: var(--parchment);
+}
+.chron-tag.new {
+  border-style: dashed;
+}
+.chron-add .chron-tag,
+.chron-tools .chron-tag {
+  color: var(--parchment);
+}
+
+.chron-page {
+  background: var(--parchment);
+  color: var(--ink);
+  border-radius: 4px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45), inset 0 0 40px rgba(122, 90, 50, 0.18);
+  overflow: hidden;
+}
+.chron-page-head {
+  all: unset;
+  box-sizing: border-box;
+  width: 100%;
+  cursor: pointer;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 2px 12px;
+  padding: 14px 18px;
+  border-bottom: 1px solid transparent;
+}
+.chron-page.open .chron-page-head {
+  border-bottom-color: rgba(91, 74, 58, 0.35);
+}
+.chron-page-head:focus-visible {
+  outline: 3px solid var(--gold);
+  outline-offset: -3px;
+}
+.chron-page-title {
+  font-family: var(--font-sc);
+  font-size: 25px;
+  line-height: 1.15;
+  color: var(--ink);
+}
+.chron-page-meta {
+  grid-column: 1;
+  font-size: 14px;
+  color: var(--ink-soft);
+}
+.chron-caret {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  align-self: center;
+  color: var(--wax);
+  font-size: 20px;
+}
+.chron-page-body {
+  padding: 10px 18px 16px;
+  display: grid;
+  gap: 10px;
+}
+.chron-who {
+  margin: 0;
+  font-size: 15px;
+  color: var(--ink-soft);
+  font-style: italic;
+}
+.chron-taker {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  font-size: 15px;
+  color: var(--ink-soft);
+}
+.chron-taker .fld {
+  background: var(--parchment-3);
+  color: var(--ink);
+}
+.chron-recap {
+  margin: 0;
+  padding: 10px 14px;
+  border-left: 4px solid var(--wax);
+  background: rgba(122, 42, 31, 0.07);
+  font-family: var(--font-num);
+  font-size: 17px;
+  line-height: 1.45;
+}
+.chron-recap p {
+  margin: 4px 0;
+}
+.chron-recap-kicker {
+  font-family: var(--font-sc);
+  color: var(--wax);
+  font-size: 16px;
+}
+.chron-notes {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.chron-note {
+  padding: 10px 0 10px;
+  border-bottom: 1px solid rgba(91, 74, 58, 0.25);
+  display: grid;
+  gap: 5px;
+}
+.chron-note:last-child {
+  border-bottom: 0;
+}
+.chron-note.starred {
+  background: linear-gradient(90deg, rgba(201, 154, 58, 0.28), rgba(201, 154, 58, 0.06));
+  margin: 0 -18px;
+  padding-left: 18px;
+  padding-right: 18px;
+  border-left: 4px solid var(--gold);
+  padding-left: 14px;
+}
+.chron-note.hidden {
+  opacity: 0.6;
+  background: repeating-linear-gradient(135deg, transparent 0 10px, rgba(91, 74, 58, 0.08) 10px 20px);
+}
+.chron-note-by {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 8px;
+}
+.chron-author {
+  font-family: var(--font-hand);
+  font-weight: 700;
+  font-size: 22px;
+  line-height: 1;
+  color: var(--wax-dark);
+}
+.chron-player,
+.chron-when {
+  font-size: 13px;
+  color: var(--ink-soft);
+}
+.chron-star {
+  color: #a8740f;
+  font-size: 18px;
+}
+.chron-quill-mark {
+  color: var(--wax);
+  display: inline-flex;
+  align-self: center;
+}
+.chron-quill {
+  vertical-align: -2px;
+}
+.chron-text {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-family: var(--font-num);
+  font-size: 18px;
+  line-height: 1.45;
+  color: var(--ink);
+}
+.chron-note-actions {
+  display: flex;
+  gap: 4px 16px;
+  flex-wrap: wrap;
+}
+.chron-page .linkish {
+  color: var(--wax);
+  font-size: 15px;
+  min-height: 32px;
+}
+.chron-page .linkish.danger {
+  font-weight: 600;
+}
+.chron-page .note {
+  color: var(--ink-soft);
+}
+.chron-page .fld {
+  background: var(--parchment-3);
+  color: var(--ink);
+  border-color: rgba(91, 74, 58, 0.6);
+}
+.chron-page .btn:not(.primary) {
+  background: var(--parchment-2);
+  color: var(--ink);
+  border-color: rgba(91, 74, 58, 0.6);
+}
+.chron-page .tag.wax {
+  color: var(--wax);
+}
+.chron-empty {
+  margin: 4px 0;
+  font-family: var(--font-hand);
+  font-size: 22px;
+  color: var(--ink-soft);
+}
+.chron-copy {
+  justify-self: start;
+}
+
+/* Previously on: the starred notes on the TV and in the run sheet */
+.tv-recap-notes {
+  list-style: none;
+  margin: calc(20 * var(--u)) 0 0;
+  padding: calc(16 * var(--u)) 0 0;
+  border-top: calc(2 * var(--u)) solid rgba(91, 74, 58, 0.35);
+  display: grid;
+  gap: calc(12 * var(--u));
+}
+.tv-recap-notes li {
+  font-size: calc(30 * var(--u));
+  line-height: 1.35;
+}
+.tv-recap-note::before {
+  content: "\2605  ";
+  color: #a8740f;
+}
+.tv-recap-by {
+  font-family: var(--font-hand);
+  color: var(--wax-dark);
+  margin-left: calc(12 * var(--u));
+  font-size: calc(32 * var(--u));
+}
+.run-starred {
+  display: grid;
+  gap: 4px;
+  margin: 8px 0;
+}
+.run-starred-note {
+  align-items: flex-start !important;
+}
+.chron-tag-editor {
+  display: grid;
+  gap: 8px;
+}

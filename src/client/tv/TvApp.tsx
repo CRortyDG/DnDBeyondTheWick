@@ -75,6 +75,16 @@ function TvScreen({ view, online }: { view: TvView; online: boolean }) {
               .map((p, i) => (
                 <p key={i}>{p.trim()}</p>
               ))}
+            {view.recap.notes?.length ? (
+              <ul className="tv-recap-notes" aria-label="From the Chronicle">
+                {view.recap.notes.map((n, i) => (
+                  <li key={i}>
+                    <span className="tv-recap-note">{n.text}</span>
+                    <span className="tv-recap-by">{n.author}</span>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
           </div>
         </div>
       ) : null}

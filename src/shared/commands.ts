@@ -5,6 +5,11 @@ const text = (max: number) => z.string().max(max);
 const cp = z.number().int().min(0).max(1_000_000_000);
 const hotkey = z.number().int().min(0).max(9).nullable();
 
+// The Chronicle. A chapter id is a session id, or "next" for the page waiting for the next session.
+const noteText = z.string().max(2000);
+const noteTags = z.array(z.string().max(40)).max(12);
+const notePatch = z.object({ text: noteText, tags: noteTags, chapterId: id }).partial();
+
 const artSchema = z.object({
   builtin: z.enum(["candlefair-board", "artum-notice", "artum", "mags-wick", "chef", "merchant-sigil"]).optional(),
   url: z.string().max(2048).optional(),
@@ -106,7 +111,7 @@ export const dmCommand = z.discriminatedUnion("type", [
   z.object({ type: z.literal("money.buy"), playerId: id, itemId: id }),
 
   z.object({ type: z.literal("player.add"), name: text(32) }),
-  z.object({ type: z.literal("player.update"), playerId: id, patch: z.object({ name: text(32), dndbUrl: text(300), away: z.boolean(), dropIn: z.boolean(), handle: text(40) }).partial() }),
+  z.object({ type: z.literal("player.update"), playerId: id, patch: z.object({ name: text(32), dndbUrl: text(300), away: z.boolean(), dropIn: z.boolean(), handle: text(40), character: text(40) }).partial() }),
   z.object({ type: z.literal("player.archive"), playerId: id, archived: z.boolean() }),
   z.object({ type: z.literal("player.remove"), playerId: id }),
   z.object({ type: z.literal("player.clearKey"), playerId: id }),
@@ -137,6 +142,14 @@ export const dmCommand = z.discriminatedUnion("type", [
   z.object({ type: z.literal("session.update"), sessionId: id, patch: z.object({ title: text(120), number: z.number().int().min(1).max(9999) }).partial() }),
   z.object({ type: z.literal("session.reopen"), sessionId: id }),
   z.object({ type: z.literal("session.remove"), sessionId: id }),
+  z.object({ type: z.literal("session.noteTaker"), sessionId: id, playerId: id.nullable() }),
+
+  // The Chronicle: the DM can write, edit, move, star, hide and delete any note.
+  z.object({ type: z.literal("note.add"), text: noteText, tags: noteTags.optional(), chapterId: id.optional() }),
+  z.object({ type: z.literal("note.update"), noteId: id, patch: notePatch.extend({ starred: z.boolean(), hidden: z.boolean() }).partial() }),
+  z.object({ type: z.literal("note.remove"), noteId: id }),
+  /** A portrait's NPC: the players have met them (feeds the Chronicle's tag picker). */
+  z.object({ type: z.literal("scene.known"), sceneId: id, known: z.boolean() }),
 
   z.object({ type: z.literal("episode.add"), title: text(160), beats: z.array(beatBody).max(200).optional() }),
   z.object({ type: z.literal("episode.update"), episodeId: id, title: text(160).min(1) }),
@@ -156,7 +169,8 @@ export const dmCommand = z.discriminatedUnion("type", [
   z.object({ type: z.literal("run.note"), beatId: id, text: text(4000) }),
   z.object({ type: z.literal("run.recap"), sessionId: id, text: text(8000) }),
   z.object({ type: z.literal("run.attend"), playerId: id, here: z.boolean() }),
-  z.object({ type: z.literal("live.recap"), sessionId: id.nullable() }),
+  /** noteIds: starred Chronicle notes from that session to show under the recap. */
+  z.object({ type: z.literal("live.recap"), sessionId: id.nullable(), noteIds: z.array(id).max(20).optional() }),
 
   z.object({ type: z.literal("door.set"), closed: z.boolean() }),
   z.object({ type: z.literal("table.seats"), max: z.number().int().min(1).max(12) }),
@@ -193,6 +207,10 @@ export const playerCommand = z.discriminatedUnion("type", [
   z.object({ type: z.literal("me.requestBuy"), itemId: id, qty: z.number().int().min(1).max(99), note: text(120), expectedUnitCp: cp.optional() }),
   z.object({ type: z.literal("me.requestGive"), toPlayerId: id, amountCp: cp.min(1), note: text(120) }),
   z.object({ type: z.literal("me.cancelRequest"), requestId: id }),
+  // The Chronicle: players write notes and edit, move or delete their own.
+  z.object({ type: z.literal("me.noteAdd"), text: noteText, tags: noteTags.optional(), chapterId: id.optional() }),
+  z.object({ type: z.literal("me.noteUpdate"), noteId: id, patch: notePatch }),
+  z.object({ type: z.literal("me.noteRemove"), noteId: id }),
 ]);
 
 /** Commands the server issues itself; never accepted from a client. */

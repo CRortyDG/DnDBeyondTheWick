@@ -120,6 +120,7 @@ function PlayerCard({ p }: { p: DmPlayer }) {
         <div className="inline">
           <Field label="Name" value={p.name} onCommit={(v) => run({ type: "player.update", playerId: p.id, patch: { name: v } })} />
           <Field label="URL name (?player=)" value={p.handle} onCommit={(v) => run({ type: "player.update", playerId: p.id, patch: { handle: v } })} />
+          <Field label="Character name" value={p.character ?? ""} placeholder="Signs their Chronicle notes" onCommit={(v) => run({ type: "player.update", playerId: p.id, patch: { character: v } })} />
         </div>
         <Field label="D&D Beyond character link" value={p.dndbUrl ?? ""} placeholder="https://www.dndbeyond.com/characters/..." onCommit={(v) => run({ type: "player.update", playerId: p.id, patch: { dndbUrl: v } })} />
         <div className="inline">

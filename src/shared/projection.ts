@@ -3,6 +3,7 @@
 
 import { heldCp, heldStock } from "./requests";
 import { projectTable, type TableView } from "./arrival";
+import { notesOf, penName, projectChronicle, type ChronicleView } from "./chronicle";
 import type { Art, Banner, GameState, Item, LedgerEntry, LegendStyle, LiveState, Player, RequestStatus, Scene, Shop } from "./types";
 
 export const GATED_ART = new Set(["merchant-sigil"]);
@@ -131,7 +132,7 @@ export interface TvView extends Common {
   /** Every non-reveal scene (for instant switching), plus the live scene even if it's a reveal. */
   scenes: PublicScene[];
   /** "Previously on…": only while the DM is showing it. The only session text the TV ever gets. */
-  recap: { number: number; title: string; text: string } | null;
+  recap: { number: number; title: string; text: string; notes?: { text: string; author: string }[] } | null;
   /** The Table's seats and the QR links of unclaimed players: only while The Table is live. */
   table?: TableView;
 }
@@ -165,6 +166,8 @@ export interface PlayerView extends Common {
   table: { id: string; name: string }[];
   /** The campaign's D&D Beyond game link, if the DM set one. */
   vttUrl?: string;
+  /** The table's story notes. Hidden notes are left out entirely. */
+  chronicle: ChronicleView;
 }
 
 export type DmPlayer = Omit<Player, "keyHash"> & { hasKey: boolean };
@@ -174,6 +177,7 @@ export interface DmView {
   version: number;
   state: Omit<GameState, "players"> & { players: DmPlayer[] };
   ledger: LedgerEntry[];
+  chronicle: ChronicleView;
 }
 
 export type View = TvView | PlayerView | DmView;
@@ -304,7 +308,18 @@ export function projectTv(game: GameState, version: number): TvView {
 
 function publicRecap(game: GameState): TvView["recap"] {
   const sess = game.live.recapSessionId ? game.sessions.find((x) => x.id === game.live.recapSessionId) : undefined;
-  return sess?.recap?.trim() ? { number: sess.number, title: sess.title, text: sess.recap } : null;
+  if (!sess?.recap?.trim()) return null;
+  const out: NonNullable<TvView["recap"]> = { number: sess.number, title: sess.title, text: sess.recap };
+  // Starred notes the DM picked, re-checked here: still starred, not hidden, from that chapter.
+  const ids = game.live.recapNoteIds ?? [];
+  const notes = notesOf(game).filter((n) => ids.includes(n.id) && n.sessionId === sess.id && n.starred && !n.hidden);
+  if (notes.length) {
+    out.notes = notes.map((n) => {
+      const p = game.players.find((x) => x.id === n.authorId);
+      return { text: n.text, author: p ? penName(p) : n.authorName };
+    });
+  }
+  return out;
 }
 
 export function projectPlayer(game: GameState, version: number, playerId: string, ledger: LedgerEntry[]): PlayerView {
@@ -347,6 +362,7 @@ export function projectPlayer(game: GameState, version: number, playerId: string
       .slice(-100)
       .reverse()
       .map((l) => ({ id: l.id, at: l.at, amountCp: l.amountCp, note: l.note })),
+    chronicle: projectChronicle(game, { dm: false, playerId: p.id }),
   };
 }
 
@@ -357,6 +373,7 @@ export function projectDm(game: GameState, version: number, ledger: LedgerEntry[
     version,
     state: { ...rest, players: players.map(({ keyHash, ...p }) => ({ ...p, hasKey: !!keyHash })) },
     ledger: [...ledger].reverse(),
+    chronicle: projectChronicle(game, { dm: true }),
   };
 }
 

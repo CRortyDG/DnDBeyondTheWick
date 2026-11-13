@@ -28,6 +28,8 @@ export interface Scene {
   dmNote?: string;
   /** Map scenes only: the numbered locations and the TV legend. */
   map?: MapData;
+  /** Portraits: the players have met this NPC (set when first shown on the TV, or by the DM). Feeds the Chronicle's tag picker. */
+  known?: boolean;
 }
 
 /** What a pin can open from the DM view: a shop on the TV, or another scene (a portrait or a map). DM-ONLY. */
@@ -239,8 +241,32 @@ export interface Session {
   dmNotes?: string;
   /** DM-ONLY: the run-game run sheet for this session, if it was run from an episode. */
   run?: SessionRun;
-  /** DM-ONLY: written at the end of the session. Reaches the TV only while shown as "Previously on…". */
+  /** Written at the end of the session. Reaches the TV while shown as "Previously on…", and players in the Chronicle once the session has ended. */
   recap?: string;
+  /** The Chronicle's note-taker for this session: their notes get a quill. */
+  noteTakerId?: string;
+}
+
+// ---------- the Chronicle (the table's shared story notes) ----------
+
+/** The author id the DM writes notes under. */
+export const DM_AUTHOR = "dm";
+
+export interface Note {
+  id: string;
+  /** The chapter (session) it belongs to. null: the next chapter, which takes it in when that session starts. */
+  sessionId: string | null;
+  /** A player id, or DM_AUTHOR. */
+  authorId: string;
+  /** Their character (or player) name when they wrote it, for after they've left. */
+  authorName: string;
+  text: string;
+  tags: string[];
+  starred?: boolean;
+  /** Hidden by the DM: never sent to the TV or any phone, including the author's. */
+  hidden?: boolean;
+  createdAt: number;
+  editedAt?: number;
 }
 
 // ---------- run-game (all DM-ONLY) ----------
@@ -305,6 +331,8 @@ export interface LiveState {
   purseVisible: boolean;
   /** The session whose recap is on the TV as "Previously on…". Cleared by any scene or shop change. */
   recapSessionId?: string;
+  /** Starred Chronicle notes shown under that recap. Only read while recapSessionId is set. */
+  recapNoteIds?: string[];
   /** The pin the TV is zoomed toward on the live map. n changes each time, so the TV restarts the pulse. */
   focus?: { pinId: string; n: number };
   /** The last "Discovered: …" banner on the live map. The TV shows it when n changes. */
@@ -342,6 +370,8 @@ export interface GameState {
   tvPurchases?: boolean;
   /** The Arrival intro's settings. Missing on games made before it. */
   arrival?: ArrivalSettings;
+  /** The Chronicle's notes, oldest first. Missing on games made before it; read with notesOf(). */
+  notes?: Note[];
   seq: number;
 }
 

@@ -7,6 +7,7 @@ import { hrefFor, rememberKey, type Ident } from "../api";
 import { useGame } from "../useGame";
 import { Notice } from "../ui/Notice";
 import { ShopBoard } from "../ui/ShopBoard";
+import { Chronicle } from "../ui/Chronicle";
 import { BannerToast } from "../ui/BannerToast";
 import { InspirationIcon, LockIcon } from "../ui/icons";
 import { DecisionBanners, MyRequests, RequestSheet, SendGold, whyNot } from "./Requests";
@@ -78,6 +79,8 @@ function PlayerScreen({ view, online, send, ident, setIdent }: { view: PlayerVie
   const [msg, setMsg] = useState<string | null>(null);
   const [purseOpen, setPurseOpen] = useState(false);
   const [looking, setLooking] = useState<string | null>(null);
+  // During a session the phone opens on the Chronicle, so a note is one tap away.
+  const [screen, setScreen] = useState<"chronicle" | "purse">(view.session ? "chronicle" : "purse");
   const me = view.me;
   const availableCp = me.balanceCp - me.heldCp;
   // Keep the sheet in step with live changes (stock, price); close it if the item disappears.
@@ -127,12 +130,24 @@ function PlayerScreen({ view, online, send, ident, setIdent }: { view: PlayerVie
         </div>
       </header>
       <DecisionBanners view={view} />
-      <p className="note gold-note">Your gold lives here, not on D&amp;D Beyond: keep D&amp;D Beyond&rsquo;s coins at 0. Anything you buy, add to your D&amp;D Beyond inventory yourself.</p>
+      <BannerToast banner={view.banner} className="phone-banner" />
+      <div className="tabs player-screens" role="tablist" aria-label="Your page">
+        <button type="button" role="tab" aria-selected={screen === "chronicle"} className={`btn tab${screen === "chronicle" ? " on" : ""}`} onClick={() => setScreen("chronicle")}>
+          The Chronicle
+        </button>
+        <button type="button" role="tab" aria-selected={screen === "purse"} className={`btn tab${screen === "purse" ? " on" : ""}`} onClick={() => setScreen("purse")}>
+          Gold &amp; shops
+        </button>
+      </div>
       {!online ? (
         <p className="player-offline" role="status">
           Reconnecting&hellip;
         </p>
       ) : null}
+      {screen === "chronicle" ? <Chronicle view={view.chronicle} gameName={view.game.name} send={send} /> : null}
+      {screen === "purse" ? (
+      <>
+      <p className="note gold-note">Your gold lives here, not on D&amp;D Beyond: keep D&amp;D Beyond&rsquo;s coins at 0. Anything you buy, add to your D&amp;D Beyond inventory yourself.</p>
       {msg ? (
         <p className="player-msg" role="status">
           {msg}
@@ -157,8 +172,6 @@ function PlayerScreen({ view, online, send, ident, setIdent }: { view: PlayerVie
         <SendGold view={view} availableCp={availableCp} send={send} onMsg={setMsg} />
       </section>
       ) : null}
-
-      <BannerToast banner={view.banner} className="phone-banner" />
 
       <section className="box">
         {view.shops.length ? (
@@ -270,6 +283,8 @@ function PlayerScreen({ view, online, send, ident, setIdent }: { view: PlayerVie
           )}
         </div>
       </section>
+      </>
+      ) : null}
     </div>
   );
 }

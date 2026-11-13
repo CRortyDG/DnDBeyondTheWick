@@ -9,7 +9,9 @@ import { availableCp, availableStock, boughtPhrase, heldStock, isSecretShop } fr
 import { candlefairMap, SEED_ITEMS, SEED_SHOPS, swordCoastMap } from "./seed";
 import { shopVisibleTo } from "./projection";
 import { CHARACTER_MAX, TABLE_SCENE_ID, WHY_MAX } from "./arrival";
-import type { Actor, Beat, BeatAction, Episode, GameState, Item, ItemTier, LedgerEntry, LedgerKind, MapData, Pin, PinLink, Player, Scene, Session, SessionRun, Shop, TradeRequest } from "./types";
+import { chapterSessionId, cleanTags, cleanText, defaultChapterId, NOTES_MAX, penName } from "./chronicle";
+import { DM_AUTHOR } from "./types";
+import type { Actor, Beat, BeatAction, Episode, GameState, Item, ItemTier, LedgerEntry, LedgerKind, MapData, Note, Pin, PinLink, Player, Scene, Session, SessionRun, Shop, TradeRequest } from "./types";
 import type { z } from "zod";
 
 export class CommandError extends Error {
@@ -216,6 +218,9 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
   const homeScene = () => (s.scenes.find((x) => x.kind === "notice" && !x.reveal) ?? s.scenes.find((x) => !x.reveal) ?? s.scenes[0]).id;
 
   const showScene = (id: string) => {
+    const shown = s.scenes.find((x) => x.id === id);
+    // Once an NPC's portrait has been on the TV, the table has met them.
+    if (shown?.kind === "portrait") shown.known = true;
     s.live.sceneId = id;
     s.live.shopOpen = false;
     delete s.live.recapSessionId;
@@ -235,6 +240,8 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
     };
     s.sessions.push(sess);
     s.currentSessionId = sess.id;
+    // Notes written ahead on the next chapter's page belong to this session now.
+    for (const n of s.notes ?? []) if (n.sessionId === null) n.sessionId = sess.id;
     showScene(homeScene());
     // Special orders due by this session arrive (whether started here or by run-game).
     const due = s.orders.filter((o) => !o.arrived && o.arrivesAtSession <= number);
@@ -301,6 +308,42 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
     return last.run.beat;
   };
 
+  // ---------- the Chronicle ----------
+  const noteById = (noteId: string): Note => (s.notes ?? []).find((n) => n.id === noteId) ?? fail("That note isn't here any more.");
+  /** A player's own note. Hidden notes are gone as far as players are concerned. */
+  const ownNote = (noteId: string): Note => {
+    const n = noteById(noteId);
+    if (ctx.actor.role !== "player" || n.authorId !== ctx.actor.playerId || n.hidden) fail("You can only change your own notes.");
+    return n;
+  };
+  const chapterOf = (chapterId: string | undefined): string | null => {
+    const id = chapterId ?? defaultChapterId(s);
+    const sid = chapterSessionId(s, id);
+    if (sid === undefined) fail("That chapter doesn't exist.");
+    return sid;
+  };
+  const addNote = (authorId: string, authorName: string, text: string, tags: string[] | undefined, chapterId: string | undefined) => {
+    const t = cleanText(text);
+    if (!t.trim()) fail("Write something first.");
+    const notes = (s.notes ??= []);
+    if (notes.length >= NOTES_MAX) fail("The Chronicle is full. Ask the DM to tidy up old notes.");
+    notes.push({ id: nextId("n"), sessionId: chapterOf(chapterId), authorId, authorName, text: t, tags: cleanTags(tags ?? []), createdAt: ctx.now });
+  };
+  const editNote = (n: Note, patch: { text?: string; tags?: string[]; chapterId?: string }) => {
+    let changed = false;
+    if (patch.text !== undefined) {
+      const t = cleanText(patch.text);
+      if (!t.trim()) fail("A note can't be empty. Delete it instead.");
+      changed ||= t !== n.text;
+      n.text = t;
+    }
+    if (patch.tags !== undefined) {
+      n.tags = cleanTags(patch.tags);
+      changed = true;
+    }
+    if (patch.chapterId !== undefined) n.sessionId = chapterOf(patch.chapterId);
+    if (changed) n.editedAt = ctx.now;
+  };
   const mapOf = (sceneId: string): MapData => {
     const sc = scene(sceneId);
     if (sc.kind !== "map") fail("That scene isn't a map.");
@@ -530,6 +573,11 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
       if (patch.dndbUrl !== undefined) p.dndbUrl = checkUrl(patch.dndbUrl);
       if (patch.away !== undefined) p.away = patch.away;
       if (patch.dropIn !== undefined) p.dropIn = patch.dropIn;
+      if (patch.character !== undefined) {
+        const c = patch.character.replace(/\s+/g, " ").trim().slice(0, CHARACTER_MAX);
+        if (c) p.character = c;
+        else delete p.character;
+      }
       if (patch.handle !== undefined) {
         const h = normaliseHandle(patch.handle);
         if (!h) fail("A URL name needs at least one letter or number.");
@@ -688,8 +736,61 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
       s.sessions = s.sessions.filter((x) => x.id !== cmd.sessionId);
       if (s.currentSessionId === cmd.sessionId) s.currentSessionId = null;
       if (s.live.recapSessionId === cmd.sessionId) delete s.live.recapSessionId;
+      // Its Chronicle notes aren't lost: they go to the next chapter's page.
+      for (const n of s.notes ?? []) if (n.sessionId === cmd.sessionId) n.sessionId = null;
       break;
     }
+    case "session.noteTaker": {
+      const sess = session(cmd.sessionId);
+      if (cmd.playerId === null) delete sess.noteTakerId;
+      else {
+        const p = player(cmd.playerId);
+        if (p.archived) fail(`${p.name} has left the table.`);
+        sess.noteTakerId = p.id;
+      }
+      break;
+    }
+
+    // ---------- the Chronicle ----------
+    case "note.add":
+      addNote(DM_AUTHOR, "The DM", cmd.text, cmd.tags, cmd.chapterId);
+      break;
+    case "note.update": {
+      const n = noteById(cmd.noteId);
+      editNote(n, cmd.patch);
+      if (cmd.patch.starred !== undefined) {
+        if (cmd.patch.starred) n.starred = true;
+        else delete n.starred;
+      }
+      if (cmd.patch.hidden !== undefined) {
+        if (cmd.patch.hidden) n.hidden = true;
+        else delete n.hidden;
+      }
+      break;
+    }
+    case "note.remove":
+      noteById(cmd.noteId);
+      s.notes = (s.notes ?? []).filter((n) => n.id !== cmd.noteId);
+      break;
+    case "scene.known": {
+      const sc = scene(cmd.sceneId);
+      if (sc.kind !== "portrait") fail("Only portraits are NPCs.");
+      if (cmd.known) sc.known = true;
+      else delete sc.known;
+      break;
+    }
+    case "me.noteAdd": {
+      const p = me();
+      addNote(p.id, penName(p), cmd.text, cmd.tags, cmd.chapterId);
+      break;
+    }
+    case "me.noteUpdate":
+      editNote(ownNote(cmd.noteId), cmd.patch);
+      break;
+    case "me.noteRemove":
+      ownNote(cmd.noteId);
+      s.notes = (s.notes ?? []).filter((n) => n.id !== cmd.noteId);
+      break;
 
     // ---------- run sheets ----------
     case "episode.add": {
@@ -818,6 +919,7 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
       break;
     }
     case "live.recap": {
+      delete s.live.recapNoteIds;
       if (cmd.sessionId === null) {
         delete s.live.recapSessionId;
         break;
@@ -825,6 +927,9 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
       const sess = session(cmd.sessionId);
       if (!sess.recap?.trim()) fail("That session has no recap yet.");
       s.live.recapSessionId = sess.id;
+      // Only starred, visible notes from that chapter can go up with it.
+      const picked = (cmd.noteIds ?? []).filter((nid) => (s.notes ?? []).some((n) => n.id === nid && n.sessionId === sess.id && n.starred && !n.hidden));
+      if (picked.length) s.live.recapNoteIds = [...new Set(picked)];
       s.live.shopOpen = false;
       break;
     }
