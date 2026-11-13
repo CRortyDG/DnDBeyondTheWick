@@ -215,6 +215,7 @@ export const SEED_SCENES: Scene[] = [
   { id: "s-swordcoast", label: "Sword Coast map", kind: "map", hotkey: 9, reveal: false, art: {}, alt: "Map of the Sword Coast", map: swordCoastMap() },
   { id: "s-extra", label: "Extra image", kind: "image", hotkey: 7, reveal: false, art: {}, alt: "Scene image" },
   { id: "s-symbol", label: "The symbol", kind: "handout", hotkey: 8, reveal: true, art: { builtin: "merchant-sigil" }, alt: "A symbol drawn on paper" },
+  { id: "s-table", label: "The Table", kind: "table", hotkey: null, reveal: false, alt: "The round table from above, one candle per player" },
   { id: "s-black", label: "Black screen", kind: "black", hotkey: 0, reveal: false },
 ];
 

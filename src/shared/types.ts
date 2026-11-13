@@ -1,7 +1,7 @@
 // The whole campaign ("game") lives in one JSON document, plus an append-only ledger.
 // Anything marked DM-ONLY must never reach the TV or a player: see projection.ts.
 
-export type SceneKind = "notice" | "portrait" | "handout" | "image" | "black" | "map";
+export type SceneKind = "notice" | "portrait" | "handout" | "image" | "black" | "map" | "table";
 
 /** Built-in art. "merchant-sigil" is DM-only and served through a gated route. */
 export type BuiltinArt = "candlefair-board" | "artum-notice" | "artum" | "mags-wick" | "chef" | "merchant-sigil";
@@ -84,6 +84,34 @@ export interface Player {
   createdVia: "url" | "dm" | "seed";
   /** DM-ONLY */
   lastSeenAt?: number;
+  /** Their character's name ("Brin Ashcombe"). Empty or missing: not chosen yet. Shared with the Chronicle. */
+  character?: string;
+  /** The Arrival intro: their private link and how far they've got. */
+  arrival?: PlayerArrival;
+}
+
+/** A player's progress through the Arrival intro (the link texted before session 0). */
+export interface PlayerArrival {
+  /** The private link code: /arrive/<token>. Only the DM and the player themselves see it. */
+  token: string;
+  /** DM-ONLY: when the DM last copied the text with this link. */
+  copiedAt?: number;
+  /** DM-ONLY */
+  openedAt?: number;
+  /** DM-ONLY */
+  finishedAt?: number;
+  /** Claimed a seat at the table (possibly with no character name yet). */
+  claimedAt?: number;
+  /** "Why did you get on that boat?" Up to 120 characters. */
+  why?: string;
+}
+
+/** Game-wide Arrival settings. */
+export interface ArrivalSettings {
+  /** The text the DM copies per player. {link} is replaced with their link, {name} with their player name. */
+  template?: string;
+  /** Once locked, players can no longer change their character name or line. */
+  seatsLocked?: boolean;
 }
 
 /**
@@ -312,6 +340,8 @@ export interface GameState {
   requests: TradeRequest[];
   /** "Mira bought a Shield." on the TV when a request is approved. undefined = on. */
   tvPurchases?: boolean;
+  /** The Arrival intro's settings. Missing on games made before it. */
+  arrival?: ArrivalSettings;
   seq: number;
 }
 

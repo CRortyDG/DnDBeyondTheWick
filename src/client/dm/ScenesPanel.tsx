@@ -16,6 +16,7 @@ const KINDS: [SceneKind, string][] = [
   ["handout", "Handout on paper"],
   ["notice", "Notice board"],
   ["black", "Black screen"],
+  ["table", "The Table (Arrival seats)"],
 ];
 
 export function ScenesPanel() {
@@ -116,7 +117,7 @@ function SceneEditor({ scene }: { scene: Scene }) {
   const file = useRef<HTMLInputElement>(null);
   const usedKeys = new Map(view.state.scenes.filter((x) => x.id !== scene.id && x.hotkey !== null).map((x) => [x.hotkey, x.label]));
   const patch = (p: Partial<Scene>) => run({ type: "scene.update", sceneId: scene.id, patch: p });
-  const takesImage = scene.kind !== "black" && !(scene.art?.builtin === "candlefair-board" || scene.art?.builtin === "artum-notice");
+  const takesImage = scene.kind !== "black" && scene.kind !== "table" && !(scene.art?.builtin === "candlefair-board" || scene.art?.builtin === "artum-notice");
 
   const onFile = async (f: File | undefined) => {
     if (!f) return;
