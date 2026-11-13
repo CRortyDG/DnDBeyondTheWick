@@ -1,5 +1,5 @@
 import { GP, SP } from "./money";
-import type { GameState, Item, MapData, Pin, PinLink, Scene, Shop } from "./types";
+import type { GameState, Item, ItemCategory, MapData, Pin, PinLink, Scene, Shop } from "./types";
 
 export const DEFAULT_SEATS = 6;
 
@@ -13,29 +13,24 @@ export function seatedCount(g: Pick<GameState, "players">): number {
   return g.players.filter((p) => !p.archived).length;
 }
 
-// Copied from the prototype (candlefair-tv-prototype.html). Spoiler-free.
-
-// Spoiler-free starter catalog. Every shop starts hidden; the DM opens them in play.
-//
-// Budget: about a third of the goods are under 25 gp (they leave Episode 1 with
-// something); 25-100 gp is where the party pools money; 100+ gp are goals and teases.
+// Spoiler-free starter catalog, organised by what things do. Every shop starts hidden.
 
 const shop = (id: string, name: string, subtitle: string, extra: Partial<Shop> = {}): Shop => ({ id, name, subtitle, visibility: "hidden", playerIds: [], ...extra });
 
+// Ids "docks" and "smith" are linked from map pins; keep them.
 export const SEED_SHOPS: Shop[] = [
   shop("general", "General Store", "Odds and ends for the road"),
   shop("smith", "The Smithy", "Steel, leather, and things that shoot"),
-  shop("apoth", "Apothecary & Temple", "Healing, holy water, and things in jars"),
-  shop("candle", "The Flickering Candle", "Mags will put it on your tab"),
-  shop("docks", "The Docks", "Passage, boats, hired help, and special orders from the Gate"),
-  shop("town", "Invest in Candlefair", "Put your gold into the town"),
-  shop("bg", "Baldur’s Gate Catalog", "Big-city goods. Ask around once you’ve been."),
+  shop("apoth", "Apothecary & Temple", "Healing, holy water, and prayers"),
+  shop("candle", "The Flickering Candle", "Mags hears everything"),
+  shop("docks", "The Docks", "Boats, horses, and passage down the coast"),
   shop("training", "Training", "Learn something new"),
+  shop("bg", "Baldur’s Gate", "Special orders from the city. Pay now; it arrives in 2 sessions."),
   shop("peddler", "A Traveling Peddler", "Comes once a year. Sells exactly what you need.", { closed: true, secretSales: true }),
 ];
 
-type Opts = Partial<Pick<Item, "tier" | "reason" | "hint" | "hidePrice" | "stock" | "restockNote" | "priceLabel" | "finePrint" | "arrivesInSessions" | "oneAtATime">>;
-const it = (id: string, shopId: string, name: string, priceCp: number, description: string, o: Opts = {}): Item => ({
+type Opts = Partial<Omit<Item, "id" | "shopId" | "name" | "priceCp" | "description" | "category">>;
+const it = (id: string, category: ItemCategory, shopId: string, name: string, priceCp: number, description: string, o: Opts = {}): Item => ({
   id,
   shopId,
   name,
@@ -47,105 +42,109 @@ const it = (id: string, shopId: string, name: string, priceCp: number, descripti
   hidePrice: false,
   stock: null,
   restockNote: "",
+  category,
+  kind: "purchase",
   ...o,
 });
 const locked = (reason: string, o: Opts = {}): Opts => ({ tier: "locked", reason, ...o });
-const rumored = (hint: string): Opts => ({ tier: "rumored", hint });
-const BG = "Ships once you’ve been to Baldur’s Gate";
-const ORDER = "Ships up the coast. Pay now; it arrives in 2 sessions.";
-const order: Opts = { arrivesInSessions: 2 };
-const FREE: Opts = { priceLabel: "Free*", oneAtATime: true };
+const rumored = (hint: string, o: Opts = {}): Opts => ({ tier: "rumored", hint, ...o });
 /** Gear you buy one of, not a stack. */
 const ONE: Opts = { oneAtATime: true };
+const order = (o: Opts = {}): Opts => ({ kind: "order", arrivesInSessions: 2, ...o });
+const service = (o: Opts = {}): Opts => ({ kind: "service", oneAtATime: true, ...o });
+const rent = (o: Opts = {}): Opts => ({ kind: "recurring", oneAtATime: true, ...o });
+const project = (o: Opts = {}): Opts => ({ kind: "project", ...o });
+const earned = (o: Opts = {}): Opts => ({ kind: "earned", ...o });
+const FREE: Opts = { priceLabel: "Free*", oneAtATime: true };
+const LEVEL3 = "Orders open at level 3";
 
 // prettier-ignore
 export const SEED_ITEMS: Item[] = [
-  // General Store
-  it("i0", "general", "Torch", 1, "Burns for an hour. Smells like it."),
-  it("i1", "general", "Rations (1 day)", 5 * SP, "Hard bread, dried fish, a wedge of cheese."),
-  it("i2", "general", "Rope, 50 ft", 1 * GP, "Hempen. Mostly unfrayed."),
-  it("g-oil", "general", "Oil Flask", 1 * SP, "Throw it, light it. Cheap fire."),
-  it("g-caltrops", "general", "Caltrops (bag)", 1 * GP, "For whatever is chasing you."),
-  it("i3", "general", "Bedroll", 1 * GP, "For nights when the Candle is full."),
-  it("i4", "general", "Backpack", 2 * GP, "Holds more than you think."),
-  it("i5", "general", "Traveler’s Clothes", 2 * GP, "Wool, warm, and winter-ready."),
-  it("i6", "general", "Hooded Lantern", 5 * GP, "Light you can hide in a hurry."),
-  it("i7", "general", "Healer’s Kit", 5 * GP, "Bandages and salves. Stabilize a dying friend without a roll. Ten uses."),
-  it("i9", "general", "Fine Clothes", 15 * GP, "For when you’re invited to sit at the banquet, not serve it."),
-  it("i8", "general", "Climber’s Kit", 25 * GP, "Pitons, harness, boot tips. Better than Artum’s ladders."),
-  it("g-lute", "general", "A Masterwork Lute", 35 * GP, "Spruce and maple, strung in Waterdeep. The shopkeeper won’t let you touch it until you can pay.", { ...ONE, stock: 1, restockNote: "Sold. Another may come up the coast someday." }),
+  // ---------- Gear ----------
+  it("i2", "gear", "general", "Rope, 50 ft", 1 * GP, "Hempen. Mostly unfrayed."),
+  it("g-caltrops", "gear", "general", "Caltrops (bag)", 1 * GP, "For whatever is chasing you."),
+  it("g-oil", "gear", "general", "Oil Flask", 1 * SP, "Thrown and lit: fire damage."),
+  it("i6", "gear", "general", "Hooded Lantern", 5 * GP, "Light you can hide in a hurry."),
+  it("i8", "gear", "general", "Climber’s Kit", 25 * GP, "Pitons, harness, boot tips. Better than Artum’s ladders."),
+  it("s-javelin", "gear", "smith", "Javelin", 5 * SP, "A thrown spear anyone can use."),
+  it("i10", "gear", "smith", "Dagger", 2 * GP, "Every adventurer’s first friend."),
+  it("i14", "gear", "smith", "Shield", 10 * GP, "Wood and iron. +2 AC.", ONE),
+  it("i11", "gear", "smith", "Shortsword", 10 * GP, "Quick and light.", ONE),
+  it("i12", "gear", "smith", "Longsword", 15 * GP, "The classic.", ONE),
+  it("i15", "gear", "smith", "Shortbow", 25 * GP, "Easy to carry, quick to draw.", ONE),
+  it("i17", "gear", "smith", "Arrows (20)", 1 * GP, "Fletched with gull feathers. Locally sourced."),
+  it("i16", "gear", "smith", "Longbow", 50 * GP, "Reaches farther than trouble does.", ONE),
+  it("i18", "gear", "smith", "Chain Shirt", 50 * GP, "Medium armor, quiet enough. Your first armor upgrade.", ONE),
+  it("i19", "gear", "smith", "Chain Mail", 75 * GP, "Heavy armor. You’ll hear yourself coming.", ONE),
+  it("i20", "gear", "smith", "Splint Armor", 200 * GP, "Heavy plates on leather.", locked("The smith needs iron from Orlumbor", ONE)),
+  it("i21", "gear", "smith", "Plate Armor", 1500 * GP, "The dream. Every fighter in Candlefair stops to stare.", locked("Made to order, arrives at level 5", ONE)),
 
-  // The Smithy
-  it("s-javelin", "smith", "Javelin", 5 * SP, "A thrown spear anyone can use."),
-  it("i10", "smith", "Dagger", 2 * GP, "Every adventurer’s first friend."),
-  it("i17", "smith", "Arrows (20)", 1 * GP, "Fletched with gull feathers. Locally sourced."),
-  it("i11", "smith", "Shortsword", 10 * GP, "Quick and light.", ONE),
-  it("i14", "smith", "Shield", 10 * GP, "Wood and iron. +2 AC.", ONE),
-  it("i12", "smith", "Longsword", 15 * GP, "The classic.", ONE),
-  it("i13", "smith", "Warhammer", 15 * GP, "For problems that need flattening.", ONE),
-  it("i15", "smith", "Shortbow", 25 * GP, "Easy to carry, quick to draw.", ONE),
-  it("i16", "smith", "Longbow", 50 * GP, "Reaches farther than trouble does.", ONE),
-  it("i18", "smith", "Chain Shirt", 50 * GP, "Medium armor, quiet enough. Your first armor upgrade.", ONE),
-  it("i19", "smith", "Chain Mail", 75 * GP, "Heavy armor. You’ll hear yourself coming.", ONE),
-  it("i20", "smith", "Splint Armor", 200 * GP, "Heavy plates on leather.", locked("The smith needs iron from Orlumbor", ONE)),
-  it("i21", "smith", "Plate Armor", 1500 * GP, "The dream. Every fighter in Candlefair stops to stare.", locked("Made to order, arrives at level 5", ONE)),
+  // ---------- Healing ----------
+  it("i7", "healing", "general", "Healer’s Kit", 5 * GP, "Stabilize a dying friend without a roll. Ten uses."),
+  it("a-tonic", "healing", "apoth", "Temple Tonic", 15 * GP, "Heals 1d4 + 1. The poor adventurer’s healing potion."),
+  it("i24", "healing", "apoth", "Holy Water", 25 * GP, "Blessed at the temple. Hurts the restless dead."),
+  it("i22", "healing", "apoth", "Potion of Healing", 50 * GP, "Red, warm, and tastes like cinnamon. Heals 2d4 + 2."),
+  it("i27", "healing", "apoth", "Potion of Greater Healing", 150 * GP, "Deep crimson. Heals 4d4 + 4.", locked("The priestess needs moonpetal from the Trollbark")),
+  it("a-revivify", "healing", "apoth", "Revivify", 300 * GP, "The temple’s diamond and prayers for a fallen friend.", service({ prompt: "Who has fallen?" })),
 
-  // Apothecary & Temple
-  it("a-salts", "apoth", "Smelling Salts", 2 * GP, "Wake an unconscious ally: they’re stable and wake up."),
-  it("i26", "apoth", "Arcane Focus (Crystal)", 10 * GP, "Hums faintly in cold weather."),
-  it("a-tonic", "apoth", "Temple Tonic", 15 * GP, "Heals 1d4 + 1. The poor adventurer’s healing potion."),
-  it("i24", "apoth", "Holy Water", 25 * GP, "Blessed at the temple. Hurts the restless dead."),
-  it("i25", "apoth", "Component Pouch", 25 * GP, "Bits and pieces for spellcasters."),
-  it("i22", "apoth", "Potion of Healing", 50 * GP, "Red, warm, and tastes like cinnamon. Heals 2d4 + 2."),
-  it("i23", "apoth", "Antitoxin", 50 * GP, "For bites from things in the Trollbark."),
-  it("a-fire", "apoth", "Alchemist’s Fire", 50 * GP, "A thrown bottle of fire. Handle with care."),
-  it("i27", "apoth", "Potion of Greater Healing", 150 * GP, "Deep crimson. Heals 4d4 + 4.", locked("The priestess needs moonpetal from the Trollbark")),
+  // ---------- Magic (special orders from Baldur's Gate) ----------
+  it("bg-climbing", "magic", "bg", "Potion of Climbing", 100 * GP, "Climb like a spider for an hour. Tastes of tar.", order()),
+  it("i42", "magic", "bg", "Bag of Holding", 400 * GP, "Bigger on the inside.", locked(LEVEL3, order({ oneAtATime: true }))),
+  it("i44", "magic", "bg", "Cloak of Protection", 400 * GP, "Turns blows that should have landed. +1 AC and saves.", locked(LEVEL3, order({ oneAtATime: true }))),
+  it("i43", "magic", "bg", "+1 Weapon", 400 * GP, "Finer steel than any smith in Candlefair can make.", locked(LEVEL3, order({ oneAtATime: true }))),
+  it("bg-flametongue", "magic", "bg", "Flame Tongue", 4000 * GP, "A sword that bursts into flame on a word.", rumored("Only in the city itself", order({ oneAtATime: true }))),
+  it("bg-wand", "magic", "bg", "Sorcerous Sundries", 0, "The city’s famous magic shop.", rumored("Wands, scrolls, and things that hum")),
 
-  // The Flickering Candle
-  it("i28", "candle", "Mug of Ale", 4, "Mags pours it before you ask."),
-  it("c-pie", "candle", "Mags’s Meat Pie", 1 * SP, "Tastes like home."),
-  it("i29", "candle", "Hot Meal", 3 * SP, "Whatever’s in the pot. It’s always good."),
-  it("c-cider", "candle", "Hot Cider Flask", 5 * SP, "Advantage on one saving throw against cold."),
-  it("i30", "candle", "Room for the Night", 5 * SP, "Warm bed, roof that never leaks."),
-  it("i31", "candle", "Bottle of Wine", 2 * GP, "Something red from up the coast."),
-  it("i32", "candle", "Round for the House", 5 * GP, "Everyone drinks. Everyone remembers who paid."),
-  it("c-backroom", "candle", "The Back Room", 2 * GP, "A private room behind the kitchen. Thick walls, one key.", locked("Mags only rents it to people she trusts")),
+  // ---------- Travel ----------
+  it("i37", "travel", "docks", "Riding Horse", 75 * GP, "Freedom to travel. For the long road south.", ONE),
+  it("i34", "travel", "docks", "Rowboat", 50 * GP, "Two oars, one bucket for bailing.", ONE),
+  it("i35", "travel", "docks", "Fennick’s Boat", 120 * GP, "Good fishing boat. Barely sank.", { ...ONE, stock: 1, restockNote: "Sold. Fennick is already building another." }),
+  it("i36", "travel", "docks", "Passage to Baldur’s Gate (each)", 20 * GP, "About four days by sea, weather permitting."),
+  it("d-moonshae", "travel", "docks", "Passage to the Moonshae Isles", 0, "", rumored("No captain will sail there. Yet.")),
+  it("d-keelboat", "travel", "docks", "Keelboat", 3000 * GP, "River and coast, with room for a crew.", locked("Ask the shipwrights on Orlumbor", ONE)),
+  it("d-ship", "travel", "docks", "A Sailing Ship", 10000 * GP, "Your own ship. Your own flag.", locked("Every captain on the coast would know your name", ONE)),
 
-  // The Docks
-  it("d-charm", "docks", "Lantern-Village Charm", 5 * SP, "“Brings luck at sea.” Does nothing. Or does it?"),
-  it("i33", "docks", "Guide into the Trollbark (1 day)", 2 * GP, "A local who knows which paths come back out."),
-  it("i36", "docks", "Passage to Baldur’s Gate (each)", 20 * GP, "About four days by sea, weather permitting."),
-  it("i34", "docks", "Rowboat", 50 * GP, "Two oars, one bucket for bailing.", ONE),
-  it("i37", "docks", "Riding Horse", 75 * GP, "Freedom to travel. For the long road south.", ONE),
-  it("i35", "docks", "Fennick’s Boat", 120 * GP, "Good fishing boat. Barely sank.", { ...ONE, stock: 1, restockNote: "Sold. Fennick is already building another." }),
-  it("d-pastry", "docks", "Special Order: Lower City Pastry Box", 2 * GP, `Sweets from a Baldur’s Gate bakery. Probably stale by the time they arrive. ${ORDER}`, order),
-  it("d-spellbook", "docks", "Special Order: Blank Spellbook", 50 * GP, `Vellum, a lock, and room for a career. ${ORDER}`, order),
-  it("d-silver", "docks", "Special Order: Silvered Dagger", 110 * GP, `For the things plain steel won’t hurt. ${ORDER}`, order),
-  it("d-moonshae", "docks", "Passage to the Moonshae Isles", 100 * GP, "", rumored("No captain will sail there. Yet.")),
+  // ---------- Services ----------
+  it("c-drink", "services", "candle", "Buy Mags a drink", 4, "She tells you a rumor.", service()),
+  it("c-ask", "services", "candle", "Ask Mags about…", 5 * GP, "Name a person or place. She’ll tell you one thing that’s true.", service({ prompt: "Who or what do you want to ask about?" })),
+  it("c-intro", "services", "candle", "An introduction", 2 * GP, "Mags introduces you to someone useful.", service()),
+  it("c-flyer", "services", "candle", "Post on the notice board", 1 * SP, "Write a flyer. Mags pins it up if it’s decent.", service({ flyer: true })),
+  it("c-porter", "services", "candle", "Hire a porter (per day)", 2 * SP, "Carries what you can’t."),
+  it("i33", "services", "candle", "Hire a guide into the Trollbark (per day)", 2 * GP, "A local who knows which paths come back out."),
+  it("c-sellsword", "services", "candle", "Hire a sellsword (per day)", 2 * GP, "Fights for coin. Mostly on your side."),
+  it("c-safe", "services", "candle", "Safekeeping behind the bar", 1 * GP, "Mags keeps your valuables under the counter.", rent()),
+  it("a-identify", "services", "apoth", "Identify an item", 20 * GP, "The priestess tells you what it is, and what it does.", service({ prompt: "Which item?" })),
+  it("tr-lang", "services", "training", "Learn a language or tool", 250 * GP, "Five lessons, paid one per session. Proficiency when you finish.", { kind: "training", installments: 5, oneAtATime: true, prompt: "Which language or tool?" }),
+  it("tr-watcher", "services", "training", "Lessons with ???", 0, "", rumored("Someone in town has been watching you.", { kind: "training", installments: 5, oneAtATime: true })),
 
-  // Invest in Candlefair
-  it("i38", "town", "Sponsor a Winterfest Stall", 25 * GP, "Your name on a banner in the square."),
-  it("i39", "town", "Fund the Town Watch", 100 * GP, "More lanterns on the streets at night."),
-  it("i40", "town", "Repair the Temple Roof", 250 * GP, "The priestess will remember this."),
-  it("t-lighthouse", "town", "Restore the Lantern’s Old Lighthouse", 750 * GP, "", rumored("The old lamp across the river hasn’t been lit in years.")),
-  it("i41", "town", "A Statue of the Party", 1000 * GP, "In the square. Pigeons included.", locked("Candlefair needs to know who you are first")),
+  // ---------- Building Candlefair ----------
+  it("i30", "building", "candle", "Room for the Night", 5 * SP, "Warm bed, roof that never leaks."),
+  it("c-room", "building", "candle", "Rent a room", 3 * GP, "A room upstairs, and a stash for your gear.", rent()),
+  it("c-tab", "building", "candle", "Open a tab", 0, "Mags lets you drink now and pay later, up to 10 gp.", locked("Once Mags thinks of you as regulars.", { priceLabel: "No charge", oneAtATime: true, effects: [{ type: "credit", limitCp: 10 * GP }] })),
+  it("c-backroom", "building", "candle", "The Back Room", 10 * GP, "A private room behind the kitchen. Thick walls, one key. The party’s first headquarters.", locked("Mags only rents it to people she trusts.", rent({ keep: true }))),
+  it("g-house", "building", "general", "A house in town", 1000 * GP, "A door with your name on it.", locked("Available at level 4", { ...ONE, keep: true })),
+  it("g-hall", "building", "general", "An adventurers’ hall", 2000 * GP, "A hall, a sign, and a reputation.", locked("Candlefair needs to know who you are first", { ...ONE, keep: true })),
+  it("d-ferry", "building", "docks", "New rope and lantern for the ferry", 15 * GP, "The ferry runs after dark again.", project()),
+  it("d-fishing", "building", "docks", "A share in Fennick’s fishing", 150 * GP, "1d6 gp every session, split by share.", project({ effects: [{ type: "income", dice: "1d6", unitCp: GP }] })),
+  it("i39", "building", "general", "Lanterns for the watch", 100 * GP, "Safer streets at night.", project()),
+  it("i40", "building", "apoth", "Repair the temple roof", 250 * GP, "The priestess will remember this: 10% off Healing.", project({ effects: [{ type: "discount", pct: 10, category: "healing" }] })),
+  it("s-forge", "building", "smith", "A new forge", 300 * GP, "Hot enough for real armor. Unlocks Splint Armor.", project({ effects: [{ type: "unlock", itemId: "i20" }] })),
+  it("t-lighthouse", "building", "docks", "Rebuild the Lantern’s lighthouse", 500 * GP, "Ships return, and new stock comes to the Docks.", rumored("The old lamp across the river hasn’t been lit in years.", project())),
 
-  // Baldur's Gate Catalog: famous names the players will recognize
-  it("bg-wand", "bg", "A Wand from Sorcerous Sundries", 0, "The city’s famous magic shop. Wands, scrolls, and things that hum.", locked(BG, { hidePrice: true })),
-  it("i45", "bg", "Spell Scrolls (Sorcerous Sundries)", 0, "Magic, written down and for sale.", locked(BG, { hidePrice: true })),
-  it("i42", "bg", "Bag of Holding", 500 * GP, "Sorcerous Sundries keeps a few behind the counter. Bigger on the inside.", locked(BG)),
-  it("i44", "bg", "Cloak of Protection", 500 * GP, "From the stalls of the Wide, the city’s great market. Turns blows that should have landed.", locked(BG)),
-  it("i43", "bg", "+1 Weapon", 500 * GP, "From the Wide. Finer steel than any smith in Candlefair can make.", locked(BG)),
-  it("bg-elfsong", "bg", "A Drink at the Elfsong Tavern", 1 * GP, "", rumored("They say you can still hear her singing.")),
+  // ---------- Trophies ----------
+  it("i32", "trophies", "candle", "Round for the House", 5 * GP, "Everyone drinks. Advantage on your next Charisma check at the Candle."),
+  it("c-trophy", "trophies", "candle", "Mount a trophy at the Candle", 50 * GP, "A keepsake from a fight goes on the wall, with a little plaque.", { keep: true }),
+  it("g-citizens", "trophies", "general", "Free Citizens of Candlefair", 500 * GP, "A title on your page.", locked("The council must vote.", { ...ONE, keep: true })),
+  it("i41", "trophies", "general", "A Statue of the Party", 1000 * GP, "In the square.", locked("Pigeons included", { ...ONE, keep: true })),
+  it("c-tale", "trophies", "candle", "A candle on the tale shelf", 0, "For the best tale on Tale Night.", earned()),
+  it("c-pudding", "trophies", "candle", "The Pudding Slayer", 0, "A drink named after the party.", earned()),
 
-  // Training (hidden shop)
-  it("tr-watcher", "training", "A Teacher", 0, "", rumored("Someone in town has been watching you.")),
-
-  // A Traveling Peddler (hidden, closed until the DM opens it, usually for one player)
-  it("p-coin", "peddler", "A Lucky Coin", 0, "Warm to the touch. Lands the way you need it to, once.", { ...FREE, finePrint: "*Must be returned to the Peddler before Winterfest ends." }),
-  it("p-key", "peddler", "Exactly the Right Key", 0, "Opens one door you will very much need opened.", { ...FREE, finePrint: "*The Peddler chooses which door." }),
-  it("p-wind", "peddler", "A Second Wind, Bottled", 0, "Uncork it when you’re down. You’ll get back up.", { ...FREE, finePrint: "*Payment will be collected later." }),
+  // ---------- A Traveling Peddler (closed until the DM opens it, usually for one player) ----------
+  it("p-coin", "magic", "peddler", "A Lucky Coin", 0, "Warm to the touch. Lands the way you need it to, once.", { ...FREE, finePrint: "*Must be returned to the Peddler before Winterfest ends." }),
+  it("p-key", "magic", "peddler", "Exactly the Right Key", 0, "Opens one door you will very much need opened.", { ...FREE, finePrint: "*The Peddler chooses which door." }),
+  it("p-wind", "magic", "peddler", "A Second Wind, Bottled", 0, "Uncork it when you’re down. You’ll get back up.", { ...FREE, finePrint: "*Payment will be collected later." }),
 ];
+
 
 // ---------- maps ----------
 
@@ -248,6 +247,7 @@ export function seedGame(id: string, name = "Tales from the Flickering Candle", 
     orders: [],
     banner: null,
     requests: [],
+    ...emptyProgress(),
     seq: 100,
   };
 }
@@ -266,6 +266,7 @@ export function freshStart(g: GameState): GameState {
   s.orders = [];
   s.banner = null;
   s.requests = [];
+  Object.assign(s, emptyProgress());
   // The Chronicle starts again on an empty Chapter 1, and nobody has met anyone yet.
   s.notes = [];
   for (const sc of s.scenes) delete sc.known;
@@ -275,4 +276,9 @@ export function freshStart(g: GameState): GameState {
   delete s.live.recapSessionId;
   delete s.live.recapNoteIds;
   return s;
+}
+
+/** Rentals, training, shares, awards, inbox tasks and flyers: none yet. */
+export function emptyProgress(): Pick<GameState, "rentals" | "trainings" | "stakes" | "effectsOn" | "awards" | "tasks" | "flyers"> {
+  return { rentals: [], trainings: [], stakes: [], effectsOn: {}, awards: [], tasks: [], flyers: [] };
 }

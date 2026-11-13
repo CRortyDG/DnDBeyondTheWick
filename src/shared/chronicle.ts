@@ -210,10 +210,18 @@ export function tagSuggestions(g: GameState): string[] {
       for (const p of sc.map.pins) if (p.discovered) add(p.name);
     }
   }
-  // Loot: goods everyone can see on a shelf (for sale or locked). Never rumored or
-  // hidden items, closed shops, or shops shown only to some players.
+  // Loot: things a player can hold that everyone can see on a shelf (for sale or
+  // locked). Never rumored or hidden items, closed shops, or shops shown only to
+  // some players; never rent, services or building projects; earned honours only
+  // once someone has been granted one.
   const open = new Set(g.shops.filter((sh) => sh.visibility === "all" && !sh.closed).map((sh) => sh.id));
-  for (const it of g.items) if (open.has(it.shopId) && (it.tier === "sale" || it.tier === "locked")) add(it.name);
+  const granted = new Set((g.awards ?? []).map((a) => a.itemId));
+  for (const it of g.items) {
+    if (!open.has(it.shopId) || (it.tier !== "sale" && it.tier !== "locked")) continue;
+    if (it.kind === "recurring" || it.kind === "service" || it.kind === "project") continue;
+    if (it.kind === "earned" && !granted.has(it.id)) continue;
+    add(it.name);
+  }
   return [...out.values()].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
 }
 

@@ -1,6 +1,7 @@
 "use client";
 
-import type { DmCommand } from "@/shared/commands";
+import { useEffect, useRef, useState } from "react";
+import { SEAL_SCALE_MAX, SEAL_SCALE_MIN, type DmCommand } from "@/shared/commands";
 import { sealText } from "@/shared/projection";
 import type { GameState, PinLink, Scene } from "@/shared/types";
 import { Seal } from "../ui/MapView";
@@ -45,6 +46,7 @@ export function LiveMapControls({ scene }: { scene: Scene }) {
             <span className="key">Esc</span> Zoom out
           </button>
         ) : null}
+        <DotSize scene={scene} />
         <span className="spacer" />
         <button type="button" className="btn small" onClick={() => openMap(scene.id)}>
           Edit map
@@ -92,5 +94,42 @@ export function LiveMapControls({ scene }: { scene: Scene }) {
         <p className="note">No locations yet. Press Edit map to place some.</p>
       )}
     </div>
+  );
+}
+
+/** A slider for how big this map's dots are. Saves a moment after you stop moving it. */
+export function DotSize({ scene }: { scene: Scene }) {
+  const { run } = useDm();
+  const saved = scene.map?.sealScale ?? 1;
+  const [v, setV] = useState(saved);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pending = useRef(false);
+  useEffect(() => {
+    if (!pending.current) setV(saved);
+  }, [saved]);
+  useEffect(() => () => void (timer.current && clearTimeout(timer.current)), []);
+  const change = (n: number) => {
+    setV(n);
+    pending.current = true;
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = setTimeout(async () => {
+      await run({ type: "map.sealScale", sceneId: scene.id, scale: n });
+      pending.current = false;
+    }, 250);
+  };
+  return (
+    <label className="dot-size">
+      <span>Dot size</span>
+      <input
+        type="range"
+        min={SEAL_SCALE_MIN}
+        max={SEAL_SCALE_MAX}
+        step={0.05}
+        value={v}
+        onChange={(e) => change(Number(e.target.value))}
+        aria-valuetext={`${Math.round(v * 100)}%`}
+      />
+      <span className="dot-size-val">{Math.round(v * 100)}%</span>
+    </label>
   );
 }

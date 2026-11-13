@@ -47,6 +47,11 @@ export function usePrefersReducedMotion(): boolean {
   return reduced;
 }
 
+/** A dot's diameter: 64 TV pixels at 1080p, times the map's dot size. The editor uses the same rule, so it looks like the TV. */
+export function sealSizePx(unit: number, scale = 1): number {
+  return Math.max(8, 64 * unit * scale);
+}
+
 /** A wax-seal number dot. */
 export function Seal({ label, className = "", style, children, ...rest }: { label: string; className?: string; style?: CSSProperties; children?: ReactNode } & React.HTMLAttributes<HTMLSpanElement>) {
   return (
@@ -66,7 +71,7 @@ export function MapView({ src, alt, map, emptyHint }: { src?: string; alt?: stri
 
   const focusPin = map.focus ? map.pins.find((p) => p.id === map.focus!.pinId) : undefined;
   const zoom = focusPin && !reduced ? zoomToward(focusPin, box, size.w, size.h, ZOOM) : { tx: 0, ty: 0, scale: 1 };
-  const sealPx = Math.max(16, 64 * unit);
+  const sealPx = sealSizePx(unit, map.sealScale);
 
   return (
     <div ref={outer} className={`scene-fill scene-backdrop map-scene${reduced ? " still" : ""}`} style={{ "--mu": `${unit}px`, "--seal": `${sealPx}px` } as CSSProperties}>

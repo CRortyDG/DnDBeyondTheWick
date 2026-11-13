@@ -6,12 +6,13 @@ import { pixelsToPin } from "@/shared/mapGeometry";
 import { sealText } from "@/shared/projection";
 import { lowestFreeNumber } from "@/shared/reducer";
 import type { Pin, PinLink, Scene } from "@/shared/types";
-import { Seal, useMapBox } from "../ui/MapView";
+import { Seal, sealSizePx, useMapBox } from "../ui/MapView";
 import { artSrc } from "../ui/SceneView";
 import { Check } from "./Check";
 import { useDm } from "./context";
 import { Field } from "./Field";
 import { InlineText } from "./InlineText";
+import { DotSize } from "./LiveMapControls";
 import { uploadImage } from "./upload";
 
 type PinPatch = Partial<Pick<Pin, "showsAs" | "name" | "type" | "description" | "dmNotes" | "x" | "y">> & { link?: PinLink | null };
@@ -68,7 +69,8 @@ function Editor({ scene, onClose }: { scene: Scene; onClose: () => void }) {
   const file = useRef<HTMLInputElement>(null);
   const src = artSrc(scene.art) ?? undefined;
   const { size, box, onLoad } = useMapBox(outer, src);
-  const sealPx = Math.round(Math.max(24, Math.min(46, Math.min(size.w, size.h) * 0.06)));
+  // Same size rule as the TV, as if this canvas were the TV screen.
+  const sealPx = Math.round(sealSizePx(Math.min(size.w / 1920, size.h / 1080) || 0, scene.map?.sealScale));
   const selected = pins.find((p) => p.id === selectedId) ?? null;
   const sceneId = scene.id;
 
@@ -284,6 +286,7 @@ function Editor({ scene, onClose }: { scene: Scene; onClose: () => void }) {
           {busy ? "Uploading…" : src ? "Replace image" : "Upload image"}
         </button>
         <input ref={file} type="file" accept="image/*" hidden onChange={(e) => void onFile(e.target.files?.[0])} />
+        <DotSize scene={scene} />
         <span className="spacer" />
         <button type="button" className="btn" onClick={() => run({ type: "scene.show", sceneId }, "On the TV.")}>
           Show on TV

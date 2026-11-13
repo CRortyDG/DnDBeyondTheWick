@@ -65,6 +65,8 @@ export interface MapData {
   legendOn: boolean;
   /** "numbers": seals only, players ask what's what (names aren't sent). "names": seal, name and type. */
   legendStyle: LegendStyle;
+  /** Size of the dots on the map, 1 = standard (about 64px on a 1080p TV). Missing on maps made before it existed. */
+  sealScale?: number;
 }
 
 export interface Player {
@@ -144,6 +146,31 @@ export interface Shop {
  */
 export type ItemTier = "sale" | "locked" | "rumored" | "hidden";
 
+/** What an item is for: the default shop view groups by this. */
+export type ItemCategory = "gear" | "healing" | "magic" | "travel" | "services" | "building" | "trophies";
+
+/**
+ * How buying it works.
+ * - purchase: pay, done
+ * - recurring: priceCp per month (one month per session), charged at session end
+ * - service: paid, then the DM answers (or posts the flyer)
+ * - order: pay now, arrives after arrivesInSessions sessions
+ * - training: priceCp in total, paid in `installments` parts, one per session
+ * - project: priceCp is the goal; anyone contributes any amount
+ * - earned: can't be bought; the DM grants it
+ */
+export type ItemKind = "purchase" | "recurring" | "service" | "order" | "training" | "project" | "earned";
+
+/** DM-ONLY: what buying it (or funding it) does. Players only see the description. */
+export type Effect =
+  | { type: "unlock"; itemId?: string; shopId?: string }
+  /** pct off a category or tagged items (not projects). Stacks, up to 50%. */
+  | { type: "discount"; pct: number; category?: ItemCategory; tag?: string }
+  /** At each session start, roll `dice` (e.g. "1d6") × unitCp and split it among the owners by share. */
+  | { type: "income"; dice: string; unitCp: number }
+  /** Owners may buy on credit at this item's storefront, down to −limitCp. */
+  | { type: "credit"; limitCp: number };
+
 export interface Item {
   id: string;
   shopId: string;
@@ -171,6 +198,97 @@ export interface Item {
   oneAtATime?: boolean;
   /** DM-ONLY */
   dmNote?: string;
+  category: ItemCategory;
+  kind: ItemKind;
+  /** Training: how many parts the price is paid in. */
+  installments?: number;
+  /** Service or training: what the player is asked ("Name a person or place"). Required when set. */
+  prompt?: string;
+  /** Service: the player writes a flyer for the notice board. */
+  flyer?: boolean;
+  /** For discounts that target tags. */
+  tags?: string[];
+  /** Shows on the buyer's page once bought (trophies, titles, a house). */
+  keep?: boolean;
+  /** DM-ONLY */
+  effects?: Effect[];
+}
+
+/** A rented room, safekeeping, the Back Room. */
+export interface Rental {
+  id: string;
+  itemId: string;
+  itemName: string;
+  playerId: string;
+  monthlyCp: number;
+  startedAt: number;
+  /** Paid up to the end of this session number. Session end charges rentals behind it, once. */
+  paidThrough: number;
+  active: boolean;
+  endedAt?: number;
+}
+
+/** Lessons paid for in parts, one per session. */
+export interface Training {
+  id: string;
+  itemId: string;
+  itemName: string;
+  playerId: string;
+  /** What they're learning (the player's answer to the prompt). */
+  what: string;
+  totalCp: number;
+  of: number;
+  paid: number;
+  paidCp: number;
+  /** Paid up to the end of this session number. */
+  paidThrough: number;
+  done: boolean;
+  cancelled?: boolean;
+}
+
+/** A player's share of something: project contributions, or buying an item that has effects or is kept. */
+export interface Stake {
+  itemId: string;
+  playerId: string;
+  cp: number;
+  at: number;
+}
+
+/** An Earned item the DM granted. */
+export interface Award {
+  id: string;
+  itemId: string;
+  itemName: string;
+  playerIds: string[];
+  at: number;
+  note: string;
+}
+
+/** A job for the DM: record a proficiency, a project funded. DM-ONLY. */
+export interface DmTask {
+  id: string;
+  at: number;
+  text: string;
+  playerId?: string;
+  itemId?: string;
+  done: boolean;
+}
+
+/** A player's flyer on the TV notice board. */
+export interface Flyer {
+  id: string;
+  playerId: string;
+  title: string;
+  body: string;
+  signedBy: string;
+  postedAt: number;
+  up: boolean;
+}
+
+export interface FlyerText {
+  title: string;
+  body: string;
+  signedBy: string;
 }
 
 export type RequestStatus = "pending" | "approved" | "declined" | "cancelled";
@@ -182,7 +300,7 @@ export type RequestStatus = "pending" | "approved" | "declined" | "cancelled";
  */
 export interface TradeRequest {
   id: string;
-  kind: "buy" | "give";
+  kind: "buy" | "give" | "contribute";
   playerId: string;
   playerName: string;
   at: number;
@@ -208,6 +326,12 @@ export interface TradeRequest {
   reason?: string;
   /** What was actually charged (differs from totalCp after haggling). */
   chargedCp?: number;
+  /** Service or training: the player's answer to the item's prompt. */
+  question?: string;
+  /** Service: the DM's answer the player sees. */
+  answer?: string;
+  /** "Post on the notice board": the flyer as written (or as the DM edited it). */
+  flyer?: FlyerText;
 }
 
 /** A special order: paid for, on its way. */
@@ -245,6 +369,10 @@ export interface Session {
   recap?: string;
   /** The Chronicle's note-taker for this session: their notes get a quill. */
   noteTakerId?: string;
+  /** DM-ONLY: what happened when it started (orders arrived, income paid). */
+  startLog?: string[];
+  /** Rent and lessons were charged at this session's end. */
+  duesCharged?: boolean;
 }
 
 // ---------- the Chronicle (the table's shared story notes) ----------
@@ -337,6 +465,8 @@ export interface LiveState {
   focus?: { pinId: string; n: number };
   /** The last "Discovered: …" banner on the live map. The TV shows it when n changes. */
   banner?: { pinId: string; n: number };
+  /** The TV shop shows this category instead of a storefront. */
+  shopCategory?: ItemCategory;
 }
 
 export interface GameState {
@@ -368,6 +498,14 @@ export interface GameState {
   requests: TradeRequest[];
   /** "Mira bought a Shield." on the TV when a request is approved. undefined = on. */
   tvPurchases?: boolean;
+  rentals: Rental[];
+  trainings: Training[];
+  stakes: Stake[];
+  /** Items whose effects have applied (bought, or funded for projects), with when. */
+  effectsOn: Record<string, number>;
+  awards: Award[];
+  tasks: DmTask[];
+  flyers: Flyer[];
   /** The Arrival intro's settings. Missing on games made before it. */
   arrival?: ArrivalSettings;
   /** The Chronicle's notes, oldest first. Missing on games made before it; read with notesOf(). */
@@ -375,7 +513,7 @@ export interface GameState {
   seq: number;
 }
 
-export type LedgerKind = "grant" | "charge" | "purchase" | "payAll" | "transfer";
+export type LedgerKind = "grant" | "charge" | "purchase" | "payAll" | "transfer" | "rent" | "contribution" | "income";
 
 export interface LedgerEntry {
   id: string;

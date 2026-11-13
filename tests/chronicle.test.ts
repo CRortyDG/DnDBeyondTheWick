@@ -225,6 +225,16 @@ describe("tag suggestions", () => {
     expect(tagSuggestions(g)).not.toContain("Mags Wick");
   });
 
+  it("suggest only loot a player can hold: no rent, services or projects, and honours once granted", () => {
+    const g = game();
+    for (const sh of g.shops) sh.visibility = "all";
+    const tags = tagSuggestions(g);
+    expect(tags).toContain("Rope, 50 ft");
+    for (const name of ["Rent a room", "Buy Mags a drink", "A new forge", "The Pudding Slayer"]) expect(tags).not.toContain(name);
+    g.awards.push({ id: "aw1", itemId: "c-pudding", itemName: "The Pudding Slayer", playerIds: ["p1"], at: 1, note: "" });
+    expect(tagSuggestions(g)).toContain("The Pudding Slayer");
+  });
+
   it("leave out pin names when the map shows numbers only", () => {
     const g = game();
     g.scenes.find((s) => s.id === "s-map")!.map!.legendStyle = "numbers";

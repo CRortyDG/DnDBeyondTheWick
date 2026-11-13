@@ -1,10 +1,11 @@
 // Spoiler safety lives here. Each role gets a view built field-by-field from
 // an explicit allow-list, so a new DM-only field can't leak by accident.
 
+import { creditLines, discountPct, firstChargeCp, priceOf, raisedCp, stakeTotals } from "./progress";
 import { heldCp, heldStock } from "./requests";
 import { projectTable, type TableView } from "./arrival";
 import { notesOf, penName, projectChronicle, type ChronicleView } from "./chronicle";
-import type { Art, Banner, GameState, Item, LedgerEntry, LegendStyle, LiveState, Player, RequestStatus, Scene, Shop } from "./types";
+import type { Art, Banner, FlyerText, GameState, Item, ItemCategory, ItemKind, LedgerEntry, LegendStyle, LiveState, Player, RequestStatus, Scene, Shop } from "./types";
 
 export const GATED_ART = new Set(["merchant-sigil"]);
 
@@ -34,6 +35,8 @@ export interface PublicPin {
 export interface PublicMap {
   pins: PublicPin[];
   legend: { on: boolean; style: LegendStyle };
+  /** Dot size, 1 = standard. */
+  sealScale: number;
   /** Only on the live map. */
   focus?: { pinId: string; n: number };
   banner?: { n: number; name: string };
@@ -85,12 +88,34 @@ export interface PublicItem {
   held?: number;
   /** Sold one at a time: no quantity picker. */
   oneAtATime?: boolean;
+  category: ItemCategory;
+  kind: ItemKind;
+  /** The price before a discount (priceCp is after it). */
+  listCp?: number;
+  discountPct?: number;
+  /** Training: what the first lesson costs. */
+  dueNowCp?: number;
+  installments?: number;
+  /** Asked when buying ("Which language or tool?"). */
+  prompt?: string;
+  /** "Post on the notice board": the player writes a flyer. */
+  flyer?: boolean;
+  /** Projects: gold raised so far (priceCp is the goal). */
+  raisedCp?: number;
+  funded?: boolean;
+  /** Earned items: who has it. */
+  earnedBy?: string[];
+}
+
+/** A player flyer on the notice board. */
+export interface PublicFlyer extends FlyerText {
+  id: string;
 }
 
 /** One of my phone requests, as I see it. */
 export interface MyRequest {
   id: string;
-  kind: "buy" | "give";
+  kind: "buy" | "give" | "contribute";
   at: number;
   status: RequestStatus;
   totalCp: number;
@@ -101,6 +126,21 @@ export interface MyRequest {
   decidedAt?: number;
   reason?: string;
   chargedCp?: number;
+  question?: string;
+  /** The DM's answer to a service. */
+  answer?: string;
+  flyerTitle?: string;
+}
+
+/** What I have going: rentals, lessons, shares, titles, honours. */
+export interface MyThings {
+  rentals: { id: string; itemName: string; monthlyCp: number }[];
+  trainings: { id: string; itemName: string; what: string; paid: number; of: number; done: boolean }[];
+  /** Project shares and things I keep (a trophy, a title, a house). */
+  stakes: { itemId: string; itemName: string; cp: number; project: boolean; goalCp?: number; raisedCp?: number; funded?: boolean }[];
+  awards: { id: string; itemName: string; at: number; note: string }[];
+  /** Mags's tab: how far below zero I may go, and where. */
+  credit: { shopId: string; shopName: string; limitCp: number }[];
 }
 
 export interface MyOrder {
@@ -128,7 +168,9 @@ interface Common {
 
 export interface TvView extends Common {
   role: "tv";
-  live: Pick<LiveState, "sceneId" | "shopOpen" | "shopId" | "purseVisible">;
+  live: Pick<LiveState, "sceneId" | "shopOpen" | "shopId" | "purseVisible" | "shopCategory">;
+  /** Approved player flyers, while they're up. */
+  flyers: PublicFlyer[];
   /** Every non-reveal scene (for instant switching), plus the live scene even if it's a reveal. */
   scenes: PublicScene[];
   /** "Previously on…": only while the DM is showing it. The only session text the TV ever gets. */
@@ -162,6 +204,7 @@ export interface PlayerView extends Common {
   myOrders: MyOrder[];
   /** My purchase and gold requests, newest first. Never anyone else's. */
   myRequests: MyRequest[];
+  mine: MyThings;
   /** Everyone I could send gold to (names only). */
   table: { id: string; name: string }[];
   /** The campaign's D&D Beyond game link, if the DM set one. */
@@ -222,6 +265,7 @@ export function publicMap(game: GameState, sc: Scene): PublicMap {
       return pin;
     }),
     legend: { on: m.legendOn, style: m.legendStyle },
+    sealScale: m.sealScale ?? 1,
   };
   if (focus) out.focus = { pinId: focus.pinId, n: focus.n };
   const b = isLive ? game.live.banner : undefined;
@@ -249,23 +293,45 @@ function publicItem(game: GameState, it: Item): PublicItem | null {
   if (it.tier === "hidden") return null;
   if (it.tier === "rumored") {
     // Name, price and description stay on the server; only the hint goes out.
-    return { id: it.id, shopId: it.shopId, name: "???", priceCp: null, description: "", tier: "rumored", hint: it.hint, stock: null };
+    return { id: it.id, shopId: it.shopId, name: "???", priceCp: null, description: "", tier: "rumored", hint: it.hint, stock: null, category: it.category, kind: it.kind };
   }
+  const hide = it.tier === "locked" && it.hidePrice;
   const out: PublicItem = {
     id: it.id,
     shopId: it.shopId,
     name: it.name,
-    priceCp: it.tier === "locked" && it.hidePrice ? null : it.priceCp,
+    priceCp: hide ? null : priceOf(game, it),
     description: it.description,
     tier: it.tier,
     stock: it.stock,
+    category: it.category,
+    kind: it.kind,
   };
+  const pct = discountPct(game, it);
+  if (pct && !hide) {
+    out.listCp = it.priceCp;
+    out.discountPct = pct;
+  }
+  if (it.kind === "training") {
+    out.installments = it.installments ?? 1;
+    if (!hide) out.dueNowCp = firstChargeCp(game, it);
+  }
+  if (it.prompt) out.prompt = it.prompt;
+  if (it.flyer) out.flyer = true;
+  if (it.kind === "project") {
+    out.raisedCp = raisedCp(game, it.id);
+    if (game.effectsOn[it.id]) out.funded = true;
+  }
+  if (it.kind === "earned") {
+    const ids = new Set(game.awards.filter((a) => a.itemId === it.id).flatMap((a) => a.playerIds));
+    out.earnedBy = game.players.filter((p) => ids.has(p.id)).map((p) => p.name);
+  }
   if (it.tier === "locked") out.reason = it.reason;
   if (it.priceLabel) out.priceLabel = it.priceLabel;
   if (it.finePrint) out.finePrint = it.finePrint;
   if (it.arrivesInSessions) out.arrivesInSessions = it.arrivesInSessions;
   if (it.stock === 0 && it.restockNote) out.restockNote = it.restockNote;
-  if (it.oneAtATime || it.arrivesInSessions) out.oneAtATime = true;
+  if (it.oneAtATime || it.arrivesInSessions || it.kind !== "purchase") out.oneAtATime = true;
   if (it.stock !== null) {
     const held = Math.min(it.stock, heldStock(game, it.id));
     if (held > 0) out.held = held;
@@ -299,7 +365,8 @@ export function projectTv(game: GameState, version: number): TvView {
   return {
     ...common(game, version, { tv: true }),
     role: "tv",
-    live: { sceneId: game.live.sceneId, ...liveShop(game, { tv: true }), purseVisible: game.live.purseVisible },
+    live: { sceneId: game.live.sceneId, ...liveShop(game, { tv: true }), purseVisible: game.live.purseVisible, ...(game.live.shopCategory ? { shopCategory: game.live.shopCategory } : {}) },
+    flyers: game.flyers.filter((f) => f.up).map((f) => ({ id: f.id, title: f.title, body: f.body, signedBy: f.signedBy })),
     scenes: game.scenes.filter((sc) => !sc.reveal || sc.id === game.live.sceneId).map((sc) => publicScene(game, sc)),
     recap: publicRecap(game),
     ...(game.scenes.find((sc) => sc.id === game.live.sceneId)?.kind === "table" ? { table: projectTable(game) } : {}),
@@ -354,8 +421,12 @@ export function projectPlayer(game: GameState, version: number, playerId: string
         if (r.decidedAt !== undefined) out.decidedAt = r.decidedAt;
         if (r.reason !== undefined) out.reason = r.reason;
         if (r.chargedCp !== undefined) out.chargedCp = r.chargedCp;
+        if (r.question) out.question = r.question;
+        if (r.answer) out.answer = r.answer;
+        if (r.flyer) out.flyerTitle = r.flyer.title;
         return out;
       }),
+    mine: myThings(game, p.id),
     table: game.players.filter((x) => !x.archived && x.id !== p.id).map((x) => ({ id: x.id, name: x.name })),
     myLedger: ledger
       .filter((l) => l.playerId === p.id)
@@ -363,6 +434,22 @@ export function projectPlayer(game: GameState, version: number, playerId: string
       .reverse()
       .map((l) => ({ id: l.id, at: l.at, amountCp: l.amountCp, note: l.note })),
     chronicle: projectChronicle(game, { dm: false, playerId: p.id }),
+  };
+}
+
+function myThings(game: GameState, playerId: string): MyThings {
+  const items = new Map(game.items.map((i) => [i.id, i]));
+  return {
+    rentals: game.rentals.filter((r) => r.playerId === playerId && r.active).map((r) => ({ id: r.id, itemName: r.itemName, monthlyCp: r.monthlyCp })),
+    trainings: game.trainings.filter((t) => t.playerId === playerId && !t.cancelled).map((t) => ({ id: t.id, itemName: t.itemName, what: t.what, paid: t.paid, of: t.of, done: t.done })),
+    stakes: [...stakeTotals(game.stakes, playerId)].flatMap(([itemId, cp]) => {
+      const it = items.get(itemId);
+      if (!it) return [];
+      const project = it.kind === "project";
+      return [{ itemId, itemName: it.name, cp, project, ...(project ? { goalCp: it.priceCp, raisedCp: raisedCp(game, itemId), funded: !!game.effectsOn[itemId] } : {}) }];
+    }),
+    awards: game.awards.filter((a) => a.playerIds.includes(playerId)).map((a) => ({ id: a.id, itemName: a.itemName, at: a.at, note: a.note })),
+    credit: creditLines(game, playerId).map((c) => ({ shopId: c.shopId, shopName: game.shops.find((x) => x.id === c.shopId)?.name ?? "the shop", limitCp: c.limitCp })),
   };
 }
 

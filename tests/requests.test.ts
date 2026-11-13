@@ -46,6 +46,7 @@ beforeEach(() => {
   as(DM, { type: "shop.visibility", shopId: "general", visibility: "all", quiet: true });
   as(DM, { type: "money.adjust", playerId: "p1", amountCp: 30 * GP, note: "" });
   as(DM, { type: "money.adjust", playerId: "p2", amountCp: 30 * GP, note: "" });
+  as(DM, { type: "item.update", itemId: item("Hooded Lantern").id, patch: { stock: 1 }, quiet: true });
 });
 
 describe("available gold", () => {
@@ -55,7 +56,7 @@ describe("available gold", () => {
     expect(bal("p1")).toBe(30 * GP); // nothing charged yet
     expect(availableCp(g, "p1")).toBe(5 * GP);
     expect(projectPlayer(g, 1, "p1", []).me.heldCp).toBe(25 * GP);
-    expect(fails(P1, buy("Warhammer")).message).toMatch(/costs 15 gp and you have 5 gp available/);
+    expect(fails(P1, buy("Longsword")).message).toMatch(/costs 15 gp and you have 5 gp available/);
     expect(fails(P1, { type: "me.requestGive", toPlayerId: "p2", amountCp: 6 * GP, note: "" }).message).toMatch(/5 gp available/);
   });
 
@@ -70,10 +71,10 @@ describe("holding stock", () => {
   it("two players can't both claim the last one", () => {
     as(DM, { type: "money.adjust", playerId: "p1", amountCp: 10 * GP, note: "" });
     as(DM, { type: "money.adjust", playerId: "p2", amountCp: 10 * GP, note: "" });
-    as(P1, buy("A Masterwork Lute"));
-    expect(fails(P2, buy("A Masterwork Lute")).message).toMatch(/already asked for the last/);
+    as(P1, buy("Hooded Lantern"));
+    expect(fails(P2, buy("Hooded Lantern")).message).toMatch(/already asked for the last/);
     // The TV and phones see it as on hold, not sold out.
-    expect(projectTv(g, 1).items.find((i) => i.name === "A Masterwork Lute")).toMatchObject({ stock: 1, held: 1 });
+    expect(projectTv(g, 1).items.find((i) => i.name === "Hooded Lantern")).toMatchObject({ stock: 1, held: 1 });
   });
 
   it("two simultaneous requests for the last item through the server: only one is held", async () => {
@@ -81,7 +82,7 @@ describe("holding stock", () => {
     as(DM, { type: "money.adjust", playerId: "p1", amountCp: 10 * GP, note: "" });
     as(DM, { type: "money.adjust", playerId: "p2", amountCp: 10 * GP, note: "" });
     await store.overwrite("t", g, []);
-    const lute = item("A Masterwork Lute").id;
+    const lute = item("Hooded Lantern").id;
     const results = await Promise.allSettled([
       execute(store, "t", P1, { type: "me.requestBuy", itemId: lute, qty: 1, note: "" }),
       execute(store, "t", P2, { type: "me.requestBuy", itemId: lute, qty: 1, note: "" }),
@@ -160,12 +161,12 @@ describe("approving", () => {
 describe("declining and cancelling", () => {
   it("decline releases the gold and stock, and the player sees the reason", () => {
     as(DM, { type: "money.adjust", playerId: "p1", amountCp: 10 * GP, note: "" });
-    as(P1, buy("A Masterwork Lute"));
+    as(P1, buy("Hooded Lantern"));
     as(DM, { type: "request.decline", requestId: pending()[0].id, reason: "The shopkeeper doesn't trust you yet" });
     expect(availableCp(g, "p1")).toBe(40 * GP);
     expect(projectPlayer(g, 1, "p1", []).myRequests[0]).toMatchObject({ status: "declined", reason: "The shopkeeper doesn't trust you yet" });
     as(DM, { type: "money.adjust", playerId: "p2", amountCp: 10 * GP, note: "" });
-    as(P2, buy("A Masterwork Lute")); // free again
+    as(P2, buy("Hooded Lantern")); // free again
     expect(pending()).toHaveLength(1);
   });
 

@@ -1,10 +1,10 @@
 "use client";
 
-import type { PublicMap } from "@/shared/projection";
+import type { PublicFlyer, PublicMap } from "@/shared/projection";
 import type { Art, SceneKind } from "@/shared/types";
 import { MapView } from "./MapView";
 import { ArtumNotice } from "../scenes/ArtumNotice";
-import { NoticeBoard } from "../scenes/NoticeBoard";
+import { Flyers, NoticeBoard } from "../scenes/NoticeBoard";
 import { Stage } from "./Stage";
 import { TableScene } from "./TableScene";
 import type { TableView } from "@/shared/arrival";
@@ -32,7 +32,7 @@ export function artSrc(art: Art | undefined, gated?: Record<string, string>): st
 }
 
 /** One scene, filling its parent. */
-export function SceneView({ scene, gated, emptyHint, table }: { scene: RenderableScene; gated?: Record<string, string>; emptyHint?: string; table?: TableView }) {
+export function SceneView({ scene, gated, emptyHint, table, flyers }: { scene: RenderableScene; gated?: Record<string, string>; emptyHint?: string; table?: TableView; flyers?: PublicFlyer[] }) {
   const src = artSrc(scene.art, gated);
 
   if (scene.kind === "black") return <div className="scene-fill scene-black" />;
@@ -40,14 +40,23 @@ export function SceneView({ scene, gated, emptyHint, table }: { scene: Renderabl
   if (scene.kind === "table") return <TableScene table={table} />;
 
   if (scene.kind === "map") {
-    return <MapView src={src ?? undefined} alt={scene.alt} map={scene.map ?? { pins: [], legend: { on: false, style: "names" } }} emptyHint={emptyHint} />;
+    return <MapView src={src ?? undefined} alt={scene.alt} map={scene.map ?? { pins: [], legend: { on: false, style: "names" }, sealScale: 1 }} emptyHint={emptyHint} />;
   }
 
   if (scene.kind === "notice") {
     return (
       <div className="scene-fill scene-backdrop">
         <Stage w={1920} h={1080}>
-          {scene.art?.builtin === "candlefair-board" || !src ? <NoticeBoard /> : <img className="scene-img" src={src} alt={scene.alt ?? ""} />}
+          {scene.art?.builtin === "candlefair-board" || !src ? (
+            <NoticeBoard flyers={flyers} />
+          ) : (
+            <>
+              <img className="scene-img" src={src} alt={scene.alt ?? ""} />
+              <div style={{ position: "absolute", inset: 0 }}>
+                <Flyers flyers={flyers ?? []} />
+              </div>
+            </>
+          )}
         </Stage>
       </div>
     );

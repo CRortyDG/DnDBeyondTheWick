@@ -1,6 +1,8 @@
 "use client";
 
 import type { ReactNode } from "react";
+import { CATEGORIES } from "@/shared/progress";
+import type { ItemCategory } from "@/shared/types";
 import { ItemCard, type CardItem } from "./ItemCard";
 
 export interface ShopLike {
@@ -10,9 +12,23 @@ export interface ShopLike {
   closed?: boolean;
 }
 
+/** Browse by what things do (the default), or by storefront. */
+export type ShopMode = "category" | "shop";
+
+/** Cheapest first, so players see what they can buy now, then what to save for. Rumors and honours last. */
+export function cheapestFirst<T extends CardItem>(list: T[]): T[] {
+  const key = (i: T) => (i.tier === "rumored" ? 3 : i.kind === "earned" ? 2 : i.priceCp === null ? 1 : 0);
+  return [...list].sort((a, b) => key(a) - key(b) || (a.priceCp ?? 0) - (b.priceCp ?? 0));
+}
+
+/** Categories that have something in them, in their usual order. */
+export function categoriesWith(items: CardItem[]) {
+  return CATEGORIES.filter((c) => items.some((i) => i.category === c.id));
+}
+
 /**
- * The market: shop tabs and parchment cards. On the TV it's read-only and
- * follows whichever shop the DM opened; on phones and the DM view the tabs work.
+ * The market: tabs and parchment cards. On the TV it's read-only and follows
+ * whatever the DM opened; on phones and the DM view the tabs work.
  */
 export function ShopBoard<T extends CardItem>({
   shops,
@@ -24,6 +40,10 @@ export function ShopBoard<T extends CardItem>({
   footer,
   dm,
   tabNote,
+  mode = "shop",
+  onMode,
+  category,
+  onCategory,
 }: {
   shops: ShopLike[];
   items: T[];
@@ -36,9 +56,12 @@ export function ShopBoard<T extends CardItem>({
   dm?: boolean;
   /** Small marker after a tab's name (the DM's "hidden"). */
   tabNote?: (shop: ShopLike) => string | null;
+  mode?: ShopMode;
+  onMode?: (m: ShopMode) => void;
+  category?: ItemCategory;
+  onCategory?: (c: ItemCategory) => void;
 }) {
   const shop = shops.find((s) => s.id === shopId) ?? shops[0];
-  const list = items.filter((i) => i.shopId === shop?.id);
   if (!shop) {
     return (
       <div className={`market market-${size}`}>
@@ -49,28 +72,46 @@ export function ShopBoard<T extends CardItem>({
       </div>
     );
   }
+  const shopName = new Map(shops.map((s) => [s.id, s.name]));
+  const cats = categoriesWith(items.filter((i) => shopName.has(i.shopId)));
+  const byCategory = mode === "category" && cats.length > 0;
+  const cat = cats.find((c) => c.id === category) ?? cats[0];
+  const list = byCategory ? cheapestFirst(items.filter((i) => i.category === cat.id && shopName.has(i.shopId))) : items.filter((i) => i.shopId === shop.id);
+  const tabs = byCategory ? cats.map((c) => ({ id: c.id, name: c.label, note: null as string | null })) : shops.map((s) => ({ id: s.id, name: s.name, note: tabNote?.(s) ?? null }));
+  const current = byCategory ? cat.id : shop.id;
+  const pick = byCategory ? (onCategory as ((id: string) => void) | undefined) : onShop;
   return (
     <div className={`market market-${size}`}>
       <header className="market-head">
-        <h1 className="market-title">Candlefair Market</h1>
-        {shop.subtitle ? <p className="market-sub">{shop.subtitle}</p> : null}
+        <h1 className="market-title">{byCategory && size === "tv" ? cat.label : "Candlefair Market"}</h1>
+        {!byCategory && shop.subtitle ? <p className="market-sub">{shop.subtitle}</p> : null}
       </header>
-      <div className="tabs" role={onShop ? "tablist" : undefined} aria-label="Shops">
-        {shops.map((s) => {
-          const note = tabNote?.(s);
-          return onShop ? (
-            <button key={s.id} type="button" role="tab" aria-selected={s.id === shop.id} className={`btn tab${s.id === shop.id ? " on" : ""}`} onClick={() => onShop(s.id)}>
-              {s.name}
-              {note ? <span className="tab-note">{note}</span> : null}
+      {onMode ? (
+        <div className="shop-modes" role="group" aria-label="Browse">
+          <span className="note">Browse</span>
+          <button type="button" className={`btn small${mode === "category" ? " on" : ""}`} aria-pressed={mode === "category"} onClick={() => onMode("category")}>
+            By what it does
+          </button>
+          <button type="button" className={`btn small${mode === "shop" ? " on" : ""}`} aria-pressed={mode === "shop"} onClick={() => onMode("shop")}>
+            By storefront
+          </button>
+        </div>
+      ) : null}
+      <div className="tabs" role={pick ? "tablist" : undefined} aria-label={byCategory ? "Categories" : "Shops"}>
+        {tabs.map((t) =>
+          pick ? (
+            <button key={t.id} type="button" role="tab" aria-selected={t.id === current} className={`btn tab${t.id === current ? " on" : ""}`} onClick={() => pick(t.id)}>
+              {t.name}
+              {t.note ? <span className="tab-note">{t.note}</span> : null}
             </button>
           ) : (
-            <span key={s.id} className={`tab tab-static${s.id === shop.id ? " on" : ""}`}>
-              {s.name}
+            <span key={t.id} className={`tab tab-static${t.id === current ? " on" : ""}`}>
+              {t.name}
             </span>
-          );
-        })}
+          ),
+        )}
       </div>
-      {shop.closed && !dm ? (
+      {!byCategory && shop.closed && !dm ? (
         <div className="shop-closed">
           <p className="shop-closed-name">{shop.name}</p>
           <p className="shop-closed-tag">{shop.subtitle}</p>
@@ -79,7 +120,7 @@ export function ShopBoard<T extends CardItem>({
       ) : (
         <div className="grid">
           {list.map((it) => (
-            <ItemCard key={it.id} item={it} dm={dm}>
+            <ItemCard key={it.id} item={it} dm={dm} where={byCategory ? shopName.get(it.shopId) : undefined}>
               {actions?.(it)}
             </ItemCard>
           ))}
