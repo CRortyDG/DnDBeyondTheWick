@@ -11,7 +11,7 @@ export async function generateMetadata(): Promise<Metadata> {
   const h = await headers();
   const host = h.get("x-forwarded-host") ?? h.get("host") ?? "localhost:3000";
   const proto = h.get("x-forwarded-proto") ?? (host.startsWith("localhost") ? "http" : "https");
-  const image = { url: "/arrival/og.jpg", width: 1200, height: 630, alt: "A candle-lit window in the fog" };
+  const image = { url: "/arrival/og.jpg", width: 1200, height: 630, alt: "The Flickering Candle on a snowy Winterfest day, a candle in its window" };
   return {
     metadataBase: new URL(`${proto}://${host}`),
     title: LINK_PREVIEW.title,
