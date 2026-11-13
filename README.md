@@ -26,6 +26,7 @@ DM-only data never leaves the server for the TV or a phone. The server builds ea
 
 - **Reveal scenes** aren't sent to the TV at all until the DM shows them.
 - **The merchant's sigil** isn't in the browser code at all. `/api/art/merchant-sigil` serves it only while its scene is live, or to the DM.
+- **Run sheets** (episodes, beats, quick notes, recaps) never reach the TV or a phone. Only what a beat's actions do (a scene switch, the purse) does. The one exception is a recap you choose to show as "Previously on…", and only while it's showing. The seed episode lives in `src/server/` so its text isn't even in the browser code.
 - **Never sent to the TV or players:** hidden prices (they see `??? gp`), DM notes, name-lock hashes and last-seen times.
 
 Tests in `tests/projection.test.ts` put a marker string in every DM-only field and check it never appears in the TV or player data.
@@ -91,6 +92,7 @@ In the DM view, **Open TV window** pops the TV page out. Drag it onto the TV and
 | Where | Keys |
 | --- | --- |
 | DM view | `0`–`9` scenes · `←` `→` step (while the shop is open: flip shops) · `S` shop on the TV · `P` purse · `B` bank · `Esc` closes the shop |
+| Run-game mode | `Space` or `→` next beat · `Shift+Space` or `←` back · `0`–`9` `S` `P` as above · `B` opens the bank on top · `Esc` closes it |
 | TV | `F` fullscreen · `H` hide the control bar |
 
 ## How it's built
@@ -117,6 +119,15 @@ scripts/seed.ts     create or reset a game from the command line
 - **Gold lives here, not on D&D Beyond.** Players keep D&D Beyond's coins at 0. Anything bought here, they add to their D&D Beyond inventory themselves; the ledger keeps the purchase history.
 - **Heroic Inspiration:** tap the d20 beside a player's name in the Bank (or "Inspiration" on their card under Players). A gold d20 then shows beside their name in the TV purse; tap again when it's spent.
 - **Launch VTT:** paste the campaign's D&D Beyond game link under Game. It shows as a Launch VTT button at the top of your view and on every player's phone.
+
+## Running a session (run-game mode)
+
+- **DM view → Run game** starts (or resumes) a session for an episode and opens the presenter view: the current beat big, the next one underneath, every beat in a side list (a drawer on phones).
+- **Next** and **jumping** to a beat fire its actions (switch the TV scene, black screen, or the bank: purse on the TV and the bank on your screen). **Back** never fires anything. Tap "↻ Again" to re-fire, or "Skip" on the next beat's action before you press Next.
+- The first screen is check-in (untick anyone who isn't here; they're marked away) and the last session's recap, which you can show on the TV as "Previously on…". The last screen is payday, the recap box and all your quick notes.
+- Your place is saved on the server, so a reload or another device lands on the same beat. If a session ends mid-episode, the next run picks up where it stopped.
+- **DM view → Episodes:** add episodes, edit beats (each beat is edited as Markdown), reorder by dragging or with the arrows, import an episode pasted as Markdown, and export it back out. One beat per `##`; lines start with `>` read-aloud, `-` note, `check:`, `if:` or `action:` (`scene <name>`, `black`, `bank`). There's no initiative tracker yet, so `action: initiative` is skipped.
+- Existing games get the seed episode "Just Desserts" automatically. "Start fresh" keeps episodes; "Reset everything" restores the seed episode.
 
 ## Sessions and starting over
 

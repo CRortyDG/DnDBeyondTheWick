@@ -76,6 +76,59 @@ export interface Session {
   attendeeIds: string[];
   /** DM-ONLY (milestone 5) */
   dmNotes?: string;
+  /** DM-ONLY: the run-game run sheet for this session, if it was run from an episode. */
+  run?: SessionRun;
+  /** DM-ONLY: written at the end of the session. Reaches the TV only while shown as "Previously on…". */
+  recap?: string;
+}
+
+// ---------- run-game (all DM-ONLY) ----------
+
+export type BeatAction = { type: "scene"; sceneId: string } | { type: "black" } | { type: "bank" };
+
+export interface BeatCheck {
+  /** "Strength (Athletics)", "Dexterity saving throw", "... or ...". */
+  skill: string;
+  dc: number;
+  /** Who/what the check is for. */
+  what: string;
+  fail?: string;
+  success?: string;
+}
+
+export interface BeatBranch {
+  when: string;
+  then: string;
+}
+
+export interface Beat {
+  id: string;
+  title: string;
+  /** Paragraphs to read aloud. */
+  readAloud?: string[];
+  /** Where the read-aloud box sits among the notes (0 = before the first note). */
+  readAloudAt?: number;
+  notes: string[];
+  checks: BeatCheck[];
+  branches: BeatBranch[];
+  /** Fired on landing by Next or a jump, never by Back. */
+  actions: BeatAction[];
+}
+
+export interface Episode {
+  id: string;
+  title: string;
+  beats: Beat[];
+}
+
+export interface SessionRun {
+  episodeId: string;
+  /** "start": attendance and "Previously on…"; "beat": beats[beat]; "end": payday and recap. */
+  stage: "start" | "beat" | "end";
+  /** The current beat, or on the start screen, the beat Next goes to. */
+  beat: number;
+  /** Quick notes by beat id. */
+  notes: Record<string, string>;
 }
 
 export interface Knock {
@@ -89,6 +142,8 @@ export interface LiveState {
   shopOpen: boolean;
   shopId: string;
   purseVisible: boolean;
+  /** The session whose recap is on the TV as "Previously on…". Cleared by any scene or shop change. */
+  recapSessionId?: string;
 }
 
 export interface GameState {
@@ -108,6 +163,8 @@ export interface GameState {
   shops: Shop[];
   items: Item[];
   sessions: Session[];
+  /** DM-ONLY: run sheets. Missing on games made before run-game mode; read with episodesOf(). */
+  episodes?: Episode[];
   currentSessionId: string | null;
   knocks: Knock[];
   seq: number;

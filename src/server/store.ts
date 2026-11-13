@@ -4,6 +4,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { Redis } from "@upstash/redis";
 import type { GameState, LedgerEntry } from "@/shared/types";
+import { withSeedEpisodes } from "./seed-episodes";
 
 /**
  * Where a game lives. One JSON document (state), a version number, and an
@@ -56,7 +57,7 @@ class UpstashStore implements Store {
   async read(game: string) {
     const key = k(game);
     const [ver, state] = await this.redis.mget<[string | null, string | null]>(key.ver, key.state);
-    return { state: state ? (JSON.parse(state) as GameState) : null, version: Number(ver ?? 0) };
+    return { state: withSeedEpisodes(state ? (JSON.parse(state) as GameState) : null), version: Number(ver ?? 0) };
   }
   async version(game: string) {
     return Number((await this.redis.get<string>(k(game).ver)) ?? 0);
@@ -132,7 +133,7 @@ class FileStore implements Store {
 
   async read(game: string) {
     const g = this.load(game);
-    return { state: g.state ? structuredClone(g.state) : null, version: g.version };
+    return { state: withSeedEpisodes(g.state ? structuredClone(g.state) : null), version: g.version };
   }
   async version(game: string) {
     return this.load(game).version;

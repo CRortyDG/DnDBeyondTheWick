@@ -35,6 +35,22 @@ const itemPatch = z
   })
   .partial();
 
+// Run sheets (DM-only).
+const beatAction = z.discriminatedUnion("type", [
+  z.object({ type: z.literal("scene"), sceneId: id }),
+  z.object({ type: z.literal("black") }),
+  z.object({ type: z.literal("bank") }),
+]);
+export const beatBody = z.object({
+  title: text(160).min(1),
+  readAloud: z.array(text(6000)).max(40).optional(),
+  readAloudAt: z.number().int().min(0).max(200).optional(),
+  notes: z.array(text(4000)).max(200),
+  checks: z.array(z.object({ skill: text(200).min(1), dc: z.number().int().min(0).max(99), what: text(400), fail: text(1000).optional(), success: text(1000).optional() })).max(40),
+  branches: z.array(z.object({ when: text(1000), then: text(2000) })).max(40),
+  actions: z.array(beatAction).max(10),
+});
+
 /** Commands only the DM may send. */
 export const dmCommand = z.discriminatedUnion("type", [
   z.object({ type: z.literal("scene.show"), sceneId: id }),
@@ -71,6 +87,26 @@ export const dmCommand = z.discriminatedUnion("type", [
   z.object({ type: z.literal("session.update"), sessionId: id, patch: z.object({ title: text(120), number: z.number().int().min(1).max(9999) }).partial() }),
   z.object({ type: z.literal("session.reopen"), sessionId: id }),
   z.object({ type: z.literal("session.remove"), sessionId: id }),
+
+  z.object({ type: z.literal("episode.add"), title: text(160), beats: z.array(beatBody).max(200).optional() }),
+  z.object({ type: z.literal("episode.update"), episodeId: id, title: text(160).min(1) }),
+  z.object({ type: z.literal("episode.replaceBeats"), episodeId: id, beats: z.array(beatBody).max(200) }),
+  z.object({ type: z.literal("episode.remove"), episodeId: id }),
+  z.object({ type: z.literal("beat.add"), episodeId: id, at: z.number().int().min(0).max(200).optional(), beat: beatBody.optional() }),
+  z.object({ type: z.literal("beat.update"), episodeId: id, beatId: id, beat: beatBody }),
+  z.object({ type: z.literal("beat.move"), episodeId: id, beatId: id, to: z.number().int().min(0).max(200) }),
+  z.object({ type: z.literal("beat.remove"), episodeId: id, beatId: id }),
+
+  z.object({ type: z.literal("run.start"), episodeId: id }),
+  /** Next and jump fire the landing beat's actions (minus any skipped); Back never fires. */
+  z.object({ type: z.literal("run.next"), skip: z.array(z.number().int().min(0).max(9)).max(10).optional() }),
+  z.object({ type: z.literal("run.back") }),
+  z.object({ type: z.literal("run.jump"), stage: z.enum(["start", "beat", "end"]), beat: z.number().int().min(0).max(200).optional() }),
+  z.object({ type: z.literal("run.fire"), beatId: id, index: z.number().int().min(0).max(9) }),
+  z.object({ type: z.literal("run.note"), beatId: id, text: text(4000) }),
+  z.object({ type: z.literal("run.recap"), sessionId: id, text: text(8000) }),
+  z.object({ type: z.literal("run.attend"), playerId: id, here: z.boolean() }),
+  z.object({ type: z.literal("live.recap"), sessionId: id.nullable() }),
 
   z.object({ type: z.literal("door.set"), closed: z.boolean() }),
   z.object({ type: z.literal("table.seats"), max: z.number().int().min(1).max(12) }),
