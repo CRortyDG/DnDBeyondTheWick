@@ -6,6 +6,7 @@ import { SceneView } from "../ui/SceneView";
 import { DownIcon, UpIcon } from "../ui/icons";
 import { useDm } from "./context";
 import { Field } from "./Field";
+import { Check } from "./Check";
 import { uploadImage } from "./upload";
 
 const KINDS: [SceneKind, string][] = [
@@ -148,9 +149,9 @@ function SceneEditor({ scene }: { scene: Scene }) {
               ))}
             </select>
           </label>
-          <label className="check">
-            <input type="checkbox" checked={scene.reveal} onChange={(e) => patch({ reveal: e.target.checked })} /> Reveal (hidden from the TV until shown)
-          </label>
+          <Check checked={scene.reveal} onChange={(v) => patch({ reveal: v })}>
+            Reveal (hidden from the TV until shown)
+          </Check>
         </div>
 
         {scene.kind === "portrait" ? (

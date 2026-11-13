@@ -77,6 +77,17 @@ export function DownIcon(p: P) {
   );
 }
 
+/** Heroic Inspiration: a d20 seen face-on. */
+export function InspirationIcon(p: P) {
+  return (
+    <svg {...base(p)} strokeWidth={1.6}>
+      <path d="M12 2.5l8.5 4.9v9.2L12 21.5l-8.5-4.9V7.4z" fill="currentColor" fillOpacity={0.22} />
+      <path d="M12 6.5l5 8.6H7z" />
+      <path d="M12 2.5v4M20.5 7.4L17 15.1M3.5 7.4L7 15.1M12 21.5l-5-6.4M12 21.5l5-6.4" opacity={0.75} />
+    </svg>
+  );
+}
+
 export function SealIcon(p: P) {
   return (
     <svg {...base(p)}>

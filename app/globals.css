@@ -425,7 +425,9 @@ label.check,
 .purse {
   position: fixed;
   z-index: 20;
-  background: rgba(13, 10, 8, 0.95);
+  /* Solid: bright posters behind it ghost through even at 95% opacity. */
+  background: #120e0b;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6);
   border: 1px solid var(--line);
   transition: opacity 0.3s;
   font-family: var(--font-body);
@@ -1075,7 +1077,7 @@ label.check,
 }
 .prow {
   display: grid;
-  grid-template-columns: 1fr auto auto auto;
+  grid-template-columns: auto 1fr auto auto auto;
   gap: 8px;
   align-items: center;
 }
@@ -1413,6 +1415,42 @@ label.check,
   color: var(--wax);
   display: inline-block;
   padding: 10px 4px;
+}
+
+/* ---------- Heroic Inspiration ---------- */
+
+.insp {
+  color: var(--gold-bright);
+  width: 0.95em;
+  height: 0.95em;
+  vertical-align: -0.12em;
+  margin-right: 0.3em;
+  flex-shrink: 0;
+  filter: drop-shadow(0 0 0.25em rgba(236, 198, 106, 0.55));
+}
+.insp-btn {
+  color: var(--muted);
+}
+.insp-btn.on {
+  color: var(--gold-bright);
+  background: #3a2a10;
+  border-color: var(--gold);
+}
+.vtt-btn {
+  margin-bottom: 12px;
+}
+.gold-note {
+  margin: 0;
+}
+
+/* The shop in the DM's preview: the TV layout, scaled down. */
+.preview .stage {
+  --u: 1px;
+}
+.preview-shop {
+  position: absolute;
+  inset: 0;
+  background: rgba(8, 6, 4, 0.95);
 }
 
 /* ---------- sessions & resets ---------- */

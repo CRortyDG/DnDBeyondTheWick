@@ -41,6 +41,8 @@ export interface Player {
   archived: boolean;
   dropIn: boolean;
   balanceCp: number;
+  /** Has Heroic Inspiration right now (shown on the TV purse). */
+  inspired?: boolean;
   createdAt: number;
   createdVia: "url" | "dm" | "seed";
   /** DM-ONLY */
@@ -97,6 +99,8 @@ export interface GameState {
   live: LiveState;
   /** When true, unknown ?player= names knock instead of being created. */
   doorClosed: boolean;
+  /** The campaign's D&D Beyond game link (the "Launch VTT" button). */
+  vttUrl?: string;
   /** Seats at the table. Once this many players (not counting those who left) exist, new names knock. Default 6. */
   maxPlayers?: number;
   players: Player[];

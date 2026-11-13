@@ -7,6 +7,7 @@ import { ShopBoard } from "../ui/ShopBoard";
 import { TvIcon } from "../ui/icons";
 import { useDm } from "./context";
 import { Field } from "./Field";
+import { Check } from "./Check";
 
 export function ShopPanel() {
   const { view, run } = useDm();
@@ -40,7 +41,7 @@ export function ShopPanel() {
                   disabled={!ok}
                   title={ok ? undefined : `${p.name} has ${formatCp(p.balanceCp)}`}
                   onClick={async () => {
-                    if (await run({ type: "money.buy", playerId: p.id, itemId: it.id }, `${p.name} bought ${it.name}.`)) setBuying(null);
+                    if (await run({ type: "money.buy", playerId: p.id, itemId: it.id }, `${p.name} bought ${it.name}. Remind them to add it on D&D Beyond.`)) setBuying(null);
                   }}
                 >
                   {p.name}
@@ -68,9 +69,9 @@ export function ShopPanel() {
             />
             <Field label="Description" value={it.description} multiline onCommit={(v) => run({ type: "item.update", itemId: it.id, patch: { description: v } })} />
             <Field label="Locked because (blank = for sale)" value={it.lockReason} placeholder="e.g. Arrives at level 5" onCommit={(v) => run({ type: "item.update", itemId: it.id, patch: { lockReason: v } })} />
-            <label className="check">
-              <input type="checkbox" checked={it.hidePrice} onChange={(e) => run({ type: "item.update", itemId: it.id, patch: { hidePrice: e.target.checked } })} /> Hide the price while locked (??? gp)
-            </label>
+            <Check checked={it.hidePrice} onChange={(v) => run({ type: "item.update", itemId: it.id, patch: { hidePrice: v } })}>
+              Hide the price while locked (??? gp)
+            </Check>
             <div className="inline">
               <button
                 className="btn small"

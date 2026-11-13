@@ -18,6 +18,8 @@ export interface PublicPlayer {
   id: string;
   name: string;
   balanceCp: number;
+  /** Heroic Inspiration. */
+  inspired: boolean;
 }
 
 export interface PublicItem {
@@ -72,6 +74,8 @@ export interface PlayerView extends Common {
     archived: boolean;
   };
   myLedger: MyLedgerLine[];
+  /** The campaign's D&D Beyond game link, if the DM set one. */
+  vttUrl?: string;
 }
 
 export type DmPlayer = Omit<Player, "keyHash"> & { hasKey: boolean };
@@ -125,7 +129,7 @@ function common(game: GameState, version: number): Common {
   return {
     version,
     game: { id: game.id, name: game.name },
-    purse: game.players.filter((p) => !p.archived && !p.away).map((p) => ({ id: p.id, name: p.name, balanceCp: p.balanceCp })),
+    purse: game.players.filter((p) => !p.archived && !p.away).map((p) => ({ id: p.id, name: p.name, balanceCp: p.balanceCp, inspired: !!p.inspired })),
     shops: game.shops.map((x) => ({ id: x.id, name: x.name, subtitle: x.subtitle })),
     items: game.items.map(publicItem),
     session: cur ? { number: cur.number, title: cur.title } : null,
@@ -147,6 +151,7 @@ export function projectPlayer(game: GameState, version: number, playerId: string
   return {
     ...common(game, version),
     role: "player",
+    ...(game.vttUrl ? { vttUrl: game.vttUrl } : {}),
     live: { shopOpen: game.live.shopOpen, shopId: game.live.shopId, purseVisible: game.live.purseVisible },
     me: {
       id: p.id,

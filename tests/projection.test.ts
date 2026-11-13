@@ -96,3 +96,25 @@ describe("gated art", () => {
     expect(gatedArtIsLive(g, "merchant-sigil")).toBe(true);
   });
 });
+
+describe("Heroic Inspiration in the purse", () => {
+  it("shows on the TV and phones as a plain flag", () => {
+    const g = spoilerGame();
+    g.players[1].inspired = true;
+    const tv = projectTv(g, 1);
+    expect(tv.purse.find((p) => p.id === "p2")!.inspired).toBe(true);
+    expect(tv.purse.find((p) => p.id === "p1")!.inspired).toBe(false);
+    expect(projectPlayer(g, 1, "p1", ledger).purse.find((p) => p.id === "p2")!.inspired).toBe(true);
+    // Each purse entry carries exactly these fields and nothing else.
+    expect(Object.keys(tv.purse[0]).sort()).toEqual(["balanceCp", "id", "inspired", "name"]);
+  });
+});
+
+describe("the VTT link", () => {
+  it("reaches players but not the TV", () => {
+    const g = spoilerGame();
+    g.vttUrl = "https://www.dndbeyond.com/games/1";
+    expect(projectPlayer(g, 1, "p1", ledger).vttUrl).toBe("https://www.dndbeyond.com/games/1");
+    expect(JSON.stringify(projectTv(g, 1))).not.toContain("dndbeyond.com/games");
+  });
+});

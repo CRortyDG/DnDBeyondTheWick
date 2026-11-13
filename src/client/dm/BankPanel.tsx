@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { formatCp, formatDelta, parseAmount } from "@/shared/money";
 import { useDm } from "./context";
+import { InspireToggle } from "./InspireToggle";
 
 export function BankPanel() {
   const { view, run, toast } = useDm();
@@ -52,6 +53,7 @@ export function BankPanel() {
         <div className="prow-list">
           {active.map((p) => (
             <div className={`prow${p.away ? " away" : ""}`} key={p.id}>
+              <InspireToggle playerId={p.id} name={p.name} on={!!p.inspired} compact />
               <span className="prow-name">
                 {p.name}
                 {p.away ? <span className="tag">away</span> : null}
