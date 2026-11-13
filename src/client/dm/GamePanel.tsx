@@ -1,7 +1,6 @@
-"use client";
 
 import { useRef } from "react";
-import { absoluteHref, api, authHeaders } from "../api";
+import { absoluteHref, api, authHeaders, dmLink, rememberKey } from "../api";
 import { useDm } from "./context";
 import { Field } from "./Field";
 
@@ -52,6 +51,27 @@ export function GamePanel() {
     }
   };
 
+  const copyDmLink = async () => {
+    if (!ident.key) return toast("This device has no DM key saved.");
+    try {
+      await navigator.clipboard.writeText(dmLink(ident.game, ident.key));
+      toast("DM link copied. Keep it private.");
+    } catch {
+      toast("Couldn't copy. Your browser blocked it.");
+    }
+  };
+
+  const rekey = async () => {
+    if (!confirm("Make a new DM key? Your old DM link stops working on every device, including ones you've already opened it on.")) return;
+    try {
+      const r = await api<{ key: string }>("/api/rekey", ident, { method: "POST" });
+      rememberKey(ident, r.key);
+      window.location.href = dmLink(ident.game, r.key);
+    } catch (e) {
+      toast(e instanceof Error ? e.message : String(e));
+    }
+  };
+
   return (
     <div className="panel-grid">
       <section className="box">
@@ -66,7 +86,7 @@ export function GamePanel() {
             onCommit={(v) => run({ type: "game.vtt", url: v }, v.trim() ? "VTT link saved." : "VTT link removed.")}
           />
           <p className="note">
-            Game id: <code>{s.id}</code>. Sessions so far: {s.sessions.length}.
+            Campaign code: <code>{s.id}</code>. Sessions so far: {s.sessions.length}.
           </p>
         </div>
       </section>
@@ -80,11 +100,19 @@ export function GamePanel() {
           </dd>
           <dt>Players</dt>
           <dd>
-            <code>{absoluteHref(s.id, "their-name")}</code>
+            <code>{absoluteHref(s.id)}</code> (they type their name), or <code>{absoluteHref(s.id, "their-name")}</code>. They can also enter the code <code>{s.id}</code> on the front page.
           </dd>
           <dt>You</dt>
           <dd>
-            <code>{absoluteHref(s.id, "DM")}</code> plus <code>&amp;key=</code> your DM key. The key is saved on each device after the first visit.
+            Your private DM link has the key in it. It&rsquo;s saved on each device after the first visit.
+            <div className="inline">
+              <button className="btn" type="button" onClick={copyDmLink}>
+                Copy my DM link
+              </button>
+              <button className="btn" type="button" onClick={rekey}>
+                Change DM key
+              </button>
+            </div>
           </dd>
         </dl>
       </section>

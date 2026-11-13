@@ -4,7 +4,7 @@ import path from "node:path";
 import { beforeEach, describe, expect, it } from "vitest";
 import { execute, viewFor } from "@/server/game";
 import { JUST_DESSERTS_MD, seedEpisodes, seedSceneResolver } from "@/server/seed-episodes";
-import { createFileStore, type Store } from "@/server/store";
+import { createMemoryStore, type Store } from "@/server/store";
 import type { DmCommand } from "@/shared/commands";
 import { projectPlayer, projectTv } from "@/shared/projection";
 import { apply, previousRecap } from "@/shared/reducer";
@@ -217,7 +217,7 @@ describe("running an episode", () => {
 describe("resuming after a reload", () => {
   let store: Store;
   beforeEach(async () => {
-    store = createFileStore(null);
+    store = createMemoryStore();
     await store.overwrite("t", seedGame("t"), []);
   });
 
@@ -283,7 +283,7 @@ describe("spoiler safety", () => {
   });
 
   it("keeps them out of the server's TV and player views", async () => {
-    const store = createFileStore(null);
+    const store = createMemoryStore();
     await store.overwrite("t", canaryGame(), []);
     const tv = await viewFor(store, "t", { role: "tv" });
     expect(leaks(JSON.stringify(tv))).toEqual([]);
@@ -313,12 +313,12 @@ describe("spoiler safety", () => {
 
   it("keeps the seed episode out of browser code", () => {
     const src = path.resolve(import.meta.dirname, "../src");
-    const seed = fs.readFileSync(path.join(src, "server/seed-episodes.ts"), "utf8");
-    expect(seed).toMatch(/^import "server-only";/m);
+    // Browser code (src/client, src/shared) never imports server code, so the seed run sheet stays on the server.
     const files = [...walk(path.join(src, "client")), ...walk(path.join(src, "shared"))];
     for (const f of files) {
       const text = fs.readFileSync(f, "utf8");
       expect(text, f).not.toContain("seed-episodes");
+      expect(text, f).not.toMatch(/from ["'](@\/server|\.\.?\/(\.\.\/)*server)\//);
       for (const line of ["Pudding Gremlin", "Where is everyone", "Just Desserts", "one more tiny lantern"]) expect(text, f).not.toContain(line);
     }
   });
