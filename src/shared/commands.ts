@@ -24,16 +24,23 @@ const scenePatch = z
   })
   .partial();
 
-const itemPatch = z
-  .object({
-    shopId: id,
-    name: text(120),
-    priceCp: cp,
-    description: text(600),
-    lockReason: text(160),
-    hidePrice: z.boolean(),
-  })
-  .partial();
+const itemFields = {
+  shopId: id,
+  name: text(120).min(1),
+  priceCp: cp,
+  description: text(600),
+  tier: z.enum(["sale", "locked", "rumored", "hidden"]),
+  reason: text(160),
+  hint: text(200),
+  hidePrice: z.boolean(),
+  stock: z.number().int().min(0).max(9999).nullable(),
+  restockNote: text(160),
+  priceLabel: text(24),
+  finePrint: text(300),
+  arrivesInSessions: z.number().int().min(0).max(20),
+  dmNote: text(2000),
+};
+const itemPatch = z.object(itemFields).partial();
 
 /** Commands only the DM may send. */
 export const dmCommand = z.discriminatedUnion("type", [
@@ -60,10 +67,23 @@ export const dmCommand = z.discriminatedUnion("type", [
   z.object({ type: z.literal("player.inspire"), playerId: id, on: z.boolean() }),
 
   z.object({ type: z.literal("shop.add"), name: text(80), subtitle: text(160) }),
-  z.object({ type: z.literal("shop.update"), shopId: id, patch: z.object({ name: text(80), subtitle: text(160) }).partial() }),
+  z.object({ type: z.literal("shop.update"), shopId: id, patch: z.object({ name: text(80), subtitle: text(160), closed: z.boolean() }).partial() }),
+  /** Who can see a shop. quiet: no "Now open" banner on the TV. */
+  z.object({
+    type: z.literal("shop.visibility"),
+    shopId: id,
+    visibility: z.enum(["hidden", "all", "some"]),
+    playerIds: z.array(id).max(50).optional(),
+    quiet: z.boolean().optional(),
+  }),
   z.object({ type: z.literal("shop.remove"), shopId: id }),
-  z.object({ type: z.literal("item.add"), item: z.object({ shopId: id, name: text(120).min(1), priceCp: cp, description: text(600), lockReason: text(160), hidePrice: z.boolean() }) }),
-  z.object({ type: z.literal("item.update"), itemId: id, patch: itemPatch }),
+  z.object({ type: z.literal("item.add"), item: z.object(itemFields).partial().required({ shopId: true, name: true, priceCp: true }), quiet: z.boolean().optional() }),
+  /** quiet: no "New at …" banner when this reveals or unlocks the item. */
+  z.object({ type: z.literal("item.update"), itemId: id, patch: itemPatch, quiet: z.boolean().optional() }),
+  z.object({ type: z.literal("order.arrive"), orderId: id }),
+  z.object({ type: z.literal("order.cancel"), orderId: id, refund: z.boolean() }),
+  /** Replace every shop and item with the starter catalog (all hidden). Ledger untouched. */
+  z.object({ type: z.literal("catalog.reset") }),
   z.object({ type: z.literal("item.remove"), itemId: id }),
 
   z.object({ type: z.literal("session.start"), title: text(120).optional() }),

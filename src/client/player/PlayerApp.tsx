@@ -7,6 +7,7 @@ import { hrefFor, rememberKey, type Ident } from "../api";
 import { useGame } from "../useGame";
 import { Notice } from "../ui/Notice";
 import { ShopBoard } from "../ui/ShopBoard";
+import { BannerToast } from "../ui/BannerToast";
 import { InspirationIcon, LockIcon } from "../ui/icons";
 
 export function PlayerApp({ ident: initial }: { ident: Ident }) {
@@ -72,6 +73,7 @@ function Taken({ ident, onKey }: { ident: Ident; onKey: (k: string) => void }) {
 
 function PlayerScreen({ view, online, send, ident, setIdent }: { view: PlayerView; online: boolean; send: (c: object) => Promise<string | null>; ident: Ident; setIdent: (i: Ident) => void }) {
   const [shopId, setShopId] = useState(view.live.shopOpen ? view.live.shopId : view.shops[0]?.id);
+  const pendingOrders = view.myOrders.filter((o) => !o.arrived);
   const [msg, setMsg] = useState<string | null>(null);
   const me = view.me;
 
@@ -132,10 +134,35 @@ function PlayerScreen({ view, online, send, ident, setIdent }: { view: PlayerVie
         <p className="note">Party total: {formatCp(view.purse.reduce((a, p) => a + p.balanceCp, 0))}</p>
       </section>
 
+      <BannerToast banner={view.banner} className="phone-banner" />
+
       <section className="box">
-        <ShopBoard shops={view.shops} items={view.items} shopId={shopId ?? ""} onShop={setShopId} size="page" />
-        <p className="note">To buy something, ask the DM. (Buying from your phone is coming next.)</p>
+        {view.shops.length ? (
+          <>
+            <ShopBoard shops={view.shops} items={view.items} shopId={shopId ?? ""} onShop={setShopId} size="page" />
+            <p className="note">To buy something, ask the DM. (Buying from your phone is coming soon.)</p>
+          </>
+        ) : (
+          <>
+            <h2>The market</h2>
+            <p className="note">No shops are open to you yet. Keep your eyes open around town.</p>
+          </>
+        )}
       </section>
+
+      {pendingOrders.length ? (
+        <section className="box">
+          <h2>On its way</h2>
+          <ul className="ledger">
+            {pendingOrders.map((o) => (
+              <li key={o.id}>
+                <span>{o.itemName}</span>
+                <span className="note">arrives at session {o.arrivesAtSession}</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
 
       <section className="box">
         <h2>Your history</h2>

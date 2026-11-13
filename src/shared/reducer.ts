@@ -4,7 +4,8 @@
 import type { Command } from "./commands";
 import { displayNameFrom, isReservedHandle, normaliseHandle } from "./handles";
 import { canAfford, formatCp } from "./money";
-import type { Actor, GameState, LedgerEntry, LedgerKind, Player, Scene } from "./types";
+import { SEED_ITEMS, SEED_SHOPS } from "./seed";
+import type { Actor, GameState, Item, ItemTier, LedgerEntry, LedgerKind, Player, Scene, Shop } from "./types";
 
 export class CommandError extends Error {}
 
@@ -41,6 +42,20 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
   const nextId = (prefix: string) => prefix + (++s.seq).toString(36);
   const player = (id: string): Player => s.players.find((p) => p.id === id) ?? fail("That player isn't here.");
   const scene = (id: string): Scene => s.scenes.find((x) => x.id === id) ?? fail("That scene doesn't exist.");
+  const shop = (id: string): Shop => s.shops.find((x) => x.id === id) ?? fail("That shop doesn't exist.");
+
+  /** A short TV banner. */
+  const announce = (text: string) => {
+    s.banner = { id: nextId("bn"), text, at: ctx.now };
+  };
+  const RANK: Record<ItemTier, number> = { hidden: 0, rumored: 1, locked: 2, sale: 3 };
+  /** Banner when an item becomes more visible in a shop the whole party can see. */
+  const announceItem = (it: Item, was: ItemTier) => {
+    const sh = shop(it.shopId);
+    if (sh.visibility !== "all" || sh.closed || RANK[it.tier] <= RANK[was]) return;
+    if (it.tier === "rumored") announce(`A new rumor at ${sh.name}`);
+    else announce(`New at ${sh.name}: ${it.name}`);
+  };
 
   const move = (p: Player, amountCp: number, note: string, kind: LedgerKind, extra: Partial<LedgerEntry> = {}) => {
     p.balanceCp += amountCp;
@@ -146,13 +161,13 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
     }
 
     // ---------- what the TV shows ----------
-    case "live.shop":
-      if (cmd.shopId) {
-        if (!s.shops.some((x) => x.id === cmd.shopId)) fail("That shop doesn't exist.");
-        s.live.shopId = cmd.shopId;
-      }
+    case "live.shop": {
+      const target = shop(cmd.shopId ?? s.live.shopId);
+      if (cmd.open && target.visibility !== "all") fail(`${target.name} is hidden from the party. Open it to everyone first.`);
+      s.live.shopId = target.id;
       s.live.shopOpen = cmd.open;
       break;
+    }
     case "live.purse":
       s.live.purseVisible = cmd.visible;
       break;
@@ -184,9 +199,21 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
       const p = player(cmd.playerId);
       if (p.archived) fail(`${p.name} has left the table.`);
       const item = s.items.find((x) => x.id === cmd.itemId) ?? fail("That item isn't for sale.");
-      if (item.lockReason) fail(`${item.name} is locked: ${item.lockReason}.`);
+      const where = shop(item.shopId);
+      if (where.closed) fail(`${where.name} isn't open yet.`);
+      if (item.tier === "locked") fail(`${item.name} is locked: ${item.reason || "not for sale yet"}.`);
+      if (item.tier !== "sale") fail(`${item.name} isn't for sale.`);
+      if (item.stock === 0) fail(`${item.name} is sold out.${item.restockNote ? " " + item.restockNote : ""}`);
       if (!canAfford(p.balanceCp, item.priceCp)) fail(`${p.name} can't afford ${item.name}.`);
-      move(p, -item.priceCp, `Bought ${item.name}`, "purchase", { itemId: item.id });
+      if (item.stock !== null) item.stock -= 1;
+      if (item.arrivesInSessions) {
+        const now = s.sessions.find((x) => x.id === s.currentSessionId)?.number ?? nextSessionNumber(s) - 1;
+        const arrivesAtSession = now + item.arrivesInSessions;
+        s.orders.push({ id: nextId("o"), playerId: p.id, itemId: item.id, itemName: item.name, priceCp: item.priceCp, orderedAt: ctx.now, arrivesAtSession, arrived: false });
+        move(p, -item.priceCp, `Ordered ${item.name} (arrives session ${arrivesAtSession})`, "purchase", { itemId: item.id });
+      } else {
+        move(p, -item.priceCp, `Bought ${item.name}`, "purchase", { itemId: item.id });
+      }
       break;
     }
 
@@ -230,12 +257,29 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
 
     // ---------- shops ----------
     case "shop.add":
-      s.shops.push({ id: nextId("shop"), name: cmd.name.trim() || "New shop", subtitle: cmd.subtitle.trim() });
+      s.shops.push({ id: nextId("shop"), name: cmd.name.trim() || "New shop", subtitle: cmd.subtitle.trim(), visibility: "hidden", playerIds: [] });
       break;
     case "shop.update": {
-      const sh = s.shops.find((x) => x.id === cmd.shopId) ?? fail("That shop doesn't exist.");
+      const sh = shop(cmd.shopId);
       if (cmd.patch.name !== undefined) sh.name = cmd.patch.name.trim() || sh.name;
       if (cmd.patch.subtitle !== undefined) sh.subtitle = cmd.patch.subtitle.trim();
+      if (cmd.patch.closed !== undefined) {
+        const opening = sh.closed && !cmd.patch.closed;
+        sh.closed = cmd.patch.closed || undefined;
+        if (opening && sh.visibility === "all") announce(`${sh.name} is open for business`);
+      }
+      break;
+    }
+    case "shop.visibility": {
+      const sh = shop(cmd.shopId);
+      const ids = [...new Set(cmd.playerIds ?? sh.playerIds)];
+      for (const pid of ids) player(pid);
+      if (cmd.visibility === "some" && !ids.length) fail("Pick at least one player.");
+      const wasPublic = sh.visibility === "all";
+      sh.visibility = cmd.visibility;
+      sh.playerIds = cmd.visibility === "some" ? ids : [];
+      if (cmd.visibility !== "all" && s.live.shopId === sh.id) s.live.shopOpen = false;
+      if (cmd.visibility === "all" && !wasPublic && !cmd.quiet) announce(sh.closed ? `${sh.name} has come to town` : `Now open: ${sh.name}`);
       break;
     }
     case "shop.remove": {
@@ -247,18 +291,58 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
       break;
     }
     case "item.add": {
-      if (!s.shops.some((x) => x.id === cmd.item.shopId)) fail("That shop doesn't exist.");
-      s.items.push({ id: nextId("i"), ...cmd.item, name: cmd.item.name.trim(), description: cmd.item.description.trim(), lockReason: cmd.item.lockReason.trim() });
+      shop(cmd.item.shopId);
+      const it = tidyItem({
+        id: nextId("i"),
+        description: "",
+        tier: "sale",
+        reason: "",
+        hint: "",
+        hidePrice: false,
+        stock: null,
+        restockNote: "",
+        ...cmd.item,
+      });
+      s.items.push(it);
+      if (!cmd.quiet) announceItem(it, "hidden");
       break;
     }
     case "item.update": {
       const it = s.items.find((x) => x.id === cmd.itemId) ?? fail("That item doesn't exist.");
-      if (cmd.patch.shopId && !s.shops.some((x) => x.id === cmd.patch.shopId)) fail("That shop doesn't exist.");
+      if (cmd.patch.shopId) shop(cmd.patch.shopId);
+      const before = { tier: it.tier, stock: it.stock, name: it.name };
       Object.assign(it, cmd.patch);
-      if (cmd.patch.name !== undefined) it.name = cmd.patch.name.trim() || it.name;
-      if (cmd.patch.lockReason !== undefined) it.lockReason = cmd.patch.lockReason.trim();
+      if (cmd.patch.name !== undefined) it.name = cmd.patch.name.trim() || before.name;
+      tidyItem(it);
+      if (!cmd.quiet) {
+        announceItem(it, before.tier);
+        if (before.stock === 0 && it.stock !== null && it.stock > 0 && it.tier === "sale" && shop(it.shopId).visibility === "all") {
+          announce(`Back in stock at ${shop(it.shopId).name}: ${it.name}`);
+        }
+      }
       break;
     }
+    case "order.arrive": {
+      const o = s.orders.find((x) => x.id === cmd.orderId) ?? fail("That order doesn't exist.");
+      if (!o.arrived) {
+        o.arrived = true;
+        announce(`Arrived from Baldur\u2019s Gate: ${o.itemName} for ${player(o.playerId).name}`);
+      }
+      break;
+    }
+    case "order.cancel": {
+      const o = s.orders.find((x) => x.id === cmd.orderId) ?? fail("That order doesn't exist.");
+      if (o.arrived) fail("That order already arrived.");
+      s.orders = s.orders.filter((x) => x.id !== o.id);
+      if (cmd.refund && o.priceCp > 0) move(player(o.playerId), o.priceCp, `Refund: ${o.itemName}`, "grant", { itemId: o.itemId });
+      break;
+    }
+    case "catalog.reset":
+      s.shops = structuredClone(SEED_SHOPS);
+      s.items = structuredClone(SEED_ITEMS);
+      s.live.shopOpen = false;
+      s.live.shopId = s.shops[0].id;
+      break;
     case "item.remove":
       s.items = s.items.filter((x) => x.id !== cmd.itemId);
       break;
@@ -278,6 +362,10 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
       s.sessions.push(sess);
       s.currentSessionId = sess.id;
       showScene(homeScene());
+      const due = s.orders.filter((o) => !o.arrived && o.arrivesAtSession <= number);
+      for (const o of due) o.arrived = true;
+      if (due.length === 1) announce(`Arrived from Baldur\u2019s Gate: ${due[0].itemName} for ${s.players.find((p) => p.id === due[0].playerId)?.name ?? "someone"}`);
+      else if (due.length > 1) announce(`${due.length} special orders have arrived from Baldur\u2019s Gate`);
       break;
     }
     case "session.end": {
@@ -392,6 +480,21 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
 /** One more than the highest session number, so deleting old sessions never causes a clash. */
 export function nextSessionNumber(s: Pick<GameState, "sessions">): number {
   return s.sessions.reduce((m, x) => Math.max(m, x.number), 0) + 1;
+}
+
+function tidyItem(it: Item): Item {
+  it.name = it.name.trim();
+  it.description = it.description.trim();
+  it.reason = it.reason.trim();
+  it.hint = it.hint.trim();
+  it.restockNote = it.restockNote.trim();
+  for (const k of ["priceLabel", "finePrint", "dmNote"] as const) {
+    const v = it[k]?.trim();
+    if (v) it[k] = v;
+    else delete it[k];
+  }
+  if (!it.arrivesInSessions) delete it.arrivesInSessions;
+  return it;
 }
 
 function checkUrl(url: string): string | undefined {

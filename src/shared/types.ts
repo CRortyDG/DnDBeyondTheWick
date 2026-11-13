@@ -49,11 +49,31 @@ export interface Player {
   lastSeenAt?: number;
 }
 
+/**
+ * Who can see a shop. "hidden" (the default) is never sent to the TV or any
+ * phone. "some" is for secret offers: only the listed players see it, and it
+ * never appears on the TV.
+ */
+export type ShopVisibility = "hidden" | "all" | "some";
+
 export interface Shop {
   id: string;
   name: string;
   subtitle: string;
+  visibility: ShopVisibility;
+  /** For visibility "some". */
+  playerIds: string[];
+  /** A visible but closed shop: name and tagline only, no goods ("Comes once a year."). */
+  closed?: boolean;
 }
+
+/**
+ * - sale: buyable
+ * - locked: visible with price (or ??? if hidePrice) and a reason
+ * - rumored: name and price show as ???, with a one-line hint
+ * - hidden: never sent to anyone but the DM
+ */
+export type ItemTier = "sale" | "locked" | "rumored" | "hidden";
 
 export interface Item {
   id: string;
@@ -61,10 +81,45 @@ export interface Item {
   name: string;
   priceCp: number;
   description: string;
-  /** Empty string = for sale. Otherwise the reason it's locked ("Arrives at level 5"). */
-  lockReason: string;
-  /** When locked, show "??? gp" instead of the price. The real price is DM-ONLY. */
+  tier: ItemTier;
+  /** Why it's locked ("The smith needs iron from Orlumbor"). */
+  reason: string;
+  /** The rumor ("They say you can still hear her singing."). */
+  hint: string;
+  /** Locked items only: show "??? gp". The real price is DM-ONLY. */
   hidePrice: boolean;
+  /** null = no limit. Buying takes one; 0 = sold out. */
+  stock: number | null;
+  /** Shown when sold out ("Restocks next tenday"). */
+  restockNote: string;
+  /** Shown instead of the price, e.g. "Free*". */
+  priceLabel?: string;
+  /** Shown on the item, e.g. the Peddler's "*See fine print". */
+  finePrint?: string;
+  /** Pay now, arrives this many sessions later (special orders from Baldur's Gate). */
+  arrivesInSessions?: number;
+  /** DM-ONLY */
+  dmNote?: string;
+}
+
+/** A special order: paid for, on its way. */
+export interface Order {
+  id: string;
+  playerId: string;
+  itemId: string;
+  itemName: string;
+  priceCp: number;
+  orderedAt: number;
+  /** Arrives when a session with this number (or higher) starts. */
+  arrivesAtSession: number;
+  arrived: boolean;
+}
+
+/** A short TV banner: "New at the Smithy." */
+export interface Banner {
+  id: string;
+  text: string;
+  at: number;
 }
 
 export interface Session {
@@ -92,7 +147,7 @@ export interface LiveState {
 }
 
 export interface GameState {
-  schema: 1;
+  schema: 2;
   id: string;
   name: string;
   createdAt: number;
@@ -110,6 +165,10 @@ export interface GameState {
   sessions: Session[];
   currentSessionId: string | null;
   knocks: Knock[];
+  /** Special orders, newest last. */
+  orders: Order[];
+  /** The latest TV banner; the TV shows it briefly when it changes. */
+  banner: Banner | null;
   seq: number;
 }
 

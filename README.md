@@ -118,6 +118,25 @@ scripts/seed.ts     create or reset a game from the command line
 - **Heroic Inspiration:** tap the d20 beside a player's name in the Bank (or "Inspiration" on their card under Players). A gold d20 then shows beside their name in the TV purse; tap again when it's spent.
 - **Launch VTT:** paste the campaign's D&D Beyond game link under Game. It shows as a Launch VTT button at the top of your view and on every player's phone.
 
+## Shops
+
+- **Every shop starts hidden.** In DM view → Shop, each shop has **Hidden / Everyone / Selected players**.
+  - **Hidden:** nobody but the DM sees it.
+  - **Everyone:** the whole party gets it, and it can go on the TV.
+  - **Selected players:** a secret offer (the Peddler). It's never shown on the TV.
+- **Server-side filtering:** hidden shops, hidden items, rumored names and item DM notes never leave the server for anyone who can't see them.
+- **Item tiers** (Edit on a card → "Shown as"):
+  - **For sale:** players can buy it.
+  - **Locked:** visible with its price (or ??? gp) and a reason.
+  - **Rumored:** shows "???" and a one-line hint.
+  - **Hidden:** not shown at all.
+- **Stock** is optional ("1 in stock"); buying takes one, and "When sold out" says what happens next.
+- **Special orders:** set "arrives after N sessions". The buyer pays now, and the order arrives by itself when that session starts.
+- **Price labels and fine print:** "Free*" with fine print, for the Peddler.
+- **Banners:** opening a shop to everyone, or revealing or unlocking an item in an open shop, shows a short banner on the TV and on phones. Tick **Quietly** to skip it.
+- **Closed shops** (the Peddler) show only their name and tagline until you untick Closed.
+- **Starter catalog:** DM view → Game → **Load the starter catalog** swaps in the latest one, with all shops hidden. Gold and history aren't touched.
+
 ## Sessions and starting over
 
 - **Start or end a session** with the button at the top of the DM view. Ledger lines are tagged with the running session.
