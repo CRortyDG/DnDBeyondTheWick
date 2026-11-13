@@ -90,7 +90,7 @@ In the DM view, **Open TV window** pops the TV page out. Drag it onto the TV and
 
 | Where | Keys |
 | --- | --- |
-| DM view | `0`–`9` scenes · `←` `→` step · `S` shop on the TV · `P` purse · `B` bank · `Esc` closes the shop |
+| DM view | `0`–`9` scenes · `←` `→` step (while the shop is open: flip shops) · `S` shop on the TV · `P` purse · `B` bank · `Esc` closes the shop |
 | TV | `F` fullscreen · `H` hide the control bar |
 
 ## How it's built
