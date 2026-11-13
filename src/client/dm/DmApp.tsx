@@ -150,6 +150,11 @@ function DmConsole({ view, ident, online, send }: { view: DmView; ident: Ident; 
   const gated = useGatedArt(ident, ["merchant-sigil"]);
   const ctx: DmCtx = useMemo(() => ({ view, ident, run, toast, gated }), [view, ident, run, toast, gated]);
 
+  const askedShop = useRef(s.live.shopId);
+  useEffect(() => {
+    askedShop.current = s.live.shopId;
+  }, [s.live.shopId, view.version]);
+
   // Keyboard: 0-9 scenes, arrows step, S shop on TV, P purse, B bank, Esc closes the shop.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -160,6 +165,14 @@ function DmConsole({ view, ident, online, send }: { view: DmView; ident: Ident; 
       if (/^[0-9]$/.test(k)) {
         const sc = s.scenes.find((x) => x.hotkey === Number(k));
         if (sc) void run({ type: "scene.show", sceneId: sc.id });
+      } else if ((k === "ArrowRight" || k === "ArrowLeft") && s.live.shopOpen && s.shops.length) {
+        // While the shop is on the TV, the arrows flip through the shops.
+        // Count from the shop we last asked for, so quick presses add up before the server answers.
+        const i = Math.max(0, s.shops.findIndex((x) => x.id === askedShop.current));
+        const n = s.shops.length;
+        const next = s.shops[(i + (k === "ArrowRight" ? 1 : -1) + n) % n];
+        askedShop.current = next.id;
+        void run({ type: "live.shop", open: true, shopId: next.id });
       } else if (k === "ArrowRight") void run({ type: "scene.step", dir: 1 });
       else if (k === "ArrowLeft") void run({ type: "scene.step", dir: -1 });
       else if (k === "s" || k === "S") void run({ type: "live.shop", open: !s.live.shopOpen });
@@ -171,7 +184,7 @@ function DmConsole({ view, ident, online, send }: { view: DmView; ident: Ident; 
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [s.scenes, s.live.shopOpen, s.live.purseVisible, run]);
+  }, [s.scenes, s.shops, s.live.shopOpen, s.live.shopId, s.live.purseVisible, run]);
 
   const live = s.scenes.find((x) => x.id === s.live.sceneId) ?? s.scenes[0];
   const purse = s.players.filter((p) => !p.archived && !p.away).map((p) => ({ id: p.id, name: p.name, balanceCp: p.balanceCp }));
@@ -264,23 +277,26 @@ function DmConsole({ view, ident, online, send }: { view: DmView; ident: Ident; 
 
             <div className="live-toggles">
               <button type="button" className={`btn${s.live.shopOpen ? " on" : ""}`} aria-pressed={s.live.shopOpen} onClick={() => run({ type: "live.shop", open: !s.live.shopOpen })}>
-                <span className="key">S</span> Shop on TV
+                <span className="key">S</span> {s.live.shopOpen ? "Close the shop" : "Shop on TV"}
               </button>
-              <label className="inline-label">
-                <span className="sr-only">Shop shown on the TV</span>
-                <select className="fld" value={s.live.shopId} onChange={(e) => run({ type: "live.shop", open: true, shopId: e.target.value })}>
-                  {s.shops.map((sh) => (
-                    <option key={sh.id} value={sh.id}>
-                      {sh.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
               <button type="button" className={`btn${s.live.purseVisible ? " on" : ""}`} aria-pressed={s.live.purseVisible} onClick={() => run({ type: "live.purse", visible: !s.live.purseVisible })}>
                 <span className="key">P</span> Purse
               </button>
             </div>
-            <p className="note hint">Keys: 0&ndash;9 scenes &middot; &larr; &rarr; step &middot; S shop &middot; P purse &middot; B bank &middot; Esc closes the shop</p>
+            <div className={`live-shops${s.live.shopOpen ? " open" : ""}`} role="group" aria-label="Which shop the TV shows">
+              <span className="note">{s.live.shopOpen ? "The TV is showing:" : "Open the shop on the TV at:"}</span>
+              {s.shops.map((sh) => {
+                const on = s.live.shopOpen && sh.id === s.live.shopId;
+                return (
+                  <button key={sh.id} type="button" className={`btn small${on ? " on" : ""}`} aria-pressed={on} onClick={() => run({ type: "live.shop", open: true, shopId: sh.id })}>
+                    {sh.name}
+                  </button>
+                );
+              })}
+            </div>
+            <p className="note hint">
+              Keys: 0&ndash;9 scenes &middot; &larr; &rarr; step (or flip shops while the shop is open) &middot; S shop &middot; P purse &middot; B bank &middot; Esc closes the shop
+            </p>
           </section>
 
           <section className="dm-panels" aria-label="DM tools">

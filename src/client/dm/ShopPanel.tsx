@@ -11,7 +11,9 @@ import { Field } from "./Field";
 export function ShopPanel() {
   const { view, run } = useDm();
   const s = view.state;
-  const [shopId, setShopId] = useState(s.live.shopId);
+  const [ownShopId, setShopId] = useState(s.live.shopId);
+  // While the shop is open on the TV, this panel and the TV show the same shop.
+  const shopId = s.live.shopOpen ? s.live.shopId : ownShopId;
   const [buying, setBuying] = useState<string | null>(null);
   const shop = s.shops.find((x) => x.id === shopId) ?? s.shops[0];
   const buyers = s.players.filter((p) => !p.archived);
@@ -106,14 +108,20 @@ export function ShopPanel() {
   return (
     <div className="dm-shop">
       <div className="inline shop-tv-row">
-        <button className="btn primary" type="button" onClick={() => run({ type: "live.shop", open: true, shopId: shop.id }, `${shop.name} is on the TV.`)}>
-          <TvIcon /> Show {shop.name} on the TV
-        </button>
         {s.live.shopOpen ? (
-          <button className="btn" type="button" onClick={() => run({ type: "live.shop", open: false })}>
-            Close the shop on the TV
+          <>
+            <span className="note tv-follows">
+              <TvIcon /> The shop is open on the TV, and it follows these tabs.
+            </span>
+            <button className="btn" type="button" onClick={() => run({ type: "live.shop", open: false })}>
+              Close the shop on the TV
+            </button>
+          </>
+        ) : (
+          <button className="btn primary" type="button" onClick={() => run({ type: "live.shop", open: true, shopId: shop.id }, `${shop.name} is on the TV.`)}>
+            <TvIcon /> Show {shop.name} on the TV
           </button>
-        ) : null}
+        )}
       </div>
 
       <ShopBoard
@@ -123,6 +131,7 @@ export function ShopPanel() {
         onShop={(id) => {
           setShopId(id);
           setBuying(null);
+          if (s.live.shopOpen) void run({ type: "live.shop", open: true, shopId: id });
         }}
         size="page"
         dmPrices
