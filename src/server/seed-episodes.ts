@@ -1,6 +1,5 @@
 // Seed run sheets. DM-only: never sent to the TV or players, and server-only so
 // the text never ends up in the browser bundle that the TV and phones download.
-import "server-only";
 import { parseEpisode, sceneKey, sceneResolver } from "@/shared/runsheet";
 import type { Episode, GameState, Scene } from "@/shared/types";
 

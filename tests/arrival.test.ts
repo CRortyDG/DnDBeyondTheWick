@@ -3,23 +3,20 @@
 import fs from "node:fs";
 import path from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { handleApi } from "@/server/api";
 import { execute } from "@/server/game";
-import { createFileStore, type Store } from "@/server/store";
+import { createMemoryStore, type MemoryStore } from "@/server/store";
 import { arrivalStatus, opensOnSeat, playerByToken, projectArrival } from "@/shared/arrival";
 import { projectDm, projectPlayer, projectTv } from "@/shared/projection";
 import { seedGame } from "@/shared/seed";
 import type { GameState } from "@/shared/types";
 
-vi.mock("next/headers", () => ({ headers: async () => new Headers({ host: "dnd.example.test" }) }));
-
 const DM = { role: "dm" as const };
 const G = "candlefair";
-let store: Store;
+let store: MemoryStore;
 
 beforeEach(async () => {
-  process.env.DM_KEY = "the-real-dm-key";
-  store = createFileStore(null);
-  (globalThis as unknown as { __candlefairStore?: Store }).__candlefairStore = store;
+  store = createMemoryStore();
   await store.overwrite(G, seedGame(G), []);
   await execute(store, G, DM, { type: "arrival.issueLinks" });
 });
@@ -33,10 +30,9 @@ async function tokenOf(playerId: string) {
 
 /** Call the /api/arrival route the way a phone does. */
 async function phone(method: "GET" | "POST", token: string | null, body?: object) {
-  const { GET, POST } = await import("../app/api/arrival/route");
   const url = `http://x/api/arrival?game=${G}${token ? `&t=${token}` : ""}`;
   const req = new Request(url, method === "POST" ? { method, body: JSON.stringify(body), headers: { "content-type": "application/json" } } : undefined);
-  const res = await (method === "GET" ? GET(req) : POST(req));
+  const res = await handleApi(req, store);
   const text = await res.text();
   return { status: res.status, body: JSON.parse(text) as Record<string, unknown>, text };
 }
@@ -143,12 +139,9 @@ describe("the generic link", () => {
 describe("live updates", () => {
   it("a claim publishes a new version, and the DM view and the TV both show it", async () => {
     await execute(store, G, DM, { type: "arrival.showTable" });
-    const seen: number[] = [];
-    const off = store.subscribe(G, (v) => seen.push(v));
     await phone("POST", await tokenOf("p4"), { type: "claim", character: "Sister Wren", why: "" });
-    off();
     const { state: s, version } = await store.read(G);
-    expect(seen).toContain(version);
+    expect(store.published.map((x) => x.version)).toContain(version);
 
     const dm = projectDm(s!, version, []);
     expect(dm.state.players.find((p) => p.id === "p4")!.character).toBe("Sister Wren");
@@ -203,19 +196,16 @@ describe("players' other screens", () => {
 
 describe("link previews", () => {
   it("are the same for everyone and carry no player data", async () => {
-    const { generateMetadata } = await import("../app/(arrival)/layout");
-    const md = await generateMetadata();
-    const json = JSON.stringify(md);
-    expect(md.title).toBe("Tales from the Flickering Candle");
-    expect(md.description).toBe("Four days out of Baldur’s Gate…");
-    expect(json).toContain("/arrival/og.jpg");
+    // The preview tags are static in arrive.html, so they can't vary by player.
+    const html = fs.readFileSync(path.join(process.cwd(), "arrive.html"), "utf8");
+    expect(html).toContain('<meta property="og:title" content="Tales from the Flickering Candle" />');
+    expect(html).toContain('<meta property="og:description" content="Four days out of Baldur’s Gate…" />');
+    expect(html).toContain('content="/arrival/og.jpg"');
     const s = await state();
     for (const p of s.players) {
-      expect(json).not.toContain(p.name);
-      expect(json).not.toContain(p.arrival!.token);
+      expect(html).not.toContain(p.name);
+      expect(html).not.toContain(p.arrival!.token);
     }
-    // The layout takes no route params, so it can't vary by player.
-    expect(generateMetadata.length).toBe(0);
     expect(fs.existsSync(path.join(process.cwd(), "public/arrival/og.jpg"))).toBe(true);
   });
 });
@@ -248,7 +238,7 @@ function arrivalSources(): string[] {
       else if (r) seen.add(r);
     }
   };
-  for (const f of ["app/(arrival)/layout.tsx", "app/(arrival)/arrive/page.tsx", "app/(arrival)/arrive/[code]/page.tsx"]) walk(path.join(root, f));
+  for (const f of ["src/client/arrival/main.tsx"]) walk(path.join(root, f));
   return [...seen];
 }
 

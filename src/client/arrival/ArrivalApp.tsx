@@ -1,4 +1,3 @@
-"use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { opensOnSeat, type ArrivalView } from "@/shared/arrival";
@@ -106,23 +105,39 @@ export function ArrivalApp({ code, game }: { code: string | null; game: string }
 
   useEffect(() => {
     void load();
-    // Live seats: the stream only says "version N"; we fetch our own copy when it changes.
-    let es: EventSource | null = null;
-    try {
-      es = new EventSource(`/api/stream?game=${encodeURIComponent(game)}`);
-      es.addEventListener("v", (e) => {
-        if (Number((e as MessageEvent).data) > versionRef.current) void load();
-      });
-    } catch {}
-    const poll = setInterval(() => void load(), 30_000);
+    // Live seats: the campaign's room pushes this page's own copy whenever it changes.
+    let ws: WebSocket | null = null;
+    let closed = false;
+    let retry: ReturnType<typeof setTimeout> | null = null;
+    const open = () => {
+      if (closed) return;
+      const qs = new URLSearchParams({ game, arrival: "1", ...(code ? { t: code } : {}) });
+      const sock = new WebSocket(`${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/api/live?${qs}`);
+      ws = sock;
+      sock.onmessage = (e) => {
+        try {
+          const msg = JSON.parse(String(e.data)) as { t?: string; view?: ArrivalView };
+          if (msg.t === "arrival" && msg.view && msg.view.version >= versionRef.current) {
+            versionRef.current = msg.view.version;
+            setView(msg.view);
+          }
+        } catch {}
+      };
+      sock.onclose = () => {
+        if (ws === sock) ws = null;
+        if (!closed) retry = setTimeout(open, 3000 + Math.random() * 2000);
+      };
+    };
+    open();
     const vis = () => document.visibilityState === "visible" && void load();
     document.addEventListener("visibilitychange", vis);
     return () => {
-      es?.close();
-      clearInterval(poll);
+      closed = true;
+      ws?.close();
+      if (retry) clearTimeout(retry);
       document.removeEventListener("visibilitychange", vis);
     };
-  }, [load, game]);
+  }, [load, game, code]);
 
   const post = useCallback(
     async (body: object): Promise<string | null> => {

@@ -1,4 +1,3 @@
-"use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { DmCommand } from "@/shared/commands";
@@ -45,7 +44,7 @@ export function DmApp({ ident: initial }: { ident: Ident }) {
   if (g.phase === "invalid") {
     return <KeyPrompt game={ident.game} onKey={(key) => (rememberKey(ident, key), setIdent({ ...ident, key }))} wrong={!!ident.key} />;
   }
-  if (g.phase === "no-game") return <CreateGame ident={ident} onCreated={g.retryHello} />;
+  if (g.phase === "no-game") return <NoCampaign game={ident.game} />;
   if (!g.view || g.view.role !== "dm") {
     if (g.phase === "error") return <Notice title="Can't reach the server">{g.error ?? "Trying again"}...</Notice>;
     return <div className="dm-root" aria-busy="true" />;
@@ -64,7 +63,7 @@ function KeyPrompt({ game, onKey, wrong }: { game: string; onKey: (k: string) =>
           if (k.trim()) onKey(k.trim());
         }}
       >
-        {wrong ? <p className="error-text">That key didn&rsquo;t work.</p> : <p>Enter the DM key to continue.</p>}
+        {wrong ? <p className="error-text">That key didn&rsquo;t work.</p> : <p>Open your saved DM link on this device, or paste the key from it (the part after <code>#key=</code>).</p>}
         <label>
           DM key
           <input className="fld" type="password" autoComplete="current-password" value={k} onChange={(e) => setK(e.target.value)} autoFocus />
@@ -80,26 +79,12 @@ function KeyPrompt({ game, onKey, wrong }: { game: string; onKey: (k: string) =>
   );
 }
 
-function CreateGame({ ident, onCreated }: { ident: Ident; onCreated: () => void }) {
-  const [err, setErr] = useState<string | null>(null);
+function NoCampaign({ game }: { game: string }) {
   return (
-    <Notice title={`Set up “${ident.game}”`}>
-      <p>There&rsquo;s no game here yet. Create it with Candlefair&rsquo;s scenes, shops and items, and Players 1&ndash;4.</p>
-      {err ? <p className="error-text">{err}</p> : null}
-      <button
-        className="btn primary"
-        type="button"
-        onClick={async () => {
-          try {
-            await api("/api/game", ident, { method: "POST" });
-            onCreated();
-          } catch (e) {
-            setErr(e instanceof Error ? e.message : String(e));
-          }
-        }}
-      >
-        Create the game
-      </button>
+    <Notice title="No campaign here">
+      <p>
+        There&rsquo;s no campaign with the code <b>{game}</b>. Check the DM link you saved, or <a href="/">start a new campaign</a>.
+      </p>
     </Notice>
   );
 }

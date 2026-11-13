@@ -1,9 +1,7 @@
 node_modules/
-.next/
-out/
-.data/
+dist/
+.wrangler/
+.dev.vars*
 .env*
 !.env.example
 *.tsbuildinfo
-next-env.d.ts
-.vercel
