@@ -309,8 +309,8 @@ a {
   animation-delay: -3.3s;
 }
 .wobble {
-  transform-box: view-box;
-  transform-origin: -10px 10px;
+  transform-box: fill-box;
+  transform-origin: 20% 100%;
   animation: wobble 2.4s ease-in-out infinite;
 }
 @keyframes wobble {
