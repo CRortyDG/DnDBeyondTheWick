@@ -21,6 +21,7 @@ export function dueNow(it: PublicItem): number {
 
 /** Why this can't be requested right now, or null if it can. */
 export function whyNot(it: PublicItem, availableCp: number, qty = 1): string | null {
+  if (it.needs) return `Opens when the party is ${it.needs}`;
   if (it.tier !== "sale" || it.priceCp === null) return it.tier === "locked" ? it.reason || "Not for sale yet" : "Not for sale";
   if (it.kind === "earned") return "Can’t be bought";
   if (it.kind === "project") return it.funded ? "Funded" : availableCp <= 0 ? "You have 0 gp available" : null;
@@ -184,6 +185,7 @@ const STATUS = { pending: "Waiting for the DM", approved: "Approved", declined: 
 function title(r: MyRequest) {
   if (r.kind === "give") return `Send ${formatCp(r.totalCp)} to ${r.toPlayerName}`;
   if (r.kind === "contribute") return `${formatCp(r.totalCp)} toward ${r.itemName}`;
+  if (r.kind === "job") return `Take the job: ${r.jobTitle ?? "a job"}`;
   if (r.flyerTitle) return `Flyer: ${r.flyerTitle}`;
   return `${r.qty > 1 ? `${r.qty} × ` : ""}${r.itemName}`;
 }
@@ -202,7 +204,7 @@ export function MyRequests({ requests, send, onMsg }: { requests: MyRequest[]; s
               <div className="req-title">{title(r)}</div>
               <div className="req-meta">
                 <span className={`req-status st-${r.status}`}>{STATUS[r.status]}</span>
-                {r.kind !== "give" ? <span className="purse-amt">{formatCp(r.chargedCp ?? r.totalCp)}</span> : null}
+                {r.kind !== "give" && r.kind !== "job" ? <span className="purse-amt">{formatCp(r.chargedCp ?? r.totalCp)}</span> : null}
                 {r.chargedCp !== undefined && r.chargedCp !== r.totalCp ? <span className="note">(asked {formatCp(r.totalCp)})</span> : null}
               </div>
               {r.question ? <div className="note">You asked: &ldquo;{r.question}&rdquo;</div> : null}

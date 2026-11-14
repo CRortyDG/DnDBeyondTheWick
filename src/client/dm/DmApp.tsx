@@ -28,11 +28,13 @@ import { EndSessionDialog } from "./Dues";
 import { duesFor } from "@/shared/progress";
 import { ArrivalPanel } from "./ArrivalPanel";
 import { ChroniclePanel } from "./ChroniclePanel";
+import { BoardPanel } from "./BoardPanel";
 
-type Tab = "bank" | "shop" | "scenes" | "players" | "arrival" | "episodes" | "chronicle" | "game";
+type Tab = "bank" | "shop" | "board" | "scenes" | "players" | "arrival" | "episodes" | "chronicle" | "game";
 const TABS: [Tab, string, string][] = [
   ["bank", "Bank", "B"],
   ["shop", "Shop", ""],
+  ["board", "Board", ""],
   ["scenes", "Scenes", ""],
   ["players", "Players", ""],
   ["arrival", "Arrival", ""],
@@ -349,7 +351,7 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
               </span>
             </div>
             <div className="preview" aria-label={`Preview: ${live.label}`}>
-              <SceneView scene={previewScene} gated={gated} table={tvView.table} flyers={tvView.flyers} emptyHint="No image yet. Add one under Scenes." />
+              <SceneView scene={previewScene} gated={gated} table={tvView.table} board={tvView} emptyHint="No image yet. Add one under Scenes." />
               {s.live.shopOpen && liveShop ? (
                 <div className="preview-shop" aria-label={`Shop open on the TV: ${liveShop.name}`}>
                   <Stage w={1920} h={1080}>
@@ -431,6 +433,7 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
             <div role="tabpanel" id={`panel-${tab}`} aria-labelledby={`tab-${tab}`} className="panel">
               {tab === "bank" ? <BankPanel /> : null}
               {tab === "shop" ? <ShopPanel /> : null}
+              {tab === "board" ? <BoardPanel /> : null}
               {tab === "scenes" ? <ScenesPanel /> : null}
               {tab === "players" ? <PlayersPanel /> : null}
               {tab === "arrival" ? <ArrivalPanel /> : null}

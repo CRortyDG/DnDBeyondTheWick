@@ -10,6 +10,7 @@ import { artSrc, SceneView } from "../ui/SceneView";
 import { ShopBoard } from "../ui/ShopBoard";
 import { Notice } from "../ui/Notice";
 import { BannerToast } from "../ui/BannerToast";
+import { RenownMoment } from "../ui/RenownMoment";
 
 const FADE_MS = 600;
 
@@ -54,7 +55,7 @@ function TvScreen({ view, online }: { view: TvView; online: boolean }) {
     <div className={`tv-root${idle ? " idle" : ""}`}>
       {layers.map((l) => (
         <div key={l.key} className={`tv-layer${l.entering ? " entering" : ""}`} aria-hidden={l.leaving}>
-          <SceneView scene={l.scene} table={view.table} flyers={view.flyers} />
+          <SceneView scene={l.scene} table={view.table} board={view} />
         </div>
       ))}
 
@@ -92,6 +93,8 @@ function TvScreen({ view, online }: { view: TvView; online: boolean }) {
       <Purse players={view.purse} visible={view.live.purseVisible} size="tv" />
 
       <BannerToast banner={view.banner} className="tv-banner" />
+
+      <RenownMoment moment={view.renownMoment} />
 
       {showOffline ? (
         <div className="tv-offline" role="status">

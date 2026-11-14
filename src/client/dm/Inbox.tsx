@@ -10,6 +10,7 @@ import { pendingRequests } from "@/shared/requests";
 import { firstChargeCp } from "@/shared/progress";
 import type { FlyerText, TradeRequest } from "@/shared/types";
 import { useDm } from "./context";
+import { BOARD_SLOTS, jobsOf, pinnedCount, rankName } from "@/shared/renown";
 
 const MUTE_SLOT = "cf-inbox-muted";
 
@@ -189,6 +190,7 @@ function InboxDrawer({ pending, muted, onMute, onClose }: { pending: TradeReques
 function describe(r: TradeRequest): string {
   if (r.kind === "give") return `send ${formatCp(r.totalCp)} to ${r.toPlayerName}`;
   if (r.kind === "contribute") return `${formatCp(r.chargedCp ?? r.totalCp)} toward ${r.itemName}`;
+  if (r.kind === "job") return `take the job “${r.jobTitle ?? "a job"}”`;
   if (r.flyer) return `flyer “${r.flyer.title}”`;
   return `${r.qty > 1 ? `${r.qty} × ` : ""}${r.itemName}`;
 }
@@ -219,7 +221,7 @@ function RequestRow({ r }: { r: TradeRequest }) {
       });
       if (res.code === "recheck") return setProblem({ msg: res.error ?? "", totalCp });
       if (res.error) return toast(res.error);
-      toast(`Approved: ${r.playerName}, ${describe(r)}.`);
+      toast(res.info ?? `Approved: ${r.playerName}, ${describe(r)}.`);
     },
     [call, r, toast, answer, flyer],
   );
@@ -241,7 +243,9 @@ function RequestRow({ r }: { r: TradeRequest }) {
         <span className="note">{new Date(r.at).toLocaleTimeString(undefined, { timeStyle: "short" })}</span>
       </div>
       <div className="inbox-what">
-        {r.kind === "give" ? (
+        {r.kind === "job" ? (
+          <JobAsk r={r} />
+        ) : r.kind === "give" ? (
           <>
             Send <b className="purse-amt">{formatCp(r.totalCp)}</b> to <b>{r.toPlayerName}</b>
           </>
@@ -362,7 +366,7 @@ function RequestRow({ r }: { r: TradeRequest }) {
       ) : (
         <div className="inline">
           <button type="button" className="btn primary" onClick={() => void approve()}>
-            {r.flyer ? "Pin it up" : service ? (answer.trim() ? "Answer and charge" : "Done, charge it") : "Approve"}
+            {r.kind === "job" ? "Give them the job" : r.flyer ? "Pin it up" : service ? (answer.trim() ? "Answer and charge" : "Done, charge it") : "Approve"}
           </button>
           <button type="button" className="btn" onClick={() => setMode("decline")}>
             Decline
@@ -430,7 +434,28 @@ function BoardFlyers() {
             </li>
           ))}
       </ul>
-      {flyers.filter((f) => f.up).length > 8 ? <p className="note">The board shows the newest 8.</p> : null}
+      <p className="note">
+        {pinnedCount(view.state)} of {BOARD_SLOTS} pins on the board are in use. Job flyers are under Board.
+      </p>
+    </>
+  );
+}
+
+/** "Take this job": what the flyer offers, and your notes on it. */
+function JobAsk({ r }: { r: TradeRequest }) {
+  const { view } = useDm();
+  const j = jobsOf(view.state).find((x) => x.id === r.jobId);
+  return (
+    <>
+      Wants to take the job <b>{r.jobTitle}</b>
+      {j ? (
+        <div className="note">
+          {j.reward.kind === "hidden" ? "Reward hidden" : `${formatCp(j.reward.cp)} ${j.reward.kind === "each" ? "each" : "for the party"}`} · needs {rankName(j.renown)}
+          {j.dm.adventure ? ` · runs ${j.dm.adventure}` : ""}
+        </div>
+      ) : (
+        <div className="note">That flyer has come down.</div>
+      )}
     </>
   );
 }

@@ -46,7 +46,8 @@ describe("the starter catalog", () => {
     expect(by("Splint")).toMatchObject({ tier: "locked", reason: "The smith needs iron from Orlumbor" });
     expect(by("Greater Healing")).toMatchObject({ tier: "locked", reason: "The priestess needs moonpetal from the Trollbark" });
     expect(by("Moonshae")).toMatchObject({ tier: "rumored", hint: "No captain will sail there. Yet." });
-    expect(by("Back Room")).toMatchObject({ tier: "locked", reason: "Mags only rents it to people she trusts." });
+    // Renown locks: for sale once the party is Known in town, with Mags's line underneath until then.
+    expect(by("Back Room")).toMatchObject({ tier: "sale", renown: 1, reason: "Mags only rents it to people she trusts." });
     expect(by("Sorcerous Sundries")).toMatchObject({ tier: "rumored", hint: "Wands, scrolls, and things that hum" });
     expect(SEED_SHOPS.find((s) => s.id === "peddler")).toMatchObject({ closed: true, subtitle: "Comes once a year. Sells exactly what you need." });
     expect(SEED_ITEMS.filter((i) => i.shopId === "peddler").every((i) => i.priceLabel === "Free*" && i.finePrint)).toBe(true);

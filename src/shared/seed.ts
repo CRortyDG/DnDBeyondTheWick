@@ -1,5 +1,6 @@
 import { GP, SP } from "./money";
-import type { GameState, Item, ItemCategory, MapData, Pin, PinLink, Scene, Shop } from "./types";
+import { FAMOUS, HEROES, KNOWN, TRUSTED } from "./renown";
+import type { GameState, Item, ItemCategory, Job, MapData, Pin, PinLink, Scene, Shop } from "./types";
 
 export const DEFAULT_SEATS = 6;
 
@@ -48,6 +49,8 @@ const it = (id: string, category: ItemCategory, shopId: string, name: string, pr
 });
 const locked = (reason: string, o: Opts = {}): Opts => ({ tier: "locked", reason, ...o });
 const rumored = (hint: string, o: Opts = {}): Opts => ({ tier: "rumored", hint, ...o });
+/** For sale once the party has this Renown; until then it shows the rank, with `reason` underneath. */
+const needs = (rank: number, reason: string, o: Opts = {}): Opts => ({ tier: "sale", renown: rank, reason, ...o });
 /** Gear you buy one of, not a stack. */
 const ONE: Opts = { oneAtATime: true };
 const order = (o: Opts = {}): Opts => ({ kind: "order", arrivesInSessions: 2, ...o });
@@ -102,7 +105,7 @@ export const SEED_ITEMS: Item[] = [
   it("i36", "travel", "docks", "Passage to Baldur’s Gate (each)", 20 * GP, "About four days by sea, weather permitting."),
   it("d-moonshae", "travel", "docks", "Passage to the Moonshae Isles", 0, "", rumored("No captain will sail there. Yet.")),
   it("d-keelboat", "travel", "docks", "Keelboat", 3000 * GP, "River and coast, with room for a crew.", locked("Ask the shipwrights on Orlumbor", ONE)),
-  it("d-ship", "travel", "docks", "A Sailing Ship", 10000 * GP, "Your own ship. Your own flag.", locked("Every captain on the coast would know your name", ONE)),
+  it("d-ship", "travel", "docks", "A Sailing Ship", 10000 * GP, "Your own ship. Your own flag.", needs(FAMOUS, "Every captain on the coast would know your name", ONE)),
 
   // ---------- Services ----------
   it("c-drink", "services", "candle", "Buy Mags a drink", 4, "She tells you a rumor.", service()),
@@ -120,10 +123,10 @@ export const SEED_ITEMS: Item[] = [
   // ---------- Building Candlefair ----------
   it("i30", "building", "candle", "Room for the Night", 5 * SP, "Warm bed, roof that never leaks."),
   it("c-room", "building", "candle", "Rent a room", 3 * GP, "A room upstairs, and a stash for your gear.", rent()),
-  it("c-tab", "building", "candle", "Open a tab", 0, "Mags lets you drink now and pay later, up to 10 gp.", locked("Once Mags thinks of you as regulars.", { priceLabel: "No charge", oneAtATime: true, effects: [{ type: "credit", limitCp: 10 * GP }] })),
-  it("c-backroom", "building", "candle", "The Back Room", 10 * GP, "A private room behind the kitchen. Thick walls, one key. The party’s first headquarters.", locked("Mags only rents it to people she trusts.", rent({ keep: true }))),
-  it("g-house", "building", "general", "A house in town", 1000 * GP, "A door with your name on it.", locked("Available at level 4", { ...ONE, keep: true })),
-  it("g-hall", "building", "general", "An adventurers’ hall", 2000 * GP, "A hall, a sign, and a reputation.", locked("Candlefair needs to know who you are first", { ...ONE, keep: true })),
+  it("c-tab", "building", "candle", "Open a tab", 0, "Mags lets you drink now and pay later, up to 10 gp.", needs(KNOWN, "Once Mags thinks of you as regulars.", { priceLabel: "No charge", oneAtATime: true, effects: [{ type: "credit", limitCp: 10 * GP }] })),
+  it("c-backroom", "building", "candle", "The Back Room", 10 * GP, "A private room behind the kitchen. Thick walls, one key. The party’s first headquarters.", needs(KNOWN, "Mags only rents it to people she trusts.", rent({ keep: true }))),
+  it("g-house", "building", "general", "A house in town", 1000 * GP, "A door with your name on it.", needs(TRUSTED, "", { ...ONE, keep: true })),
+  it("g-hall", "building", "general", "An adventurers’ hall", 2000 * GP, "A hall, a sign, and a reputation.", needs(HEROES, "Candlefair needs to know who you are first", { ...ONE, keep: true })),
   it("d-ferry", "building", "docks", "New rope and lantern for the ferry", 15 * GP, "The ferry runs after dark again.", project()),
   it("d-fishing", "building", "docks", "A share in Fennick’s fishing", 150 * GP, "1d6 gp every session, split by share.", project({ effects: [{ type: "income", dice: "1d6", unitCp: GP }] })),
   it("i39", "building", "general", "Lanterns for the watch", 100 * GP, "Safer streets at night.", project()),
@@ -134,8 +137,8 @@ export const SEED_ITEMS: Item[] = [
   // ---------- Trophies ----------
   it("i32", "trophies", "candle", "Round for the House", 5 * GP, "Everyone drinks. Advantage on your next Charisma check at the Candle."),
   it("c-trophy", "trophies", "candle", "Mount a trophy at the Candle", 50 * GP, "A keepsake from a fight goes on the wall, with a little plaque.", { keep: true }),
-  it("g-citizens", "trophies", "general", "Free Citizens of Candlefair", 500 * GP, "A title on your page.", locked("The council must vote.", { ...ONE, keep: true })),
-  it("i41", "trophies", "general", "A Statue of the Party", 1000 * GP, "In the square.", locked("Pigeons included", { ...ONE, keep: true })),
+  it("g-citizens", "trophies", "general", "Free Citizens of Candlefair", 500 * GP, "A title on your page.", needs(HEROES, "The council must vote.", { ...ONE, keep: true })),
+  it("i41", "trophies", "general", "A Statue of the Party", 1000 * GP, "In the square.", needs(HEROES, "Pigeons included", { ...ONE, keep: true })),
   it("c-tale", "trophies", "candle", "A candle on the tale shelf", 0, "For the best tale on Tale Night.", earned()),
   it("c-pudding", "trophies", "candle", "The Pudding Slayer", 0, "A drink named after the party.", earned()),
 
@@ -145,6 +148,50 @@ export const SEED_ITEMS: Item[] = [
   it("p-wind", "magic", "peddler", "A Second Wind, Bottled", 0, "Uncork it when you’re down. You’ll get back up.", { ...FREE, finePrint: "*Payment will be collected later." }),
 ];
 
+// ---------- the bounty board (every job starts unpinned: the DM decides when it goes up) ----------
+
+const job = (id: string, j: Omit<Job, "id" | "status" | "pinned" | "createdAt" | "dm"> & { dm: Partial<Job["dm"]> }): Job => ({
+  id,
+  status: "open",
+  pinned: false,
+  createdAt: 0,
+  ...j,
+  dm: { adventure: "", loot: "", twists: "", notes: "", ...j.dm },
+});
+
+export const SEED_JOBS: Job[] = [
+  job("j-ransom", {
+    title: "My brother is being held for ransom",
+    postedBy: "Rolf Twyrtho, trader",
+    body: "Bandits holed up in the old twin towers on the road south, a day out from Baldur’s Gate, have taken my brother Adon and want coin for him. I’d sooner pay honest folk. Fifty gold apiece to bring him home safe, and to teach those thieves some manners. Ask for Rolf at the Flickering Candle.",
+    reward: { kind: "each", cp: 50 * GP },
+    renown: 0,
+    style: "bill",
+    dm: {
+      adventure: "“Robber Baron” (Adventures in Faerûn, Sword Coast)",
+      loot: "Roughly 500 gp in coins and gems in the hideout, plus a Potion of Climbing and a Spell Scroll of See Invisibility.",
+      twists: "The leader, Mardon Rueh, may offer to hire the party against the Eomane family, which leads to “Blood Night” (chapter 6).",
+    },
+  }),
+  job("j-sheep", {
+    title: "Wanted: whatever’s taking sheep on the Trollbark road",
+    postedBy: "The Candlefair council",
+    body: "Three flocks lost since the first frost. Tracks too big for wolves. Experienced parties only. Inquire with the council.",
+    reward: { kind: "total", cp: 500 * GP },
+    renown: KNOWN,
+    style: "official",
+    dm: { notes: "Placeholder: attach a real adventure later." },
+  }),
+  job("j-envelope", {
+    title: "",
+    postedBy: "",
+    body: "",
+    reward: { kind: "hidden", cp: 0 },
+    renown: TRUSTED,
+    style: "sealed",
+    dm: { notes: "Placeholder for a Baldur’s Gate patron job." },
+  }),
+];
 
 // ---------- maps ----------
 
@@ -252,6 +299,9 @@ export function seedGame(id: string, name = "Tales from the Flickering Candle", 
     banner: null,
     requests: [],
     ...emptyProgress(),
+    jobs: seedJobs(now),
+    renown: 0,
+    upgrades: ["jobs"],
     seq: 100,
   };
 }
@@ -271,6 +321,10 @@ export function freshStart(g: GameState): GameState {
   s.banner = null;
   s.requests = [];
   Object.assign(s, emptyProgress());
+  // Back to strangers, and every job flyer back in the drawer.
+  s.renown = 0;
+  delete s.renownMoment;
+  s.jobs = (s.jobs ?? []).map(({ takenBy, takenAt, doneAt, paidCp, pinnedAt, ...j }) => ({ ...j, status: "open" as const, pinned: false }));
   // The Chronicle starts again on an empty Chapter 1, and nobody has met anyone yet.
   s.notes = [];
   for (const sc of s.scenes) delete sc.known;
@@ -285,4 +339,9 @@ export function freshStart(g: GameState): GameState {
 /** Rentals, training, shares, awards, inbox tasks and flyers: none yet. */
 export function emptyProgress(): Pick<GameState, "rentals" | "trainings" | "stakes" | "effectsOn" | "awards" | "tasks" | "flyers"> {
   return { rentals: [], trainings: [], stakes: [], effectsOn: {}, awards: [], tasks: [], flyers: [] };
+}
+
+/** The starter job flyers, stamped with when they were made. */
+export function seedJobs(now: number): Job[] {
+  return structuredClone(SEED_JOBS).map((j) => ({ ...j, createdAt: now }));
 }

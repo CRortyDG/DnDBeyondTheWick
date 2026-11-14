@@ -5,7 +5,8 @@ import { creditLines, discountPct, firstChargeCp, priceOf, raisedCp, stakeTotals
 import { heldCp, heldStock } from "./requests";
 import { projectTable, type TableView } from "./arrival";
 import { notesOf, penName, projectChronicle, type ChronicleView } from "./chronicle";
-import type { Art, Banner, FlyerText, GameState, Item, ItemCategory, ItemKind, LedgerEntry, LegendStyle, LiveState, Player, RequestStatus, Scene, Shop } from "./types";
+import { jobsOf, jobTitle, rankName, RENOWN, renownMet, renownNeeded, renownOf, shopOpenNow, tierOf } from "./renown";
+import type { Art, Banner, FlyerText, GameState, Job, JobStyle, Item, ItemCategory, ItemKind, LedgerEntry, LegendStyle, LiveState, Player, RequestStatus, Scene, Shop } from "./types";
 
 export const GATED_ART = new Set(["merchant-sigil"]);
 
@@ -57,6 +58,8 @@ export interface PublicShop {
   subtitle: string;
   /** Visible but not selling yet: no goods are sent. */
   closed: boolean;
+  /** Waiting on the party's Renown: the rank it needs ("Known in town"). No goods are sent. */
+  needs?: string;
 }
 
 /**
@@ -76,6 +79,8 @@ export interface PublicItem {
   tier: "sale" | "locked" | "rumored";
   /** Locked: why. */
   reason?: string;
+  /** Locked until the party has this Renown ("Known in town"). */
+  needs?: string;
   /** Rumored: the one-line hint. */
   hint?: string;
   /** null = no limit. */
@@ -110,12 +115,48 @@ export interface PublicItem {
 /** A player flyer on the notice board. */
 export interface PublicFlyer extends FlyerText {
   id: string;
+  /** When it went up (orders the pins with the jobs). */
+  at: number;
+}
+
+/**
+ * A job flyer as the room sees it: only pinned ones, never the DM's notes.
+ * A sealed envelope comes with no title, poster or text.
+ */
+export interface PublicJob {
+  id: string;
+  style: JobStyle;
+  status: "open" | "taken" | "done";
+  title: string;
+  postedBy: string;
+  body: string;
+  /** null: the reward is hidden. */
+  reward: { kind: "each" | "total"; cp: number } | null;
+  /** The party isn't there yet: stamped "Experienced parties only", with the rank it needs. */
+  needs?: string;
+  at: number;
+}
+
+/** A job on my phone. */
+export interface MyJob extends PublicJob {
+  /** Open, and the party has the Renown for it. */
+  canTake: boolean;
+  /** I've asked the DM for it. */
+  asked: boolean;
+  /** Taken by me (or the player who asked). */
+  takenBy?: string;
+}
+
+export interface PublicRenown {
+  rank: number;
+  name: string;
+  meaning: string;
 }
 
 /** One of my phone requests, as I see it. */
 export interface MyRequest {
   id: string;
-  kind: "buy" | "give" | "contribute";
+  kind: "buy" | "give" | "contribute" | "job";
   at: number;
   status: RequestStatus;
   totalCp: number;
@@ -130,6 +171,7 @@ export interface MyRequest {
   /** The DM's answer to a service. */
   answer?: string;
   flyerTitle?: string;
+  jobTitle?: string;
 }
 
 /** What I have going: rentals, lessons, shares, titles, honours. */
@@ -164,6 +206,8 @@ interface Common {
   session: PublicSession | null;
   /** The latest "New at the Smithy" banner (only ever about things this viewer can see). */
   banner: Banner | null;
+  /** The party's Renown. */
+  renown: PublicRenown;
 }
 
 export interface TvView extends Common {
@@ -171,6 +215,10 @@ export interface TvView extends Common {
   live: Pick<LiveState, "sceneId" | "shopOpen" | "shopId" | "purseVisible" | "shopCategory">;
   /** Approved player flyers, while they're up. */
   flyers: PublicFlyer[];
+  /** Pinned job flyers. */
+  jobs: PublicJob[];
+  /** The last rank-up: the TV plays the moment when n changes. */
+  renownMoment?: { rank: number; name: string; n: number };
   /** Every non-reveal scene (for instant switching), plus the live scene even if it's a reveal. */
   scenes: PublicScene[];
   /** "Previously on…": only while the DM is showing it. The only session text the TV ever gets. */
@@ -211,6 +259,8 @@ export interface PlayerView extends Common {
   vttUrl?: string;
   /** The table's story notes. Hidden notes are left out entirely. */
   chronicle: ChronicleView;
+  /** The bounty board: pinned jobs. */
+  jobs: MyJob[];
 }
 
 export type DmPlayer = Omit<Player, "keyHash"> & { hasKey: boolean };
@@ -295,6 +345,7 @@ function publicItem(game: GameState, it: Item): PublicItem | null {
     // Name, price and description stay on the server; only the hint goes out.
     return { id: it.id, shopId: it.shopId, name: "???", priceCp: null, description: "", tier: "rumored", hint: it.hint, stock: null, category: it.category, kind: it.kind };
   }
+  const tier = tierOf(game, it);
   const hide = it.tier === "locked" && it.hidePrice;
   const out: PublicItem = {
     id: it.id,
@@ -302,7 +353,7 @@ function publicItem(game: GameState, it: Item): PublicItem | null {
     name: it.name,
     priceCp: hide ? null : priceOf(game, it),
     description: it.description,
-    tier: it.tier,
+    tier: tier as PublicItem["tier"],
     stock: it.stock,
     category: it.category,
     kind: it.kind,
@@ -326,7 +377,9 @@ function publicItem(game: GameState, it: Item): PublicItem | null {
     const ids = new Set(game.awards.filter((a) => a.itemId === it.id).flatMap((a) => a.playerIds));
     out.earnedBy = game.players.filter((p) => ids.has(p.id)).map((p) => p.name);
   }
-  if (it.tier === "locked") out.reason = it.reason;
+  if (tier === "locked") out.reason = it.reason;
+  const need = renownNeeded(game, it);
+  if (need !== null) out.needs = rankName(need);
   if (it.priceLabel) out.priceLabel = it.priceLabel;
   if (it.finePrint) out.finePrint = it.finePrint;
   if (it.arrivesInSessions) out.arrivesInSessions = it.arrivesInSessions;
@@ -342,15 +395,17 @@ function publicItem(game: GameState, it: Item): PublicItem | null {
 function common(game: GameState, version: number, viewer: Viewer): Common {
   const cur = game.sessions.find((x) => x.id === game.currentSessionId);
   const shops = game.shops.filter((sh) => shopVisibleTo(sh, viewer));
-  const open = new Set(shops.filter((sh) => !sh.closed).map((sh) => sh.id));
+  const open = new Set(shops.filter((sh) => shopOpenNow(game, sh)).map((sh) => sh.id));
+  const rank = renownOf(game);
   return {
     version,
     game: { id: game.id, name: game.name },
     purse: game.players.filter((p) => !p.archived && !p.away).map((p) => ({ id: p.id, name: p.name, balanceCp: p.balanceCp, inspired: !!p.inspired })),
-    shops: shops.map((x) => ({ id: x.id, name: x.name, subtitle: x.subtitle, closed: !!x.closed })),
+    shops: shops.map((x) => ({ id: x.id, name: x.name, subtitle: x.subtitle, closed: !!x.closed, ...(renownMet(game, x.renown) ? {} : { needs: rankName(x.renown ?? 0) }) })),
     items: game.items.filter((it) => open.has(it.shopId)).map((it) => publicItem(game, it)).filter((x): x is PublicItem => x !== null),
     session: cur ? { number: cur.number, title: cur.title } : null,
     banner: game.banner ? { ...game.banner } : null,
+    renown: { rank, name: RENOWN[rank].name, meaning: RENOWN[rank].meaning },
   };
 }
 
@@ -366,7 +421,9 @@ export function projectTv(game: GameState, version: number): TvView {
     ...common(game, version, { tv: true }),
     role: "tv",
     live: { sceneId: game.live.sceneId, ...liveShop(game, { tv: true }), purseVisible: game.live.purseVisible, ...(game.live.shopCategory ? { shopCategory: game.live.shopCategory } : {}) },
-    flyers: game.flyers.filter((f) => f.up).map((f) => ({ id: f.id, title: f.title, body: f.body, signedBy: f.signedBy })),
+    flyers: game.flyers.filter((f) => f.up).map((f) => ({ id: f.id, title: f.title, body: f.body, signedBy: f.signedBy, at: f.pinnedAt ?? f.postedAt })),
+    jobs: pinnedJobs(game).map((j) => publicJob(game, j)),
+    ...(game.renownMoment ? { renownMoment: { rank: game.renownMoment.rank, name: rankName(game.renownMoment.rank), n: game.renownMoment.n } } : {}),
     scenes: game.scenes.filter((sc) => !sc.reveal || sc.id === game.live.sceneId).map((sc) => publicScene(game, sc)),
     recap: publicRecap(game),
     ...(game.scenes.find((sc) => sc.id === game.live.sceneId)?.kind === "table" ? { table: projectTable(game) } : {}),
@@ -424,6 +481,7 @@ export function projectPlayer(game: GameState, version: number, playerId: string
         if (r.question) out.question = r.question;
         if (r.answer) out.answer = r.answer;
         if (r.flyer) out.flyerTitle = r.flyer.title;
+        if (r.jobTitle) out.jobTitle = r.jobTitle;
         return out;
       }),
     mine: myThings(game, p.id),
@@ -434,7 +492,39 @@ export function projectPlayer(game: GameState, version: number, playerId: string
       .reverse()
       .map((l) => ({ id: l.id, at: l.at, amountCp: l.amountCp, note: l.note })),
     chronicle: projectChronicle(game, { dm: false, playerId: p.id }),
+    jobs: pinnedJobs(game).map((j) => {
+      const pub = publicJob(game, j);
+      const asked = game.requests.some((r) => r.status === "pending" && r.kind === "job" && r.jobId === j.id && r.playerId === p.id);
+      const out: MyJob = { ...pub, canTake: pub.status === "open" && !pub.needs && !p.archived, asked };
+      const by = j.takenBy?.[0] && game.players.find((x) => x.id === j.takenBy![0]);
+      if (by && pub.status !== "open") out.takenBy = by.name;
+      return out;
+    }),
   };
+}
+
+/** Jobs on the board, in the order they went up. Pulled jobs never leave the server. */
+function pinnedJobs(game: GameState): Job[] {
+  return jobsOf(game)
+    .filter((j) => j.pinned && j.status !== "expired")
+    .sort((a, b) => (a.pinnedAt ?? a.createdAt) - (b.pinnedAt ?? b.createdAt));
+}
+
+/** Field by field: the DM's notes (adventure, loot, twists) never go out. */
+function publicJob(game: GameState, j: Job): PublicJob {
+  const sealed = j.style === "sealed";
+  const out: PublicJob = {
+    id: j.id,
+    style: j.style,
+    status: j.status === "expired" ? "open" : j.status,
+    title: sealed ? "" : jobTitle(j),
+    postedBy: sealed ? "" : j.postedBy,
+    body: sealed ? "" : j.body,
+    reward: j.reward.kind === "hidden" || j.reward.cp <= 0 ? null : { kind: j.reward.kind, cp: j.reward.cp },
+    at: j.pinnedAt ?? j.createdAt,
+  };
+  if (!renownMet(game, j.renown)) out.needs = rankName(j.renown);
+  return out;
 }
 
 function myThings(game: GameState, playerId: string): MyThings {

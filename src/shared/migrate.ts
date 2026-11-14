@@ -1,13 +1,13 @@
 // Upgrades a stored game to the current shape the first time it's read.
 // Safe to run on an already-current game.
-import { emptyProgress, STINGER_SCENE } from "./seed";
+import { emptyProgress, seedJobs, STINGER_SCENE } from "./seed";
 import type { Beat, GameState, Item, ItemCategory, Shop } from "./types";
 
 type Any = Record<string, unknown>;
 
 export function upgrade(raw: unknown): GameState {
   const g = raw as Any & { schema?: number };
-  if (g.schema === 2) return withStinger(withRequests(g as unknown as GameState));
+  if (g.schema === 2) return withJobs(withStinger(withRequests(g as unknown as GameState)));
 
   // 1 -> 2: shop visibility, item tiers, stock, special orders, banners.
   const shops = ((g.shops as Any[]) ?? []).map(
@@ -39,7 +39,7 @@ export function upgrade(raw: unknown): GameState {
     };
   });
   const live = { ...(g.live as Any), shopOpen: false } as unknown as GameState["live"];
-  return withStinger(withRequests({ ...(g as unknown as GameState), schema: 2, shops, items, live, orders: [], banner: null }));
+  return withJobs(withStinger(withRequests({ ...(g as unknown as GameState), schema: 2, shops, items, live, orders: [], banner: null })));
 }
 
 /** Phone purchase requests and the progression shop arrived after schema 2; older saves just have none. */
@@ -110,4 +110,11 @@ function withStinger(g: GameState): GameState {
     });
   }
   return out;
+}
+
+/** The bounty board arrived later: once per game, add the starter job flyers (unpinned). */
+function withJobs(g: GameState): GameState {
+  if (g.upgrades?.includes("jobs")) return g;
+  const have = new Set((g.jobs ?? []).map((j) => j.id));
+  return { ...g, jobs: [...(g.jobs ?? []), ...seedJobs(g.createdAt ?? 0).filter((j) => !have.has(j.id))], upgrades: [...(g.upgrades ?? []), "jobs"] };
 }
