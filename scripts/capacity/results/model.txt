@@ -1,0 +1,30 @@
+
+== New campaign
+Free tier sessions per UTC day, by limit (lowest first):
+  DO requests (pings billed, worst case)     169
+  Worker requests                            242
+  DO requests                                258
+  SQLite rows written                        320
+  SQLite rows read                           451
+  DO duration                                8,176
+R2 free storage (10 GB) holds about 3,051 nights of images; Class A allows 250,000 nights a month.
+Workers Paid, per month (images kept ~6 months):
+     10/day: $5.00 (pings billed: $5.00)  [all within included usage]  R2 held 6 GB
+    100/day: $5.88 (pings billed: $5.88)  [doRequests $0.15, r2Storage $0.73]  R2 held 59 GB
+   1000/day: $16.25 (pings billed: $17.15)  [workerRequests $0.90, doRequests $1.65, r2Storage $8.70]  R2 held 590 GB
+   2400/day: $36.13 (pings billed: $38.38)  [workerRequests $6.00, doRequests $4.05, r2Storage $21.08]  R2 held 1416 GB
+
+== ~20 nights in (1,300 ledger rows)
+Free tier sessions per UTC day, by limit (lowest first):
+  SQLite rows read                           12
+  DO requests (pings billed, worst case)     169
+  Worker requests                            242
+  DO requests                                258
+  SQLite rows written                        320
+  DO duration                                8,176
+R2 free storage (10 GB) holds about 3,051 nights of images; Class A allows 250,000 nights a month.
+Workers Paid, per month (images kept ~6 months):
+     10/day: $5.00 (pings billed: $5.00)  [all within included usage]  R2 held 6 GB
+    100/day: $5.88 (pings billed: $5.88)  [doRequests $0.15, r2Storage $0.73]  R2 held 59 GB
+   1000/day: $16.25 (pings billed: $17.15)  [workerRequests $0.90, doRequests $1.65, r2Storage $8.70]  R2 held 590 GB
+   2400/day: $39.54 (pings billed: $41.79)  [workerRequests $6.00, doRequests $4.05, rowsRead $3.41, r2Storage $21.08]  R2 held 1416 GB
