@@ -7,6 +7,9 @@ import type { Actor, GameState, LedgerEntry } from "@/shared/types";
 import { isDmKey, keyMatches, makeToken, sha256 } from "./auth";
 import type { Store } from "./store";
 
+/** The biggest a saved game may grow. A Durable Object row tops out at 2 MB, so past this a game refuses new growth instead of breaking. */
+export const MAX_STATE_CHARS = 1_500_000;
+
 export class HttpError extends Error {
   constructor(
     public status: number,
@@ -60,8 +63,14 @@ export async function execute(store: Store, game: string, actor: Actor, cmd: Com
       throw e;
     }
     // Nothing changed (a repeat knock, a no-op toggle): don't save or wake every screen.
-    if (result.ledger.length === 0 && JSON.stringify(result.state) === JSON.stringify(state)) {
+    const before = JSON.stringify(state);
+    const after = JSON.stringify(result.state);
+    if (result.ledger.length === 0 && after === before) {
       return { version, state: result.state, playerId: result.playerId, info: result.info };
+    }
+    // A game too big to save would stop working for everyone. Refuse growth past the cap; shrinking is always allowed.
+    if (after.length > MAX_STATE_CHARS && after.length > before.length) {
+      throw new HttpError(413, "This campaign is too full to save more. The DM can tidy up old notes, scenes or requests.", "too-big");
     }
     const v = await store.commit(game, version, result.state, result.ledger);
     if (v !== null) {
