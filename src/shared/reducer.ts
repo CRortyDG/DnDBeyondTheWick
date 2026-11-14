@@ -18,6 +18,7 @@ import { leadsOf, leadVisible, tally, voteClosed } from "./leads";
 import { findRef, sessionRecap, stageRank, blankEntry, ENTRIES_MAX, LEADS_MAX, entriesForScene, entriesOf, entryFromScene, entryScene, entryTags, factSlug, FACTS_MAX, isFound, slugify, uniqueSlug } from "./discovery";
 import { DM_AUTHOR } from "./types";
 import { boardNotes, cleanLook, cleanPlace, defaultWidth, NOTICES_MAX, placeFor, slugify as noteSlug, topZ } from "./board";
+import { decodeBits, emptyBits, encodeBits, fullBits } from "./fog";
 import { addPartyTokens, freeSpot, snapToGrid, syncFightTokens, tokensOf, TOKENS_MAX } from "./tokens";
 import { applyFight, isFightCommand, startFightFromBeat, type FightHelpers } from "./combatReducer";
 import type { Notice, NotePlace } from "./types";
@@ -1112,6 +1113,37 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
       const m = mapOf(cmd.sceneId);
       tokenOf(m, cmd.tokenId);
       m.tokens = tokensOf(m).filter((t) => t.id !== cmd.tokenId);
+      break;
+    }
+    // ---------- fog of war ----------
+    case "fog.setup": {
+      const m = mapOf(cmd.sceneId);
+      const L = cmd.layout;
+      if (cmd.tiles.urls.length !== cmd.tiles.cols * cmd.tiles.rows) fail("Those map pieces don't add up. Try again.");
+      const old = m.fog;
+      const same = !!old && old.cols === L.cols && old.rows === L.rows;
+      m.fog = { on: true, ...L, bits: cmd.keep && same ? old!.bits : emptyBits(L.cols, L.rows), tiles: { ...cmd.tiles } };
+      break;
+    }
+    case "fog.on": {
+      const m = mapOf(cmd.sceneId);
+      if (!m.fog) fail("Set up fog on this map first.");
+      m.fog.on = cmd.on;
+      break;
+    }
+    case "fog.bits": {
+      const m = mapOf(cmd.sceneId);
+      const f = m.fog ?? fail("Set up fog on this map first.");
+      const bits = decodeBits(cmd.bits, f.cols, f.rows);
+      // Normalise: drop bits past the last cell.
+      const n = f.cols * f.rows;
+      if (n % 8) bits[bits.length - 1] &= (1 << (n % 8)) - 1;
+      f.bits = encodeBits(bits);
+      break;
+    }
+    case "fog.all": {
+      const f = mapOf(cmd.sceneId).fog ?? fail("Set up fog on this map first.");
+      f.bits = cmd.clear ? fullBits(f.cols, f.rows) : emptyBits(f.cols, f.rows);
       break;
     }
     case "map.grid": {
@@ -2580,6 +2612,17 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
     }
 
     // ---------- players acting on themselves ----------
+    case "me.tokenMove": {
+      if (ctx.actor.role !== "player") fail("Only a player can do that.");
+      const pid = ctx.actor.playerId;
+      const live = s.scenes.find((x) => x.id === s.live.sceneId);
+      if (!live || live.kind !== "map" || !live.map) fail("There's no map on the TV right now.");
+      const m = live.map;
+      const t = tokensOf(m).find((x) => x.playerId === pid) ?? fail("You don't have a token on this map yet. Ask the DM.");
+      if (t.locked) fail("The DM has locked your token.");
+      Object.assign(t, snapToGrid(m.grid, cmd.x, cmd.y, t.size));
+      break;
+    }
     case "me.diceRoll": {
       const p = me();
       const last = (s.rolls ?? []).findLast((x) => x.by === p.id);

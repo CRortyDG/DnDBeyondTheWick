@@ -1,3 +1,4 @@
+import { TILES_MAX } from "@/shared/fog";
 import { KEY_HEADER, makeCampaignCode, newDmKey, sha256 } from "@/server/auth";
 import { handlePresetApi, isPresetPath, json, MISS_HEADER } from "@/server/api";
 import { normaliseGameId } from "@/shared/handles";
@@ -157,6 +158,51 @@ async function upload(req: Request, env: Env, ctx: ExecutionContext, ip: string)
   return json({ url: `/api/files/${name}` });
 }
 
+/**
+ * DM only: a map cut into tiles for fog of war (in the DM's browser), stored in
+ * one go. Each tile gets its own random name, so a tile's link says nothing
+ * about the tiles next to it.
+ */
+async function uploadTiles(req: Request, env: Env, ctx: ExecutionContext, ip: string): Promise<Response> {
+  if (await over(env.UPLOAD_LIMIT, ip)) return slowDown("Too many uploads at once. Wait a minute and try again.");
+  const url = new URL(req.url);
+  const game = normaliseGameId(url.searchParams.get("game"));
+  const key = req.headers.get(KEY_HEADER) ?? "";
+  const check = await room(env, game).fetch(new Request(`https://room/internal/dm-check?game=${encodeURIComponent(game)}`, { headers: { [KEY_HEADER]: key } }));
+  if (!check.ok) {
+    await noteMiss(env, ctx, ip);
+    return json({ error: "Only the DM can upload.", code: "bad-key" }, 401);
+  }
+  const len = Number(req.headers.get("Content-Length") ?? 0);
+  if (!len) return json({ error: "No map pieces." }, 411);
+  if (len > MAX_UPLOAD + 256 * 1024) return json({ error: "That map is too big to cut up (over 25 MB of pieces). Try a smaller image." }, 413);
+  const form = await req.formData().catch(() => null);
+  const files = (form?.getAll("tile") ?? []).filter((f): f is File => typeof f !== "string");
+  if (!files.length || files.length > TILES_MAX) return json({ error: `Send 1 to ${TILES_MAX} map pieces.` }, 400);
+  let total = 0;
+  for (const f of files) {
+    if (!TILE_EXT[f.type]) return json({ error: "A map piece isn't an image." }, 400);
+    total += f.size;
+  }
+  if (total > MAX_UPLOAD) return json({ error: "That map is too big to cut up (over 25 MB of pieces). Try a smaller image." }, 413);
+  const reserve = await room(env, game).fetch(
+    new Request(`https://room/internal/upload-reserve?game=${encodeURIComponent(game)}&size=${total}&count=${files.length}`, { method: "POST", headers: { [KEY_HEADER]: key } }),
+  );
+  if (!reserve.ok) return new Response(reserve.body, { status: reserve.status, headers: { "Content-Type": "application/json; charset=utf-8" } });
+  const urls = await Promise.all(
+    files.map(async (f) => {
+      const bytes = new Uint8Array(12);
+      crypto.getRandomValues(bytes);
+      const name = `${game}/${[...bytes].map((b) => b.toString(16).padStart(2, "0")).join("")}.${TILE_EXT[f.type]}`;
+      await env.FILES.put(name, f.stream(), { httpMetadata: { contentType: f.type } });
+      return `/api/files/${name}`;
+    }),
+  );
+  return json({ urls });
+}
+
+const TILE_EXT: Record<string, string> = { "image/webp": "webp", "image/jpeg": "jpg", "image/png": "png" };
+
 /** Uploaded images. The names are random, so the link is the permission. */
 async function serveFile(req: Request, env: Env, path: string): Promise<Response> {
   // A campaign's images are <code>/<random>; a preset's own copies are p/<preset code>/<random>.
@@ -202,6 +248,7 @@ export default {
         if (await over(env.API_LIMIT, ip)) return withHeaders(slowDown("Too many requests from here. Slow down a little."));
         if (path === "/api/create" && req.method === "POST") return withHeaders(await createCampaign(req, env, ctx));
         if (path === "/api/upload" && req.method === "POST") return withHeaders(await upload(req, env, ctx, ip));
+        if (path === "/api/upload-tiles" && req.method === "POST") return withHeaders(await uploadTiles(req, env, ctx, ip));
         if (isPresetPath(path)) return withHeaders(await settle(await handlePresetApi(req, new R2Presets(env.FILES)), env, ctx, ip));
         const res = await room(env, normaliseGameId(url.searchParams.get("game"))).fetch(req);
         return withHeaders(await settle(res, env, ctx, ip));

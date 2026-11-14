@@ -76,6 +76,31 @@ export interface MapData {
   tokens?: MapToken[];
   /** The square grid tokens snap to. Missing: no grid. */
   grid?: MapGrid;
+  /** Fog of war. Missing: never set up. */
+  fog?: MapFog;
+}
+
+/**
+ * Fog of war: a grid of cells over the image, each covered or clear. While it's
+ * on, the TV and phones never get the whole image: only the tiles that touch a
+ * clear cell (see fog.ts).
+ */
+export interface MapFog {
+  on: boolean;
+  /** The first cell's top-left corner (fractions of the image; 0 or a little less, so cells line up with the grid). */
+  x0: number;
+  y0: number;
+  /** One cell's width and height, as fractions of the image's width and height. */
+  cw: number;
+  ch: number;
+  cols: number;
+  rows: number;
+  /** The image's height over its width. */
+  aspect: number;
+  /** Clear cells, one bit each, row by row, base64. */
+  bits: string;
+  /** The image cut into pieces in the DM's browser, row by row. Missing or stale (the image changed): nothing of the map is sent while fog is on. */
+  tiles?: { cols: number; rows: number; urls: string[]; /** The image they were cut from. */ src: string };
 }
 
 export type TokenColor = "red" | "blue" | "green" | "gold" | "purple" | "teal" | "orange" | "grey";

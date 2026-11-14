@@ -187,14 +187,17 @@ export class GameRoom extends DurableObject<Env> implements Store {
     const json = (data: unknown, status = 200) => new Response(JSON.stringify(data), { status, headers: { "Content-Type": "application/json" } });
     if (!isDmKey(req.headers.get(KEY_HEADER), this.load().dmKeyHash)) return miss(json({ error: "Only the DM can upload.", code: "bad-key" }, 401));
     const size = Math.max(0, Number(url.searchParams.get("size")) || 0);
+    // A map cut into tiles for fog of war comes as one batch.
+    const count = Math.min(100, Math.max(1, Math.floor(Number(url.searchParams.get("count")) || 1)));
     this.sql.exec("CREATE TABLE IF NOT EXISTS uploads (id INTEGER PRIMARY KEY CHECK (id = 1), bytes INTEGER NOT NULL, files INTEGER NOT NULL)");
     const used = this.sql.exec<{ bytes: number; files: number }>("SELECT bytes, files FROM uploads WHERE id = 1").toArray()[0] ?? { bytes: 0, files: 0 };
-    if (used.files + 1 > UPLOAD_QUOTA_FILES || used.bytes + size > UPLOAD_QUOTA_BYTES) {
+    if (used.files + count > UPLOAD_QUOTA_FILES || used.bytes + size > UPLOAD_QUOTA_BYTES) {
       return json({ error: `This campaign has used its image space (${Math.round(UPLOAD_QUOTA_BYTES / 1024 / 1024)} MB or ${UPLOAD_QUOTA_FILES} images).`, code: "quota" }, 413);
     }
     this.sql.exec(
-      "INSERT INTO uploads (id, bytes, files) VALUES (1, ?, 1) ON CONFLICT(id) DO UPDATE SET bytes = bytes + excluded.bytes, files = files + 1",
+      "INSERT INTO uploads (id, bytes, files) VALUES (1, ?, ?) ON CONFLICT(id) DO UPDATE SET bytes = bytes + excluded.bytes, files = files + excluded.files",
       size,
+      count,
     );
     return json({ ok: true });
   }

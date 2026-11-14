@@ -7,6 +7,7 @@ import { fightDmCommands, fightPlayerCommands } from "./combatSchema";
 import { SHOW_REF_RE } from "./assets";
 import { storyDmCommands } from "./storySchema";
 import type { TokenColor } from "./types";
+import { FOG_MAX_CELLS, TILE_URL_RE, TILES_MAX } from "./fog";
 import { GRID_CELL_MAX, GRID_CELL_MIN, TOKEN_COLORS, TOKEN_SIZES } from "./tokens";
 import { AREAS_MAX, DM_TEXT_MAX, FACT_REF_RE, LEAD_MAX, REF_RE, FACT_MAX, HINT_MAX, LINKS_MAX, NAME_MAX, RELATION_IDS, STAGE_IDS, SUMMARY_MAX, TITLE_MAX } from "./discovery";
 
@@ -70,6 +71,22 @@ const gridSchema = z.object({
   ox: frac,
   oy: frac,
   aspect: z.number().min(0.05).max(20),
+});
+
+const fogLayoutSchema = z.object({
+  x0: z.number().min(-0.5).max(0),
+  y0: z.number().min(-0.5).max(0),
+  cw: z.number().min(0.002).max(1),
+  ch: z.number().min(0.002).max(1),
+  cols: z.number().int().min(1).max(FOG_MAX_CELLS),
+  rows: z.number().int().min(1).max(FOG_MAX_CELLS),
+  aspect: z.number().min(0.05).max(20),
+});
+const fogTilesSchema = z.object({
+  cols: z.number().int().min(1).max(20),
+  rows: z.number().int().min(1).max(20),
+  urls: z.array(z.string().regex(TILE_URL_RE)).min(1).max(TILES_MAX),
+  src: z.string().max(2048),
 });
 
 const scenePatch = z
@@ -268,6 +285,13 @@ export const dmCommand = z.discriminatedUnion("type", [
   z.object({ type: z.literal("token.remove"), sceneId: id, tokenId: id }),
   /** null: no grid. */
   z.object({ type: z.literal("map.grid"), sceneId: id, grid: gridSchema.nullable() }),
+  // Fog of war (see fog.ts).
+  /** Lay out the cells and the image's tiles, and turn fog on. keep: keep what's clear if the cells are the same. */
+  z.object({ type: z.literal("fog.setup"), sceneId: id, layout: fogLayoutSchema, tiles: fogTilesSchema, keep: z.boolean().optional() }),
+  z.object({ type: z.literal("fog.on"), sceneId: id, on: z.boolean() }),
+  /** Every cell at once (base64 bits, 1 = clear). */
+  z.object({ type: z.literal("fog.bits"), sceneId: id, bits: z.string().max(8000).regex(/^[A-Za-z0-9+/]*={0,2}$/) }),
+  z.object({ type: z.literal("fog.all"), sceneId: id, clear: z.boolean() }),
   /** Zoom the TV toward a pin on the live map, or back out with null. */
   z.object({ type: z.literal("live.focus"), pinId: id.nullable() }),
   /** Add the Candlefair and Sword Coast maps to a game created before maps existed. */
@@ -467,6 +491,8 @@ export const playerCommand = z.discriminatedUnion("type", [
   z.object({ type: z.literal("me.noteAdd"), text: noteText, tags: noteTags.optional(), chapterId: id.optional() }),
   z.object({ type: z.literal("me.noteUpdate"), noteId: id, patch: notePatch }),
   z.object({ type: z.literal("me.noteRemove"), noteId: id }),
+  /** Move my token on the map that's on the TV (not if the DM locked it). */
+  z.object({ type: z.literal("me.tokenMove"), x: frac, y: frac }),
   /** Roll dice from the phone: on the TV for the table, or for the DM only. The DM sees every roll. */
   z.object({ type: z.literal("me.diceRoll"), dice: diceAsk, plus: dicePlus, tv: z.boolean() }),
   // Combat mode: initiative, my HP, death saves, end my turn.

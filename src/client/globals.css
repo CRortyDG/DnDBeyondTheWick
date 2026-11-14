@@ -6564,3 +6564,99 @@ input.fld.inline-input {
   outline-offset: 2px;
 }
 .table-map .map-canvas { height: calc(100vh - 150px); }
+
+/* ---- fog of war */
+.map-tile {
+  position: absolute;
+  display: block;
+  max-width: none;
+  pointer-events: none;
+  user-select: none;
+}
+.map-fog {
+  position: absolute;
+  pointer-events: none;
+  z-index: 2;
+  filter: blur(calc(var(--fog-soft, 0.6) * 1vmin));
+  image-rendering: auto;
+}
+.map-fog.dm {
+  filter: none;
+  image-rendering: pixelated;
+}
+.map-box .seal { z-index: 3; }
+.tm-tools {
+  display: flex;
+  gap: 6px;
+}
+.note.warn {
+  color: var(--down);
+}
+
+/* ---- the live map on a phone */
+.phone-map {
+  margin: 10px 0 20px;
+}
+.phone-map-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+.phone-map-head h2 {
+  margin: 0;
+  font-size: 1.15rem;
+}
+.phone-map-head .btn.small {
+  min-width: 40px;
+}
+.phone-map-frame {
+  position: relative;
+  height: min(68vh, 640px);
+  min-height: 280px;
+  overflow: hidden;
+  background: #0d0a08;
+  border: 1px solid var(--wood);
+  border-radius: 8px;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.phone-map-pan {
+  position: absolute;
+  inset: 0;
+  transform-origin: 0 0;
+  will-change: transform;
+}
+.phone-map-frame .map-box {
+  position: absolute;
+}
+.phone-map-frame .map-img {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.tok-mine {
+  cursor: grab;
+  z-index: 7;
+}
+.tok-mine .tok-disc {
+  box-shadow:
+    0 0 0 3px var(--parchment),
+    0 4px 12px rgba(0, 0, 0, 0.6);
+}
+.tok-mine.dragging {
+  transition: none;
+  z-index: 9;
+}
+.tok-mine.locked {
+  cursor: default;
+}
+/* Names stay readable at any zoom: counter-scaled. */
+.phone-map .tok-name {
+  font-size: calc(11px / var(--z, 1));
+  transform: translate(-50%, calc(2px / var(--z, 1)));
+}
+.phone-map .tok:not(.tok-mine):not(.current) .tok-name {
+  opacity: 0.85;
+}

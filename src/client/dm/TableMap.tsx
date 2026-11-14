@@ -17,7 +17,9 @@ import { GridLines, Token } from "../ui/Tokens";
 import { Check } from "./Check";
 import { useDm } from "./context";
 import { Field } from "./Field";
-import { uploadImage } from "./upload";
+import { cutAndUploadTiles, uploadImage } from "./upload";
+import { cellAt, decodeBits, encodeBits, fogLayout, setBit, tileGrid } from "@/shared/fog";
+import { FogLayer } from "../ui/Fog";
 
 type TokenPatch = Extract<DmCommand, { type: "token.update" }>["patch"];
 
@@ -36,7 +38,7 @@ export function TableMap({ sceneId, onClose }: { sceneId: string; onClose: () =>
 }
 
 function Table({ scene, onClose }: { scene: Scene; onClose: () => void }) {
-  const { view, run, toast } = useDm();
+  const { view, run, toast, ident } = useDm();
   const s = view.state;
   const m = scene.map!;
   const tokens = useMemo(() => m.tokens ?? [], [m.tokens]);
@@ -112,19 +114,112 @@ function Table({ scene, onClose }: { scene: Scene; onClose: () => void }) {
     moveTo(t, p.x, p.y);
   };
 
+  // ---------- fog of war ----------
+  const fog = m.fog;
+  const [fogOpen, setFogOpen] = useState(false);
+  const [fogTool, setFogTool] = useState<"reveal" | "cover" | "box" | null>(null);
+  const [brush, setBrush] = useState(1);
+  const [fogBusy, setFogBusy] = useState(false);
+  /** This screen's cells while a stroke is on its way to the server. */
+  const [localBits, setLocalBits] = useState<Uint8Array | null>(null);
+  const fogBits = fog?.bits;
+  useEffect(() => setLocalBits(null), [fogBits]);
+  const stroke = useRef<{ bits: Uint8Array; box?: { x0: number; y0: number } } | null>(null);
+  const [fogBox, setFogBox] = useState<{ x0: number; y0: number; x1: number; y1: number } | null>(null);
+  const artUrl = scene.art?.url;
+  const tilesStale = !!fog && (!fog.tiles || fog.tiles.src !== artUrl);
+  const wantLayout = fogLayout(m.grid, aspect);
+  const offGrid = !!fog && !!m.grid && (Math.abs(fog.cw - wantLayout.cw) > 1e-4 || Math.abs(fog.x0 - wantLayout.x0) > 1e-4 || Math.abs(fog.y0 - wantLayout.y0) > 1e-4);
+
+  const setupFog = async (keep: boolean) => {
+    if (!artUrl || !src) return toast("Upload the map image first (Edit map).");
+    setFogBusy(true);
+    try {
+      const tiles = await cutAndUploadTiles(ident, src, tileGrid(aspect));
+      const layout = fogLayout(m.grid, aspect);
+      if (await run({ type: "fog.setup", sceneId, layout, tiles: { ...tiles, src: artUrl }, keep }, keep ? "Fog updated." : "Fog is on: the whole map is covered. Reveal what the party can see.")) setFogTool("reveal");
+    } catch (err) {
+      toast(err instanceof Error ? err.message : String(err));
+    } finally {
+      setFogBusy(false);
+    }
+  };
+
+  const paintAt = (bits: Uint8Array, x: number, y: number, clear: boolean) => {
+    if (!fog) return;
+    const cell = cellAt(fog, x, y);
+    if (!cell) return;
+    const rad = brush - 1;
+    for (let r = cell.r - rad; r <= cell.r + rad; r++) {
+      for (let c = cell.c - rad; c <= cell.c + rad; c++) {
+        if (r < 0 || c < 0 || r >= fog.rows || c >= fog.cols) continue;
+        if (rad > 0 && (c - cell.c) ** 2 + (r - cell.r) ** 2 > rad * rad + rad) continue;
+        setBit(bits, r * fog.cols + c, clear);
+      }
+    }
+  };
+  const fillBox = (bits: Uint8Array, b: { x0: number; y0: number; x1: number; y1: number }) => {
+    if (!fog) return;
+    const a = cellAt(fog, Math.min(b.x0, b.x1), Math.min(b.y0, b.y1)) ?? { c: 0, r: 0 };
+    const z = cellAt(fog, Math.max(b.x0, b.x1), Math.max(b.y0, b.y1)) ?? { c: fog.cols - 1, r: fog.rows - 1 };
+    for (let r = a.r; r <= z.r; r++) for (let c = a.c; c <= z.c; c++) setBit(bits, r * fog.cols + c, true);
+  };
+  const fogDown = (e: React.PointerEvent) => {
+    if (!fog || !fogTool || e.button !== 0) return false;
+    e.currentTarget.setPointerCapture(e.pointerId);
+    const bits = new Uint8Array(localBits ?? decodeBits(fog.bits, fog.cols, fog.rows));
+    const p = fracAt(e.clientX, e.clientY);
+    if (fogTool === "box") {
+      stroke.current = { bits, box: { x0: p.x, y0: p.y } };
+      setFogBox({ x0: p.x, y0: p.y, x1: p.x, y1: p.y });
+    } else {
+      stroke.current = { bits };
+      paintAt(bits, p.x, p.y, fogTool === "reveal");
+      setLocalBits(new Uint8Array(bits));
+    }
+    return true;
+  };
+  const fogMove = (e: React.PointerEvent) => {
+    const st = stroke.current;
+    if (!st) return false;
+    const p = fracAt(e.clientX, e.clientY);
+    if (st.box) setFogBox({ x0: st.box.x0, y0: st.box.y0, x1: p.x, y1: p.y });
+    else {
+      paintAt(st.bits, p.x, p.y, fogTool === "reveal");
+      setLocalBits(new Uint8Array(st.bits));
+    }
+    return true;
+  };
+  const fogUp = (e: React.PointerEvent) => {
+    const st = stroke.current;
+    if (!st) return false;
+    stroke.current = null;
+    if (st.box) {
+      const p = fracAt(e.clientX, e.clientY);
+      fillBox(st.bits, { x0: st.box.x0, y0: st.box.y0, x1: p.x, y1: p.y });
+      setFogBox(null);
+      setLocalBits(new Uint8Array(st.bits));
+    }
+    void run({ type: "fog.bits", sceneId, bits: encodeBits(st.bits) });
+    return true;
+  };
+
   // ---------- measuring a square ----------
   const onBoxDown = (e: React.PointerEvent) => {
+    if (fogDown(e)) return;
     if (!measuring || e.button !== 0) return;
     e.currentTarget.setPointerCapture(e.pointerId);
     const p = fracAt(e.clientX, e.clientY);
     setMeasure({ x0: p.x, y0: p.y, x1: p.x, y1: p.y });
   };
   const onBoxMove = (e: React.PointerEvent) => {
+    if (fogMove(e)) return;
     if (!measuring || !measure) return;
     const p = fracAt(e.clientX, e.clientY);
     setMeasure({ ...measure, x1: p.x, y1: p.y });
   };
-  const onBoxUp = () => {
+  const onBoxUp = (e: React.PointerEvent) => {
+    if (fogUp(e)) return;
     if (!measuring || !measure) return;
     const wFrac = Math.abs(measure.x1 - measure.x0);
     const hFrac = Math.abs(measure.y1 - measure.y0) * aspect; // as a fraction of the width
@@ -191,6 +286,7 @@ function Table({ scene, onClose }: { scene: Scene; onClose: () => void }) {
     if (e.key === "Escape") {
       stop();
       if (measuring) setMeasuring(false);
+      else if (fogTool) setFogTool(null);
       else if (selected) setSelectedId(null);
       else onClose();
     }
@@ -229,6 +325,17 @@ function Table({ scene, onClose }: { scene: Scene; onClose: () => void }) {
         </button>
         <button type="button" className={`btn${gridOpen ? " on" : ""}`} aria-pressed={gridOpen} onClick={() => setGridOpen(!gridOpen)}>
           Grid{g ? (g.snap ? " · snap" : " · free") : " · off"}
+        </button>
+        <button
+          type="button"
+          className={`btn${fogOpen ? " on" : ""}`}
+          aria-pressed={fogOpen}
+          onClick={() => {
+            setFogOpen(!fogOpen);
+            if (fogOpen) setFogTool(null);
+          }}
+        >
+          Fog{fog?.on ? " · on" : " · off"}
         </button>
         <span className="spacer" />
         {running ? (
@@ -285,8 +392,61 @@ function Table({ scene, onClose }: { scene: Scene; onClose: () => void }) {
         </div>
       ) : null}
 
+      {fogOpen ? (
+        <div className="tm-grid box" aria-label="Fog of war">
+          {!fog ? (
+            <>
+              <span className="note">Cover the map and reveal it as the party explores. Only what's revealed is ever sent to the TV and phones.{g ? " Fog lines up with the grid." : " Set a grid first if you want fog to follow the map's squares."}</span>
+              <button type="button" className="btn small primary" disabled={fogBusy || !src} onClick={() => void setupFog(false)}>
+                {fogBusy ? "Cutting up the map…" : "Cover the map in fog"}
+              </button>
+            </>
+          ) : (
+            <>
+              <Check checked={fog.on} onChange={(v) => run({ type: "fog.on", sceneId, on: v })}>
+                Fog on
+              </Check>
+              <div className="tm-tools" role="radiogroup" aria-label="Fog tool">
+                {(
+                  [
+                    ["reveal", "Reveal brush"],
+                    ["cover", "Cover brush"],
+                    ["box", "Reveal a box"],
+                  ] as const
+                ).map(([k, label]) => (
+                  <button key={k} type="button" role="radio" aria-checked={fogTool === k} className={`btn small${fogTool === k ? " on" : ""}`} onClick={() => setFogTool(fogTool === k ? null : k)}>
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <label className="inline-label">
+                Brush
+                <select className="fld small" value={brush} onChange={(e) => setBrush(Number(e.target.value))}>
+                  <option value={1}>1 square</option>
+                  <option value={2}>3 across</option>
+                  <option value={3}>5 across</option>
+                  <option value={5}>9 across</option>
+                </select>
+              </label>
+              <button type="button" className="btn small" onClick={() => run({ type: "fog.all", sceneId, clear: true }, "All revealed.")}>
+                Reveal all
+              </button>
+              <button type="button" className="btn small" onClick={() => run({ type: "fog.all", sceneId, clear: false }, "All covered.")}>
+                Cover all
+              </button>
+              {tilesStale || offGrid ? (
+                <button type="button" className="btn small primary" disabled={fogBusy} onClick={() => void setupFog(!offGrid)} title={tilesStale ? "The map image changed since the fog was set up" : "The grid moved since the fog was set up"}>
+                  {fogBusy ? "Cutting up the map…" : tilesStale ? "Update for the new image" : "Line fog up with the grid (covers all)"}
+                </button>
+              ) : null}
+              {tilesStale ? <span className="note warn">The image changed: the TV shows nothing of this map until you update.</span> : null}
+            </>
+          )}
+        </div>
+      ) : null}
+
       <div className="map-editor-body">
-        <div ref={outer} className={`map-canvas${measuring ? " tm-measuring" : ""}`} style={{ "--seal": `${sealPx}px` } as CSSProperties}>
+        <div ref={outer} className={`map-canvas${measuring || fogTool ? " tm-measuring" : ""}`} style={{ "--seal": `${sealPx}px` } as CSSProperties}>
           <div
             ref={boxEl}
             className="map-box"
@@ -295,7 +455,7 @@ function Table({ scene, onClose }: { scene: Scene; onClose: () => void }) {
             onPointerMove={onBoxMove}
             onPointerUp={onBoxUp}
             onClick={(e) => {
-              if (!measuring && !(e.target as HTMLElement).closest(".tok")) setSelectedId(null);
+              if (!measuring && !fogTool && !(e.target as HTMLElement).closest(".tok")) setSelectedId(null);
             }}
           >
             {src ? (
@@ -309,6 +469,18 @@ function Table({ scene, onClose }: { scene: Scene; onClose: () => void }) {
               <div className={g.lines ? "" : "tm-grid-dm-only"}>
                 <GridLines grid={g} width={box.width} height={box.height} />
               </div>
+            ) : null}
+            {fog?.on ? <FogLayer fog={fog} bits={localBits ?? fog.bits} dm /> : null}
+            {fogBox ? (
+              <div
+                className="tm-measure"
+                style={{
+                  left: `${Math.min(fogBox.x0, fogBox.x1) * 100}%`,
+                  top: `${Math.min(fogBox.y0, fogBox.y1) * 100}%`,
+                  width: `${Math.abs(fogBox.x1 - fogBox.x0) * 100}%`,
+                  height: `${Math.abs(fogBox.y1 - fogBox.y0) * 100}%`,
+                }}
+              />
             ) : null}
             {pins.map((p) => (
               <Seal key={p.id} label={sealText(p)} className={`tm-pin${p.discovered ? "" : " hidden-pin"}`} style={{ left: `${p.x * 100}%`, top: `${p.y * 100}%`, transform: "translate(-50%, -50%)" }} />

@@ -1,7 +1,7 @@
 // Tokens on maps: the party, monsters from the fight, the grid, and what never reaches the TV.
 import { describe, expect, it } from "vitest";
 import { dmCommand, type Command } from "@/shared/commands";
-import { projectTv } from "@/shared/projection";
+import { projectPlayer, projectTv } from "@/shared/projection";
 import { apply, type Ctx } from "@/shared/reducer";
 import { seedGame } from "@/shared/seed";
 import { initials, snapToGrid } from "@/shared/tokens";
@@ -146,5 +146,36 @@ describe("initials", () => {
     expect(initials("Goblin A")).toBe("GA");
     expect(initials("Mags")).toBe("MA");
     expect(initials("")).toBe("?");
+  });
+});
+
+describe("the map on phones", () => {
+  it("is there only while a map is on the TV", () => {
+    let g = game();
+    expect(projectPlayer(g, 1, "p1", []).map).toBeUndefined();
+    g = run(g, [{ type: "scene.show", sceneId: MAP }]);
+    expect(projectPlayer(g, 1, "p1", []).map?.sceneId).toBe(MAP);
+  });
+
+  it("lets a player move their own token, snapped, unless it's locked", () => {
+    let g = run(game(), [
+      { type: "scene.show", sceneId: MAP },
+      { type: "map.grid", sceneId: MAP, grid: { snap: true, lines: false, cell: 0.1, ox: 0, oy: 0, aspect: 1 } },
+      { type: "token.party", sceneId: MAP, x: 0.5, y: 0.5 },
+    ]);
+    g = run(g, [[{ type: "me.tokenMove", x: 0.12, y: 0.88 }, as("p1")]]);
+    const mine = tokens(g).find((t) => t.playerId === "p1")!;
+    expect(mine).toMatchObject({ x: 0.15, y: 0.85 });
+    // Ash's token didn't move.
+    expect(tokens(g).find((t) => t.playerId === "p2")!.x).not.toBe(0.15);
+    g = run(g, [{ type: "token.update", sceneId: MAP, tokenId: mine.id, patch: { locked: true } }]);
+    expect(() => run(g, [[{ type: "me.tokenMove", x: 0.5, y: 0.5 }, as("p1")]])).toThrow(/locked/);
+  });
+
+  it("refuses a move with no map on the TV or no token", () => {
+    const g = game();
+    expect(() => run(g, [[{ type: "me.tokenMove", x: 0.5, y: 0.5 }, as("p1")]])).toThrow(/no map/);
+    const g2 = run(g, [{ type: "scene.show", sceneId: MAP }]);
+    expect(() => run(g2, [[{ type: "me.tokenMove", x: 0.5, y: 0.5 }, as("p1")]])).toThrow(/token/);
   });
 });

@@ -3,6 +3,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from "react";
 import { fitBox, zoomToward, type Box } from "@/shared/mapGeometry";
 import type { PublicMap } from "@/shared/projection";
+import { FogLayer, FogTiles } from "./Fog";
 import { GridLines, Token } from "./Tokens";
 
 const ZOOM = 2;
@@ -11,7 +12,8 @@ const BANNER_MS = 5000;
 const PLACEHOLDER = { w: 1600, h: 900 };
 
 /** Measure the screen and the image, and work out where the letterboxed image sits. */
-export function useMapBox(outer: RefObject<HTMLDivElement | null>, src: string | undefined) {
+/** aspect: lay the box out at this height-over-width without an image (a fogged map comes as tiles). */
+export function useMapBox(outer: RefObject<HTMLDivElement | null>, src: string | undefined, aspect?: number) {
   const [size, setSize] = useState({ w: 0, h: 0 });
   const [nat, setNat] = useState<{ w: number; h: number; src: string } | null>(null);
 
@@ -25,7 +27,7 @@ export function useMapBox(outer: RefObject<HTMLDivElement | null>, src: string |
     return () => ro.disconnect();
   }, [outer]);
 
-  const img = nat && nat.src === src ? nat : PLACEHOLDER;
+  const img = aspect ? { w: 1000, h: 1000 * aspect } : nat && nat.src === src ? nat : PLACEHOLDER;
   const box: Box = fitBox(size.w, size.h, img.w, img.h);
   /** One TV "pixel" at 1920x1080, for this screen (the DM's preview is smaller). */
   const unit = Math.min(size.w / 1920, size.h / 1080) || 0;
@@ -66,7 +68,8 @@ export function Seal({ label, className = "", style, children, ...rest }: { labe
 /** A map scene as the TV shows it: discovered pins only, plus the legend, focus zoom and discovery banner. */
 export function MapView({ src, alt, map, emptyHint }: { src?: string; alt?: string; map: PublicMap; emptyHint?: string }) {
   const outer = useRef<HTMLDivElement>(null);
-  const { size, box, unit, onLoad } = useMapBox(outer, src);
+  const fog = map.fog;
+  const { size, box, unit, onLoad } = useMapBox(outer, fog ? undefined : src, fog?.aspect);
   const reduced = usePrefersReducedMotion();
   const banner = useBanner(map.banner);
 
@@ -80,7 +83,14 @@ export function MapView({ src, alt, map, emptyHint }: { src?: string; alt?: stri
         className="map-box"
         style={{ left: box.left, top: box.top, width: box.width, height: box.height, transform: `translate(${zoom.tx}px, ${zoom.ty}px) scale(${zoom.scale})` }}
       >
-        {src ? <img className="map-img" src={src} alt={alt ?? ""} onLoad={onLoad} draggable={false} /> : <div className="map-empty">{emptyHint ? <span>{emptyHint}</span> : null}</div>}
+        {fog ? (
+          <FogTiles fog={fog} />
+        ) : src ? (
+          <img className="map-img" src={src} alt={alt ?? ""} onLoad={onLoad} draggable={false} />
+        ) : (
+          <div className="map-empty">{emptyHint ? <span>{emptyHint}</span> : null}</div>
+        )}
+        {fog ? <FogLayer fog={fog} bits={fog.bits} /> : null}
         {map.grid?.lines ? <GridLines grid={map.grid} width={box.width} height={box.height} /> : null}
         {map.tokens.map((t) => (
           <Token key={t.id} t={t} x={t.x} y={t.y} boxWidth={box.width} className="tok-tv" />
