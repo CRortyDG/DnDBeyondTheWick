@@ -600,12 +600,18 @@ export function applyFight(s: GameState, cmd: FightCommand, h: FightHelpers): vo
 /** "Fought 2 Goblins in the old mill. 4 rounds." Uses the names the table knows. */
 export function chronicleLine(f: Fight, items = "", lootCp = 0): string {
   const foes = f.order.filter((c) => c.kind === "monster" && !c.hidden);
-  const byName = new Map<string, number>();
+  // Revealed names read as plurals ("2 Goblins"); a TV name that hides the truth stays as it is ("Something in the shadows (×2)").
+  const byName = new Map<string, { count: number; revealed: boolean }>();
   for (const c of foes) {
     const base = tvName(c).replace(/ (?:[A-Z]|\d+)$/, "");
-    byName.set(base, (byName.get(base) ?? 0) + 1);
+    const g = byName.get(base) ?? { count: 0, revealed: c.revealed };
+    g.count += 1;
+    byName.set(base, g);
   }
-  const who = groupTitle([...byName].map(([name, count]) => ({ name, count }))) || "a fight";
+  const who =
+    [...byName]
+      .map(([name, g]) => (g.revealed || g.count === 1 ? groupTitle([{ name, count: g.count }]) : `${name} (×${g.count})`))
+      .join(", ") || "a fight";
   const where = f.where.trim() ? ` ${/^(in|at|on|by|near|inside|outside|under)\b/i.test(f.where.trim()) ? "" : "in "}${f.where.trim()}` : "";
   const rounds = `${f.round} round${f.round === 1 ? "" : "s"}`;
   const parts = [`Fought ${who}${where}. ${rounds}.`];

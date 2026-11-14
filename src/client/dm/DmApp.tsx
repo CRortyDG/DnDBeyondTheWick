@@ -29,8 +29,11 @@ import { duesFor } from "@/shared/progress";
 import { ArrivalPanel } from "./ArrivalPanel";
 import { ChroniclePanel } from "./ChroniclePanel";
 import { BoardPanel } from "./BoardPanel";
+import { FightScreen } from "./FightScreen";
+import { MonstersPanel } from "./MonstersPanel";
+import { FightOverlay } from "../ui/FightOverlay";
 
-type Tab = "bank" | "shop" | "board" | "scenes" | "players" | "arrival" | "episodes" | "chronicle" | "game";
+type Tab = "bank" | "shop" | "board" | "scenes" | "players" | "arrival" | "episodes" | "monsters" | "chronicle" | "game";
 const TABS: [Tab, string, string][] = [
   ["bank", "Bank", "B"],
   ["shop", "Shop", ""],
@@ -39,6 +42,7 @@ const TABS: [Tab, string, string][] = [
   ["players", "Players", ""],
   ["arrival", "Arrival", ""],
   ["episodes", "Episodes", ""],
+  ["monsters", "Monsters", ""],
   ["chronicle", "Chronicle", ""],
   ["game", "Game", ""],
 ];
@@ -178,6 +182,41 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
     }
   });
   const [pickEpisode, setPickEpisode] = useState<string>("");
+
+  // Combat mode. The fight screen opens whenever a fight starts (from here, the
+  // Monsters tab or a run sheet beat), and on reload, unless you left it on this device.
+  const fightKey = `candlefair-fight-left:${ident.game}`;
+  const fightId = s.fight?.id;
+  const [fightOpen, setFightOpen] = useState(() => {
+    if (!fightId) return false;
+    try {
+      return sessionStorage.getItem(fightKey) !== fightId;
+    } catch {
+      return true;
+    }
+  });
+  const lastFight = useRef(fightId);
+  useEffect(() => {
+    if (fightId && fightId !== lastFight.current) {
+      setFightOpen(true);
+      window.scrollTo(0, 0);
+    }
+    lastFight.current = fightId;
+  }, [fightId]);
+  const leaveFight = useCallback(() => {
+    setFightOpen(false);
+    try {
+      if (fightId) sessionStorage.setItem(fightKey, fightId);
+    } catch {}
+  }, [fightKey, fightId]);
+  const openFight = useCallback(() => {
+    try {
+      sessionStorage.removeItem(fightKey);
+    } catch {}
+    setFightOpen(true);
+    window.scrollTo(0, 0);
+  }, [fightKey]);
+  const startFight = () => run({ type: "fight.start" }, "Roll initiative! The TV and phones are asking.");
   const leaveRun = useCallback(() => {
     setRunOpen(false);
     try {
@@ -258,10 +297,21 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
   const runningEp = session?.run ? episodes.find((e) => e.id === session.run!.episodeId) : undefined;
   const chosenEp = episodes.find((e) => e.id === pickEpisode) ?? episodes[0];
 
+  if (fightOpen && s.fight) {
+    return (
+      <DmContext.Provider value={ctx}>
+        <FightScreen onExit={leaveFight} />
+        <div className={`toast${toastMsg ? " show" : ""}`} role="status" aria-live="polite">
+          {toastMsg?.text}
+        </div>
+      </DmContext.Provider>
+    );
+  }
+
   if (runOpen && session?.run) {
     return (
       <DmContext.Provider value={ctx}>
-        <RunGame onExit={leaveRun} />
+        <RunGame onExit={leaveRun} onFight={openFight} />
         <div className={`toast${toastMsg ? " show" : ""}`} role="status" aria-live="polite">
           {toastMsg?.text}
         </div>
@@ -293,6 +343,15 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
           ) : (
             <button className="btn primary" type="button" onClick={() => run({ type: "session.start" }, "Session started. The TV is back on the notice board.")}>
               Start session {nextSessionNumber(s)}
+            </button>
+          )}
+          {s.fight ? (
+            <button className="btn primary" type="button" onClick={openFight}>
+              Back to the fight
+            </button>
+          ) : (
+            <button className="btn" type="button" onClick={startFight} title="Roll initiative! on the TV and phones; add monsters on the fight screen">
+              Start fight
             </button>
           )}
           {runningEp ? (
@@ -356,6 +415,13 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
                 <div className="preview-shop" aria-label={`Shop open on the TV: ${liveShop.name}`}>
                   <Stage w={1920} h={1080}>
                     <ShopBoard shops={tvView.shops} items={tvView.items} shopId={liveShop.id} size="tv" mode={s.live.shopCategory ? "category" : "shop"} category={s.live.shopCategory} />
+                  </Stage>
+                </div>
+              ) : null}
+              {tvView.fight ? (
+                <div className="preview-fight" aria-label="The fight on the TV">
+                  <Stage w={1920} h={1080}>
+                    <FightOverlay fight={tvView.fight} preview />
                   </Stage>
                 </div>
               ) : null}
@@ -438,6 +504,7 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
               {tab === "players" ? <PlayersPanel /> : null}
               {tab === "arrival" ? <ArrivalPanel /> : null}
               {tab === "episodes" ? <EpisodesPanel onRun={startRun} /> : null}
+              {tab === "monsters" ? <MonstersPanel onFight={openFight} /> : null}
               {tab === "chronicle" ? <ChroniclePanel /> : null}
               {tab === "game" ? <GamePanel /> : null}
             </div>

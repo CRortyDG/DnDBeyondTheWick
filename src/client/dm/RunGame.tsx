@@ -23,7 +23,7 @@ export function actionLabel(a: BeatAction, scenes: Scene[]): string {
   return sc.kind === "portrait" ? `TV → ${sc.label}’s portrait` : `TV → ${sc.label}`;
 }
 
-export function RunGame({ onExit }: { onExit: () => void }) {
+export function RunGame({ onExit, onFight }: { onExit: () => void; onFight?: () => void }) {
   const { view, run } = useDm();
   const s = view.state;
   const session = s.sessions.find((x) => x.id === s.currentSessionId);
@@ -129,6 +129,11 @@ export function RunGame({ onExit }: { onExit: () => void }) {
           {s.live.purseVisible ? " · purse" : ""}
         </span>
         <Inbox />
+        {s.fight && onFight ? (
+          <button className="btn small primary" type="button" onClick={onFight}>
+            Back to the fight
+          </button>
+        ) : null}
         <button className="btn small" type="button" onClick={() => setBank(true)}>
           <span className="key">B</span> Bank
         </button>

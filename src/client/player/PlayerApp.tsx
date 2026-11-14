@@ -12,6 +12,7 @@ import { Chronicle } from "../ui/Chronicle";
 import { BannerToast } from "../ui/BannerToast";
 import { InspirationIcon, LockIcon } from "../ui/icons";
 import { Jobs } from "./Jobs";
+import { FightCard } from "./FightCard";
 import { askLabel, DecisionBanners, MyRequests, RequestSheet, SendGold, whyNot } from "./Requests";
 
 export function PlayerApp({ ident: initial }: { ident: Ident }) {
@@ -139,6 +140,7 @@ function PlayerScreen({ view, online, send, ident, setIdent }: { view: PlayerVie
         </div>
       </header>
       <DecisionBanners view={view} />
+      {view.fight ? <FightCard view={view} send={send} /> : null}
       <BannerToast banner={view.banner} className="phone-banner" />
       <div className="tabs player-screens" role="tablist" aria-label="Your page">
         <button type="button" role="tab" aria-selected={screen === "chronicle"} className={`btn tab${screen === "chronicle" ? " on" : ""}`} onClick={() => setScreen("chronicle")}>

@@ -421,3 +421,15 @@ describe("reliability", () => {
     expect(phone.myFight!.init).toBe(14);
   });
 });
+
+describe("the Chronicle line", () => {
+  it("uses the names the table knows", async () => {
+    const { chronicleLine } = await import("@/shared/combatReducer");
+    let g = begun();
+    ({ state: g } = run(g, [{ type: "fight.settings", where: "in the feast hall" }, { type: "fight.next" }, { type: "fight.end" }]));
+    expect(chronicleLine(g.fight!)).toBe("Fought Something in the pudding (×2) in the feast hall. 1 round.");
+    const ids = g.fight!.order.filter((c) => c.kind === "monster").map((c) => c.id);
+    ({ state: g } = run(g, [{ type: "fight.patch", combatantIds: ids, patch: { revealed: true } }]));
+    expect(chronicleLine(g.fight!, "a ladle", 4000)).toBe("Fought 2 Pudding Gremlins in the feast hall. 1 round. Found: 40 gp, a ladle.");
+  });
+});
