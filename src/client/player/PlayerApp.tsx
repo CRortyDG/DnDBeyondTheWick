@@ -96,7 +96,7 @@ function PlayerScreen({ view, online, send, ident, setIdent }: { view: PlayerVie
 
   if (me.archived) {
     return (
-      <Notice title={`Farewell, ${me.name}`}>
+      <Notice title={`Farewell, ${me.character ?? me.name}`}>
         <p>The DM has marked you as having left the table. Ask them to bring you back.</p>
       </Notice>
     );
@@ -117,10 +117,11 @@ function PlayerScreen({ view, online, send, ident, setIdent }: { view: PlayerVie
       <header className="player-top">
         <div>
           <div className="player-hello">{view.game.name}</div>
-          <h1 className="player-name">{me.name}</h1>
-          <button type="button" className="renown-chip linkish" onClick={() => setScreen("jobs")} aria-label={`Party Renown: ${view.renown.name}. See the notice board.`}>
-            Renown <b>{view.renown.name}</b>
-          </button>
+          <h1 className="player-name">{me.character ?? me.name}</h1>
+          <p className="renown-line" title={view.renown.meaning}>
+            <span className="renown-line-k">Party renown</span>
+            <span className="renown-line-v">{view.renown.name}</span>
+          </p>
         </div>
         <div className="player-gold-wrap">
           <div className="player-gold" aria-label={`Your gold: ${formatCp(me.balanceCp)}`}>
