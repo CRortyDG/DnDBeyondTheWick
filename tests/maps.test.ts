@@ -210,7 +210,10 @@ describe("spoiler safety through the server", () => {
     const player = JSON.stringify(await viewFor(store, "candlefair", { role: "player", playerId: "p1" }));
     expect(leaks(tv)).toEqual([]);
     expect(leaks(player)).toEqual([]);
-    expect(player).not.toContain("Winding Water"); // phones don't get maps at all
+    // Phones get the map on the TV exactly as the TV sees it, no more.
+    const pv = (await viewFor(store, "candlefair", { role: "player", playerId: "p1" })) as { map?: { map: unknown } };
+    const tvv = (await viewFor(store, "candlefair", { role: "tv" })) as { scenes: { id: string; map?: unknown }[] };
+    expect(pv.map?.map).toEqual(tvv.scenes.find((x) => x.id === "s-map")!.map);
     const dm = JSON.stringify(await viewFor(store, "candlefair", { role: "dm" }));
     expect(dm).toContain(`${CANARY} fresh note`);
   });

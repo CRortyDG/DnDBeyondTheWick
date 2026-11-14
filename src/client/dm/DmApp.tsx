@@ -25,6 +25,7 @@ import { EpisodesPanel } from "./EpisodesPanel";
 import { RunGame } from "./RunGame";
 import { LiveMapControls } from "./LiveMapControls";
 import { MapEditor } from "./MapEditor";
+import { TableMap } from "./TableMap";
 import { Inbox } from "./Inbox";
 import { EndSessionDialog } from "./Dues";
 import { duesFor } from "@/shared/progress";
@@ -175,6 +176,8 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
   const closeStory = useCallback(() => setStoryOpen(null), []);
   const [ending, setEnding] = useState(false);
   const closeMap = useCallback(() => setEditingMap(null), []);
+  const [tableMap, setTableMap] = useState<string | null>(null);
+  const closeTable = useCallback(() => setTableMap(null), []);
   const [diceOpen, setDiceOpen] = useState(false);
   const toggleDice = useCallback(() => setDiceOpen((v) => !v), []);
   // Rolls from before this page opened count as seen, so a reload doesn't pop old cards.
@@ -183,7 +186,7 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
   const [diceGone, setDiceGone] = useState<number[]>([]);
   const dismissRoll = useCallback((n: number) => setDiceGone((g) => [...g.slice(-50), n]), []);
   const ctx: DmCtx = useMemo(
-    () => ({ view, ident, run, toast, gated, call, openMap: setEditingMap, diceOpen, toggleDice, diceSeen, seeDice, diceGone, dismissRoll }),
+    () => ({ view, ident, run, toast, gated, call, openMap: setEditingMap, openTable: setTableMap, diceOpen, toggleDice, diceSeen, seeDice, diceGone, dismissRoll }),
     [view, ident, run, toast, gated, call, diceOpen, toggleDice, diceSeen, seeDice, diceGone, dismissRoll],
   );
 
@@ -431,7 +434,7 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
               {tvView.fight ? (
                 <div className="preview-fight" aria-label="The fight on the TV">
                   <Stage w={1920} h={1080}>
-                    <FightOverlay fight={tvView.fight} preview />
+                    <FightOverlay fight={tvView.fight} preview onMap={previewScene?.kind === "map" && !!previewScene.map?.tokens.length} />
                   </Stage>
                 </div>
               ) : null}
@@ -517,6 +520,7 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
   return (
     <DmContext.Provider value={ctx}>
       {screen}
+      {tableMap ? <TableMap sceneId={tableMap} onClose={closeTable} /> : null}
       <DiceTray />
       <PlayerRollCards />
       <div className={`toast${toastMsg ? " show" : ""}`} role="status" aria-live="polite">

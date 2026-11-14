@@ -1,6 +1,8 @@
 // Spoiler safety lives here. Each role gets a view built field-by-field from
 // an explicit allow-list, so a new DM-only field can't leak by accident.
 
+import { decodeBits, fogged, publicFog, type PublicFog } from "./fog";
+import { publicGrid, publicTokens, type PublicGrid, type PublicToken } from "./tokens";
 import { leadsView, type LeadsView } from "./leads";
 import { areaCounts, type AreaCount } from "./discovery";
 import { townOf } from "./presets";
@@ -45,9 +47,30 @@ export interface PublicMap {
   legend: { on: boolean; style: LegendStyle };
   /** Dot size, 1 = standard. */
   sealScale: number;
+  /** Tokens the room may see (never hidden ones or hidden foes). */
+  tokens: PublicToken[];
+  grid?: PublicGrid;
+  /** Fog is on: the clear cells and the tiles that touch them. The scene's art has no URL then. */
+  fog?: PublicFog;
   /** Only on the live map. */
   focus?: { pinId: string; n: number };
   banner?: { n: number; name: string };
+}
+
+/** The live map on a phone. */
+export interface PhoneMap {
+  sceneId: string;
+  label: string;
+  art: Art;
+  alt?: string;
+  map: PublicMap;
+}
+
+function phoneMap(game: GameState): PhoneMap | undefined {
+  const sc = game.scenes.find((x) => x.id === game.live.sceneId);
+  if (!sc || sc.kind !== "map" || !sc.map) return undefined;
+  const pub = publicScene(game, sc);
+  return { sceneId: sc.id, label: sc.label, art: pub.art, ...(sc.alt ? { alt: sc.alt } : {}), map: pub.map! };
 }
 
 export interface PublicPlayer {
@@ -306,6 +329,8 @@ export interface PlayerView extends Common {
     /** My hit points for combat mode (not set: max 0). */
     hp: { cur: number; max: number; temp: number; tv: boolean };
   };
+  /** The map that's on the TV, as the room sees it (fog, tokens and all). Missing: no map on the TV. */
+  map?: PhoneMap;
   /** Combat mode: the fight going on, as the room sees it, and my part in it. */
   fight: FightView | null;
   myFight: MyFight | null;
@@ -359,7 +384,8 @@ export function artForPublic(game: GameState, sc: Scene): Art {
 }
 
 function publicScene(game: GameState, sc: Scene): PublicScene {
-  const out: PublicScene = { id: sc.id, kind: sc.kind, art: artForPublic(game, sc) };
+  // A fogged map goes out as tiles (in its map), never as the whole image.
+  const out: PublicScene = { id: sc.id, kind: sc.kind, art: sc.kind === "map" && sc.map?.fog?.on ? {} : artForPublic(game, sc) };
   // A person's picture reads their name and title (once the room may see them; a portrait still hidden is only sent while it's live, and showing it finds them).
   const owner = sc.kind === "portrait" ? (game.entries ?? []).find((e) => e.sceneId === sc.id && (e.stage === "found" || e.stage === "known")) : undefined;
   const name = owner ? owner.name : sc.name;
@@ -375,7 +401,9 @@ function publicScene(game: GameState, sc: Scene): PublicScene {
 export function publicMap(game: GameState, sc: Scene): PublicMap {
   const m = sc.map!;
   const isLive = game.live.sceneId === sc.id;
-  const shown = m.pins.filter((p) => p.discovered);
+  const fogBits = m.fog?.on ? decodeBits(m.fog.bits, m.fog.cols, m.fog.rows) : undefined;
+  const underFog = (x: number, y: number) => !!fogBits && fogged(m, x, y, fogBits);
+  const shown = m.pins.filter((p) => p.discovered && !underFog(p.x, p.y));
   const focus = isLive && game.live.focus && shown.some((p) => p.id === game.live.focus!.pinId) ? game.live.focus : undefined;
   // A place that's only a rumor: a "?" seal, its nickname and hint, never the pin's own name or text.
   const rumors = new Map((game.entries ?? []).filter((e) => e.stage === "rumored" && e.pin?.sceneId === sc.id).map((e) => [e.pin!.pinId, e]));
@@ -392,7 +420,12 @@ export function publicMap(game: GameState, sc: Scene): PublicMap {
     }),
     legend: { on: m.legendOn, style: m.legendStyle },
     sealScale: m.sealScale ?? 1,
+    // The party always shows; anyone else under fog stays on the server.
+    tokens: publicTokens(game, m).filter((t) => t.playerId || !underFog(t.x, t.y)),
   };
+  if (m.fog?.on) out.fog = publicFog(m.fog, sc.art?.url);
+  const grid = publicGrid(m);
+  if (grid) out.grid = grid;
   if (focus) out.focus = { pinId: focus.pinId, n: focus.n };
   const b = isLive ? game.live.banner : undefined;
   const bannerPin = b && shown.find((p) => p.id === b.pinId);
@@ -551,6 +584,7 @@ export function projectPlayer(game: GameState, version: number, playerId: string
     ...common(game, version, { tv: false, playerId }),
     role: "player",
     ...(game.vttUrl ? { vttUrl: game.vttUrl } : {}),
+    ...(phoneMap(game) ? { map: phoneMap(game) } : {}),
     live: { ...liveShop(game, { tv: false, playerId }), purseVisible: game.live.purseVisible },
     myOrders: game.orders
       .filter((o) => o.playerId === p.id)

@@ -72,6 +72,76 @@ export interface MapData {
   legendStyle: LegendStyle;
   /** Size of the dots on the map, 1 = standard (about 64px on a 1080p TV). Missing on maps made before it existed. */
   sealScale?: number;
+  /** Tokens on the table: the party, monsters, anyone. Missing: none yet. */
+  tokens?: MapToken[];
+  /** The square grid tokens snap to. Missing: no grid. */
+  grid?: MapGrid;
+  /** Fog of war. Missing: never set up. */
+  fog?: MapFog;
+}
+
+/**
+ * Fog of war: a grid of cells over the image, each covered or clear. While it's
+ * on, the TV and phones never get the whole image: only the tiles that touch a
+ * clear cell (see fog.ts).
+ */
+export interface MapFog {
+  on: boolean;
+  /** The first cell's top-left corner (fractions of the image; 0 or a little less, so cells line up with the grid). */
+  x0: number;
+  y0: number;
+  /** One cell's width and height, as fractions of the image's width and height. */
+  cw: number;
+  ch: number;
+  cols: number;
+  rows: number;
+  /** The image's height over its width. */
+  aspect: number;
+  /** Clear cells, one bit each, row by row, base64. */
+  bits: string;
+  /** The image cut into pieces in the DM's browser, row by row. Missing or stale (the image changed): nothing of the map is sent while fog is on. */
+  tiles?: { cols: number; rows: number; urls: string[]; /** The image they were cut from. */ src: string };
+}
+
+export type TokenColor = "red" | "blue" | "green" | "gold" | "purple" | "teal" | "orange" | "grey";
+
+/** A token on a map. Positions are the token's centre, as fractions of the image. */
+export interface MapToken {
+  id: string;
+  kind: "player" | "monster" | "npc";
+  /** Player tokens: whose. One per player per map. */
+  playerId?: string;
+  /** Fight tokens: the monster in the running fight. Its name and hidden state follow the fight. */
+  combatantId?: string;
+  /** Printed in the ring, up to 3 characters. Empty: worked out from the name. */
+  label: string;
+  /** What the TV calls it (monsters not from a fight, NPCs). Players use their character name. */
+  name: string;
+  color: TokenColor;
+  x: number;
+  y: number;
+  /** Across, in grid squares (or standard token widths with no grid). 1 = Medium. */
+  size: number;
+  /** DM-ONLY while true: the token never leaves the server for the TV or phones. */
+  hidden: boolean;
+  /** Players can't move it from their phones. */
+  locked: boolean;
+  art?: Art;
+}
+
+/** A square grid laid over the map image. */
+export interface MapGrid {
+  /** Tokens snap to the squares' centres. */
+  snap: boolean;
+  /** Draw the lines on the TV and phones. */
+  lines: boolean;
+  /** One square's width, as a fraction of the image's width. */
+  cell: number;
+  /** Where a square's corner sits: fractions of the image's width (x) and height (y). */
+  ox: number;
+  oy: number;
+  /** The image's height over its width, so squares stay square. */
+  aspect: number;
 }
 
 export interface Player {

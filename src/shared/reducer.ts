@@ -18,12 +18,14 @@ import { leadsOf, leadVisible, tally, voteClosed } from "./leads";
 import { findRef, sessionRecap, stageRank, blankEntry, ENTRIES_MAX, LEADS_MAX, entriesForScene, entriesOf, entryFromScene, entryScene, entryTags, factSlug, FACTS_MAX, isFound, slugify, uniqueSlug } from "./discovery";
 import { DM_AUTHOR } from "./types";
 import { boardNotes, cleanLook, cleanPlace, defaultWidth, NOTICES_MAX, placeFor, slugify as noteSlug, topZ } from "./board";
+import { decodeBits, emptyBits, encodeBits, fullBits } from "./fog";
+import { addPartyTokens, freeSpot, snapToGrid, syncFightTokens, tokensOf, TOKENS_MAX } from "./tokens";
 import { applyFight, isFightCommand, startFightFromBeat, type FightHelpers } from "./combatReducer";
 import type { Notice, NotePlace } from "./types";
 import { beatSuggestions, entryRef, freeQuickKey, liveRef, QUICK_KEYS, quickOf, RECENT_MAX, refForScene, renameRefs, resolveRef, sceneSlug, uniqueSceneSlug } from "./assets";
 import { applyStory, isStoryCommand } from "./storyReducer";
 import { pendingPlacement, STORY_SECTION, syncStoryStatus } from "./episodeBuilder";
-import type { Actor, Beat, BeatAction, Entry, EntryFact, Episode, FlyerText, Stage, GameState, Item, ItemTier, Job, Lead, LedgerEntry, LedgerKind, MapData, Note, Pin, PinLink, Player, Scene, Session, SessionRun, Shop, StoryBlock, TradeRequest, Vote } from "./types";
+import type { Actor, Beat, BeatAction, Entry, EntryFact, Episode, FlyerText, Stage, GameState, Item, ItemTier, Job, Lead, LedgerEntry, LedgerKind, MapData, MapToken, Note, Pin, PinLink, Player, Scene, Session, SessionRun, Shop, StoryBlock, TradeRequest, Vote } from "./types";
 import type { z } from "zod";
 
 export class CommandError extends Error {
@@ -65,6 +67,8 @@ export interface Result {
   beatId?: string;
   /** Created scene id. */
   sceneId?: string;
+  /** Created token id. */
+  tokenId?: string;
   /** A note for whoever sent the command ("2 approved, 1 still needs you"). */
   info?: string;
 }
@@ -859,6 +863,7 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
     if (sc.kind !== "map") fail("That scene isn't a map.");
     return (sc.map ??= emptyMap());
   };
+  const tokenOf = (m: MapData, tokenId: string): MapToken => tokensOf(m).find((t) => t.id === tokenId) ?? fail("That token isn't on this map.");
   const pinOf = (m: MapData, pinId: string): Pin => m.pins.find((p) => p.id === pinId) ?? fail("That location isn't on this map.");
   const checkLink = (link: PinLink) => {
     if (link.kind === "shop" && !s.shops.some((x) => x.id === link.shopId)) fail("That shop doesn't exist.");
@@ -894,6 +899,7 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
   if (isFightCommand(cmd)) {
     const wasOver = s.fight?.status === "over";
     applyFight(s, cmd, fightHelpers);
+    syncFightTokens(s, nextId);
     if (cmd.type === "fight.end" && !wasOver) noteMonsters(true);
     else if (cmd.type === "fight.patch") noteMonsters(false);
     return out;
@@ -1064,6 +1070,94 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
     case "map.sealScale":
       mapOf(cmd.sceneId).sealScale = Math.round(cmd.scale * 100) / 100;
       break;
+
+    // ---------- tokens and the grid ----------
+    case "token.add": {
+      const m = mapOf(cmd.sceneId);
+      const tokens = tokensOf(m);
+      if (tokens.length >= TOKENS_MAX) fail(`A map holds at most ${TOKENS_MAX} tokens.`);
+      const name = cmd.name.trim() || (cmd.kind === "monster" ? "Monster" : "Someone");
+      const t: MapToken = { id: nextId("tk"), kind: cmd.kind, label: "", name, color: cmd.color ?? (cmd.kind === "monster" ? "red" : "grey"), ...freeSpot(m, cmd.x, cmd.y), size: 1, hidden: cmd.hidden ?? false, locked: cmd.kind === "monster" };
+      tokens.push(t);
+      out.tokenId = t.id;
+      break;
+    }
+    case "token.party": {
+      const sc = scene(cmd.sceneId);
+      mapOf(sc.id);
+      const n = addPartyTokens(s, sc, cmd.x, cmd.y, nextId);
+      out.info = n ? `Added ${n} ${n === 1 ? "token" : "tokens"}.` : "Everyone at the table already has a token here.";
+      break;
+    }
+    case "token.move": {
+      const m = mapOf(cmd.sceneId);
+      const t = tokenOf(m, cmd.tokenId);
+      Object.assign(t, snapToGrid(m.grid, cmd.x, cmd.y, t.size));
+      break;
+    }
+    case "token.update": {
+      const m = mapOf(cmd.sceneId);
+      const t = tokenOf(m, cmd.tokenId);
+      const { art, ...rest } = cmd.patch;
+      Object.assign(t, rest);
+      if (rest.label !== undefined) t.label = rest.label.trim().toUpperCase();
+      if (rest.name !== undefined) t.name = rest.name.trim();
+      if (art !== undefined) {
+        if (art.url) t.art = { url: art.url };
+        else delete t.art;
+      }
+      if (rest.size !== undefined) Object.assign(t, snapToGrid(m.grid, t.x, t.y, t.size));
+      break;
+    }
+    case "token.remove": {
+      const m = mapOf(cmd.sceneId);
+      tokenOf(m, cmd.tokenId);
+      m.tokens = tokensOf(m).filter((t) => t.id !== cmd.tokenId);
+      break;
+    }
+    // ---------- fog of war ----------
+    case "fog.setup": {
+      const m = mapOf(cmd.sceneId);
+      const L = cmd.layout;
+      if (cmd.tiles.urls.length !== cmd.tiles.cols * cmd.tiles.rows) fail("Those map pieces don't add up. Try again.");
+      const old = m.fog;
+      const same = !!old && old.cols === L.cols && old.rows === L.rows;
+      m.fog = { on: true, ...L, bits: cmd.keep && same ? old!.bits : emptyBits(L.cols, L.rows), tiles: { ...cmd.tiles } };
+      break;
+    }
+    case "fog.on": {
+      const m = mapOf(cmd.sceneId);
+      if (!m.fog) fail("Set up fog on this map first.");
+      m.fog.on = cmd.on;
+      break;
+    }
+    case "fog.bits": {
+      const m = mapOf(cmd.sceneId);
+      const f = m.fog ?? fail("Set up fog on this map first.");
+      const bits = decodeBits(cmd.bits, f.cols, f.rows);
+      // Normalise: drop bits past the last cell.
+      const n = f.cols * f.rows;
+      if (n % 8) bits[bits.length - 1] &= (1 << (n % 8)) - 1;
+      f.bits = encodeBits(bits);
+      break;
+    }
+    case "fog.all": {
+      const f = mapOf(cmd.sceneId).fog ?? fail("Set up fog on this map first.");
+      f.bits = cmd.clear ? fullBits(f.cols, f.rows) : emptyBits(f.cols, f.rows);
+      break;
+    }
+    case "map.grid": {
+      const m = mapOf(cmd.sceneId);
+      if (!cmd.grid) delete m.grid;
+      else {
+        const g = cmd.grid;
+        // Keep the corner inside the first square, so the numbers stay small.
+        const ch = g.cell / g.aspect;
+        m.grid = { snap: g.snap, lines: g.lines, cell: Math.round(g.cell * 100000) / 100000, ox: Math.round((((g.ox % g.cell) + g.cell) % g.cell) * 100000) / 100000, oy: Math.round((((g.oy % ch) + ch) % ch) * 100000) / 100000, aspect: g.aspect };
+        if (g.snap) for (const t of tokensOf(m)) Object.assign(t, snapToGrid(m.grid, t.x, t.y, t.size));
+      }
+      break;
+    }
     case "live.focus": {
       if (cmd.pinId === null) {
         delete s.live.focus;
@@ -2518,6 +2612,17 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
     }
 
     // ---------- players acting on themselves ----------
+    case "me.tokenMove": {
+      if (ctx.actor.role !== "player") fail("Only a player can do that.");
+      const pid = ctx.actor.playerId;
+      const live = s.scenes.find((x) => x.id === s.live.sceneId);
+      if (!live || live.kind !== "map" || !live.map) fail("There's no map on the TV right now.");
+      const m = live.map;
+      const t = tokensOf(m).find((x) => x.playerId === pid) ?? fail("You don't have a token on this map yet. Ask the DM.");
+      if (t.locked) fail("The DM has locked your token.");
+      Object.assign(t, snapToGrid(m.grid, cmd.x, cmd.y, t.size));
+      break;
+    }
     case "me.diceRoll": {
       const p = me();
       const last = (s.rolls ?? []).findLast((x) => x.by === p.id);
@@ -2599,6 +2704,8 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
   }
 
   if (/^(episode|beat|run)\./.test(cmd.type)) syncStoryStatus(s);
+  // A fight a beat started, a map shown mid-fight, a player who left: tokens follow.
+  syncFightTokens(s, nextId);
   return out;
 }
 

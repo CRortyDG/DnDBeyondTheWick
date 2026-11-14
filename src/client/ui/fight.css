@@ -1312,3 +1312,56 @@ html.fc-myturn body {
     grid-column: 1 / -1;
   }
 }
+
+/* ---- a fight on a map: the map stays bright, whose turn it is sits under the round */
+.fv-root.on-map {
+  background: linear-gradient(to bottom, rgba(13, 10, 8, 0.55), rgba(13, 10, 8, 0) calc(170 * var(--u)));
+}
+.fv-mapnow {
+  position: absolute;
+  top: calc(150 * var(--u));
+  right: calc(40 * var(--u));
+  width: calc(440 * var(--u));
+  display: grid;
+  gap: calc(10 * var(--u));
+  padding: calc(18 * var(--u)) calc(22 * var(--u));
+  background: rgba(18, 14, 11, 0.9);
+  border: calc(3 * var(--u)) solid var(--gold-bright);
+  border-radius: calc(12 * var(--u));
+  box-shadow: 0 0 calc(40 * var(--u)) rgba(236, 198, 106, 0.25);
+  animation: fv-pop 0.45s cubic-bezier(0.2, 1.4, 0.4, 1) both;
+}
+.fv-mapnow.down {
+  border-color: var(--down);
+}
+.fv-mapnow-row {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: calc(16 * var(--u));
+}
+.fv-mapnow-name {
+  font-family: var(--font-poster);
+  font-size: calc(54 * var(--u));
+  line-height: 1.05;
+  margin-bottom: calc(6 * var(--u));
+}
+.fv-mapnow-conds {
+  margin-top: calc(6 * var(--u));
+  font-size: calc(24 * var(--u));
+  color: var(--muted);
+}
+.fv-mapnow-next {
+  font-size: calc(26 * var(--u));
+  color: var(--muted);
+  border-top: calc(1 * var(--u)) solid var(--line);
+  padding-top: calc(8 * var(--u));
+}
+.fv-mapnow-next b {
+  color: var(--parchment);
+  font-weight: normal;
+  font-family: var(--font-sc);
+}
+@media (prefers-reduced-motion: reduce) {
+  .fv-mapnow { animation: none; }
+}
