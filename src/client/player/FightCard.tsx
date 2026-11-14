@@ -45,7 +45,7 @@ export function FightCard({ view, send }: { view: PlayerView; send: Send }) {
           <p className="fc-big">Roll initiative! The DM is setting up the fight.</p>
         )
       ) : f.status === "over" ? (
-        <p className="fc-big">The fight is over.</p>
+        <p className="fc-big">{f.over?.outcome === "won" ? "Victory! The fight is over." : f.over?.outcome === "fallen" ? "The party has fallen…" : "The fight is over."}</p>
       ) : (
         <>
           <div className="fc-head">

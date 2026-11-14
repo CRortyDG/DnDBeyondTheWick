@@ -383,7 +383,7 @@ describe("ending a fight", () => {
     const sceneBefore = g.fight!.returnSceneId;
     ({ state: g } = run(g, [{ type: "scene.show", sceneId: "s-chef" }, { type: "fight.next" }, { type: "fight.end" }]));
     expect(g.fight!.status).toBe("over");
-    expect(projectTv(g, 1).fight!.over).toEqual({ rounds: 1, downed: [] });
+    expect(projectTv(g, 1).fight!.over).toEqual({ rounds: 1, downed: [], outcome: "ended" });
     const close: Command = { type: "fight.close", payouts: [{ playerId: "p1", cp: 500 }, { playerId: "p2", cp: 500 }], items: "a silver ladle", note: "Fought 2 gremlins. 1 round." };
     const r = run(g, [close]);
     g = r.state;
@@ -423,6 +423,42 @@ describe("reliability", () => {
 });
 
 describe("the Chronicle line", () => {
+  it("says how the fight ended: victory, the party fallen, or just over", async () => {
+    const hpUp: (Command | [Command, Ctx])[] = [
+      [{ type: "me.hp", max: 20, cur: 20 }, as("p1")],
+      [{ type: "me.hp", max: 20, cur: 20 }, as("p2")],
+    ];
+    const ids = (g: GameState, kind: "player" | "monster") => g.fight!.order.filter((c) => c.kind === kind).map((c) => c.id);
+    const end = (extra: (g: GameState) => Command[]) => {
+      let g = run(begun(), hpUp).state;
+      g = run(g, [...extra(g), { type: "fight.end" }]).state;
+      return { g, tv: projectTv(g, 1).fight!, player: projectPlayer(g, 1, "p1", []).fight! };
+    };
+    // Both sides still standing: the DM stopped it.
+    expect(end(() => []).tv.over!.outcome).toBe("ended");
+    // Every foe down: victory.
+    const won = end((g) => [{ type: "fight.hp", combatantIds: ids(g, "monster"), mode: "damage", amount: 99 }]);
+    expect(won.tv.over!.outcome).toBe("won");
+    expect(won.player.over!.outcome).toBe("won");
+    // Every player at 0 HP, even with foes down too: the party has fallen, not victory.
+    const fallen = end((g) => [
+      { type: "fight.hp", combatantIds: ids(g, "monster"), mode: "damage", amount: 99 },
+      { type: "fight.hp", combatantIds: ids(g, "player"), mode: "damage", amount: 30 },
+    ]);
+    expect(fallen.tv.over!.outcome).toBe("fallen");
+    expect(fallen.tv.moment!.kind).toBe("end");
+    const { chronicleLine } = await import("@/shared/combatReducer");
+    expect(chronicleLine(fallen.g.fight!)).toContain("The whole party fell.");
+    // One player still up: not fallen.
+    const one = end((g) => [{ type: "fight.hp", combatantIds: [ids(g, "player")[0]], mode: "damage", amount: 30 }]);
+    expect(one.tv.over!.outcome).toBe("ended");
+    // Back to the fight clears it; healing someone and ending again changes it.
+    let g = run(fallen.g, [{ type: "fight.reopen" }]).state;
+    expect(g.fight!.outcome).toBeUndefined();
+    g = run(g, [{ type: "fight.hp", combatantIds: [ids(g, "player")[0]], mode: "heal", amount: 5 }, { type: "fight.end" }]).state;
+    expect(g.fight!.outcome).toBe("won");
+  });
+
   it("uses the names the table knows", async () => {
     const { chronicleLine } = await import("@/shared/combatReducer");
     let g = begun();

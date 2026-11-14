@@ -536,6 +536,18 @@
 .fv-moment.end {
   animation-duration: 2.6s;
 }
+.fv-moment.end.fallen {
+  background: rgba(8, 4, 4, 0.8);
+}
+.fv-moment.end.fallen .fv-moment-burst {
+  background: radial-gradient(circle, rgba(140, 40, 32, 0.75), rgba(140, 40, 32, 0) 65%);
+}
+.fv-moment.end.fallen .fv-moment-text {
+  color: #e58a7a;
+}
+.fv-over.fallen .fv-roll-title {
+  color: #e58a7a;
+}
 
 @keyframes fv-pop {
   from {
