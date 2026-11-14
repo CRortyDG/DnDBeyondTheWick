@@ -9,6 +9,7 @@
 import type { GameState, Note, Player, Session } from "./types";
 import { DM_AUTHOR } from "./types";
 import { shopOpenNow, tierOf } from "./renown";
+import { entriesOf, entryTags, isFound, sceneSpoils } from "./discovery";
 
 export const NOTE_MAX = 2000;
 export const TAG_MAX = 40;
@@ -204,13 +205,17 @@ export function tagSuggestions(g: GameState): string[] {
   for (const n of notesOf(g)) if (!n.hidden) n.tags.forEach(add);
   for (const sc of g.scenes) {
     // NPCs: portraits that have been on the TV (or that the DM marked as met).
-    if (sc.kind === "portrait" && sc.known) add(sc.name?.trim() || sc.label);
+    if (sc.kind === "portrait" && sc.known && !sceneSpoils(g, sc)) add(sc.name?.trim() || sc.label);
     // Map locations: discovered pins, only where the TV prints their names
     // (a "numbers only" legend keeps names off the TV, so here too).
     if (sc.kind === "map" && sc.map && sc.map.legendStyle === "names" && !sc.reveal) {
-      for (const p of sc.map.pins) if (p.discovered) add(p.name);
+      // A pin that's only a rumored place keeps its name to itself.
+      const rumors = new Set(entriesOf(g).filter((e) => !isFound(e.stage) && e.pin?.sceneId === sc.id).map((e) => e.pin!.pinId));
+      for (const p of sc.map.pins) if (p.discovered && !rumors.has(p.id)) add(p.name);
     }
   }
+  // Everything the party has found (people, places...), under the names their notes are filed by.
+  for (const e of entriesOf(g)) if (isFound(e.stage)) entryTags(g, e).forEach(add);
   // Loot: things a player can hold that everyone can see on a shelf (for sale or
   // locked). Never rumored or hidden items, closed shops, or shops shown only to
   // some players; never rent, services or building projects; earned honours only

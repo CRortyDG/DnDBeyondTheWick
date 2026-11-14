@@ -164,13 +164,38 @@ tests/                    vitest
 - **One at a time:** untick *Players can ask for several at once* on gear like armor.
 - Phones get no push notifications; a banner appears on the page when you decide. Anyone who opens an unlocked name can ask to spend that player's gold, so players are nudged to lock their name; your approval is the safeguard either way.
 
+## Discovery (people, places, shops, monsters, mysteries)
+
+One compendium for everything the party can find: people, places, shops, monsters, mysteries and factions.
+
+- **DM view → Discovery** lists every entry by kind. Each has a stage: **Hidden** (only you see it), **Rumored** (phones and TV see the nickname, or "???", a hint and a silhouette, nothing else), **Met/Found** and **Known**. Revealing any fact makes an entry Known. Changing a stage twice does nothing the second time.
+- **Seeded:** Captain Orsa Dell, Mags and Artum (met), Fennick and the baker (rumored), the merchant, the Chef and Bolla (hidden). Seed entries are added to existing games only if missing; "Start fresh" returns every entry to its starting stage. They live in `src/server/` so locked facts and DM notes never ship in the browser code.
+- **Pictures:** pick a portrait scene. Portraits are served from `/api/art/…` only once the entry is found, so phones can't guess their way to a face. Rumors show a silhouette: **Make silhouette from portrait** builds one in your browser, or upload one, or use the generic shape for the kind.
+- **The TV** plays a short reveal (silhouette, then the picture fills in) when an entry is found or a fact is revealed on the TV, with an optional chime (the speaker toggle on the TV, off by default). Untick "Play stage changes on the TV" to change stages quietly.
+- **Relationships:** how they feel about the party (Stranger, Friendly, Ally, Hostile), with an optional override per player shown as a badge on that player's phone.
+- **Places** can be tied to a map pin. Hidden hides the pin, Rumored shows a `?` seal (with the nickname and hint only in the names legend), and Visited shows the pin as it is. Discovering a pin on the map visits its place; hiding the pin takes back only a rumor. Seeded: the Flickering Candle, Candlefair Docks and Baldur's Gate (visited), Lathtarl's Lantern and the Trollbark (rumored), and the broken ring mystery (hidden).
+- **Shops** can be tied to a storefront: finding the shop opens it to everyone, and opening the storefront finds the shop. Hiding the storefront doesn't unfind it.
+- **Monsters** get an entry when a fight ends: a rumor under the TV name, or Encountered once revealed (revealing one mid-fight also counts).
+- **From the table:** the dice tray has a **Reveal…** picker next to the last roll, so a good Insight check turns straight into a fact on the TV or someone found. Run sheets take `reveal: person/fennick` (found), `reveal: person/fennick known`, `rumor: place/lathtarls-lantern` and `fact: person/mags/owes-the-baker` (the names are each entry's and fact's run sheet name). These lines only move things forward and play on the TV; a name that doesn't match anything is skipped.
+- **Areas:** phones count what the party has found in each area. **Show how much is left to find** adds one slot per entry in the area, hidden ones too, as empty slots. It's off by default, so phones don't learn how much is still hidden.
+- **Goodwill locks:** an item, a storefront or a job flyer can need a person to be Friendly or an Ally with the party (Shop and Board editors, next to Renown). Until then it shows as locked with "Needs Mags Wick’s friendship" ("someone’s" for people the party hasn't met). Raising someone's feelings announces whatever opens.
+- **Session recap:** ending a session puts "Tonight you met…, visited… and learned…" on the TV and in the Chronicle, from what was found and learned that session. A quiet night adds nothing.
+- **Ties** link entries together; players see a tie only when both ends are visible to them.
+- **Phones** get a **Discover** tab with a "new" badge for anything changed since they last looked, each entry's facts, and the table's notes (Chronicle notes tagged with the entry's name). Hidden entries, locked facts, real names behind nicknames, DM notes and secrets never leave your screen.
+
+## Leads and votes
+
+- **DM view → Leads:** threads the party can pull on. Each can be about an entry, point to a place, and be tied to a job flyer. Leads go Open → Followed → Closed. New leads start as drafts; tick **Shown** when the party learns of one. Players never see a draft, your note, or a lead about something still hidden. A rumored place or person reads as its hint.
+- **Phones** list leads in the Discover tab, grouped by place. **Leads board on the TV** puts the same list over the scene.
+- **Votes:** tick two or three shown leads and open a vote, with an optional time limit. Each player gets one vote and can change it until the vote closes, and everyone sees the count live. The vote closes when you press **Close now**, or by itself at its time (on the next thing anyone does). A tie waits for you to break it, and you can always pick a different lead. The chosen lead becomes Followed, and the TV shows "You chose: …" at the start of the next session.
+
 ## Running a session (run-game mode)
 
 - **DM view → Run game** starts (or resumes) a session for an episode and opens the presenter view: the current beat big, the next one underneath, every beat in a side list (a drawer on phones).
 - **Next** and **jumping** to a beat fire its actions (switch the TV scene, black screen, or the bank: purse on the TV and the bank on your screen). **Back** never fires anything. Tap "↻ Again" to re-fire, or "Skip" on the next beat's action before you press Next.
 - The first screen is check-in (untick anyone who isn't here; they're marked away) and the last session's recap, which you can show on the TV as "Previously on…". The last screen is payday, the recap box and all your quick notes.
 - Your place is saved on the server, so a reload or another device lands on the same beat. If a session ends mid-episode, the next run picks up where it stopped.
-- **DM view → Episodes:** add episodes, edit beats (each beat is edited as Markdown), reorder by dragging or with the arrows, import an episode pasted as Markdown, and export it back out. One beat per `##`; lines start with `>` read-aloud, `-` note, `check:`, `if:`, `action:` (`scene <name>`, `black`, `bank`) or `fight:` (`fight: Pudding Gremlin x2, Goblin`: landing on the beat sets up that fight from the Monsters tab).
+- **DM view → Episodes:** add episodes, edit beats (each beat is edited as Markdown), reorder by dragging or with the arrows, import an episode pasted as Markdown, and export it back out. One beat per `##`; lines start with `>` read-aloud, `-` note, `check:`, `if:`, `action:` (`scene <name>`, `black`, `bank`), `reveal:`, `rumor:`, `fact:` (see Discovery) or `fight:` (`fight: Pudding Gremlin x2, Goblin`: landing on the beat sets up that fight from the Monsters tab).
 - Existing games get the seed episode "Just Desserts" automatically. "Start fresh" keeps episodes; "Reset everything" restores the seed episode.
 
 ## Combat mode

@@ -7,10 +7,14 @@
 //   if:      <when> → <then>   (-> and => work too)
 //   action:  scene <name> | black | bank | stinger
 //   fight:   <monster> x<n>, <monster>   (sets up a fight from the monster templates)
+//   reveal:  <kind>/<name> [rumored|found|known]   (Discovery: moves it forward, never back; found by default)
+//   rumor:   <kind>/<name>   (the same as "reveal: <kind>/<name> rumored")
+//   fact:    <kind>/<name>/<fact>   (reveals that fact)
 // Anything else becomes a note, so nothing pasted is silently lost.
 
 import { fightLineMarkdown, parseFightLine } from "./combat";
-import type { Beat, BeatAction, BeatCheck, Episode, Scene } from "./types";
+import type { Beat, BeatAction, BeatCheck, Episode, Scene, Stage } from "./types";
+import { FACT_REF_RE, REF_RE } from "./discovery";
 
 export interface ParsedEpisode {
   title: string;
@@ -147,6 +151,17 @@ export function parseEpisode(markdown: string, resolve: SceneResolver, fallbackT
       const monsters = parseFightLine(v);
       if (monsters.length) cur.actions.push({ type: "fight", monsters });
       else warnings.push(`${where}: “fight:” needs at least one monster, like “fight: Goblin x2”.`);
+    } else if ((v = prefixed(line, "reveal")) !== null || (v = prefixed(line, "rumor")) !== null) {
+      const rumor = prefixed(line, "rumor") !== null;
+      const [ref = "", st = ""] = v.trim().toLowerCase().split(/\s+/);
+      const stage = rumor ? "rumored" : st === "" || st === "met" || st === "visited" ? "found" : st;
+      if (!REF_RE.test(ref)) warnings.push(`${where}: “${line}” needs a kind and a name, like “reveal: person/fennick”.`);
+      else if (!["rumored", "found", "known"].includes(stage)) warnings.push(`${where}: “${line}”: the stage can be rumored, found or known.`);
+      else cur.actions.push({ type: "reveal", ref, stage: stage as Stage });
+    } else if ((v = prefixed(line, "fact")) !== null) {
+      const ref = v.trim().toLowerCase();
+      if (FACT_REF_RE.test(ref)) cur.actions.push({ type: "fact", ref });
+      else warnings.push(`${where}: “${line}” needs a kind, a name and a fact, like “fact: person/mags/owes-the-baker”.`);
     } else if ((v = prefixed(line, "action")) !== null) {
       const a = parseAction(v, resolve);
       if ("action" in a) cur.actions.push(a.action);
@@ -194,6 +209,8 @@ export function actionMarkdown(a: BeatAction, scenes: Pick<Scene, "id" | "label"
   if (a.type === "bank") return "action: bank";
   if (a.type === "stinger") return "action: stinger";
   if (a.type === "fight") return fightLineMarkdown(a.monsters);
+  if (a.type === "reveal") return a.stage === "rumored" ? `rumor: ${a.ref}` : a.stage === "found" ? `reveal: ${a.ref}` : `reveal: ${a.ref} ${a.stage}`;
+  if (a.type === "fact") return `fact: ${a.ref}`;
   const sc = scenes.find((s) => s.id === a.sceneId);
   return sc ? `action: scene ${sc.label}` : null;
 }

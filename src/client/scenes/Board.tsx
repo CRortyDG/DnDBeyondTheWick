@@ -76,7 +76,7 @@ export function rewardLine(r: PublicJob["reward"]): string | null {
 /** One job flyer, in its paper. Stamped TAKEN, DONE, or "Experienced parties only". */
 export function JobCard({ job: j, style, page }: { job: PublicJob; style?: React.CSSProperties; page?: boolean }) {
   const reward = rewardLine(j.reward);
-  const stamp = j.status === "taken" ? "Taken" : j.status === "done" ? "Done" : j.needs ? "Experienced parties only" : null;
+  const stamp = j.status === "taken" ? "Taken" : j.status === "done" ? "Done" : j.needs ? "Experienced parties only" : j.goodwill ? "Not yet" : null;
   const label = j.style === "sealed" ? "A sealed envelope" : j.title;
   return (
     <div className={`job job-${j.style}${page ? " job-page" : ""}`} style={style} role="figure" aria-label={`${label}${stamp ? ` (${stamp})` : ""}`}>
@@ -102,7 +102,7 @@ export function JobCard({ job: j, style, page }: { job: PublicJob; style?: React
       {stamp ? (
         <div className={`job-stamp stamp-${j.status === "open" ? "locked" : j.status}`}>
           {stamp}
-          {j.status === "open" && j.needs ? <small>{j.needs}</small> : null}
+          {j.status === "open" && (j.needs || j.goodwill) ? <small>{j.needs ?? `Needs ${j.goodwill}`}</small> : null}
         </div>
       ) : null}
     </div>

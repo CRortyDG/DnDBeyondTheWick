@@ -6,6 +6,7 @@ import { describeResult } from "@/shared/dice";
 import { DicePicker, RollLine, useDicePicks } from "../ui/DicePicker";
 import { InspirationIcon as DiceIcon } from "../ui/icons";
 import { useDm } from "./context";
+import { RevealPicker } from "./RevealPicker";
 import "../ui/dice.css";
 
 const TAG: Record<RollEntry["to"], string> = { tv: "on TV", dm: "to you", secret: "secret" };
@@ -166,6 +167,7 @@ export function DiceTray() {
           <div className="dt-history-head">
             <span className="note">Rolls, yours and the players&rsquo;</span>
             <span className="spacer" />
+            {log[0] ? <RevealPicker total={log[0].total} /> : null}
             <button type="button" className="btn small" onClick={() => run({ type: "dice.clearLog" })}>
               Clear history
             </button>

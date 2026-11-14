@@ -12,11 +12,13 @@ import { shopVisibleTo } from "./projection";
 import { CHARACTER_MAX, STINGER_SCENE_ID, TABLE_SCENE_ID, WHY_MAX } from "./arrival";
 import { starterById } from "./starters";
 import { chapterSessionId, cleanTags, cleanText, defaultChapterId, NOTES_MAX, penName } from "./chronicle";
-import { BOARD_SLOTS, jobsOf, jobTitle, pinnedCount, rankName, RENOWN, renownMet, renownNeeded, renownOf, shopOpenNow, tierOf } from "./renown";
+import { BOARD_SLOTS, jobsOf, jobTitle, pinnedCount, rankName, RENOWN, renownMet, renownNeeded, renownOf, shopOpenNow, tierOf, trustMet, trustText } from "./renown";
 import { LOG_MAX, PLAYER_ROLL_GAP_MS, rollPool, type RollTo } from "./dice";
+import { leadsOf, leadVisible, tally, voteClosed } from "./leads";
+import { findRef, sessionRecap, stageRank, blankEntry, ENTRIES_MAX, LEADS_MAX, entriesForScene, entriesOf, entryFromScene, entryScene, entryTags, factSlug, FACTS_MAX, isFound, slugify, uniqueSlug } from "./discovery";
 import { DM_AUTHOR } from "./types";
 import { applyFight, isFightCommand, startFightFromBeat, type FightHelpers } from "./combatReducer";
-import type { Actor, Beat, BeatAction, Episode, FlyerText, GameState, Item, ItemTier, Job, LedgerEntry, LedgerKind, MapData, Note, Pin, PinLink, Player, Scene, Session, SessionRun, Shop, TradeRequest } from "./types";
+import type { Actor, Beat, BeatAction, Entry, EntryFact, Episode, FlyerText, Stage, GameState, Item, ItemTier, Job, Lead, LedgerEntry, LedgerKind, MapData, Note, Pin, PinLink, Player, Scene, Session, SessionRun, Shop, TradeRequest, Vote } from "./types";
 import type { z } from "zod";
 
 export class CommandError extends Error {
@@ -45,6 +47,10 @@ export interface Result {
   playerId?: string;
   /** Created job flyer id. */
   jobId?: string;
+  /** Created discovery entry / fact id. */
+  entryId?: string;
+  factId?: string;
+  leadId?: string;
   /** Created episode / beat ids. */
   episodeId?: string;
   beatId?: string;
@@ -112,6 +118,25 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
     if (sh.visibility !== "all" || !shopOpenNow(s, sh) || RANK[now] <= RANK[was]) return;
     if (now === "rumored") announce(`A new rumor at ${sh.name}`);
     else announce(`New at ${sh.name}: ${it.name}`);
+  };
+
+  /** Which items and storefronts are locked right now (by Renown or someone's goodwill). */
+  const gateSnapshot = () => ({
+    tiers: new Map(s.items.map((it) => [it.id, tierOf(s, it)])),
+    shut: s.shops.filter((sh) => !shopOpenNow(s, sh)).map((sh) => sh.id),
+  });
+  /** Banners for what opened since the snapshot: storefronts, then items (named, or counted when it's a lot). */
+  const announceOpened = (before: ReturnType<typeof gateSnapshot>) => {
+    for (const id of before.shut) {
+      const sh = shop(id);
+      if (shopOpenNow(s, sh) && sh.visibility === "all" && !isSecretShop(sh)) announce(`Now open: ${sh.name}`);
+    }
+    const opened = s.items.filter((it) => {
+      const sh = s.shops.find((x) => x.id === it.shopId);
+      return before.tiers.get(it.id) === "locked" && tierOf(s, it) === "sale" && sh?.visibility === "all" && shopOpenNow(s, sh) && !isSecretShop(sh);
+    });
+    if (opened.length > 3) announce(`${opened.length} new things in the shops`);
+    else if (opened.length) announce(`Now for sale: ${opened.map((it) => it.name).join(", ")}`);
   };
 
   const move = (p: Player, amountCp: number, note: string, kind: LedgerKind, extra: Partial<LedgerEntry> = {}) => {
@@ -239,7 +264,9 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
   /** Why an item can't be bought because of the party's Renown, or null. */
   const renownLock = (it: Item): string | null => {
     const need = renownNeeded(s, it);
-    return need !== null && it.tier === "sale" ? `${it.name} opens when the party is ${rankName(need)}.` : null;
+    if (need !== null && it.tier === "sale") return `${it.name} opens when the party is ${rankName(need)}.`;
+    const trust = it.tier === "sale" ? trustText(s, it.trust) : null;
+    return trust ? `${it.name} needs ${trust}.` : null;
   };
 
   /** Keep every pending request and the latest 150 decided ones. */
@@ -385,7 +412,7 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
   const showScene = (id: string) => {
     const shown = s.scenes.find((x) => x.id === id);
     // Once an NPC's portrait has been on the TV, the table has met them.
-    if (shown?.kind === "portrait") shown.known = true;
+    if (shown?.kind === "portrait") meetPortrait(shown);
     s.live.sceneId = id;
     s.live.shopOpen = false;
     delete s.live.recapSessionId;
@@ -488,6 +515,13 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
     } else if (a.type === "fight") {
       // "Roll initiative!" on the TV and the phones. A fight already going is left alone.
       startFightFromBeat(s, a.monsters, "", fightHelpers);
+    } else if (a.type === "reveal") {
+      // Forward only: a run sheet never takes back what the table already knows.
+      const hit = findRef(s, a.ref);
+      if (hit && stageRank(a.stage) > stageRank(hit.entry.stage)) setStage(hit.entry, a.stage, true);
+    } else if (a.type === "fact") {
+      const hit = findRef(s, a.ref);
+      if (hit?.fact && hit.fact.revealedAt === undefined) revealFact(hit.entry, hit.fact, true);
     }
   };
   const land = (run: SessionRun, ep: Episode, i: number, skip: number[] = []) => {
@@ -516,6 +550,121 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
     if (!last?.run || last.run.stage === "end") return 0;
     return last.run.beat;
   };
+
+  // ---------- Discovery ----------
+  const entry = (id: string): Entry => entriesOf(s).find((x) => x.id === id) ?? fail("That isn't in the compendium any more.");
+  const factOf = (e: Entry, id: string): EntryFact => e.facts.find((f) => f.id === id) ?? fail("That fact isn't there any more.");
+  const playMoment = (e: Entry, from?: Stage, factId?: string) => {
+    s.discovery = { entryId: e.id, n: ++s.seq, at: ctx.now, ...(from ? { from } : {}), ...(factId ? { factId } : {}) };
+  };
+  const foundLine = (e: Entry) => {
+    const title = e.title.trim() ? `, ${e.title.trim().replace(/^[A-Z](?=[a-z])/, (c) => c.toLowerCase())}` : "";
+    switch (e.kind) {
+      case "person":
+        return `The party met ${e.name}${title}.`;
+      case "place":
+        return `The party visited ${e.name}.`;
+      case "shop":
+        return `Now open to the party: ${e.name}.`;
+      case "monster":
+        return `The party encountered ${e.name}.`;
+      default:
+        return `The party found ${e.name}.`;
+    }
+  };
+  /** Move an entry to a stage. Already there: nothing happens. Returns whether it moved. */
+  const setStage = (e: Entry, to: Stage, announce: boolean): boolean => {
+    const from = e.stage;
+    if (from === to) return false;
+    e.stage = to;
+    e.stagedAt = ctx.now;
+    const sc = entryScene(s, e);
+    if (isFound(to) && !isFound(from)) {
+      e.foundAt = ctx.now;
+      e.foundIn = s.currentSessionId;
+      if (sc) sc.known = true;
+      if ((s.notes ?? []).length < NOTES_MAX) addNote(DM_AUTHOR, "The DM", foundLine(e), entryTags(s, e), undefined);
+    } else if (!isFound(to) && isFound(from)) {
+      delete e.foundAt;
+      delete e.foundIn;
+      if (sc && !entriesForScene(s, sc.id).some((x) => isFound(x.stage))) delete sc.known;
+    }
+    syncOut(e, from);
+    if (to === "hidden") {
+      if (s.discovery?.entryId === e.id) delete s.discovery;
+    } else if (announce) playMoment(e, from);
+    return true;
+  };
+  /** Players learn a fact: the entry becomes Known. tv: the TV shows it. */
+  const revealFact = (e: Entry, f: EntryFact, tv: boolean) => {
+    if (f.revealedAt === undefined) {
+      f.revealedAt = ctx.now;
+      f.learnedIn = s.currentSessionId;
+    }
+    const from = e.stage;
+    setStage(e, "known", false);
+    if (tv) playMoment(e, from, f.id);
+  };
+  /** A place's pin and a shop's storefront follow the entry's stage. */
+  const syncOut = (e: Entry, from: Stage) => {
+    const pin = e.pin && s.scenes.find((x) => x.id === e.pin!.sceneId)?.map?.pins.find((p) => p.id === e.pin!.pinId);
+    if (pin) {
+      pin.discovered = e.stage !== "hidden";
+      if (!pin.discovered) dropFocus(pin.id);
+    }
+    const sh = e.shopId ? s.shops.find((x) => x.id === e.shopId) : undefined;
+    if (sh) {
+      if (isFound(e.stage) && sh.visibility === "hidden") {
+        sh.visibility = "all";
+        sh.playerIds = [];
+      } else if (!isFound(e.stage) && isFound(from) && sh.visibility !== "hidden") {
+        sh.visibility = "hidden";
+        sh.playerIds = [];
+        if (s.live.shopId === sh.id) s.live.shopOpen = false;
+      }
+    }
+  };
+  /** Monsters the party fought: a rumor under the TV name, or encountered once revealed. create: make entries for new ones (at the end of a fight). */
+  const noteMonsters = (create: boolean) => {
+    const f = s.fight;
+    if (!f) return;
+    const seen = new Map<string, boolean>();
+    for (const c of f.order) {
+      if (c.kind !== "monster" || c.hidden || !c.templateId) continue;
+      seen.set(c.templateId, (seen.get(c.templateId) ?? false) || c.revealed || !c.displayName.trim());
+    }
+    for (const [tid, revealed] of seen) {
+      const t = (s.monsters ?? []).find((x) => x.id === tid);
+      if (!t) continue;
+      let e = entriesOf(s).find((x) => x.templateId === tid);
+      if (!e) {
+        if (!create || entriesOf(s).length >= ENTRIES_MAX) continue;
+        const list = (s.entries ??= []);
+        e = blankEntry(list, nextId("e"), "monster", t.name, { nickname: t.displayName.trim(), templateId: tid });
+        list.push(e);
+      }
+      if (revealed) setStage(e, isFound(e.stage) ? e.stage : "found", false);
+      else if (create && e.stage === "hidden") setStage(e, "rumored", false);
+    }
+  };
+  /** A portrait on the TV for the first time: find whoever it is, making an entry if they don't have one. */
+  const meetPortrait = (sc: Scene) => {
+    const linked = entriesForScene(s, sc.id);
+    if (!linked.length && !sc.known && entriesOf(s).length < ENTRIES_MAX) {
+      const list = (s.entries ??= []);
+      const e = entryFromScene(list, sc, nextId("e"));
+      list.push(e);
+      linked.push(e);
+    }
+    sc.known = true;
+    for (const e of linked) if (!isFound(e.stage)) setStage(e, "found", true);
+  };
+  const cleanLine = (t: string) => t.replace(/\s+/g, " ").trim();
+  const checkPortrait = (sceneId: string | null | undefined) => {
+    if (!sceneId) return;
+    if (scene(sceneId).kind !== "portrait") fail("Pick a portrait scene.");
+  };
+  const cleanAreas = (areas: string[]) => [...new Map(areas.map(cleanLine).filter(Boolean).map((a) => [a.toLowerCase(), a])).values()];
 
   // ---------- the Chronicle ----------
   const noteById = (noteId: string): Note => (s.notes ?? []).find((n) => n.id === noteId) ?? fail("That note isn't here any more.");
@@ -569,8 +718,32 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
     if (s.live.banner?.pinId === pinId) delete s.live.banner;
   };
 
+  // ---------- leads and votes ----------
+  const lead = (id: string): Lead => leadsOf(s).find((l) => l.id === id) ?? fail("That lead isn't there any more.");
+  const checkEntry = (id: string | null | undefined, kind?: string) => {
+    if (!id) return;
+    const e = entriesOf(s).find((x) => x.id === id) ?? fail("That isn't in the compendium.");
+    if (kind && e.kind !== kind) fail("Pick a place.");
+  };
+  /** Close the vote: one winner is followed; a tie waits for the DM. */
+  const closeVote = (v: Vote, at: number) => {
+    if (v.closedAt !== undefined) return;
+    v.closedAt = at;
+    const t = tally(v);
+    if (t.winnerId) {
+      v.winnerId = t.winnerId;
+      const l = leadsOf(s).find((x) => x.id === t.winnerId);
+      if (l && l.status === "open") l.status = "followed";
+    } else v.tied = t.tied;
+  };
+  // A vote whose time is up closes on the next thing anyone does.
+  if (s.vote && s.vote.closedAt === undefined && s.vote.closesAt !== undefined && ctx.now >= s.vote.closesAt) closeVote(s.vote, s.vote.closesAt);
+
   if (isFightCommand(cmd)) {
+    const wasOver = s.fight?.status === "over";
     applyFight(s, cmd, fightHelpers);
+    if (cmd.type === "fight.end" && !wasOver) noteMonsters(true);
+    else if (cmd.type === "fight.patch") noteMonsters(false);
     return out;
   }
 
@@ -622,6 +795,7 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
         delete s.live.banner;
       }
       for (const sc of s.scenes) for (const p of sc.map?.pins ?? []) if (p.link?.kind === "scene" && p.link.sceneId === cmd.sceneId) delete p.link;
+      for (const e of entriesOf(s)) if (e.sceneId === cmd.sceneId) delete e.sceneId;
       break;
     }
     case "scene.move": {
@@ -680,6 +854,11 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
       p.discovered = cmd.discovered;
       if (!cmd.discovered) dropFocus(p.id);
       else if (!was && cmd.announce && s.live.sceneId === cmd.sceneId) s.live.banner = { pinId: p.id, n: ++s.seq };
+      // The place it marks follows: shown means visited; hiding takes back only a rumor.
+      for (const e of entriesOf(s).filter((x) => x.pin?.sceneId === cmd.sceneId && x.pin.pinId === p.id)) {
+        if (cmd.discovered && !isFound(e.stage)) setStage(e, "found", false);
+        else if (!cmd.discovered && e.stage === "rumored") setStage(e, "hidden", false);
+      }
       break;
     }
     case "map.legend": {
@@ -888,25 +1067,14 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
       const was = renownOf(s);
       if (cmd.rank === was) break;
       // What the room could see before, so the rank-up can say what opened.
-      const tiers = new Map(s.items.map((it) => [it.id, tierOf(s, it)]));
-      const shut = s.shops.filter((sh) => !shopOpenNow(s, sh)).map((sh) => sh.id);
+      const before = gateSnapshot();
       s.renown = cmd.rank;
       if (cmd.rank < was) break; // quiet: things just lock again
       const r = RENOWN[cmd.rank];
       announce(r.raised);
       s.renownMoment = { rank: cmd.rank, n: ++s.seq, at: ctx.now };
       chronicle(`Renown: the party is now ${r.name}. ${r.meaning}.`);
-      for (const id of shut) {
-        const sh = shop(id);
-        if (shopOpenNow(s, sh) && sh.visibility === "all" && !isSecretShop(sh)) announce(`Now open: ${sh.name}`);
-      }
-      // Name what opened up, or count it when it's a lot.
-      const opened = s.items.filter((it) => {
-        const sh = s.shops.find((x) => x.id === it.shopId);
-        return tiers.get(it.id) === "locked" && tierOf(s, it) === "sale" && sh?.visibility === "all" && shopOpenNow(s, sh) && !isSecretShop(sh);
-      });
-      if (opened.length > 3) announce(`${opened.length} new things in the shops`);
-      else if (opened.length) announce(`Now for sale: ${opened.map((it) => it.name).join(", ")}`);
+      announceOpened(before);
       break;
     }
     case "job.add": {
@@ -1071,6 +1239,10 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
         if (cmd.patch.renown) sh.renown = cmd.patch.renown;
         else delete sh.renown;
       }
+      if (cmd.patch.trust !== undefined) {
+        if (cmd.patch.trust) sh.trust = { entryId: entry(cmd.patch.trust.entryId).id, relation: cmd.patch.trust.relation };
+        else delete sh.trust;
+      }
       if (cmd.patch.closed !== undefined) {
         const opening = sh.closed && !cmd.patch.closed;
         sh.closed = cmd.patch.closed || undefined;
@@ -1088,6 +1260,8 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
       sh.playerIds = cmd.visibility === "some" ? ids : [];
       if (cmd.visibility !== "all" && s.live.shopId === sh.id) s.live.shopOpen = false;
       if (cmd.visibility === "all" && !wasPublic && !cmd.quiet) announce(sh.closed ? `${sh.name} has come to town` : `Now open: ${sh.name}`);
+      // Its compendium entry: open means found. Hiding a storefront doesn't unfind it.
+      if (cmd.visibility !== "hidden") for (const e of entriesOf(s).filter((x) => x.shopId === sh.id && !isFound(x.stage))) setStage(e, "found", false);
       break;
     }
     case "shop.remove": {
@@ -1166,10 +1340,22 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
     case "session.start": {
       if (s.currentSessionId) fail("A session is already running. End it first.");
       startSession(cmd.title);
+      // "You chose: …" for the lead the party voted to follow, once.
+      const v = s.vote;
+      if (v?.winnerId && !v.played) {
+        v.played = true;
+        s.chosen = { leadId: v.winnerId, n: ++s.seq, at: ctx.now };
+      }
       break;
     }
     case "session.end": {
       const cur = s.sessions.find((x) => x.id === s.currentSessionId) ?? fail("No session is running.");
+      // What the party discovered tonight: a card on the TV and a line in the Chronicle.
+      const recap = sessionRecap(s, cur.id);
+      if (recap) {
+        if ((s.notes ?? []).length < NOTES_MAX) addNote(DM_AUTHOR, "The DM", recap, [], cur.id);
+        s.recapCard = { n: ++s.seq, at: ctx.now, text: recap };
+      }
       cur.endedAt = ctx.now;
       s.currentSessionId = null;
       // Done jobs stay up (stamped DONE) for one whole session, then come down.
@@ -1244,8 +1430,288 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
       if (sc.kind !== "portrait") fail("Only portraits are NPCs.");
       if (cmd.known) sc.known = true;
       else delete sc.known;
+      // Their compendium entries follow, quietly.
+      for (const e of entriesForScene(s, sc.id)) {
+        if (cmd.known && !isFound(e.stage)) setStage(e, "found", false);
+        if (!cmd.known && isFound(e.stage)) setStage(e, "hidden", false);
+      }
       break;
     }
+    case "entry.add": {
+      const list = (s.entries ??= []);
+      if (list.length >= ENTRIES_MAX) fail("The compendium is full.");
+      const f = cmd.entry;
+      checkPortrait(f.sceneId);
+      const sc = f.sceneId ? scene(f.sceneId) : undefined;
+      const name = cleanLine(f.name ?? "") || (sc ? sc.name?.trim() || sc.label : "");
+      if (!name) fail("Give it a name.");
+      const kind = f.kind ?? "person";
+      const e = blankEntry(list, nextId("e"), kind, name, {
+        title: cleanLine(f.title ?? "") || (sc?.title ?? ""),
+        summary: (f.summary ?? "").trim(),
+        nickname: cleanLine(f.nickname ?? ""),
+        hint: cleanLine(f.hint ?? ""),
+        areas: cleanAreas(f.areas ?? []),
+        dmNote: (f.dmNote ?? "").trim(),
+        secrets: (f.secrets ?? "").trim(),
+      });
+      if (f.slug?.trim()) e.slug = uniqueSlug(list, kind, f.slug);
+      for (const t of (cmd.facts ?? []).map(cleanLine).filter(Boolean).slice(0, FACTS_MAX)) e.facts.push({ id: nextId("f"), slug: factSlug(e.facts, t), text: t });
+      if (sc) e.sceneId = sc.id;
+      if (f.relation) e.relation = f.relation;
+      if (f.start && f.start !== "hidden") e.start = f.start;
+      list.push(e);
+      // A portrait the table has already seen: they've met.
+      if (sc?.known) setStage(e, "found", false);
+      out.entryId = e.id;
+      break;
+    }
+    case "entry.update": {
+      const e = entry(cmd.entryId);
+      const p = cmd.patch;
+      if (p.name !== undefined) {
+        const name = cleanLine(p.name);
+        if (!name) fail("Give it a name.");
+        e.name = name;
+      }
+      if (p.kind !== undefined && p.kind !== e.kind) {
+        e.kind = p.kind;
+        e.slug = uniqueSlug(entriesOf(s), e.kind, e.slug, e.id);
+      }
+      if (p.slug !== undefined) e.slug = uniqueSlug(entriesOf(s), e.kind, p.slug.trim() || e.name, e.id);
+      if (p.title !== undefined) e.title = cleanLine(p.title);
+      if (p.summary !== undefined) e.summary = p.summary.trim();
+      if (p.nickname !== undefined) e.nickname = cleanLine(p.nickname);
+      if (p.hint !== undefined) e.hint = cleanLine(p.hint);
+      if (p.dmNote !== undefined) e.dmNote = p.dmNote.trim();
+      if (p.secrets !== undefined) e.secrets = p.secrets.trim();
+      if (p.areas !== undefined) e.areas = cleanAreas(p.areas);
+      if (p.links !== undefined) {
+        const ids = new Set(entriesOf(s).map((x) => x.id));
+        e.links = [...new Set(p.links)].filter((id) => id !== e.id && ids.has(id));
+      }
+      if (p.relation !== undefined) {
+        const before = gateSnapshot();
+        if (p.relation && p.relation !== "stranger") e.relation = p.relation;
+        else delete e.relation;
+        // Their goodwill may open a storefront or put something on sale.
+        announceOpened(before);
+      }
+      if (p.start !== undefined) {
+        if (p.start === "hidden") delete e.start;
+        else e.start = p.start;
+      }
+      if (p.silhouette !== undefined) {
+        if (p.silhouette) e.silhouette = p.silhouette;
+        else delete e.silhouette;
+      }
+      if (p.sceneId !== undefined) {
+        checkPortrait(p.sceneId);
+        if (p.sceneId) e.sceneId = p.sceneId;
+        else delete e.sceneId;
+      }
+      if (p.pin !== undefined) {
+        if (p.pin) {
+          pinOf(mapOf(p.pin.sceneId), p.pin.pinId);
+          e.pin = { sceneId: p.pin.sceneId, pinId: p.pin.pinId };
+        } else delete e.pin;
+      }
+      if (p.shopId !== undefined) {
+        if (p.shopId) e.shopId = shop(p.shopId).id;
+        else delete e.shopId;
+      }
+      if (p.templateId !== undefined) {
+        if (p.templateId) e.templateId = ((s.monsters ?? []).find((x) => x.id === p.templateId) ?? fail("That monster isn't in the library.")).id;
+        else delete e.templateId;
+      }
+      // A newly tied pin or storefront takes the entry's stage.
+      if (p.pin || p.shopId) syncOut(e, e.stage);
+      break;
+    }
+    case "entry.relationFor": {
+      const e = entry(cmd.entryId);
+      if (e.kind !== "person") fail("Only people have feelings about the party.");
+      player(cmd.playerId);
+      const by = (e.relationBy ??= {});
+      if (cmd.relation && cmd.relation !== (e.relation ?? "stranger")) by[cmd.playerId] = cmd.relation;
+      else delete by[cmd.playerId];
+      if (!Object.keys(by).length) delete e.relationBy;
+      break;
+    }
+    case "entry.remove": {
+      entry(cmd.entryId);
+      s.entries = entriesOf(s).filter((x) => x.id !== cmd.entryId);
+      for (const e of s.entries) if (e.links.includes(cmd.entryId)) e.links = e.links.filter((x) => x !== cmd.entryId);
+      if (s.discovery?.entryId === cmd.entryId) delete s.discovery;
+      break;
+    }
+    case "entry.move": {
+      const list = entriesOf(s);
+      const i = list.findIndex((x) => x.id === cmd.entryId);
+      if (i < 0) fail("That isn't in the compendium any more.");
+      const j = i + cmd.dir;
+      if (j >= 0 && j < list.length) [list[i], list[j]] = [list[j], list[i]];
+      break;
+    }
+    case "entry.stage":
+      setStage(entry(cmd.entryId), cmd.stage, cmd.announce);
+      break;
+    case "entry.show": {
+      const e = entry(cmd.entryId);
+      if (e.stage === "hidden") fail(`The party doesn't know of ${e.name} yet.`);
+      if (cmd.factId && factOf(e, cmd.factId).revealedAt === undefined) fail("Reveal that fact first.");
+      playMoment(e, undefined, cmd.factId);
+      break;
+    }
+    case "entry.factAdd": {
+      const e = entry(cmd.entryId);
+      const text = cleanLine(cmd.text);
+      if (!text) fail("Write the fact first.");
+      if (e.facts.length >= FACTS_MAX) fail(`${e.name} has as many facts as fit.`);
+      const f: EntryFact = { id: nextId("f"), slug: factSlug(e.facts, text), text };
+      e.facts.push(f);
+      out.factId = f.id;
+      break;
+    }
+    case "entry.factUpdate": {
+      const e = entry(cmd.entryId);
+      const f = factOf(e, cmd.factId);
+      if (cmd.text !== undefined) {
+        const text = cleanLine(cmd.text);
+        if (!text) fail("A fact can't be empty. Delete it instead.");
+        f.text = text;
+      }
+      if (cmd.slug !== undefined) f.slug = factSlug(e.facts, slugify(cmd.slug.trim() || f.text), f.id);
+      break;
+    }
+    case "entry.factRemove": {
+      const e = entry(cmd.entryId);
+      factOf(e, cmd.factId);
+      e.facts = e.facts.filter((f) => f.id !== cmd.factId);
+      if (s.discovery?.factId === cmd.factId) delete s.discovery;
+      break;
+    }
+    case "entry.factMove": {
+      const e = entry(cmd.entryId);
+      const i = e.facts.findIndex((f) => f.id === cmd.factId);
+      if (i < 0) fail("That fact isn't there any more.");
+      const j = i + cmd.dir;
+      if (j >= 0 && j < e.facts.length) [e.facts[i], e.facts[j]] = [e.facts[j], e.facts[i]];
+      break;
+    }
+    case "entry.factReveal": {
+      const e = entry(cmd.entryId);
+      const f = factOf(e, cmd.factId);
+      if (cmd.revealed) revealFact(e, f, !!cmd.tv);
+      else {
+        delete f.revealedAt;
+        delete f.learnedIn;
+        if (s.discovery?.factId === f.id) delete s.discovery;
+      }
+      break;
+    }
+    case "lead.add": {
+      const list = (s.leads ??= []);
+      if (list.length >= LEADS_MAX) fail("That's a lot of leads. Close some first.");
+      checkEntry(cmd.entryId);
+      checkEntry(cmd.placeId, "place");
+      if (cmd.jobId) (s.jobs ?? []).find((j) => j.id === cmd.jobId) ?? fail("That flyer isn't there any more.");
+      const l: Lead = { id: nextId("l"), text: cleanLine(cmd.text), shown: cmd.shown ?? true, status: "open", createdAt: ctx.now, dmNote: "" };
+      if (!l.text) fail("Write the lead.");
+      if (cmd.entryId) l.entryId = cmd.entryId;
+      if (cmd.placeId) l.placeId = cmd.placeId;
+      if (cmd.jobId) l.jobId = cmd.jobId;
+      list.push(l);
+      out.leadId = l.id;
+      break;
+    }
+    case "lead.update": {
+      const l = lead(cmd.leadId);
+      const p = cmd.patch;
+      if (p.text !== undefined) l.text = cleanLine(p.text) || l.text;
+      if (p.shown !== undefined) l.shown = p.shown;
+      if (p.dmNote !== undefined) l.dmNote = p.dmNote.trim();
+      if (p.entryId !== undefined) {
+        checkEntry(p.entryId);
+        if (p.entryId) l.entryId = p.entryId;
+        else delete l.entryId;
+      }
+      if (p.placeId !== undefined) {
+        checkEntry(p.placeId, "place");
+        if (p.placeId) l.placeId = p.placeId;
+        else delete l.placeId;
+      }
+      if (p.jobId !== undefined) {
+        if (p.jobId) l.jobId = ((s.jobs ?? []).find((j) => j.id === p.jobId) ?? fail("That flyer isn't there any more.")).id;
+        else delete l.jobId;
+      }
+      break;
+    }
+    case "lead.status":
+      lead(cmd.leadId).status = cmd.status;
+      break;
+    case "lead.remove": {
+      lead(cmd.leadId);
+      if (s.vote && s.vote.closedAt === undefined && s.vote.leadIds.includes(cmd.leadId)) fail("It's in the vote. Clear the vote first.");
+      s.leads = leadsOf(s).filter((l) => l.id !== cmd.leadId);
+      if (s.chosen?.leadId === cmd.leadId) delete s.chosen;
+      break;
+    }
+    case "lead.move": {
+      const list = leadsOf(s);
+      const i = list.findIndex((x) => x.id === cmd.leadId);
+      if (i < 0) fail("That lead isn't there any more.");
+      const j = i + cmd.dir;
+      if (j >= 0 && j < list.length) [list[i], list[j]] = [list[j], list[i]];
+      break;
+    }
+    case "vote.open": {
+      if (s.vote && s.vote.closedAt === undefined) fail("A vote is already open. Close it first.");
+      const ids = [...new Set(cmd.leadIds)];
+      if (ids.length < 2) fail("Pick two or three leads.");
+      for (const id of ids) {
+        const l = lead(id);
+        if (!leadVisible(s, l)) fail(`Show "${l.text}" to the party first.`);
+        if (l.status === "closed") fail(`"${l.text}" is closed.`);
+      }
+      s.vote = { id: nextId("v"), leadIds: ids, openedAt: ctx.now, ballots: {}, ...(cmd.minutes ? { closesAt: ctx.now + cmd.minutes * 60_000 } : {}) };
+      break;
+    }
+    case "vote.close": {
+      const v = s.vote ?? fail("There's no vote.");
+      closeVote(v, ctx.now);
+      break;
+    }
+    case "vote.pick": {
+      const v = s.vote ?? fail("There's no vote.");
+      if (!v.leadIds.includes(cmd.leadId)) fail("That lead isn't in the vote.");
+      closeVote(v, ctx.now);
+      const was = v.winnerId && leadsOf(s).find((l) => l.id === v.winnerId);
+      if (was && was.id !== cmd.leadId && was.status === "followed") was.status = "open";
+      v.winnerId = cmd.leadId;
+      delete v.tied;
+      const l = lead(cmd.leadId);
+      if (l.status === "open") l.status = "followed";
+      break;
+    }
+    case "vote.clear":
+      delete s.vote;
+      break;
+    case "live.leads":
+      s.live.leads = cmd.on || undefined;
+      break;
+    case "discovery.totals":
+      s.discoveryTotals = cmd.on || undefined;
+      break;
+    case "me.vote": {
+      const p = me();
+      const v = s.vote ?? fail("There's no vote right now.");
+      if (voteClosed(v, ctx.now)) fail("The vote has closed.");
+      if (!v.leadIds.includes(cmd.leadId)) fail("That isn't one of the choices.");
+      v.ballots[p.id] = cmd.leadId;
+      break;
+    }
+
     case "me.noteAdd": {
       const p = me();
       addNote(p.id, penName(p), cmd.text, cmd.tags, cmd.chapterId);
@@ -1645,6 +2111,7 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
       const j = jobs.find((x) => x.id === cmd.jobId && x.pinned && x.status !== "expired") ?? fail("That job isn't on the board.");
       if (j.status !== "open") fail(`Someone already took ${jobTitle(j)}.`);
       if (!renownMet(s, j.renown)) fail(`That job is for experienced parties only (${rankName(j.renown)}).`);
+      if (!trustMet(s, j.trust)) fail(`That job needs ${trustText(s, j.trust)}.`);
       if (s.requests.some((r) => r.status === "pending" && r.kind === "job" && r.jobId === j.id && r.playerId === p.id)) fail("You've already asked for this job.");
       if (s.requests.filter((r) => r.status === "pending" && r.playerId === p.id).length >= 20) fail("You have 20 requests waiting. Let the DM catch up.");
       s.requests.push({
@@ -1808,11 +2275,13 @@ function tidyItem(it: Item): Item {
   else delete it.tags;
   if (!it.effects?.length) delete it.effects;
   if (!it.renown) delete it.renown;
+  if (!it.trust) delete it.trust;
   return it;
 }
 
 /** Trim a job flyer. A sealed envelope carries no text. */
 function cleanJob(j: Job): Job {
+  if (!j.trust) delete j.trust;
   j.title = j.title.trim().slice(0, 80);
   j.postedBy = j.postedBy.trim().slice(0, 80);
   j.body = j.body.trim().slice(0, 600);

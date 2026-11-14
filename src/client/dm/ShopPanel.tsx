@@ -1,5 +1,6 @@
 "use client";
 
+import { TrustSelect } from "./TrustSelect";
 import { useState } from "react";
 import { canAfford, cpToGpInput, formatCp, parseAmount } from "@/shared/money";
 import type { Item, ItemTier, Shop, ShopVisibility } from "@/shared/types";
@@ -178,6 +179,7 @@ export function ShopPanel() {
                 ))}
               </select>
             </label>
+            <TrustSelect value={shop.trust} onChange={(trust) => void run({ type: "shop.update", shopId: shop.id, patch: { trust } })} />
             <button
               className="btn small danger"
               type="button"
@@ -278,7 +280,8 @@ function ItemEditor({ it, quiet }: { it: Item; quiet: boolean }) {
             ))}
           </select>
         </label>
-        {it.renown && it.tier === "sale" ? <Field label="Line under the rank (optional)" value={it.reason} placeholder="e.g. Mags only rents it to people she trusts." onCommit={(v) => patch({ reason: v })} /> : null}
+        <TrustSelect value={it.trust} onChange={(trust) => void patch({ trust })} />
+        {(it.renown || it.trust) && it.tier === "sale" ? <Field label="Line under the rank (optional)" value={it.reason} placeholder="e.g. Mags only rents it to people she trusts." onCommit={(v) => patch({ reason: v })} /> : null}
         <Field label="Name" value={it.name} onCommit={(v) => patch({ name: v })} />
         <Field
           label="Price"

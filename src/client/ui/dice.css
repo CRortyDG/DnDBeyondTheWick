@@ -355,6 +355,15 @@
   border-color: var(--slate);
   color: #b9c7d8;
 }
+.dt-history-head {
+  flex-wrap: wrap;
+}
+.dt-history-head .dt-reveal {
+  flex-basis: 100%;
+  width: 100%;
+  min-width: 0;
+  order: 9;
+}
 
 /* A player's "for the DM only" roll: stays until dismissed. */
 .dt-cards {

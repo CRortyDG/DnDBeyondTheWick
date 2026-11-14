@@ -19,6 +19,8 @@ export function actionLabel(a: BeatAction, scenes: Scene[]): string {
   if (a.type === "bank") return "Bank opens · purse on the TV";
   if (a.type === "stinger") return "TV → plays the stinger";
   if (a.type === "fight") return `Fight: ${a.monsters.map((m) => (m.count > 1 ? `${m.name} ×${m.count}` : m.name)).join(", ")} · TV → Roll initiative!`;
+  if (a.type === "reveal") return a.stage === "rumored" ? `Rumor: ${a.ref}` : `Reveal: ${a.ref}${a.stage === "known" ? " (known)" : ""}`;
+  if (a.type === "fact") return `Reveal fact: ${a.ref}`;
   const sc = scenes.find((x) => x.id === a.sceneId);
   if (!sc) return "TV → a scene that was deleted";
   return sc.kind === "portrait" ? `TV → ${sc.label}’s portrait` : `TV → ${sc.label}`;

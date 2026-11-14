@@ -20,6 +20,8 @@ export interface CardItem {
   reason?: string;
   /** Locked until the party has this Renown (what players and the TV get). */
   needs?: string;
+  /** Someone's goodwill it waits on. */
+  goodwill?: string;
   /** The DM's item: the Renown it needs, as a rank number. */
   renown?: number;
   hint?: string;
@@ -83,11 +85,11 @@ export function ItemCard({ item, children, dm, where }: { item: CardItem; childr
       )}
       {item.description && (tier !== "rumored" || dm) ? <p className="card-desc">{item.description}</p> : null}
       {tier === "rumored" && item.hint ? <p className="card-hint">&ldquo;{item.hint}&rdquo;</p> : null}
-      {item.needs ? (
+      {item.needs || item.goodwill ? (
         <p className="card-lock card-renown">
           <LockIcon size={18} />{" "}
           <span>
-            Needs <b>{item.needs}</b>
+            Needs <b>{item.needs ?? item.goodwill}</b>
             {item.reason ? <span className="card-lock-why">{item.reason}</span> : null}
           </span>
         </p>

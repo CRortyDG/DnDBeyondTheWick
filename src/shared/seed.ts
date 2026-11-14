@@ -234,7 +234,7 @@ export function candlefairMap(): MapData {
         ["The Temple", "temple", "Quiet, cold, and always a candle lit."],
         ["The Smithy", "shop", "Hammering from dawn to dusk.", false, { kind: "shop", shopId: "smith" }],
         ["The Market Square", "square", "Winterfest’s heart."],
-        ["Lathtarl’s Lantern", "village", "The little fishing village across the river."],
+        ["Lathtarl’s Lantern", "lighthouse", "The old lighthouse across the river. Dark."],
         ["Warlock’s Crypt", "danger", "The old crypt on the hill above town."],
       ],
       "cf",
@@ -336,6 +336,26 @@ export function freshStart(g: GameState): GameState {
   // The Chronicle starts again on an empty Chapter 1, and nobody has met anyone yet.
   s.notes = [];
   for (const sc of s.scenes) delete sc.known;
+  // Every entry back to where it starts, every fact locked again; what the DM wrote stays.
+  delete s.discovery;
+  s.entries = (s.entries ?? []).map(({ foundAt, foundIn, stagedAt, relationBy, ...e }) => ({
+    ...e,
+    stage: e.start ?? "hidden",
+    facts: e.facts.map(({ revealedAt, learnedIn, ...f }) => f),
+  }));
+  for (const e of s.entries) {
+    const sc = e.sceneId ? s.scenes.find((x) => x.id === e.sceneId) : undefined;
+    if (sc && (e.stage === "found" || e.stage === "known")) sc.known = true;
+    // A place's pin goes back with it.
+    const pin = e.pin && s.scenes.find((x) => x.id === e.pin!.sceneId)?.map?.pins.find((p) => p.id === e.pin!.pinId);
+    if (pin) pin.discovered = e.stage !== "hidden";
+  }
+  // Leads open again; no vote, no "You chose".
+  s.leads = (s.leads ?? []).map((l) => ({ ...l, status: "open" as const }));
+  delete s.vote;
+  delete s.chosen;
+  delete s.recapCard;
+  delete s.live.leads;
   const home = s.scenes.find((x) => x.kind === "notice" && !x.reveal) ?? s.scenes.find((x) => !x.reveal) ?? s.scenes[0];
   if (home) s.live.sceneId = home.id;
   s.live.shopOpen = false;
