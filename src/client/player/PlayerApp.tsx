@@ -209,6 +209,7 @@ function PlayerScreen({ view, online, send, ident, setIdent }: { view: PlayerVie
         {view.shops.length ? (
           <>
             <ShopBoard
+              town={view.game.town}
               shops={view.shops}
               items={view.items}
               shopId={shopId ?? ""}
@@ -245,7 +246,7 @@ function PlayerScreen({ view, online, send, ident, setIdent }: { view: PlayerVie
         ) : (
           <>
             <h2>The market</h2>
-            <p className="note">No shops are open to you yet. Keep your eyes open around town.</p>
+            <p className="note">No shops are open to you yet. Keep your eyes open.</p>
           </>
         )}
       </section>

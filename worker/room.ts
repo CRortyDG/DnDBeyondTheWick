@@ -6,6 +6,8 @@ import { hydrate, type Store } from "@/server/store";
 import { isToken, projectArrival } from "@/shared/arrival";
 import type { GameState, LedgerEntry } from "@/shared/types";
 import type { Env } from "./env";
+import { R2Presets } from "./presets";
+import type { PresetStore } from "@/server/presets";
 
 /** A campaign idle this long is deleted, with its images. */
 const IDLE_DELETE_MS = 180 * 24 * 60 * 60 * 1000;
@@ -48,8 +50,11 @@ export class GameRoom extends DurableObject<Env> implements Store {
   /** Tables exist. A code nobody created (a typo, a bot guessing) never writes any, so it leaves nothing behind. */
   private hasSchema: boolean;
 
+  readonly presets: PresetStore;
+
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
+    this.presets = new R2Presets(env.FILES);
     this.sql = ctx.storage.sql;
     this.hasSchema = this.sql.exec("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'doc'").toArray().length > 0;
     // Keep-alive pings from the browser are answered without waking the room.

@@ -408,6 +408,7 @@ export const dmCommand = z.discriminatedUnion("type", [
 
   z.object({ type: z.literal("game.rename"), name: text(120).min(1) }),
   z.object({ type: z.literal("game.vtt"), url: text(300) }),
+  z.object({ type: z.literal("game.town"), town: text(60) }),
 
   // Combat mode.
   ...fightDmCommands,

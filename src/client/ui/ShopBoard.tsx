@@ -48,6 +48,7 @@ export function ShopBoard<T extends CardItem>({
   onMode,
   category,
   onCategory,
+  town = "Candlefair",
 }: {
   shops: ShopLike[];
   items: T[];
@@ -64,13 +65,16 @@ export function ShopBoard<T extends CardItem>({
   onMode?: (m: ShopMode) => void;
   category?: ItemCategory;
   onCategory?: (c: ItemCategory) => void;
+  /** The town's name for the title ("Candlefair Market"). Empty: just "The Market". */
+  town?: string;
 }) {
+  const title = town ? `${town} Market` : "The Market";
   const shop = shops.find((s) => s.id === shopId) ?? shops[0];
   if (!shop) {
     return (
       <div className={`market market-${size}`}>
         <header className="market-head">
-          <h1 className="market-title">Candlefair Market</h1>
+          <h1 className="market-title">{title}</h1>
         </header>
         <p className="note">No shops are open yet.</p>
       </div>
@@ -87,7 +91,7 @@ export function ShopBoard<T extends CardItem>({
   return (
     <div className={`market market-${size}`}>
       <header className="market-head">
-        <h1 className="market-title">{byCategory && size === "tv" ? cat.label : "Candlefair Market"}</h1>
+        <h1 className="market-title">{byCategory && size === "tv" ? cat.label : title}</h1>
         {!byCategory && shop.subtitle ? <p className="market-sub">{shop.subtitle}</p> : null}
       </header>
       {onMode ? (

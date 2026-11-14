@@ -1,7 +1,8 @@
 import { KEY_HEADER, makeCampaignCode, newDmKey, sha256 } from "@/server/auth";
-import { json, MISS_HEADER } from "@/server/api";
+import { handlePresetApi, isPresetPath, json, MISS_HEADER } from "@/server/api";
 import { normaliseGameId } from "@/shared/handles";
 import type { Env } from "./env";
+import { R2Presets } from "./presets";
 import { GameRoom } from "./room";
 
 export { GameRoom };
@@ -94,7 +95,8 @@ async function createCampaign(req: Request, env: Env, ctx: ExecutionContext): Pr
   if (env.CREATE_LIMIT && !(await env.CREATE_LIMIT.limit({ key: ip })).success) {
     return json({ error: "Too many new campaigns from here. Try again in a minute." }, 429);
   }
-  const body = (await req.json().catch(() => ({}))) as { name?: unknown; code?: unknown };
+  const body = (await req.json().catch(() => ({}))) as { name?: unknown; code?: unknown; from?: unknown };
+  const from = typeof body.from === "string" && /^(blank|candlefair|preset:[a-z0-9]{10})$/.test(body.from) ? body.from : "blank";
   const name = typeof body.name === "string" ? body.name.trim().slice(0, 80) : "";
   const wanted = typeof body.code === "string" && body.code.trim() ? normaliseGameId(body.code) : null;
   if (wanted !== null && !/^[a-z0-9][a-z0-9-]{2,39}$/.test(wanted)) {
@@ -106,11 +108,15 @@ async function createCampaign(req: Request, env: Env, ctx: ExecutionContext): Pr
     const res = await room(env, game).fetch(
       new Request(`https://room/internal/create?game=${encodeURIComponent(game)}`, {
         method: "POST",
-        body: JSON.stringify({ dmKeyHash: sha256(key), ...(name ? { name } : {}) }),
+        body: JSON.stringify({ dmKeyHash: sha256(key), from, ...(name ? { name } : {}) }),
       }),
     );
     if (res.ok) return json({ game, key });
-    if (res.status !== 409) return res;
+    if (res.status !== 409) {
+      // A preset code that doesn't exist is a guess like any other.
+      if (res.status === 404) await noteMiss(env, ctx, ip);
+      return new Response(res.body, { status: res.status, headers: { "Content-Type": "application/json; charset=utf-8" } });
+    }
     // A taken code tells a guesser it exists, so it counts as a miss.
     if (wanted) await noteMiss(env, ctx, ip);
     if (wanted) return json({ error: "That campaign code is taken. Try another, or leave it blank for a random one." }, 409);
@@ -153,7 +159,8 @@ async function upload(req: Request, env: Env, ctx: ExecutionContext, ip: string)
 
 /** Uploaded images. The names are random, so the link is the permission. */
 async function serveFile(req: Request, env: Env, path: string): Promise<Response> {
-  const m = /^\/api\/files\/([a-z0-9-]{1,40}\/[0-9a-f]{24}\.(png|jpg|webp|gif|svg|avif))$/.exec(path);
+  // A campaign's images are <code>/<random>; a preset's own copies are p/<preset code>/<random>.
+  const m = /^\/api\/files\/((?:p\/[a-z0-9]{10}|[a-z0-9-]{1,40})\/[0-9a-f]{24}\.(png|jpg|webp|gif|svg|avif))$/.exec(path);
   if (!m) return new Response("Not found", { status: 404 });
   const obj = await env.FILES.get(m[1]);
   if (!obj) return new Response("Not found", { status: 404 });
@@ -195,6 +202,7 @@ export default {
         if (await over(env.API_LIMIT, ip)) return withHeaders(slowDown("Too many requests from here. Slow down a little."));
         if (path === "/api/create" && req.method === "POST") return withHeaders(await createCampaign(req, env, ctx));
         if (path === "/api/upload" && req.method === "POST") return withHeaders(await upload(req, env, ctx, ip));
+        if (isPresetPath(path)) return withHeaders(await settle(await handlePresetApi(req, new R2Presets(env.FILES)), env, ctx, ip));
         const res = await room(env, normaliseGameId(url.searchParams.get("game"))).fetch(req);
         return withHeaders(await settle(res, env, ctx, ip));
       }

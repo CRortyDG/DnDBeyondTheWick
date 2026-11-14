@@ -1,5 +1,7 @@
 
-import { useRef } from "react";
+import { useRef, useState } from "react";
+import { originOf, PRESET_NAME_MAX, townOf } from "@/shared/presets";
+import { deletePresetOnline, devicePresets, forgetPreset, rememberPreset, renamePresetOnline, type DevicePreset } from "../presets";
 import { absoluteHref, api, authHeaders, dmLink, rememberKey } from "../api";
 import { useDm } from "./context";
 import { Field } from "./Field";
@@ -25,16 +27,18 @@ export function GamePanel() {
     }
   };
 
+  const origin = originOf(s);
+  const startLabel = origin.kind === "blank" ? "a blank campaign" : origin.kind === "candlefair" ? "the original Candlefair" : `the preset \u201c${origin.name}\u201d`;
   const reset = async (mode: "play" | "all") => {
     const msg =
       mode === "play"
         ? "Zero every purse, wipe the ledger and delete all sessions? Players, scenes and shops stay."
-        : "Reset the whole game to the original Candlefair? Players, scenes, shops and items you added or changed will be gone.";
+        : `Reset the whole game to ${startLabel}? Players, scenes, shops and items you added or changed will be gone.`;
     if (!confirm(msg)) return;
     if (mode === "all" && prompt('Type RESET to confirm.') !== "RESET") return;
     try {
       await api("/api/reset", ident, { method: "POST", body: JSON.stringify({ mode }) });
-      toast(mode === "play" ? "Fresh start: purses at 0 gp, ledger and sessions cleared." : "Back to the original Candlefair.");
+      toast(mode === "play" ? "Fresh start: purses at 0 gp, ledger and sessions cleared." : `Back to ${startLabel}.`);
     } catch (e) {
       toast(e instanceof Error ? e.message : String(e));
     }
@@ -85,6 +89,13 @@ export function GamePanel() {
             hint="Shows as Launch VTT at the top of your view and on every player's phone."
             onCommit={(v) => run({ type: "game.vtt", url: v }, v.trim() ? "VTT link saved." : "VTT link removed.")}
           />
+          <Field
+            label="Town name"
+            value={townOf(s)}
+            placeholder="Where the party is based"
+            hint="Titles the shop on the TV and phones (“Candlefair Market”) and the players’ Renown line."
+            onCommit={(v) => run({ type: "game.town", town: v }, v.trim() ? "Town name saved." : "Town name cleared.")}
+          />
           <p className="note">
             Campaign code: <code>{s.id}</code>. Sessions so far: {s.sessions.length}.
           </p>
@@ -116,6 +127,7 @@ export function GamePanel() {
           </dd>
         </dl>
       </section>
+      <PresetsBox />
       <section className="box">
         <h3>Backup</h3>
         <p className="note">Everything is saved online automatically. A backup now and then is still a good idea.</p>
@@ -138,9 +150,9 @@ export function GamePanel() {
           </button>
           <p className="note">Keeps your players, scenes, images, shops and items. Every purse goes back to 0 gp, the Chronicle starts again on an empty Chapter 1, and the next session is Session 1.</p>
           <button className="btn danger" type="button" onClick={() => reset("all")}>
-            Reset everything to the original Candlefair
+            Reset everything to {startLabel}
           </button>
-          <p className="note">Back to Players 1&ndash;4, the starter scenes, shops and items. Your own edits, players and uploads are dropped.</p>
+          <p className="note">Back to Players 1&ndash;4 and how this campaign started. Your own edits, players and uploads are dropped.</p>
           <button
             className="btn danger"
             type="button"
@@ -219,6 +231,120 @@ function SessionsBox() {
           );
         })}
       </ol>
+    </section>
+  );
+}
+
+/**
+ * Save this campaign's setup to start new campaigns from. The list of presets
+ * (and the right to save over, rename or delete them) is kept on this device.
+ */
+function PresetsBox() {
+  const { view, ident, toast } = useDm();
+  const s = view.state;
+  const [list, setList] = useState<DevicePreset[]>(() => devicePresets());
+  const [name, setName] = useState(s.name);
+  const [busy, setBusy] = useState(false);
+  const refresh = () => setList(devicePresets());
+
+  const save = async (over?: DevicePreset) => {
+    const n = (over ? over.name : name).trim();
+    if (!n) return toast("Give the preset a name.");
+    if (over && !confirm(`Save this campaign's setup over \u201c${over.name}\u201d? Campaigns already started from it don't change.`)) return;
+    setBusy(true);
+    try {
+      const r = await api<{ code: string; token: string; name: string; savedAt: number }>("/api/preset/save", ident, {
+        method: "POST",
+        body: JSON.stringify({ name: n, ...(over ? { code: over.code, token: over.token } : {}) }),
+      });
+      rememberPreset({ code: r.code, token: r.token, name: r.name, savedAt: r.savedAt });
+      refresh();
+      toast(over ? `Saved over \u201c${r.name}\u201d.` : `Saved \u201c${r.name}\u201d. Pick it when you start your next campaign.`);
+    } catch (e) {
+      toast(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const rename = async (p: DevicePreset) => {
+    const n = prompt("Rename the preset", p.name)?.trim();
+    if (!n || n === p.name) return;
+    try {
+      const r = await renamePresetOnline(p, n);
+      rememberPreset({ ...p, name: r.name });
+      refresh();
+    } catch (e) {
+      toast(e instanceof Error ? e.message : String(e));
+    }
+  };
+
+  const remove = async (p: DevicePreset) => {
+    if (!confirm(`Delete the preset \u201c${p.name}\u201d? Its code stops working. Campaigns already started from it keep everything.`)) return;
+    try {
+      await deletePresetOnline(p);
+      forgetPreset(p.code);
+      refresh();
+      toast("Preset deleted.");
+    } catch (e) {
+      toast(e instanceof Error ? e.message : String(e));
+    }
+  };
+
+  const copy = async (p: DevicePreset) => {
+    try {
+      await navigator.clipboard.writeText(p.code);
+      toast(`Code ${p.code} copied.`);
+    } catch {
+      toast(`The code is ${p.code}.`);
+    }
+  };
+
+  return (
+    <section className="box">
+      <h3>Presets</h3>
+      <p className="note">
+        Save this campaign&rsquo;s setup to start new campaigns from: scenes and maps, shops and items, Discovery, episodes, monsters, the board and the storyboard.
+        Players, gold, the ledger, sessions and the Chronicle are left out.
+      </p>
+      <div className="inline">
+        <input className="fld" value={name} onChange={(e) => setName(e.target.value)} maxLength={PRESET_NAME_MAX} aria-label="Preset name" placeholder="Preset name" />
+        <button className="btn" type="button" disabled={busy || !name.trim()} onClick={() => void save()}>
+          {busy ? "Saving\u2026" : "Save as a new preset"}
+        </button>
+      </div>
+      {list.length ? (
+        <ul className="preset-list">
+          {list.map((p) => (
+            <li key={p.code}>
+              <span>
+                <b>{p.name}</b>
+                <span className="note">
+                  {" "}
+                  · code <code>{p.code}</code> · saved {new Date(p.savedAt).toLocaleDateString(undefined, { day: "numeric", month: "short" })}
+                </span>
+              </span>
+              <span className="inline">
+                <button className="btn small" type="button" disabled={busy} onClick={() => void save(p)}>
+                  Save over
+                </button>
+                <button className="btn small" type="button" onClick={() => void copy(p)}>
+                  Copy code
+                </button>
+                <button className="btn small" type="button" onClick={() => void rename(p)}>
+                  Rename
+                </button>
+                <button className="btn small danger" type="button" onClick={() => void remove(p)}>
+                  Delete
+                </button>
+              </span>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="note">No presets saved on this device yet.</p>
+      )}
+      <p className="note">Your presets are listed on this device. Share a code to start a campaign from it anywhere.</p>
     </section>
   );
 }

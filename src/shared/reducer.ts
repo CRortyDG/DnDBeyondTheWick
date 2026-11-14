@@ -2307,6 +2307,9 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
     case "game.rename":
       s.name = cmd.name.trim();
       break;
+    case "game.town":
+      s.town = cmd.town.replace(/\s+/g, " ").trim();
+      break;
     case "game.vtt": {
       const url = checkUrl(cmd.url);
       if (url) s.vttUrl = url;

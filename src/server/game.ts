@@ -2,9 +2,11 @@ import { dmCommand, playerCommand, type Command } from "@/shared/commands";
 import { displayNameFrom, isReservedHandle, normaliseGameId, normaliseHandle } from "@/shared/handles";
 import { projectDm, projectPlayer, projectTv, type View } from "@/shared/projection";
 import { apply, CommandError } from "@/shared/reducer";
-import { seatedCount, seatsOf, seedGame } from "@/shared/seed";
+import { blankGame, candlefairGame, fromPreset } from "@/shared/presets";
+import { seatedCount, seatsOf } from "@/shared/seed";
 import type { Actor, GameState, LedgerEntry } from "@/shared/types";
 import { isDmKey, keyMatches, makeToken, sha256 } from "./auth";
+import { loadPreset } from "./presets";
 import type { Store } from "./store";
 
 /** The biggest a saved game may grow. A Durable Object row tops out at 2 MB, so past this a game refuses new growth instead of breaking. */
@@ -160,13 +162,30 @@ export async function hello(gameRaw: string | null, rawPlayer: string | null, ke
   return { status: "ok", view: await viewFor(store, game, actorOf(who)), handle: normaliseHandle(rawPlayer ?? "") };
 }
 
-/** A new campaign, seeded with the starter scenes, shops and items, owned by whoever holds the DM key. */
-export async function createGame(store: Store, gameRaw: string, dmKeyHash: string, name?: string) {
+/** Where a new campaign starts: "blank" (the default), "candlefair", or "preset:<code>". */
+export type StartFrom = string | undefined;
+
+/** The starting state for a campaign, blank by default. A preset is loaded from the preset store. */
+export async function startingState(store: Store, game: string, name: string | undefined, from: StartFrom): Promise<GameState> {
+  if (!from || from === "blank") return blankGame(game, name);
+  if (from === "candlefair") return candlefairGame(game, name);
+  if (from.startsWith("preset:")) {
+    if (!store.presets) throw new HttpError(503, "Presets aren't available here.");
+    const p = await loadPreset(store.presets, from.slice(7));
+    return fromPreset(p.setup, game, name, { code: p.code, name: p.name });
+  }
+  throw new HttpError(400, "Choose what to start from.");
+}
+
+/** A new campaign, owned by whoever holds the DM key: blank, Candlefair, or from a saved preset. */
+export async function createGame(store: Store, gameRaw: string, dmKeyHash: string, name?: string, from?: StartFrom) {
   const game = normaliseGameId(gameRaw);
   const { state } = await store.read(game);
   if (state) throw new HttpError(409, "That campaign code is taken.", "taken");
+  // Load the preset first: a bad code shouldn't leave a half-made campaign behind.
+  const start = await startingState(store, game, name, from);
   await store.setDmKeyHash(game, dmKeyHash);
-  return store.overwrite(game, seedGame(game, name), []);
+  return store.overwrite(game, start, []);
 }
 
 export { normaliseGameId };

@@ -855,6 +855,10 @@ export interface GameState {
   quick?: (string | null)[];
   /** DM-ONLY: the last few things shown on the TV, newest first. */
   recent?: string[];
+  /** DM-ONLY: where this campaign started (blank, Candlefair or a saved preset). Missing: Candlefair. Read with originOf(). */
+  origin?: import("./presets").Origin;
+  /** The town the shop and the players' phones name. Missing: Candlefair. "" on a blank campaign until the DM names it. Read with townOf(). */
+  town?: string;
   /** One-time content upgrades already applied to this game (see migrate.ts), so a later delete sticks. */
   upgrades?: string[];
   /** DM-ONLY: the storyboard (threads, story beats, planned session dates). Never copied into a TV or player view. Read with storyOf(). */

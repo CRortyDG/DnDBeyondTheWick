@@ -73,7 +73,7 @@ export function Discovery({ view, send, seen }: { view: PlayerView; send: Send; 
         <Leads leads={view.leads} send={send} />
         <section className="box">
           <h2>Discoveries</h2>
-          <p className="note">Nothing yet. The people, places and secrets of Candlefair turn up here as you find them.</p>
+          <p className="note">Nothing yet. The people, places and secrets {view.game.town ? `of ${view.game.town} ` : ""}turn up here as you find them.</p>
         </section>
       </>
     );

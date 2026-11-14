@@ -63,13 +63,13 @@ function TvScreen({ view, online }: { view: TvView; online: boolean }) {
     <div className={`tv-root${idle ? " idle" : ""}`}>
       {layers.map((l) => (
         <div key={l.key} className={`tv-layer${l.entering ? " entering" : ""}`} aria-hidden={l.leaving}>
-          <SceneView scene={l.scene} table={view.table} board={view} />
+          <SceneView town={view.game.town} scene={l.scene} table={view.table} board={view} />
         </div>
       ))}
 
       {view.live.shopOpen && shop && !fighting ? (
         <div className="tv-shop" role="region" aria-label={view.live.shopCategory ? "The market, open on the TV" : `${shop.name}, open on the TV`}>
-          <ShopBoard shops={view.shops} items={view.items} shopId={shop.id} size="tv" mode={view.live.shopCategory ? "category" : "shop"} category={view.live.shopCategory} />
+          <ShopBoard town={view.game.town} shops={view.shops} items={view.items} shopId={shop.id} size="tv" mode={view.live.shopCategory ? "category" : "shop"} category={view.live.shopCategory} />
         </div>
       ) : null}
 

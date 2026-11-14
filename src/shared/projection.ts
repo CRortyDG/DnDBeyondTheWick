@@ -3,6 +3,7 @@
 
 import { leadsView, type LeadsView } from "./leads";
 import { areaCounts, type AreaCount } from "./discovery";
+import { townOf } from "./presets";
 import { creditLines, discountPct, firstChargeCp, priceOf, raisedCp, stakeTotals } from "./progress";
 import type { DiceGroup, RollTo } from "./dice";
 import { heldCp, heldStock } from "./requests";
@@ -236,7 +237,7 @@ export interface PublicSession {
 
 interface Common {
   version: number;
-  game: { id: string; name: string };
+  game: { id: string; name: string; /** The town's name ("" if the DM hasn't named it). */ town: string };
   purse: PublicPlayer[];
   shops: PublicShop[];
   items: PublicItem[];
@@ -476,7 +477,7 @@ function common(game: GameState, version: number, viewer: Viewer): Common {
   const rank = renownOf(game);
   return {
     version,
-    game: { id: game.id, name: game.name },
+    game: { id: game.id, name: game.name, town: townOf(game) },
     purse: game.players.filter((p) => !p.archived && !p.away).map((p) => ({ id: p.id, name: penName(p), balanceCp: p.balanceCp, inspired: !!p.inspired })),
     shops: shops.map((x) => ({ id: x.id, name: x.name, subtitle: x.subtitle, closed: !!x.closed, ...(renownMet(game, x.renown) ? {} : { needs: rankName(x.renown ?? 0) }), ...(trustText(game, x.trust) ? { goodwill: trustText(game, x.trust)! } : {}) })),
     items: game.items.filter((it) => open.has(it.shopId)).map((it) => publicItem(game, it)).filter((x): x is PublicItem => x !== null),
