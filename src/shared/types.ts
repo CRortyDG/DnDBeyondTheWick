@@ -153,6 +153,14 @@ export interface Shop {
   secretSales?: boolean;
   /** The party's Renown this storefront needs (see renown.ts). Below it: name and rank only, no goods. */
   renown?: number;
+  /** Someone's goodwill it also needs (see renown.ts). */
+  trust?: TrustNeed;
+}
+
+/** A lock on someone's goodwill: how that person feels about the party must be at least this. */
+export interface TrustNeed {
+  entryId: string;
+  relation: "friendly" | "ally";
 }
 
 /**
@@ -231,6 +239,8 @@ export interface Item {
   effects?: Effect[];
   /** The party's Renown this needs (see renown.ts). Below it, a "sale" item shows as locked with the rank. */
   renown?: number;
+  /** Someone's goodwill it also needs. Without it, a "sale" item shows as locked. (null only in a patch: cleared.) */
+  trust?: TrustNeed | null;
 }
 
 /** A rented room, safekeeping, the Back Room. */
@@ -343,6 +353,8 @@ export interface Job {
   followUpOf?: string;
   /** DM-ONLY: never sent to the TV or a phone. */
   dm: JobDmNotes;
+  /** Someone's goodwill it also needs before the party can take it. (null only in a patch: cleared.) */
+  trust?: TrustNeed | null;
 }
 
 /** DM-ONLY */
@@ -726,6 +738,10 @@ export interface GameState {
   entries?: Entry[];
   /** The last reveal the TV should play. n changes each time. from: the stage it moved from. */
   discovery?: { entryId: string; n: number; factId?: string; from?: Stage; at: number };
+  /** Discovery counters show how much is left to find per area (empty slots), hidden entries included. */
+  discoveryTotals?: boolean;
+  /** The end-of-session recap card on the TV ("Tonight you met…"). n changes each time. */
+  recapCard?: { n: number; at: number; text: string };
   /** Threads the party can pull on. */
   leads?: Lead[];
   /** The party's vote on what to follow next. One at a time. */

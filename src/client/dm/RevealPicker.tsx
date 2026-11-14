@@ -22,7 +22,7 @@ export function RevealPicker({ total }: { total: number }) {
   }
   return (
     <select
-      className="fld small-select"
+      className="fld small-select dt-reveal"
       autoFocus
       aria-label={`Rolled ${total}: reveal`}
       value=""

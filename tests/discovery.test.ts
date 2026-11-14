@@ -402,7 +402,7 @@ reveal: person/nobody`;
       { type: "reveal", ref: "person/artum", stage: "known" },
       { type: "reveal", ref: "person/nobody", stage: "found" },
     ]);
-    const out = episodeMarkdown({ id: "x", title: "T", beats: p.beats.map((b, i) => ({ ...b, id: `b${i}` })) }, []);
+    const out = episodeMarkdown({ title: "T", beats: p.beats.map((b, i) => ({ ...b, id: `b${i}` })) }, []);
     expect(out).toContain("reveal: person/fennick\n");
     expect(out).toContain("fact: person/mags/owes-the-baker");
     expect(out).toContain("rumor: place/the-trollbark");
@@ -427,5 +427,74 @@ reveal: person/nobody`;
     expect(ent("e-mags").stage).toBe("known");
     expect(ent("e-trollbark").stage).toBe("found"); // a rumor line never takes it back
     expect(ent("e-artum").stage).toBe("known");
+  });
+});
+
+describe("counters, goodwill locks and the session recap", () => {
+  it("count per area, and only show what's left in totals mode", () => {
+    const candle = () => phone().areas.find((a) => a.name === "Candlefair")!;
+    expect(candle().total).toBeUndefined();
+    const before = candle();
+    dm({ type: "discovery.totals", on: true });
+    const hidden = g.entries!.filter((e) => e.stage === "hidden" && e.areas.includes("Candlefair")).length;
+    expect(candle().total).toBe(before.found + before.rumored + hidden);
+    dm({ type: "entry.stage", entryId: "e-chef", stage: "found", announce: false });
+    expect(candle().found).toBe(before.found + 1);
+    expect(candle().total).toBe(before.found + before.rumored + hidden);
+  });
+
+  it("an item, storefront or flyer opens when someone's goodwill is high enough", () => {
+    const it = g.items.find((x) => x.tier === "sale" && !x.renown)!;
+    const shopId = it.shopId;
+    dm({ type: "shop.visibility", shopId, visibility: "all" });
+    dm({ type: "item.update", itemId: it.id, patch: { trust: { entryId: "e-mags", relation: "friendly" } } });
+    const card = () => phone().items.find((x) => x.id === it.id)!;
+    expect(card().tier).toBe("locked");
+    expect(card().goodwill).toBe("Mags Wick’s friendship");
+    expect(fails(P1, { type: "me.requestBuy", itemId: it.id, qty: 1, note: "" })).toMatch(/friendship/);
+    dm({ type: "entry.update", entryId: "e-mags", patch: { relation: "friendly" } });
+    expect(card().tier).toBe("sale");
+    expect(card().goodwill).toBeUndefined();
+    expect(g.banner?.text ?? "").toMatch(/Now for sale/);
+    // Hostile locks it again; ally needs more than friendly.
+    dm({ type: "item.update", itemId: it.id, patch: { trust: { entryId: "e-mags", relation: "ally" } } });
+    expect(card().tier).toBe("locked");
+    dm({ type: "shop.update", shopId, patch: { trust: { entryId: "e-artum", relation: "friendly" } } });
+    const shop = () => phone().shops.find((x) => x.id === shopId)!;
+    expect(shop().goodwill).toBe("someone’s friendship"); // Artum is still only a rumor
+    expect(phone().items.some((x) => x.shopId === shopId)).toBe(false);
+    dm({ type: "entry.update", entryId: "e-artum", patch: { relation: "ally" } });
+    expect(shop().goodwill).toBeUndefined();
+  });
+
+  it("a job flyer can't be taken without that goodwill", () => {
+    const j = g.jobs!.find((x) => !x.renown)!;
+    dm({ type: "job.update", jobId: j.id, patch: { trust: { entryId: "e-orsa", relation: "friendly" } } });
+    dm({ type: "job.pin", jobId: j.id, pinned: true } as Command);
+    const mine = () => phone().jobs.find((x) => x.id === j.id)!;
+    expect(mine().canTake).toBe(false);
+    expect(mine().goodwill).toBe("Captain Orsa Dell’s friendship");
+    expect(fails(P1, { type: "me.takeJob", jobId: j.id })).toMatch(/friendship/);
+    dm({ type: "entry.update", entryId: "e-orsa", patch: { relation: "friendly" } });
+    expect(mine().canTake).toBe(true);
+  });
+
+  it("sums up the night at session end, on the TV and in the Chronicle", () => {
+    dm({ type: "session.start" });
+    dm({ type: "entry.stage", entryId: "e-fennick", stage: "found", announce: false });
+    dm({ type: "entry.stage", entryId: "e-artum", stage: "found", announce: false });
+    dm({ type: "entry.stage", entryId: "e-lantern", stage: "found", announce: false });
+    dm({ type: "entry.factReveal", entryId: "e-mags", factId: "e-mags-f1", revealed: true });
+    dm({ type: "session.end" });
+    const text = "Tonight you met Artum and Fennick, visited Lathtarl’s Lantern and learned 1 new thing.";
+    const tv = projectTv(g, 1).recapCard!;
+    expect(tv.text.replace("Fennick and Artum", "Artum and Fennick")).toBe(text);
+    expect(g.notes!.at(-1)!.text).toBe(tv.text);
+  });
+
+  it("a quiet night has no card", () => {
+    dm({ type: "session.start" });
+    dm({ type: "session.end" });
+    expect(g.recapCard).toBeUndefined();
   });
 });

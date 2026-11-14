@@ -353,6 +353,7 @@ export function freshStart(g: GameState): GameState {
   s.leads = (s.leads ?? []).map((l) => ({ ...l, status: "open" as const }));
   delete s.vote;
   delete s.chosen;
+  delete s.recapCard;
   delete s.live.leads;
   const home = s.scenes.find((x) => x.kind === "notice" && !x.reveal) ?? s.scenes.find((x) => !x.reveal) ?? s.scenes[0];
   if (home) s.live.sceneId = home.id;

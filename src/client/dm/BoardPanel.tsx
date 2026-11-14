@@ -3,11 +3,12 @@
 // The DM's Board tab: the party's Renown, and the bounty board's job flyers
 // (with player flyers, which share the same eight pins).
 
+import { TrustSelect } from "./TrustSelect";
 import { useMemo, useState } from "react";
 import { cpToGpInput, formatCp, parseAmount } from "@/shared/money";
 import type { PublicJob } from "@/shared/projection";
 import { BOARD_SLOTS, defaultPayout, jobsOf, jobTitle, payoutPlayers, pinnedCount, rankName, RENOWN, renownOf } from "@/shared/renown";
-import type { Job, JobReward, JobStatus, JobStyle } from "@/shared/types";
+import type { Job, JobReward, JobStatus, JobStyle, TrustNeed } from "@/shared/types";
 import { JobCard, STYLE_LABELS } from "../scenes/Board";
 import { useDm } from "./context";
 
@@ -177,6 +178,7 @@ interface Draft {
   rewardKind: JobReward["kind"];
   reward: string;
   renown: number;
+  trust: TrustNeed | null;
   style: JobStyle;
   adventure: string;
   loot: string;
@@ -192,6 +194,7 @@ function draftOf(j?: Job): Draft {
     rewardKind: j?.reward.kind ?? "each",
     reward: j && j.reward.kind !== "hidden" ? cpToGpInput(j.reward.cp) : "",
     renown: j?.renown ?? 0,
+    trust: j?.trust ?? null,
     style: j?.style ?? "scrawl",
     adventure: j?.dm.adventure ?? "",
     loot: j?.dm.loot ?? "",
@@ -233,6 +236,7 @@ function JobEditor({ job, followUpOf, onClose }: { job?: Job; followUpOf?: Job; 
       body: d.body,
       reward: { kind: d.rewardKind, cp: rewardCp },
       renown: d.renown,
+      trust: d.trust,
       style: d.style,
       dm: { adventure: d.adventure, loot: d.loot, twists: d.twists, notes: d.notes },
     };
@@ -283,6 +287,7 @@ function JobEditor({ job, followUpOf, onClose }: { job?: Job; followUpOf?: Job; 
               ))}
             </select>
           </label>
+          <TrustSelect value={d.trust} onChange={(v) => set("trust", v)} />
         </div>
         {rewardCp === null ? <p className="note">That isn&rsquo;t an amount I can read.</p> : null}
       </div>

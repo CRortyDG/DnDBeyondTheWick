@@ -56,6 +56,8 @@ const scenePatch = z
 // Discovery entries.
 const relation = z.enum(RELATION_IDS);
 const stage = z.enum(STAGE_IDS);
+/** Someone's goodwill a storefront, item or job needs. */
+const trustNeed = z.object({ entryId: id, relation: z.enum(["friendly", "ally"]) });
 const entryFields = {
   kind: z.string().regex(/^[a-z][a-z-]{1,23}$/),
   slug: z.string().max(40),
@@ -114,10 +116,12 @@ const itemFields = {
   keep: z.boolean(),
   effects: z.array(effect).max(6),
   renown: rank,
+  trust: trustNeed.nullable(),
 };
 
 // The bounty board. dm: DM-ONLY notes, never sent to the TV or a phone.
 const jobFields = {
+  trust: trustNeed.nullable(),
   title: text(80),
   postedBy: text(80),
   body: text(600),
@@ -220,7 +224,7 @@ export const dmCommand = z.discriminatedUnion("type", [
   z.object({ type: z.literal("player.inspire"), playerId: id, on: z.boolean() }),
 
   z.object({ type: z.literal("shop.add"), name: text(80), subtitle: text(160) }),
-  z.object({ type: z.literal("shop.update"), shopId: id, patch: z.object({ name: text(80), subtitle: text(160), closed: z.boolean(), secretSales: z.boolean(), renown: rank }).partial() }),
+  z.object({ type: z.literal("shop.update"), shopId: id, patch: z.object({ name: text(80), subtitle: text(160), closed: z.boolean(), secretSales: z.boolean(), renown: rank, trust: trustNeed.nullable() }).partial() }),
   /** Who can see a shop. quiet: no "Now open" banner on the TV. */
   z.object({
     type: z.literal("shop.visibility"),
@@ -286,6 +290,8 @@ export const dmCommand = z.discriminatedUnion("type", [
   z.object({ type: z.literal("vote.pick"), leadId: id }),
   z.object({ type: z.literal("vote.clear") }),
   z.object({ type: z.literal("live.leads"), on: z.boolean() }),
+  /** Show how much is left to find per area, as empty slots. */
+  z.object({ type: z.literal("discovery.totals"), on: z.boolean() }),
 
   z.object({ type: z.literal("episode.add"), title: text(160), beats: z.array(beatBody).max(200).optional() }),
   z.object({ type: z.literal("episode.update"), episodeId: id, title: text(160).min(1) }),

@@ -68,6 +68,10 @@ export function DiscoveryPanel() {
           <input type="checkbox" checked={tv} onChange={(e) => setTv(e.target.checked)} />
           Play stage changes on the TV
         </label>
+        <label className="check" title="Phones show one slot per thing to find in each area, hidden ones too (as empty slots)">
+          <input type="checkbox" checked={!!s.discoveryTotals} onChange={(e) => void run({ type: "discovery.totals", on: e.target.checked })} />
+          Show how much is left to find
+        </label>
       </div>
       <ol className="scene-list people-list">
         {list.map((e, i) => (

@@ -4878,3 +4878,45 @@ input.fld.inline-input {
 .disc-moment.chosen .disc-name {
   font-size: calc(72 * var(--u));
 }
+
+/* ---------- discovery counters and the recap card ---------- */
+.area-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+.area-list li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+}
+.area-name {
+  font-weight: 600;
+}
+.area-slots {
+  flex-basis: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.area-slot {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 1px dashed var(--ink-soft);
+}
+.area-slot.rumored {
+  border-style: solid;
+  border-color: #a8740f;
+  background: rgba(168, 116, 15, 0.35);
+}
+.area-slot.found {
+  border: 1px solid var(--gold-bright);
+  background: var(--gold);
+}
+.disc-moment.recap-card .disc-fact {
+  font-size: calc(52 * var(--u));
+}

@@ -13,6 +13,7 @@ import { BannerToast } from "../ui/BannerToast";
 import { RenownMoment } from "../ui/RenownMoment";
 import { DiscoveryMoment } from "../ui/DiscoveryMoment";
 import { ChosenMoment, LeadsBoard } from "../ui/LeadsBoard";
+import { RecapCard } from "../ui/RecapCard";
 import { useTvSound } from "../ui/tvSound";
 import { FightOverlay } from "../ui/FightOverlay";
 import { DiceRoll } from "../ui/DiceRoll";
@@ -110,6 +111,7 @@ function TvScreen({ view, online }: { view: TvView; online: boolean }) {
       <RenownMoment moment={view.renownMoment} />
       <DiscoveryMoment moment={view.discovery} />
       <ChosenMoment chosen={view.leads.chosen} />
+      <RecapCard card={view.recapCard} />
 
       {showOffline ? (
         <div className="tv-offline" role="status">

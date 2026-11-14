@@ -12,10 +12,10 @@ import { shopVisibleTo } from "./projection";
 import { CHARACTER_MAX, STINGER_SCENE_ID, TABLE_SCENE_ID, WHY_MAX } from "./arrival";
 import { starterById } from "./starters";
 import { chapterSessionId, cleanTags, cleanText, defaultChapterId, NOTES_MAX, penName } from "./chronicle";
-import { BOARD_SLOTS, jobsOf, jobTitle, pinnedCount, rankName, RENOWN, renownMet, renownNeeded, renownOf, shopOpenNow, tierOf } from "./renown";
+import { BOARD_SLOTS, jobsOf, jobTitle, pinnedCount, rankName, RENOWN, renownMet, renownNeeded, renownOf, shopOpenNow, tierOf, trustMet, trustText } from "./renown";
 import { rollPool } from "./dice";
 import { leadsOf, leadVisible, tally, voteClosed } from "./leads";
-import { findRef, stageRank, blankEntry, ENTRIES_MAX, LEADS_MAX, entriesForScene, entriesOf, entryFromScene, entryScene, entryTags, factSlug, FACTS_MAX, isFound, slugify, uniqueSlug } from "./discovery";
+import { findRef, sessionRecap, stageRank, blankEntry, ENTRIES_MAX, LEADS_MAX, entriesForScene, entriesOf, entryFromScene, entryScene, entryTags, factSlug, FACTS_MAX, isFound, slugify, uniqueSlug } from "./discovery";
 import { DM_AUTHOR } from "./types";
 import { applyFight, isFightCommand, startFightFromBeat, type FightHelpers } from "./combatReducer";
 import type { Actor, Beat, BeatAction, Entry, EntryFact, Episode, FlyerText, Stage, GameState, Item, ItemTier, Job, Lead, LedgerEntry, LedgerKind, MapData, Note, Pin, PinLink, Player, Scene, Session, SessionRun, Shop, TradeRequest, Vote } from "./types";
@@ -115,6 +115,25 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
     if (sh.visibility !== "all" || !shopOpenNow(s, sh) || RANK[now] <= RANK[was]) return;
     if (now === "rumored") announce(`A new rumor at ${sh.name}`);
     else announce(`New at ${sh.name}: ${it.name}`);
+  };
+
+  /** Which items and storefronts are locked right now (by Renown or someone's goodwill). */
+  const gateSnapshot = () => ({
+    tiers: new Map(s.items.map((it) => [it.id, tierOf(s, it)])),
+    shut: s.shops.filter((sh) => !shopOpenNow(s, sh)).map((sh) => sh.id),
+  });
+  /** Banners for what opened since the snapshot: storefronts, then items (named, or counted when it's a lot). */
+  const announceOpened = (before: ReturnType<typeof gateSnapshot>) => {
+    for (const id of before.shut) {
+      const sh = shop(id);
+      if (shopOpenNow(s, sh) && sh.visibility === "all" && !isSecretShop(sh)) announce(`Now open: ${sh.name}`);
+    }
+    const opened = s.items.filter((it) => {
+      const sh = s.shops.find((x) => x.id === it.shopId);
+      return before.tiers.get(it.id) === "locked" && tierOf(s, it) === "sale" && sh?.visibility === "all" && shopOpenNow(s, sh) && !isSecretShop(sh);
+    });
+    if (opened.length > 3) announce(`${opened.length} new things in the shops`);
+    else if (opened.length) announce(`Now for sale: ${opened.map((it) => it.name).join(", ")}`);
   };
 
   const move = (p: Player, amountCp: number, note: string, kind: LedgerKind, extra: Partial<LedgerEntry> = {}) => {
@@ -242,7 +261,9 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
   /** Why an item can't be bought because of the party's Renown, or null. */
   const renownLock = (it: Item): string | null => {
     const need = renownNeeded(s, it);
-    return need !== null && it.tier === "sale" ? `${it.name} opens when the party is ${rankName(need)}.` : null;
+    if (need !== null && it.tier === "sale") return `${it.name} opens when the party is ${rankName(need)}.`;
+    const trust = it.tier === "sale" ? trustText(s, it.trust) : null;
+    return trust ? `${it.name} needs ${trust}.` : null;
   };
 
   /** Keep every pending request and the latest 150 decided ones. */
@@ -1035,25 +1056,14 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
       const was = renownOf(s);
       if (cmd.rank === was) break;
       // What the room could see before, so the rank-up can say what opened.
-      const tiers = new Map(s.items.map((it) => [it.id, tierOf(s, it)]));
-      const shut = s.shops.filter((sh) => !shopOpenNow(s, sh)).map((sh) => sh.id);
+      const before = gateSnapshot();
       s.renown = cmd.rank;
       if (cmd.rank < was) break; // quiet: things just lock again
       const r = RENOWN[cmd.rank];
       announce(r.raised);
       s.renownMoment = { rank: cmd.rank, n: ++s.seq, at: ctx.now };
       chronicle(`Renown: the party is now ${r.name}. ${r.meaning}.`);
-      for (const id of shut) {
-        const sh = shop(id);
-        if (shopOpenNow(s, sh) && sh.visibility === "all" && !isSecretShop(sh)) announce(`Now open: ${sh.name}`);
-      }
-      // Name what opened up, or count it when it's a lot.
-      const opened = s.items.filter((it) => {
-        const sh = s.shops.find((x) => x.id === it.shopId);
-        return tiers.get(it.id) === "locked" && tierOf(s, it) === "sale" && sh?.visibility === "all" && shopOpenNow(s, sh) && !isSecretShop(sh);
-      });
-      if (opened.length > 3) announce(`${opened.length} new things in the shops`);
-      else if (opened.length) announce(`Now for sale: ${opened.map((it) => it.name).join(", ")}`);
+      announceOpened(before);
       break;
     }
     case "job.add": {
@@ -1218,6 +1228,10 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
         if (cmd.patch.renown) sh.renown = cmd.patch.renown;
         else delete sh.renown;
       }
+      if (cmd.patch.trust !== undefined) {
+        if (cmd.patch.trust) sh.trust = { entryId: entry(cmd.patch.trust.entryId).id, relation: cmd.patch.trust.relation };
+        else delete sh.trust;
+      }
       if (cmd.patch.closed !== undefined) {
         const opening = sh.closed && !cmd.patch.closed;
         sh.closed = cmd.patch.closed || undefined;
@@ -1325,6 +1339,12 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
     }
     case "session.end": {
       const cur = s.sessions.find((x) => x.id === s.currentSessionId) ?? fail("No session is running.");
+      // What the party discovered tonight: a card on the TV and a line in the Chronicle.
+      const recap = sessionRecap(s, cur.id);
+      if (recap) {
+        if ((s.notes ?? []).length < NOTES_MAX) addNote(DM_AUTHOR, "The DM", recap, [], cur.id);
+        s.recapCard = { n: ++s.seq, at: ctx.now, text: recap };
+      }
       cur.endedAt = ctx.now;
       s.currentSessionId = null;
       // Done jobs stay up (stamped DONE) for one whole session, then come down.
@@ -1460,8 +1480,11 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
         e.links = [...new Set(p.links)].filter((id) => id !== e.id && ids.has(id));
       }
       if (p.relation !== undefined) {
+        const before = gateSnapshot();
         if (p.relation && p.relation !== "stranger") e.relation = p.relation;
         else delete e.relation;
+        // Their goodwill may open a storefront or put something on sale.
+        announceOpened(before);
       }
       if (p.start !== undefined) {
         if (p.start === "hidden") delete e.start;
@@ -1665,6 +1688,9 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
       break;
     case "live.leads":
       s.live.leads = cmd.on || undefined;
+      break;
+    case "discovery.totals":
+      s.discoveryTotals = cmd.on || undefined;
       break;
     case "me.vote": {
       const p = me();
@@ -2074,6 +2100,7 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
       const j = jobs.find((x) => x.id === cmd.jobId && x.pinned && x.status !== "expired") ?? fail("That job isn't on the board.");
       if (j.status !== "open") fail(`Someone already took ${jobTitle(j)}.`);
       if (!renownMet(s, j.renown)) fail(`That job is for experienced parties only (${rankName(j.renown)}).`);
+      if (!trustMet(s, j.trust)) fail(`That job needs ${trustText(s, j.trust)}.`);
       if (s.requests.some((r) => r.status === "pending" && r.kind === "job" && r.jobId === j.id && r.playerId === p.id)) fail("You've already asked for this job.");
       if (s.requests.filter((r) => r.status === "pending" && r.playerId === p.id).length >= 20) fail("You have 20 requests waiting. Let the DM catch up.");
       s.requests.push({
@@ -2226,11 +2253,13 @@ function tidyItem(it: Item): Item {
   else delete it.tags;
   if (!it.effects?.length) delete it.effects;
   if (!it.renown) delete it.renown;
+  if (!it.trust) delete it.trust;
   return it;
 }
 
 /** Trim a job flyer. A sealed envelope carries no text. */
 function cleanJob(j: Job): Job {
+  if (!j.trust) delete j.trust;
   j.title = j.title.trim().slice(0, 80);
   j.postedBy = j.postedBy.trim().slice(0, 80);
   j.body = j.body.trim().slice(0, 600);

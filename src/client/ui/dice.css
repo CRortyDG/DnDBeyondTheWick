@@ -340,3 +340,11 @@
   border-color: var(--slate);
   color: #b9c7d8;
 }
+.dt-log li {
+  flex-wrap: wrap;
+}
+.dt-log .dt-reveal {
+  flex-basis: 100%;
+  width: 100%;
+  min-width: 0;
+}

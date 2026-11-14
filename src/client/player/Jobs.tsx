@@ -57,6 +57,7 @@ export function Jobs({ view, send }: { view: PlayerView; send: Send }) {
                   ) : null}
                   {j.asked ? <span className="tag">Asked the DM</span> : null}
                   {j.status === "open" && j.needs ? <span className="note">For experienced parties: opens when you&rsquo;re {j.needs}.</span> : null}
+                  {j.status === "open" && !j.needs && j.goodwill ? <span className="note">Opens with {j.goodwill}.</span> : null}
                   {j.status === "taken" ? <span className="note">Taken{j.takenBy ? ` by ${j.takenBy}` : ""}.</span> : null}
                   {j.status === "done" ? <span className="note">Done{j.takenBy ? ` by ${j.takenBy}` : ""}.</span> : null}
                 </div>

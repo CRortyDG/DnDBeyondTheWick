@@ -312,3 +312,56 @@ export function discoveryView(g: GameState): DiscoveryView | undefined {
   }
   return out;
 }
+
+// ---------------------------------------------------------------------------
+// Counters and the session recap
+
+export interface AreaCount {
+  name: string;
+  found: number;
+  rumored: number;
+  /** Totals mode only: everything in the area, hidden too (shown as empty slots). */
+  total?: number;
+}
+
+/** Per area: how much the party has found. With totals on, how much there is to find. */
+export function areaCounts(g: Pick<GameState, "entries" | "discoveryTotals">): AreaCount[] {
+  const by = new Map<string, AreaCount>();
+  for (const e of entriesOf(g)) {
+    const areas = e.areas.length ? e.areas : [];
+    for (const a of areas) {
+      const key = tagKey(a);
+      const c = by.get(key) ?? { name: a, found: 0, rumored: 0, total: 0 };
+      if (isFound(e.stage)) c.found += 1;
+      else if (e.stage === "rumored") c.rumored += 1;
+      c.total! += 1;
+      by.set(key, c);
+    }
+  }
+  return [...by.values()]
+    .filter((c) => c.found + c.rumored > 0)
+    .map((c) => (g.discoveryTotals ? c : { name: c.name, found: c.found, rumored: c.rumored }));
+}
+
+const list = (xs: string[]) => (xs.length <= 1 ? xs.join("") : `${xs.slice(0, -1).join(", ")} and ${xs[xs.length - 1]}`);
+
+/** "Tonight you met Fennick and Artum, visited Lathtarl’s Lantern and learned 3 new things." Null on a quiet night. */
+export function sessionRecap(g: Pick<GameState, "entries">, sessionId: string): string | null {
+  const found = entriesOf(g).filter((e) => isFound(e.stage) && e.foundIn === sessionId);
+  const names = (k: EntryKind) => found.filter((e) => e.kind === k).map((e) => e.name);
+  const parts: string[] = [];
+  const met = names("person");
+  if (met.length) parts.push(met.length > 4 ? `met ${met.length} people` : `met ${list(met)}`);
+  const visited = names("place");
+  if (visited.length) parts.push(visited.length > 3 ? `visited ${visited.length} places` : `visited ${list(visited)}`);
+  const shops = names("shop");
+  if (shops.length) parts.push(shops.length === 1 ? `found ${shops[0]}` : `found ${shops.length} shops`);
+  const monsters = names("monster");
+  if (monsters.length) parts.push(monsters.length > 3 ? `faced ${monsters.length} new kinds of monster` : `faced ${list(monsters)}`);
+  const other = found.filter((e) => !["person", "place", "shop", "monster"].includes(e.kind)).map((e) => e.name);
+  if (other.length) parts.push(`uncovered ${list(other)}`);
+  const facts = entriesOf(g).reduce((n, e) => n + e.facts.filter((f) => f.revealedAt !== undefined && f.learnedIn === sessionId).length, 0);
+  if (facts) parts.push(`learned ${facts === 1 ? "1 new thing" : `${facts} new things`}`);
+  if (!parts.length) return null;
+  return `Tonight you ${list(parts)}.`;
+}

@@ -81,6 +81,7 @@ export function Discovery({ view, send, seen }: { view: PlayerView; send: Send; 
   return (
     <>
       <Leads leads={view.leads} send={send} />
+      <Areas view={view} />
       {sections.map(({ k, list }) => {
         const info = kindInfo(k);
         const found = list.filter((e) => e.stage !== "rumored").length;
@@ -189,6 +190,34 @@ function EntryPage({ entry: e, view, send, onOpen, onBack }: { entry: PublicEntr
       )}
       <h3>The table&rsquo;s notes</h3>
       <PersonNotes view={view.chronicle} tags={e.tags} name={e.name} send={send} />
+    </section>
+  );
+}
+
+/** Per area: how much the party has found. In totals mode, one slot per thing to find. */
+function Areas({ view }: { view: PlayerView }) {
+  if (view.areas.length < 1) return null;
+  return (
+    <section className="box discovery-areas" aria-label="Areas">
+      <h2>Areas</h2>
+      <ul className="area-list">
+        {view.areas.map((a) => (
+          <li key={a.name}>
+            <span className="area-name">{a.name}</span>
+            <span className="note">
+              {a.found} found{a.rumored ? ` · ${a.rumored} rumored` : ""}
+              {a.total !== undefined ? ` · ${a.total - a.found} left` : ""}
+            </span>
+            {a.total !== undefined ? (
+              <span className="area-slots" aria-hidden="true">
+                {Array.from({ length: Math.min(a.total, 30) }, (_, i) => (
+                  <span key={i} className={`area-slot${i < a.found ? " found" : i < a.found + a.rumored ? " rumored" : ""}`} />
+                ))}
+              </span>
+            ) : null}
+          </li>
+        ))}
+      </ul>
     </section>
   );
 }

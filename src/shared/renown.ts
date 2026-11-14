@@ -1,7 +1,7 @@
 // Renown: one shared party rank the DM sets (no automatic points), and the
 // bounty board it gates. Items, storefronts and job flyers can need a rank.
 
-import type { GameState, Item, ItemTier, Job, Shop } from "./types";
+import type { GameState, Item, ItemTier, Job, Relation, Shop, TrustNeed } from "./types";
 
 export interface RenownRank {
   name: string;
@@ -41,9 +41,36 @@ export function renownMet(g: Pick<GameState, "renown">, need: number | undefined
   return !need || need <= renownOf(g);
 }
 
-/** The tier players see: an item for sale stays locked until the party has the Renown it needs. */
-export function tierOf(g: Pick<GameState, "renown">, it: Pick<Item, "tier" | "renown">): ItemTier {
-  return it.tier === "sale" && !renownMet(g, it.renown) ? "locked" : it.tier;
+const TRUST: Record<Relation, number> = { hostile: -1, stranger: 0, friendly: 1, ally: 2 };
+
+/** Does that person feel this well about the party? No requirement, or a deleted entry, is always met. */
+export function trustMet(g: Pick<GameState, "entries">, need: TrustNeed | null | undefined): boolean {
+  if (!need) return true;
+  const e = (g.entries ?? []).find((x) => x.id === need.entryId);
+  if (!e) return true;
+  return TRUST[e.relation ?? "stranger"] >= TRUST[need.relation];
+}
+
+/** Both locks: the party's Renown and someone's goodwill. */
+type Gated = Pick<GameState, "renown" | "entries">;
+export function gateMet(g: Gated, x: { renown?: number; trust?: TrustNeed | null }): boolean {
+  return renownMet(g, x.renown) && trustMet(g, x.trust);
+}
+
+/**
+ * What players read while someone's goodwill is what keeps it locked: "Mags Wick’s
+ * friendship". Someone they haven't met is just "someone".
+ */
+export function trustText(g: Pick<GameState, "entries">, need: TrustNeed | null | undefined): string | null {
+  if (trustMet(g, need)) return null;
+  const e = (g.entries ?? []).find((x) => x.id === need!.entryId)!;
+  const who = e.stage === "found" || e.stage === "known" ? e.name : "someone";
+  return `${who}’s ${need!.relation === "ally" ? "trust as an ally" : "friendship"}`;
+}
+
+/** The tier players see: an item for sale stays locked until the party has the Renown (and goodwill) it needs. */
+export function tierOf(g: Gated, it: Pick<Item, "tier" | "renown" | "trust">): ItemTier {
+  return it.tier === "sale" && !gateMet(g, it) ? "locked" : it.tier;
 }
 
 /** The rank an item still waits on (only while that is what keeps it locked). */
@@ -52,8 +79,8 @@ export function renownNeeded(g: Pick<GameState, "renown">, it: Pick<Item, "tier"
 }
 
 /** Open for business: not closed, and the party has the Renown this storefront needs. */
-export function shopOpenNow(g: Pick<GameState, "renown">, sh: Pick<Shop, "closed" | "renown">): boolean {
-  return !sh.closed && renownMet(g, sh.renown);
+export function shopOpenNow(g: Gated, sh: Pick<Shop, "closed" | "renown" | "trust">): boolean {
+  return !sh.closed && gateMet(g, sh);
 }
 
 // ---------- the bounty board ----------

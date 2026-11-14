@@ -2,13 +2,14 @@
 // an explicit allow-list, so a new DM-only field can't leak by accident.
 
 import { leadsView, type LeadsView } from "./leads";
+import { areaCounts, type AreaCount } from "./discovery";
 import { creditLines, discountPct, firstChargeCp, priceOf, raisedCp, stakeTotals } from "./progress";
 import type { DiceGroup } from "./dice";
 import { heldCp, heldStock } from "./requests";
 import { projectTable, type TableView } from "./arrival";
 import { notesOf, penName, projectChronicle, type ChronicleView } from "./chronicle";
 import { discoveryView, PORTRAIT_ART, portraitArtAllowed, publicEntries, sceneSpoils, type DiscoveryView, type PublicEntry } from "./discovery";
-import { jobsOf, jobTitle, rankName, RENOWN, renownMet, renownNeeded, renownOf, shopOpenNow, tierOf } from "./renown";
+import { jobsOf, jobTitle, rankName, RENOWN, renownMet, renownNeeded, renownOf, shopOpenNow, tierOf, trustText } from "./renown";
 import { fightView, myFight, type FightView, type MyFight } from "./combat";
 import type { Art, Banner, FlyerText, GameState, Job, JobStyle, Item, ItemCategory, ItemKind, LedgerEntry, LegendStyle, LiveState, Player, RequestStatus, Scene, Shop } from "./types";
 
@@ -64,6 +65,8 @@ export interface PublicShop {
   closed: boolean;
   /** Waiting on the party's Renown: the rank it needs ("Known in town"). No goods are sent. */
   needs?: string;
+  /** Someone's goodwill it waits on ("Mags Wick’s friendship"). */
+  goodwill?: string;
 }
 
 /**
@@ -85,6 +88,8 @@ export interface PublicItem {
   reason?: string;
   /** Locked until the party has this Renown ("Known in town"). */
   needs?: string;
+  /** Someone's goodwill it waits on ("Mags Wick’s friendship"). */
+  goodwill?: string;
   /** Rumored: the one-line hint. */
   hint?: string;
   /** null = no limit. */
@@ -138,6 +143,8 @@ export interface PublicJob {
   reward: { kind: "each" | "total"; cp: number } | null;
   /** The party isn't there yet: stamped "Experienced parties only", with the rank it needs. */
   needs?: string;
+  /** Someone's goodwill it waits on ("Mags Wick’s friendship"). */
+  goodwill?: string;
   at: number;
 }
 
@@ -219,6 +226,8 @@ export interface TvView extends Common {
   live: Pick<LiveState, "sceneId" | "shopOpen" | "shopId" | "purseVisible" | "shopCategory" | "leads">;
   /** Leads the party can see, the vote, and "You chose". */
   leads: LeadsView;
+  /** "Tonight you met…" at the end of a session: the TV plays it when n changes. */
+  recapCard?: { n: number; text: string };
   /** Approved player flyers, while they're up. */
   flyers: PublicFlyer[];
   /** Pinned job flyers. */
@@ -282,6 +291,8 @@ export interface PlayerView extends Common {
   entries: PublicEntry[];
   /** Leads the party can see, the vote (with this player's ballot), and "You chose". */
   leads: LeadsView;
+  /** Per area, how much the party has found (and, in totals mode, how much there is). */
+  areas: AreaCount[];
 }
 
 export type DmPlayer = Omit<Player, "keyHash"> & { hasKey: boolean };
@@ -404,6 +415,8 @@ function publicItem(game: GameState, it: Item): PublicItem | null {
   if (tier === "locked") out.reason = it.reason;
   const need = renownNeeded(game, it);
   if (need !== null) out.needs = rankName(need);
+  const trust = it.tier === "sale" || it.tier === "locked" ? trustText(game, it.trust) : null;
+  if (trust) out.goodwill = trust;
   if (it.priceLabel) out.priceLabel = it.priceLabel;
   if (it.finePrint) out.finePrint = it.finePrint;
   if (it.arrivesInSessions) out.arrivesInSessions = it.arrivesInSessions;
@@ -425,7 +438,7 @@ function common(game: GameState, version: number, viewer: Viewer): Common {
     version,
     game: { id: game.id, name: game.name },
     purse: game.players.filter((p) => !p.archived && !p.away).map((p) => ({ id: p.id, name: p.name, balanceCp: p.balanceCp, inspired: !!p.inspired })),
-    shops: shops.map((x) => ({ id: x.id, name: x.name, subtitle: x.subtitle, closed: !!x.closed, ...(renownMet(game, x.renown) ? {} : { needs: rankName(x.renown ?? 0) }) })),
+    shops: shops.map((x) => ({ id: x.id, name: x.name, subtitle: x.subtitle, closed: !!x.closed, ...(renownMet(game, x.renown) ? {} : { needs: rankName(x.renown ?? 0) }), ...(trustText(game, x.trust) ? { goodwill: trustText(game, x.trust)! } : {}) })),
     items: game.items.filter((it) => open.has(it.shopId)).map((it) => publicItem(game, it)).filter((x): x is PublicItem => x !== null),
     session: cur ? { number: cur.number, title: cur.title } : null,
     banner: game.banner ? { ...game.banner } : null,
@@ -446,6 +459,7 @@ export function projectTv(game: GameState, version: number): TvView {
     role: "tv",
     live: { sceneId: game.live.sceneId, ...liveShop(game, { tv: true }), purseVisible: game.live.purseVisible, ...(game.live.shopCategory ? { shopCategory: game.live.shopCategory } : {}), ...(game.live.leads ? { leads: true } : {}) },
     leads: leadsView(game, Date.now()),
+    ...(game.recapCard ? { recapCard: { n: game.recapCard.n, text: game.recapCard.text } } : {}),
     flyers: game.flyers.filter((f) => f.up).map((f) => ({ id: f.id, title: f.title, body: f.body, signedBy: f.signedBy, at: f.pinnedAt ?? f.postedAt })),
     jobs: pinnedJobs(game).map((j) => publicJob(game, j)),
     ...(game.renownMoment ? { renownMoment: { rank: game.renownMoment.rank, name: rankName(game.renownMoment.rank), n: game.renownMoment.n } } : {}),
@@ -536,13 +550,14 @@ export function projectPlayer(game: GameState, version: number, playerId: string
     jobs: pinnedJobs(game).map((j) => {
       const pub = publicJob(game, j);
       const asked = game.requests.some((r) => r.status === "pending" && r.kind === "job" && r.jobId === j.id && r.playerId === p.id);
-      const out: MyJob = { ...pub, canTake: pub.status === "open" && !pub.needs && !p.archived, asked };
+      const out: MyJob = { ...pub, canTake: pub.status === "open" && !pub.needs && !pub.goodwill && !p.archived, asked };
       const by = j.takenBy?.[0] && game.players.find((x) => x.id === j.takenBy![0]);
       if (by && pub.status !== "open") out.takenBy = by.name;
       return out;
     }),
     entries: publicEntries(game, p.id),
     leads: leadsView(game, Date.now(), p.id),
+    areas: areaCounts(game),
   };
 }
 
@@ -567,6 +582,8 @@ function publicJob(game: GameState, j: Job): PublicJob {
     at: j.pinnedAt ?? j.createdAt,
   };
   if (!renownMet(game, j.renown)) out.needs = rankName(j.renown);
+  const trust = trustText(game, j.trust);
+  if (trust) out.goodwill = trust;
   return out;
 }
 
