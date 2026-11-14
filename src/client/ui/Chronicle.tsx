@@ -432,7 +432,7 @@ function Quill() {
   );
 }
 
-function NoteLine({ note: n, chapter, view, send, onTag }: { note: ChronicleNote; chapter: ChronicleChapter; view: ChronicleView; send: Send; onTag: (t: string) => void }) {
+export function NoteLine({ note: n, chapter, view, send, onTag }: { note: ChronicleNote; chapter: ChronicleChapter; view: ChronicleView; send: Send; onTag: (t: string) => void }) {
   const [editing, setEditing] = useState(false);
   const [confirmDel, setConfirmDel] = useState(false);
   const [err, setErr] = useState<string | null>(null);

@@ -11,6 +11,10 @@ import { ShopBoard } from "../ui/ShopBoard";
 import { Notice } from "../ui/Notice";
 import { BannerToast } from "../ui/BannerToast";
 import { RenownMoment } from "../ui/RenownMoment";
+import { DiscoveryMoment } from "../ui/DiscoveryMoment";
+import { ChosenMoment, LeadsBoard } from "../ui/LeadsBoard";
+import { RecapCard } from "../ui/RecapCard";
+import { useTvSound } from "../ui/tvSound";
 import { FightOverlay } from "../ui/FightOverlay";
 import { DiceRoll } from "../ui/DiceRoll";
 
@@ -94,15 +98,20 @@ function TvScreen({ view, online }: { view: TvView; online: boolean }) {
         </div>
       ) : null}
 
+      {view.live.leads && !fighting && !view.recap ? <LeadsBoard leads={view.leads} /> : null}
+
       {view.fight ? <FightOverlay fight={view.fight} /> : null}
 
-      <Purse players={view.purse} visible={view.live.purseVisible && !fighting} size="tv" />
+      <Purse players={view.purse} visible={view.live.purseVisible && !fighting && !view.live.leads} size="tv" />
 
       <BannerToast banner={view.banner} className="tv-banner" />
 
       <DiceRoll roll={view.diceRoll} />
 
       <RenownMoment moment={view.renownMoment} />
+      <DiscoveryMoment moment={view.discovery} />
+      <ChosenMoment chosen={view.leads.chosen} />
+      <RecapCard card={view.recapCard} />
 
       {showOffline ? (
         <div className="tv-offline" role="status">
@@ -116,6 +125,7 @@ function TvScreen({ view, online }: { view: TvView; online: boolean }) {
         {view.session ? <span className="tv-bar-session">{view.session.title}</span> : null}
         <span className="spacer" />
         <span className="tv-bar-hint">F fullscreen · H hide this bar · scenes are switched from the DM view</span>
+        <SoundToggle />
         <button type="button" className="btn" onClick={toggleFullscreen}>
           <FullscreenIcon /> Fullscreen
         </button>
@@ -124,6 +134,16 @@ function TvScreen({ view, online }: { view: TvView; online: boolean }) {
         </button>
       </nav>
     </div>
+  );
+}
+
+/** Sound for reveals (a chime). Off until someone turns it on, remembered on this device. */
+function SoundToggle() {
+  const [on, set] = useTvSound();
+  return (
+    <button type="button" className={`btn${on ? " on" : ""}`} aria-pressed={on} onClick={() => set(!on)}>
+      {on ? "Sound on" : "Sound off"}
+    </button>
   );
 }
 

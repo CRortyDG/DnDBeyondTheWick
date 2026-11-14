@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { MERCHANT_SIGIL_SVG } from "./art/merchant-sigil";
+import { ARTUM_SVG, CHEF_SVG, MAGS_WICK_SVG } from "./art/portraits";
 import { isDmKey, KEY_HEADER, newDmKey, sha256 } from "./auth";
 import { actorOf, createGame, execute, hello, HttpError, identify, MAX_STATE_CHARS, parseClientCommand, viewFor } from "./game";
 import type { Store } from "./store";
@@ -84,7 +85,7 @@ const arrivalBody = z.discriminatedUnion("type", [
 
 const createBody = z.object({ dmKeyHash: z.string().regex(/^[0-9a-f]{64}$/), name: z.string().trim().max(80).optional() });
 
-const GATED: Record<string, string> = { "merchant-sigil": MERCHANT_SIGIL_SVG };
+const GATED: Record<string, string> = { "merchant-sigil": MERCHANT_SIGIL_SVG, artum: ARTUM_SVG, "mags-wick": MAGS_WICK_SVG, chef: CHEF_SVG };
 
 export async function handleApi(req: Request, store: Store): Promise<Response> {
   const url = new URL(req.url);
@@ -204,7 +205,8 @@ export async function handleApi(req: Request, store: Store): Promise<Response> {
       return json({ ok: true, key: fresh });
     }
 
-    // Reveal-only art: served to the DM any time, to everyone else only while its scene is live.
+    // Reveal-only art: served to the DM any time; to everyone else while its scene is live,
+    // or (portraits) once the party has found whoever it shows.
     const art = /^\/api\/art\/([a-z0-9-]+)$/.exec(path);
     if (art && method === "GET") {
       const svg = GATED[art[1]];

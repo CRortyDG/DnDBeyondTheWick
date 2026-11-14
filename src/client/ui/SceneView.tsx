@@ -22,13 +22,11 @@ export interface RenderableScene {
   map?: PublicMap;
 }
 
-const PUBLIC_ART = new Set(["artum", "mags-wick", "chef"]);
 
 /** Where to load a scene's picture from. Gated art arrives as a ready URL (or, for the DM, a blob URL). */
 export function artSrc(art: Art | undefined, gated?: Record<string, string>): string | null {
   if (!art) return null;
   if (art.url) return art.url;
-  if (art.builtin && PUBLIC_ART.has(art.builtin)) return `/art/${art.builtin}.svg`;
   if (art.builtin && gated?.[art.builtin]) return gated[art.builtin];
   return null;
 }

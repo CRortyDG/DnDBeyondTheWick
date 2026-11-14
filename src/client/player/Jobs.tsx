@@ -57,6 +57,7 @@ export function Jobs({ view, send }: { view: PlayerView; send: Send }) {
                   ) : null}
                   {j.asked ? <span className="tag">The party asked the DM</span> : null}
                   {j.status === "open" && j.needs ? <span className="note">For experienced parties: opens when you&rsquo;re {j.needs}.</span> : null}
+                  {j.status === "open" && !j.needs && j.goodwill ? <span className="note">Opens with {j.goodwill}.</span> : null}
                   {jobStatusLine(j) ? <span className="note">{jobStatusLine(j)}</span> : null}
                 </div>
               </div>

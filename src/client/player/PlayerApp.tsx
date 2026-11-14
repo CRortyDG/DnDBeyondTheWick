@@ -12,6 +12,7 @@ import { Chronicle } from "../ui/Chronicle";
 import { BannerToast } from "../ui/BannerToast";
 import { InspirationIcon, LockIcon } from "../ui/icons";
 import { Jobs } from "./Jobs";
+import { Discovery, useDiscoverySeen } from "./Discovery";
 import { Dice } from "./Dice";
 import { FightCard } from "./FightCard";
 import { askLabel, DecisionBanners, MyRequests, RequestSheet, SendGold, whyNot } from "./Requests";
@@ -84,7 +85,8 @@ function PlayerScreen({ view, online, send, ident, setIdent }: { view: PlayerVie
   const [purseOpen, setPurseOpen] = useState(false);
   const [looking, setLooking] = useState<string | null>(null);
   // During a session the phone opens on the Chronicle, so a note is one tap away.
-  const [screen, setScreen] = useState<"chronicle" | "purse" | "jobs" | "dice">(view.session ? "chronicle" : "purse");
+  const [screen, setScreen] = useState<"chronicle" | "discovery" | "purse" | "jobs" | "dice">(view.session ? "chronicle" : "purse");
+  const seen = useDiscoverySeen(view);
   const [mode, setMode] = useState<ShopMode>("category");
   const [category, setCategory] = useState<ItemCategory | undefined>(undefined);
   const me = view.me;
@@ -148,6 +150,9 @@ function PlayerScreen({ view, online, send, ident, setIdent }: { view: PlayerVie
         <button type="button" role="tab" aria-selected={screen === "chronicle"} className={`btn tab${screen === "chronicle" ? " on" : ""}`} onClick={() => setScreen("chronicle")}>
           The Chronicle
         </button>
+        <button type="button" role="tab" aria-selected={screen === "discovery"} className={`btn tab${screen === "discovery" ? " on" : ""}`} onClick={() => setScreen("discovery")}>
+          Discover{seen.newCount ? <span className="badge">{seen.newCount}</span> : null}
+        </button>
         <button type="button" role="tab" aria-selected={screen === "purse"} className={`btn tab${screen === "purse" ? " on" : ""}`} onClick={() => setScreen("purse")}>
           Gold &amp; shops
         </button>
@@ -165,6 +170,7 @@ function PlayerScreen({ view, online, send, ident, setIdent }: { view: PlayerVie
       ) : null}
       {screen === "chronicle" ? <Chronicle view={view.chronicle} gameName={view.game.name} send={send} /> : null}
       {screen === "jobs" ? <Jobs view={view} send={send} /> : null}
+      {screen === "discovery" ? <Discovery view={view} send={send} seen={seen} /> : null}
       {screen === "dice" ? <Dice view={view} send={send} /> : null}
       {screen === "purse" ? (
       <>

@@ -153,6 +153,14 @@ export interface Shop {
   secretSales?: boolean;
   /** The party's Renown this storefront needs (see renown.ts). Below it: name and rank only, no goods. */
   renown?: number;
+  /** Someone's goodwill it also needs (see renown.ts). */
+  trust?: TrustNeed;
+}
+
+/** A lock on someone's goodwill: how that person feels about the party must be at least this. */
+export interface TrustNeed {
+  entryId: string;
+  relation: "friendly" | "ally";
 }
 
 /**
@@ -231,6 +239,8 @@ export interface Item {
   effects?: Effect[];
   /** The party's Renown this needs (see renown.ts). Below it, a "sale" item shows as locked with the rank. */
   renown?: number;
+  /** Someone's goodwill it also needs. Without it, a "sale" item shows as locked. (null only in a patch: cleared.) */
+  trust?: TrustNeed | null;
 }
 
 /** A rented room, safekeeping, the Back Room. */
@@ -343,6 +353,8 @@ export interface Job {
   followUpOf?: string;
   /** DM-ONLY: never sent to the TV or a phone. */
   dm: JobDmNotes;
+  /** Someone's goodwill it also needs before the party can take it. (null only in a patch: cleared.) */
+  trust?: TrustNeed | null;
 }
 
 /** DM-ONLY */
@@ -468,6 +480,121 @@ export interface Note {
   editedAt?: number;
 }
 
+// ---------- Discovery: people, places, shops, monsters, mysteries ----------
+
+/** What an entry is. Plain text, so a new kind needs no schema change. */
+export type EntryKind = "person" | "place" | "shop" | "monster" | "mystery" | "faction" | (string & {});
+
+/**
+ * - hidden: DM-ONLY, never sent or counted (unless an area shows totals)
+ * - rumored: a silhouette, the nickname or "???", and the hint
+ * - found: met / visited / open / encountered / found: name, image, summary
+ * - known: found, plus the facts the DM has revealed
+ */
+export type Stage = "hidden" | "rumored" | "found" | "known";
+
+/** How a person feels about the party. */
+export type Relation = "stranger" | "friendly" | "ally" | "hostile";
+
+export interface EntryFact {
+  id: string;
+  /** For the run sheet: "fact: person/mags/owes-the-baker". */
+  slug: string;
+  text: string;
+  /** Players know it. Unrevealed facts are DM-ONLY. */
+  revealedAt?: number;
+  /** The session it was learned in. */
+  learnedIn?: string | null;
+}
+
+export interface Entry {
+  id: string;
+  kind: EntryKind;
+  /** Unique per kind; run sheet refs are kind/slug ("person/fennick"). */
+  slug: string;
+  stage: Stage;
+  /** The stage a fresh start goes back to. Missing: hidden. */
+  start?: Stage;
+  /** The real name. DM-ONLY until the entry is found. */
+  name: string;
+  /** "Keeper of the Flickering Candle". Players see it once found. */
+  title: string;
+  /** A line or two. Players see it once found. */
+  summary: string;
+  /** What players call it while it's a rumor ("The man with the lantern"). Empty: "???". */
+  nickname: string;
+  /** The one line players get while it's a rumor. */
+  hint: string;
+  /** A portrait scene: its art is theirs, and showing it on the TV finds them. */
+  sceneId?: string;
+  /** An uploaded silhouette for the rumor stage. Missing: the kind's generic one. */
+  silhouette?: string;
+  /** Places: its pin on a map. Hidden: the pin is hidden; rumored: a "?" seal with the hint; found: the pin as it is. DM-ONLY. */
+  pin?: { sceneId: string; pinId: string };
+  /** Shops: its storefront. Found opens it to everyone; back to hidden or rumored hides it. DM-ONLY. */
+  shopId?: string;
+  /** Monsters: the template it came from. DM-ONLY. */
+  templateId?: string;
+  /** Areas it belongs to ("Candlefair", "The Docks"). */
+  areas: string[];
+  /** Other entries it's tied to. Players see a link only when both ends are visible to them. */
+  links: string[];
+  /** Key facts, in the DM's order. */
+  facts: EntryFact[];
+  /** People: how they feel about the party. Missing: stranger. */
+  relation?: Relation;
+  /** People: how they feel about one player, where it differs. */
+  relationBy?: Record<string, Relation>;
+  /** When its stage last changed. */
+  stagedAt?: number;
+  /** When it was found, and in which session. */
+  foundAt?: number;
+  foundIn?: string | null;
+  /** DM-ONLY */
+  dmNote: string;
+  /** DM-ONLY */
+  secrets: string;
+}
+
+// ---------- leads and votes ----------
+
+export type LeadStatus = "open" | "followed" | "closed";
+
+export interface Lead {
+  id: string;
+  /** "Who's buying all the lantern oil?" */
+  text: string;
+  /** Players see it. Unshown leads are the DM's drafts. */
+  shown: boolean;
+  status: LeadStatus;
+  /** What it's about (any entry). Players see the lead only once that entry isn't hidden. */
+  entryId?: string;
+  /** Where it points (a place entry). The TV and phones group leads by it. */
+  placeId?: string;
+  /** Its job flyer, shown once the flyer is on the board. */
+  jobId?: string;
+  createdAt: number;
+  /** DM-ONLY */
+  dmNote: string;
+}
+
+export interface Vote {
+  id: string;
+  /** 2 or 3 leads. */
+  leadIds: string[];
+  openedAt: number;
+  /** Closes by itself at this time (checked on the next command). */
+  closesAt?: number;
+  /** One per player, by player id. Changeable until it closes. */
+  ballots: Record<string, string>;
+  closedAt?: number;
+  winnerId?: string;
+  /** A tie, for the DM to break. */
+  tied?: string[];
+  /** The "You chose" card has played at a session start. */
+  played?: boolean;
+}
+
 // ---------- run-game (all DM-ONLY) ----------
 
 export type BeatAction =
@@ -476,7 +603,11 @@ export type BeatAction =
   | { type: "bank" }
   | { type: "stinger" }
   /** "fight: Goblin x2": set up a fight with these monster templates, matched by name when it fires. */
-  | { type: "fight"; monsters: FightGroup[] };
+  | { type: "fight"; monsters: FightGroup[] }
+  /** "reveal: person/fennick [known]" or "rumor: place/lathtarls-lantern": move a Discovery entry forward (never back), on the TV. */
+  | { type: "reveal"; ref: string; stage: Stage }
+  /** "fact: person/mags/owes-the-baker": reveal that fact, on the TV. */
+  | { type: "fact"; ref: string };
 
 /** Some monsters from one template: "Goblin x2". */
 export interface FightGroup {
@@ -550,6 +681,8 @@ export interface LiveState {
   banner?: { pinId: string; n: number };
   /** The TV shop shows this category instead of a storefront. */
   shopCategory?: ItemCategory;
+  /** The leads board is up on the TV, over the scene. */
+  leads?: boolean;
 }
 
 export interface GameState {
@@ -603,6 +736,20 @@ export interface GameState {
   arrival?: ArrivalSettings;
   /** The Chronicle's notes, oldest first. Missing on games made before it; read with notesOf(). */
   notes?: Note[];
+  /** Discovery entries (people, places, ...), in the DM's order. Missing on games made before it; read with entriesOf(). */
+  entries?: Entry[];
+  /** The last reveal the TV should play. n changes each time. from: the stage it moved from. */
+  discovery?: { entryId: string; n: number; factId?: string; from?: Stage; at: number };
+  /** Discovery counters show how much is left to find per area (empty slots), hidden entries included. */
+  discoveryTotals?: boolean;
+  /** The end-of-session recap card on the TV ("Tonight you met…"). n changes each time. */
+  recapCard?: { n: number; at: number; text: string };
+  /** Threads the party can pull on. */
+  leads?: Lead[];
+  /** The party's vote on what to follow next. One at a time. */
+  vote?: Vote;
+  /** "You chose: …" on the TV at the start of a session. n changes each time. */
+  chosen?: { leadId: string; n: number; at: number };
   /** DM-ONLY: monster templates for combat mode. Missing on games made before it; read with monstersOf(). */
   monsters?: MonsterTemplate[];
   /** The fight in progress, if any. Only fightView() projections of it ever leave the server for the TV or a phone. */
