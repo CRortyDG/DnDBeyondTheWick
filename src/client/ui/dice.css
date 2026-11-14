@@ -47,6 +47,24 @@
   justify-content: center;
   gap: calc(22 * var(--u));
 }
+.dice-roll-place {
+  max-width: 100%;
+}
+/* The 3D dice: a full-screen canvas over the card, so dice can fly in from below the TV. */
+.dice-roll-3d {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.dice-roll-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  pointer-events: none;
+  filter: drop-shadow(0 calc(16 * var(--u)) calc(16 * var(--u)) rgba(0, 0, 0, 0.55));
+}
 .dice-roll-die {
   width: var(--die);
   height: var(--die);

@@ -7,8 +7,21 @@ import { Die } from "./Die";
 import "./dice.css";
 
 type Roll = NonNullable<TvView["diceRoll"]>;
+type Dice3D = typeof import("./dice3d");
 
-const TUMBLE_MS = 1100;
+// three.js only loads on the TV, and early (when the TV page opens), so the first roll is instant.
+let three: Dice3D | null = null;
+let loading: Promise<void> | null = null;
+function load3D() {
+  loading ??= import("./dice3d")
+    .then((m) => {
+      if (m.canDraw3D()) three = m;
+    })
+    .catch(() => {});
+  return loading;
+}
+
+const TUMBLE_MS = 1400;
 const STAGGER_MS = 90;
 const HOLD_MS = 6500;
 
@@ -20,6 +33,7 @@ export function DiceRoll({ roll }: { roll: TvView["diceRoll"] }) {
   const seen = useRef<number | null | undefined>(undefined);
   const [shown, setShown] = useState<Roll | null>(null);
   const [leaving, setLeaving] = useState(false);
+  useEffect(() => void load3D(), []);
   useEffect(() => {
     const n = roll?.n ?? null;
     if (seen.current === undefined) {
@@ -50,8 +64,14 @@ export function DiceRollCard({ roll, still, leaving }: { roll: Roll; still?: boo
   const reduce = useReducedMotion() || !!still;
   const [landed, setLanded] = useState(reduce ? n : 0);
   const [faces, setFaces] = useState<number[]>(() => dice.map((d) => d.v));
+  // 3D when three.js is ready and the browser can draw it; otherwise the flat dice.
+  const [use3d] = useState(() => !!three);
+  const host = useRef<HTMLDivElement>(null);
+  const place = useRef<HTMLDivElement>(null);
+  const size = n === 1 ? 300 : n <= 3 ? 230 : n <= 6 ? 180 : n <= 12 ? 140 : n <= 20 ? 110 : 90;
+  const cols = n <= 6 ? n : n <= 12 ? 6 : n <= 20 ? 8 : 10;
 
-  // Flicker random faces while tumbling; each die settles on its real number in turn.
+  // Count the dice landing (and, flat, flicker random faces while they tumble).
   useEffect(() => {
     if (reduce) return setLanded(n);
     const start = performance.now();
@@ -59,33 +79,51 @@ export function DiceRollCard({ roll, still, leaving }: { roll: Roll; still?: boo
       const t = performance.now() - start;
       const done = dice.filter((_, i) => t >= TUMBLE_MS + Math.min(i, 12) * STAGGER_MS).length;
       setLanded(done);
-      setFaces(dice.map((d, i) => (i < done ? d.v : 1 + Math.floor(Math.random() * d.sides))));
+      if (!use3d) setFaces(dice.map((d, i) => (i < done ? d.v : 1 + Math.floor(Math.random() * d.sides))));
       if (done >= n) clearInterval(tick);
     }, 70);
     return () => clearInterval(tick);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [reduce]);
 
+  useEffect(() => {
+    if (!use3d || !three || !host.current || !place.current) return;
+    const el = place.current;
+    try {
+      return three.mountDice3D(
+        host.current,
+        dice.map((d) => ({ sides: d.sides, value: d.v })),
+        { tumbleMs: TUMBLE_MS, staggerMs: STAGGER_MS, still: reduce, cols, place: () => el.getBoundingClientRect() },
+      );
+    } catch {
+      return undefined;
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [use3d]);
+
   const all = landed >= n;
   const nat = natural(roll);
   const lone = n === 1 && !roll.plus;
-  const size = n <= 3 ? 230 : n <= 6 ? 180 : n <= 12 ? 140 : n <= 20 ? 110 : 90;
 
   return (
     <div className={`dice-roll${reduce ? " still" : ""}${leaving ? " leaving" : ""}`} role="status" aria-label={`Dice: ${describeResult(roll)}, total ${roll.total}`}>
       <div className="dice-roll-card">
         <div className="dice-roll-kicker">{describeResult(roll)}</div>
-        <div className="dice-roll-dice" style={{ ["--die" as string]: `calc(${size} * var(--u))` }}>
-          {dice.map((d, i) => (
-            <span
-              key={i}
-              className={`dice-roll-die${i < landed ? " landed" : ""}${d.sides === 20 && d.v === 20 && i < landed ? " crit" : ""}${d.sides === 20 && d.v === 1 && i < landed ? " fumble" : ""}`}
-              style={{ ["--i" as string]: i, ["--dx" as string]: `${((i * 37) % 9) - 4}`, ["--spin" as string]: `${(i % 2 ? -1 : 1) * (540 + ((i * 53) % 180))}deg` }}
-            >
-              <Die sides={d.sides as DieSides} value={faces[i] ?? d.v} />
-            </span>
-          ))}
-        </div>
+        {use3d ? (
+          <div ref={place} className="dice-roll-place" style={{ width: `calc(${cols * size * 1.18} * var(--u))`, height: `calc(${Math.ceil(n / cols) * size * 1.18} * var(--u))` }} />
+        ) : (
+          <div className="dice-roll-dice" style={{ ["--die" as string]: `calc(${size} * var(--u))` }}>
+            {dice.map((d, i) => (
+              <span
+                key={i}
+                className={`dice-roll-die${i < landed ? " landed" : ""}${d.sides === 20 && d.v === 20 && i < landed ? " crit" : ""}${d.sides === 20 && d.v === 1 && i < landed ? " fumble" : ""}`}
+                style={{ ["--i" as string]: i, ["--dx" as string]: `${((i * 37) % 9) - 4}`, ["--spin" as string]: `${(i % 2 ? -1 : 1) * (540 + ((i * 53) % 180))}deg` }}
+              >
+                <Die sides={d.sides as DieSides} value={faces[i] ?? d.v} />
+              </span>
+            ))}
+          </div>
+        )}
         <div className={`dice-roll-total${all ? " show" : ""}${nat === 20 ? " crit" : nat === 1 ? " fumble" : ""}`} aria-hidden={!all}>
           {nat === 20 ? (
             <span className="dice-roll-nat">Natural 20!</span>
@@ -100,6 +138,7 @@ export function DiceRollCard({ roll, still, leaving }: { roll: Roll; still?: boo
           {nat && roll.plus ? <span className="dice-roll-total-num small">{roll.total}</span> : null}
         </div>
       </div>
+      {use3d ? <div ref={host} className="dice-roll-3d" /> : null}
     </div>
   );
 }
