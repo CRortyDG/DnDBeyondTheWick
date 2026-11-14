@@ -3,7 +3,7 @@ import { CATEGORY_IDS, KIND_IDS } from "./progress";
 import { RENOWN_MAX } from "./renown";
 import { DIE_SIDES, diceCount, MAX_DICE, MAX_OF_ONE, MAX_PLUS } from "./dice";
 import { fightDmCommands, fightPlayerCommands } from "./combatSchema";
-import { AREAS_MAX, DM_TEXT_MAX, LEAD_MAX, FACT_MAX, HINT_MAX, LINKS_MAX, NAME_MAX, RELATION_IDS, STAGE_IDS, SUMMARY_MAX, TITLE_MAX } from "./discovery";
+import { AREAS_MAX, DM_TEXT_MAX, FACT_REF_RE, LEAD_MAX, REF_RE, FACT_MAX, HINT_MAX, LINKS_MAX, NAME_MAX, RELATION_IDS, STAGE_IDS, SUMMARY_MAX, TITLE_MAX } from "./discovery";
 
 const id = z.string().min(1).max(64);
 const text = (max: number) => z.string().max(max);
@@ -135,6 +135,8 @@ const beatAction = z.discriminatedUnion("type", [
   z.object({ type: z.literal("stinger") }),
   z.object({ type: z.literal("bank") }),
   z.object({ type: z.literal("fight"), monsters: z.array(z.object({ name: text(80).min(1), count: z.number().int().min(1).max(20) })).min(1).max(10) }),
+  z.object({ type: z.literal("reveal"), ref: z.string().regex(REF_RE), stage }),
+  z.object({ type: z.literal("fact"), ref: z.string().regex(FACT_REF_RE) }),
 ]);
 export const beatBody = z.object({
   title: text(160).min(1),

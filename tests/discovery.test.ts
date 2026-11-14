@@ -8,6 +8,7 @@ import { apply, CommandError, type Ctx } from "@/shared/reducer";
 import { freshStart, seedGame } from "@/shared/seed";
 import type { Actor, GameState } from "@/shared/types";
 import { hydrate } from "@/server/store";
+import { episodeMarkdown, parseEpisode } from "@/shared/runsheet";
 import { SEED_ENTRIES } from "@/server/seed-entries";
 
 const DM: Actor = { role: "dm" };
@@ -379,5 +380,52 @@ describe("places, shops and monsters", () => {
     dm({ type: "fight.patch", combatantIds: [m.id], patch: { revealed: true } });
     expect(ent(e.id).stage).toBe("found");
     expect(g.entries!.filter((x) => x.templateId === tpl.id)).toHaveLength(1);
+  });
+});
+
+describe("run sheet lines and the dice tray", () => {
+  const sheet = `## The docks
+reveal: person/fennick
+## Mags talks
+fact: person/mags/${"PLACEHOLDER"}
+rumor: place/the-trollbark
+reveal: person/artum known
+reveal: person/nobody`;
+
+  it("parse and export reveal:, rumor: and fact: lines", () => {
+    const md = sheet.replace("PLACEHOLDER", "owes-the-baker");
+    const p = parseEpisode(md, () => null);
+    expect(p.beats[0].actions).toEqual([{ type: "reveal", ref: "person/fennick", stage: "found" }]);
+    expect(p.beats[1].actions).toEqual([
+      { type: "fact", ref: "person/mags/owes-the-baker" },
+      { type: "reveal", ref: "place/the-trollbark", stage: "rumored" },
+      { type: "reveal", ref: "person/artum", stage: "known" },
+      { type: "reveal", ref: "person/nobody", stage: "found" },
+    ]);
+    const out = episodeMarkdown({ id: "x", title: "T", beats: p.beats.map((b, i) => ({ ...b, id: `b${i}` })) }, []);
+    expect(out).toContain("reveal: person/fennick\n");
+    expect(out).toContain("fact: person/mags/owes-the-baker");
+    expect(out).toContain("rumor: place/the-trollbark");
+    expect(out).toContain("reveal: person/artum known");
+    expect(parseEpisode("## A\nreveal: fennick", () => null).warnings.join()).toMatch(/kind and a name/);
+  });
+
+  it("fire forward only, on the TV, and skip what isn't there", () => {
+    const fact = ent("e-mags").facts[0];
+    const md = sheet.replace("PLACEHOLDER", fact.slug);
+    const p = parseEpisode(md, () => null);
+    dm({ type: "entry.stage", entryId: "e-trollbark", stage: "found", announce: false });
+    dm({ type: "episode.add", title: "Test", beats: p.beats } as Command);
+    const ep = g.episodes!.at(-1)!;
+    dm({ type: "session.start" });
+    dm({ type: "run.start", episodeId: ep.id });
+    dm({ type: "run.next" });
+    expect(ent("e-fennick").stage).toBe("found");
+    expect(g.discovery!.entryId).toBe("e-fennick");
+    dm({ type: "run.next" });
+    expect(ent("e-mags").facts[0].revealedAt).toBeDefined();
+    expect(ent("e-mags").stage).toBe("known");
+    expect(ent("e-trollbark").stage).toBe("found"); // a rumor line never takes it back
+    expect(ent("e-artum").stage).toBe("known");
   });
 });

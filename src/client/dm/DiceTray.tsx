@@ -5,6 +5,7 @@ import { DIE_SIDES, describeDice, describeResult, diceCount, MAX_DICE, MAX_OF_ON
 import { Die } from "../ui/Die";
 import { InspirationIcon as DiceIcon } from "../ui/icons";
 import { useDm } from "./context";
+import { RevealPicker } from "./RevealPicker";
 import "../ui/dice.css";
 
 type Counts = Record<DieSides, number>;
@@ -169,7 +170,7 @@ export function DiceTray() {
 
       {log.length ? (
         <ul className="dt-log" aria-label="Recent rolls" aria-live="polite">
-          {log.map((r) => (
+          {log.map((r, i) => (
             <li key={r.key}>
               <span className="dt-total">{r.total}</span>
               <span>
@@ -180,6 +181,7 @@ export function DiceTray() {
                 </span>
               </span>
               <span className="spacer" />
+              {i === 0 ? <RevealPicker total={r.total} /> : null}
               <span className={`dt-tag${r.secret ? " secret" : ""}`}>{r.secret ? "secret" : "on TV"}</span>
             </li>
           ))}

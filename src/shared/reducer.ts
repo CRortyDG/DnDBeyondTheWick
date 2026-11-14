@@ -15,7 +15,7 @@ import { chapterSessionId, cleanTags, cleanText, defaultChapterId, NOTES_MAX, pe
 import { BOARD_SLOTS, jobsOf, jobTitle, pinnedCount, rankName, RENOWN, renownMet, renownNeeded, renownOf, shopOpenNow, tierOf } from "./renown";
 import { rollPool } from "./dice";
 import { leadsOf, leadVisible, tally, voteClosed } from "./leads";
-import { blankEntry, ENTRIES_MAX, LEADS_MAX, entriesForScene, entriesOf, entryFromScene, entryScene, entryTags, factSlug, FACTS_MAX, isFound, slugify, uniqueSlug } from "./discovery";
+import { findRef, stageRank, blankEntry, ENTRIES_MAX, LEADS_MAX, entriesForScene, entriesOf, entryFromScene, entryScene, entryTags, factSlug, FACTS_MAX, isFound, slugify, uniqueSlug } from "./discovery";
 import { DM_AUTHOR } from "./types";
 import { applyFight, isFightCommand, startFightFromBeat, type FightHelpers } from "./combatReducer";
 import type { Actor, Beat, BeatAction, Entry, EntryFact, Episode, FlyerText, Stage, GameState, Item, ItemTier, Job, Lead, LedgerEntry, LedgerKind, MapData, Note, Pin, PinLink, Player, Scene, Session, SessionRun, Shop, TradeRequest, Vote } from "./types";
@@ -488,6 +488,13 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
     } else if (a.type === "fight") {
       // "Roll initiative!" on the TV and the phones. A fight already going is left alone.
       startFightFromBeat(s, a.monsters, "", fightHelpers);
+    } else if (a.type === "reveal") {
+      // Forward only: a run sheet never takes back what the table already knows.
+      const hit = findRef(s, a.ref);
+      if (hit && stageRank(a.stage) > stageRank(hit.entry.stage)) setStage(hit.entry, a.stage, true);
+    } else if (a.type === "fact") {
+      const hit = findRef(s, a.ref);
+      if (hit?.fact && hit.fact.revealedAt === undefined) revealFact(hit.entry, hit.fact, true);
     }
   };
   const land = (run: SessionRun, ep: Episode, i: number, skip: number[] = []) => {
@@ -560,6 +567,16 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
       if (s.discovery?.entryId === e.id) delete s.discovery;
     } else if (announce) playMoment(e, from);
     return true;
+  };
+  /** Players learn a fact: the entry becomes Known. tv: the TV shows it. */
+  const revealFact = (e: Entry, f: EntryFact, tv: boolean) => {
+    if (f.revealedAt === undefined) {
+      f.revealedAt = ctx.now;
+      f.learnedIn = s.currentSessionId;
+    }
+    const from = e.stage;
+    setStage(e, "known", false);
+    if (tv) playMoment(e, from, f.id);
   };
   /** A place's pin and a shop's storefront follow the entry's stage. */
   const syncOut = (e: Entry, from: Stage) => {
@@ -1551,15 +1568,8 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
     case "entry.factReveal": {
       const e = entry(cmd.entryId);
       const f = factOf(e, cmd.factId);
-      if (cmd.revealed) {
-        if (f.revealedAt === undefined) {
-          f.revealedAt = ctx.now;
-          f.learnedIn = s.currentSessionId;
-        }
-        const from = e.stage;
-        setStage(e, "known", false);
-        if (cmd.tv) playMoment(e, from, f.id);
-      } else {
+      if (cmd.revealed) revealFact(e, f, !!cmd.tv);
+      else {
         delete f.revealedAt;
         delete f.learnedIn;
         if (s.discovery?.factId === f.id) delete s.discovery;

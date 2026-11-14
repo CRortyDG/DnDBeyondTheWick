@@ -591,7 +591,11 @@ export type BeatAction =
   | { type: "bank" }
   | { type: "stinger" }
   /** "fight: Goblin x2": set up a fight with these monster templates, matched by name when it fires. */
-  | { type: "fight"; monsters: FightGroup[] };
+  | { type: "fight"; monsters: FightGroup[] }
+  /** "reveal: person/fennick [known]" or "rumor: place/lathtarls-lantern": move a Discovery entry forward (never back), on the TV. */
+  | { type: "reveal"; ref: string; stage: Stage }
+  /** "fact: person/mags/owes-the-baker": reveal that fact, on the TV. */
+  | { type: "fact"; ref: string };
 
 /** Some monsters from one template: "Goblin x2". */
 export interface FightGroup {

@@ -99,6 +99,10 @@ export function factSlug(facts: EntryFact[], text: string, exceptId?: string): s
 }
 
 /** "person/mags" or "person/mags/owes-the-baker". */
+/** "person/fennick" and "person/mags/owes-the-baker". */
+export const REF_RE = /^[a-z][a-z-]{1,23}\/[a-z0-9][a-z0-9-]{0,39}$/;
+export const FACT_REF_RE = /^[a-z][a-z-]{1,23}\/[a-z0-9][a-z0-9-]{0,39}\/[a-z0-9][a-z0-9-]{0,39}$/;
+
 export function findRef(g: Pick<GameState, "entries">, ref: string): { entry: Entry; fact?: EntryFact } | null {
   const [kind, slug, fact] = ref.trim().toLowerCase().split("/");
   const entry = entriesOf(g).find((e) => e.kind === kind && e.slug === slug);
