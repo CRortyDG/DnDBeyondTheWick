@@ -5,7 +5,8 @@
 //   -        DM note (also *, •, – bullets from pasted docs)
 //   check:   <skill> DC <n> | <what> | fail: ... | success: ...
 //   if:      <when> → <then>   (-> and => work too)
-//   action:  scene <name> | black | bank | stinger
+//   show:    <ref or name>   (person/mags, map/candlefair/3, prop/the-symbol, black...: see assets.ts)
+//   action:  scene <name> | black | bank | stinger   ("action: scene X" is the old spelling of "show: X")
 //   fight:   <monster> x<n>, <monster>   (sets up a fight from the monster templates)
 //   reveal:  <kind>/<name> [rumored|found|known]   (Discovery: moves it forward, never back; found by default)
 //   rumor:   <kind>/<name>   (the same as "reveal: <kind>/<name> rumored")
@@ -15,6 +16,7 @@
 import { fightLineMarkdown, parseFightLine } from "./combat";
 import type { Beat, BeatAction, BeatCheck, Episode, Scene, Stage } from "./types";
 import { FACT_REF_RE, REF_RE } from "./discovery";
+import { actionRef, listAssets, resolveRef, SHOW_REF_RE, type AssetGame } from "./assets";
 
 export interface ParsedEpisode {
   title: string;
@@ -22,7 +24,8 @@ export interface ParsedEpisode {
   warnings: string[];
 }
 
-export type SceneResolver = (name: string) => string | null;
+/** Turns a name in a run sheet into what it shows: a ref, or (for the seed, before entries exist) a scene id. */
+export type SceneResolver = (name: string) => Extract<BeatAction, { type: "show" | "scene" }> | null;
 
 /** Lowercase, straight apostrophes, no leading "the", single spaces. */
 export function sceneKey(name: string): string {
@@ -42,7 +45,27 @@ export function sceneResolver(scenes: Pick<Scene, "id" | "label" | "name" | "kin
     const k = sceneKey(name);
     if (!k) return null;
     const hit = scenes.find((s) => sceneKey(s.label) === k) ?? scenes.find((s) => s.name && sceneKey(s.name) === k);
-    return hit?.id ?? null;
+    return hit ? { type: "scene", sceneId: hit.id } : null;
+  };
+}
+
+/** Match a ref as written ("person/mags"), then anything the DM can show by its name ("Mags Wick", "The symbol", "Candlefair map"). */
+export function assetResolver(g: AssetGame): SceneResolver {
+  const all = listAssets(g);
+  return (name) => {
+    const raw = name.trim().toLowerCase();
+    if (SHOW_REF_RE.test(raw)) {
+      const a = resolveRef(g, raw);
+      if (a) return { type: "show", ref: a.ref };
+    }
+    const k = sceneKey(name);
+    if (!k) return null;
+    const hit =
+      all.find((a) => sceneKey(a.label) === k) ??
+      all.find((a) => a.entry && a.entry.nickname && sceneKey(a.entry.nickname) === k) ??
+      all.find((a) => a.scene && (sceneKey(a.scene.label) === k || (a.scene.name && sceneKey(a.scene.name) === k))) ??
+      all.find((a) => a.pin && sceneKey(a.pin.name) === k);
+    return hit ? { type: "show", ref: hit.ref } : null;
   };
 }
 
@@ -162,6 +185,10 @@ export function parseEpisode(markdown: string, resolve: SceneResolver, fallbackT
       const ref = v.trim().toLowerCase();
       if (FACT_REF_RE.test(ref)) cur.actions.push({ type: "fact", ref });
       else warnings.push(`${where}: “${line}” needs a kind, a name and a fact, like “fact: person/mags/owes-the-baker”.`);
+    } else if ((v = prefixed(line, "show")) !== null) {
+      const a = v.trim() ? resolve(v) : null;
+      if (a) cur.actions.push(a);
+      else warnings.push(`${where}: nothing called “${v.trim()}” to show, so “show: ${v.trim()}” was left off.`);
     } else if ((v = prefixed(line, "action")) !== null) {
       const a = parseAction(v, resolve);
       if ("action" in a) cur.actions.push(a.action);
@@ -183,9 +210,9 @@ function parseAction(v: string, resolve: SceneResolver): { action: BeatAction } 
   const arg = rest.join(" ");
   switch ((verb ?? "").toLowerCase()) {
     case "scene": {
-      const id = resolve(arg);
-      if (!id) return { warning: `no scene called “${arg}”, so “action: ${v}” was left off.` };
-      return { action: { type: "scene", sceneId: id } };
+      const a = resolve(arg);
+      if (!a) return { warning: `no scene called “${arg}”, so “action: ${v}” was left off.` };
+      return { action: a };
     }
     case "black":
       return { action: { type: "black" } };
@@ -204,15 +231,15 @@ function parseAction(v: string, resolve: SceneResolver): { action: BeatAction } 
 // ---------------------------------------------------------------------------
 // Export
 
-export function actionMarkdown(a: BeatAction, scenes: Pick<Scene, "id" | "label">[]): string | null {
+export function actionMarkdown(a: BeatAction, g: AssetGame): string | null {
   if (a.type === "black") return "action: black";
   if (a.type === "bank") return "action: bank";
   if (a.type === "stinger") return "action: stinger";
   if (a.type === "fight") return fightLineMarkdown(a.monsters);
   if (a.type === "reveal") return a.stage === "rumored" ? `rumor: ${a.ref}` : a.stage === "found" ? `reveal: ${a.ref}` : `reveal: ${a.ref} ${a.stage}`;
   if (a.type === "fact") return `fact: ${a.ref}`;
-  const sc = scenes.find((s) => s.id === a.sceneId);
-  return sc ? `action: scene ${sc.label}` : null;
+  const ref = actionRef(g, a);
+  return ref ? `show: ${ref}` : null;
 }
 
 export function checkMarkdown(c: BeatCheck): string {
@@ -223,7 +250,7 @@ export function checkMarkdown(c: BeatCheck): string {
   return `check: ${parts.join(" | ")}`;
 }
 
-export function beatMarkdown(b: Omit<Beat, "id">, scenes: Pick<Scene, "id" | "label">[]): string {
+export function beatMarkdown(b: Omit<Beat, "id">, g: AssetGame): string {
   const out = [`## ${b.title}`];
   const read = () => (b.readAloud ?? []).map((p) => `> ${p}`).join("\n>\n");
   const at = Math.min(b.readAloudAt ?? 0, b.notes.length);
@@ -235,14 +262,14 @@ export function beatMarkdown(b: Omit<Beat, "id">, scenes: Pick<Scene, "id" | "la
   for (const c of b.checks) out.push(checkMarkdown(c));
   for (const br of b.branches) out.push(br.then ? `if: ${br.when} → ${br.then}` : `if: ${br.when}`);
   for (const a of b.actions) {
-    const m = actionMarkdown(a, scenes);
+    const m = actionMarkdown(a, g);
     if (m) out.push(m);
   }
   return out.join("\n");
 }
 
-export function episodeMarkdown(ep: Pick<Episode, "title" | "beats">, scenes: Pick<Scene, "id" | "label">[]): string {
-  return [`# ${ep.title}`, ...ep.beats.map((b) => beatMarkdown(b, scenes))].join("\n\n") + "\n";
+export function episodeMarkdown(ep: Pick<Episode, "title" | "beats">, g: AssetGame): string {
+  return [`# ${ep.title}`, ...ep.beats.map((b) => beatMarkdown(b, g))].join("\n\n") + "\n";
 }
 
 /** First line for the "next beat" preview. */

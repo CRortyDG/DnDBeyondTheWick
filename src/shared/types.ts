@@ -18,7 +18,10 @@ export interface Scene {
   id: string;
   label: string;
   kind: SceneKind;
-  hotkey: number | null; // 0-9
+  /** For the quick bar and run sheets: map/<slug>, prop/<slug>. Missing on games made before assets (read with sceneSlug()). */
+  slug?: string;
+  /** Old fixed hotkey (0-9). Only read once, by the assets upgrade, which moves it to the quick bar. */
+  hotkey?: number | null;
   /** Reveal scenes are only sent to the TV while they are live. */
   reveal: boolean;
   art?: Art;
@@ -607,7 +610,9 @@ export type BeatAction =
   /** "reveal: person/fennick [known]" or "rumor: place/lathtarls-lantern": move a Discovery entry forward (never back), on the TV. */
   | { type: "reveal"; ref: string; stage: Stage }
   /** "fact: person/mags/owes-the-baker": reveal that fact, on the TV. */
-  | { type: "fact"; ref: string };
+  | { type: "fact"; ref: string }
+  /** "show: person/mags", "show: map/candlefair/3", "show: prop/the-symbol": put that on the TV (see assets.ts). */
+  | { type: "show"; ref: string };
 
 /** Some monsters from one template: "Goblin x2". */
 export interface FightGroup {
@@ -642,6 +647,8 @@ export interface Beat {
   branches: BeatBranch[];
   /** Fired on landing by Next or a jump, never by Back. */
   actions: BeatAction[];
+  /** Suggested shows the DM said no to, so they don't come back. */
+  dismissed?: string[];
 }
 
 export interface Episode {
@@ -756,6 +763,10 @@ export interface GameState {
   fight?: Fight;
   /** DM-ONLY: past fights, newest last (summaries only). */
   fights?: FightSummary[];
+  /** DM-ONLY: the quick bar. Index = number key (quick[1] is key 1, quick[0] key 0). Missing: read with quickOf(). */
+  quick?: (string | null)[];
+  /** DM-ONLY: the last few things shown on the TV, newest first. */
+  recent?: string[];
   /** One-time content upgrades already applied to this game (see migrate.ts), so a later delete sticks. */
   upgrades?: string[];
   seq: number;

@@ -35,13 +35,15 @@ import { FightScreen } from "./FightScreen";
 import { MonstersPanel } from "./MonstersPanel";
 import { FightOverlay } from "../ui/FightOverlay";
 import { DiceButton, DiceTray, PlayerRollCards } from "./DiceTray";
+import { Finder, QuickBar, quickKey, typing } from "./QuickBar";
+import { quickOf } from "@/shared/assets";
 
 type Tab = "bank" | "shop" | "board" | "scenes" | "discovery" | "leads" | "players" | "arrival" | "episodes" | "monsters" | "chronicle" | "game";
 const TABS: [Tab, string, string][] = [
   ["bank", "Bank", "B"],
   ["shop", "Shop", ""],
   ["board", "Board", ""],
-  ["scenes", "Scenes", ""],
+  ["scenes", "Maps & props", ""],
   ["discovery", "Discovery", ""],
   ["leads", "Leads", ""],
   ["players", "Players", ""],
@@ -163,6 +165,8 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
 
   const gated = useGatedArt(ident, GATED_NAMES);
   const [editingMap, setEditingMap] = useState<string | null>(null);
+  /** The finder: open (optionally to pin onto one key) or closed. */
+  const [finder, setFinder] = useState<{ pinTo?: number } | null>(null);
   const [ending, setEnding] = useState(false);
   const closeMap = useCallback(() => setEditingMap(null), []);
   const [diceOpen, setDiceOpen] = useState(false);
@@ -258,17 +262,16 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
     askedShop.current = s.live.shopId;
   }, [s.live.shopId, view.version]);
 
-  // Keyboard: 0-9 scenes, arrows step, S shop on TV, P purse, B bank, T The Table, L map legend, Esc closes the shop (or zooms the map back out).
+  // Keyboard: 0-9 the quick bar, / the finder, arrows step through the bar, S shop on TV, P purse, B bank, T The Table, L map legend, Esc closes the shop (or zooms the map back out).
   useEffect(() => {
-    if (runOpen) return; // run-game mode has its own keys
+    if (runOpen || finder) return; // run-game mode has its own keys; the finder has the keyboard while it's open
     const onKey = (e: KeyboardEvent) => {
-      const t = e.target as HTMLElement | null;
-      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT" || t.isContentEditable)) return;
+      if (typing(e)) return;
       if (e.metaKey || e.ctrlKey || e.altKey) return;
       const k = e.key;
-      if (/^[0-9]$/.test(k)) {
-        const sc = s.scenes.find((x) => x.hotkey === Number(k));
-        if (sc) void run({ type: "scene.show", sceneId: sc.id });
+      // On the fight screen the digits type damage, so the quick bar waits.
+      if (!fightOpen && quickKey(e, { show: (ref) => void run({ type: "show", ref }), find: () => setFinder({}), quick: quickOf(s) })) {
+        // handled
       } else if ((k === "ArrowRight" || k === "ArrowLeft") && s.live.shopOpen && s.shops.some((x) => x.visibility === "all")) {
         // While the shop is on the TV, the arrows flip through the shops the party can see.
         // Count from the shop we last asked for, so quick presses add up before the server answers.
@@ -295,7 +298,7 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [s.scenes, s.shops, s.live.shopOpen, s.live.shopId, s.live.purseVisible, s.live.sceneId, s.live.focus, run, runOpen]);
+  }, [s, s.scenes, s.shops, s.live.shopOpen, s.live.shopId, s.live.purseVisible, s.live.sceneId, s.live.focus, run, runOpen, fightOpen, finder]);
 
   const live = s.scenes.find((x) => x.id === s.live.sceneId) ?? s.scenes[0];
   const purse = s.players.filter((p) => !p.archived && !p.away).map((p) => ({ id: p.id, name: p.name, balanceCp: p.balanceCp, inspired: !!p.inspired }));
@@ -433,23 +436,7 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
 
             {live.kind === "map" && live.map ? <LiveMapControls scene={live} /> : null}
 
-            <div className="scene-buttons" role="group" aria-label="Scenes">
-              {s.scenes.map((sc) => (
-                <button
-                  key={sc.id}
-                  type="button"
-                  className={`btn scene-btn${sc.id === s.live.sceneId ? " on" : ""}${sc.reveal ? " reveal-btn" : ""}`}
-                  aria-pressed={sc.id === s.live.sceneId}
-                  onClick={() => run({ type: "scene.show", sceneId: sc.id })}
-                >
-                  {sc.hotkey !== null ? <span className="key">{sc.hotkey}</span> : null}
-                  <span>
-                    {sc.label}
-                    {sc.reveal ? " (reveal)" : ""}
-                  </span>
-                </button>
-              ))}
-            </div>
+            <QuickBar onFind={(pinTo) => setFinder({ pinTo })} />
 
             <div className="live-toggles">
               <button type="button" className={`btn${s.live.shopOpen ? " on" : ""}`} aria-pressed={s.live.shopOpen} onClick={toggleShop}>
@@ -483,7 +470,7 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
               })}
             </div>
             <p className="note hint">
-              Keys: 0&ndash;9 scenes &middot; &larr; &rarr; step (or flip shops while the shop is open) &middot; S shop &middot; P purse &middot; B bank &middot; T The Table &middot; I requests &middot; L map legend &middot; Esc closes the shop or zooms the map out
+              Keys: 0&ndash;9 the quick bar &middot; / find anything &middot; &larr; &rarr; step through the bar (or flip shops while the shop is open) &middot; S shop &middot; P purse &middot; B bank &middot; T The Table &middot; I requests &middot; L map legend &middot; Esc closes the shop or zooms the map out
             </p>
           </section>
 
@@ -515,6 +502,7 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
         </div>
 
         {editingMap ? <MapEditor sceneId={editingMap} onClose={closeMap} /> : null}
+        {finder ? <Finder pinTo={finder.pinTo} onClose={() => setFinder(null)} /> : null}
       </div>
     );
 

@@ -3,6 +3,7 @@ import { CATEGORY_IDS, KIND_IDS } from "./progress";
 import { RENOWN_MAX } from "./renown";
 import { DIE_SIDES, diceCount, MAX_DICE, MAX_OF_ONE, MAX_PLUS } from "./dice";
 import { fightDmCommands, fightPlayerCommands } from "./combatSchema";
+import { SHOW_REF_RE } from "./assets";
 import { AREAS_MAX, DM_TEXT_MAX, FACT_REF_RE, LEAD_MAX, REF_RE, FACT_MAX, HINT_MAX, LINKS_MAX, NAME_MAX, RELATION_IDS, STAGE_IDS, SUMMARY_MAX, TITLE_MAX } from "./discovery";
 
 const id = z.string().min(1).max(64);
@@ -57,6 +58,7 @@ const scenePatch = z
     title: text(160),
     alt: text(300),
     dmNote: text(4000),
+    slug: text(40),
   })
   .partial();
 
@@ -140,6 +142,7 @@ const jobFields = {
 const itemPatch = z.object(itemFields).partial();
 
 // Run sheets (DM-only).
+const showRef = z.string().max(120).regex(SHOW_REF_RE);
 const beatAction = z.discriminatedUnion("type", [
   z.object({ type: z.literal("scene"), sceneId: id }),
   z.object({ type: z.literal("black") }),
@@ -148,6 +151,7 @@ const beatAction = z.discriminatedUnion("type", [
   z.object({ type: z.literal("fight"), monsters: z.array(z.object({ name: text(80).min(1), count: z.number().int().min(1).max(20) })).min(1).max(10) }),
   z.object({ type: z.literal("reveal"), ref: z.string().regex(REF_RE), stage }),
   z.object({ type: z.literal("fact"), ref: z.string().regex(FACT_REF_RE) }),
+  z.object({ type: z.literal("show"), ref: showRef }),
 ]);
 export const beatBody = z.object({
   title: text(160).min(1),
@@ -157,10 +161,17 @@ export const beatBody = z.object({
   checks: z.array(z.object({ skill: text(200).min(1), dc: z.number().int().min(0).max(99), what: text(400), fail: text(1000).optional(), success: text(1000).optional() })).max(40),
   branches: z.array(z.object({ when: text(1000), then: text(2000) })).max(40),
   actions: z.array(beatAction).max(10),
+  dismissed: z.array(showRef).max(40).optional(),
 });
 
 /** Commands only the DM may send. */
 export const dmCommand = z.discriminatedUnion("type", [
+  z.object({ type: z.literal("show"), ref: showRef }),
+  z.object({ type: z.literal("quick.set"), key: z.number().int().min(0).max(9), ref: showRef.nullable() }),
+  z.object({ type: z.literal("recent.clear") }),
+  z.object({ type: z.literal("entry.picture"), entryId: id, art: artSchema, alt: text(300).optional() }),
+  z.object({ type: z.literal("episode.acceptSuggestions"), episodeId: id }),
+  z.object({ type: z.literal("beat.dismiss"), episodeId: id, beatId: id, ref: showRef }),
   z.object({ type: z.literal("scene.show"), sceneId: id }),
   z.object({ type: z.literal("scene.step"), dir: z.union([z.literal(1), z.literal(-1)]) }),
   z.object({ type: z.literal("scene.hotkey"), key: z.number().int().min(0).max(9) }),

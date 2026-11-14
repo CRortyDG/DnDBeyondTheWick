@@ -17,6 +17,7 @@ import { LOG_MAX, PLAYER_ROLL_GAP_MS, rollPool, type RollTo } from "./dice";
 import { leadsOf, leadVisible, tally, voteClosed } from "./leads";
 import { findRef, sessionRecap, stageRank, blankEntry, ENTRIES_MAX, LEADS_MAX, entriesForScene, entriesOf, entryFromScene, entryScene, entryTags, factSlug, FACTS_MAX, isFound, slugify, uniqueSlug } from "./discovery";
 import { DM_AUTHOR } from "./types";
+import { beatSuggestions, entryRef, freeQuickKey, liveRef, QUICK_KEYS, quickOf, RECENT_MAX, refForScene, renameRefs, resolveRef, sceneSlug, uniqueSceneSlug } from "./assets";
 import { applyFight, isFightCommand, startFightFromBeat, type FightHelpers } from "./combatReducer";
 import type { Actor, Beat, BeatAction, Entry, EntryFact, Episode, FlyerText, Stage, GameState, Item, ItemTier, Job, Lead, LedgerEntry, LedgerKind, MapData, Note, Pin, PinLink, Player, Scene, Session, SessionRun, Shop, TradeRequest, Vote } from "./types";
 import type { z } from "zod";
@@ -54,6 +55,8 @@ export interface Result {
   /** Created episode / beat ids. */
   episodeId?: string;
   beatId?: string;
+  /** Created scene id. */
+  sceneId?: string;
   /** A note for whoever sent the command ("2 approved, 1 still needs you"). */
   info?: string;
 }
@@ -419,7 +422,106 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
     delete s.live.recapSessionId;
     delete s.live.focus;
     delete s.live.banner;
+    if (shown) noteShown(refForScene(s, shown));
   };
+  /** "Recently shown" on the DM's console. */
+  const noteShown = (ref: string) => {
+    s.recent = [ref, ...(s.recent ?? []).filter((r) => r !== ref)].slice(0, RECENT_MAX);
+  };
+  /** Just before the black screen, so ← from the first scene still wraps to black. */
+  const insertScene = (sc: Scene) => {
+    const black = s.scenes.findIndex((x) => x.kind === "black");
+    s.scenes.splice(black < 0 ? s.scenes.length : black, 0, sc);
+  };
+  const showStinger = () => {
+    // Games made before the stinger get its scene the first time it plays.
+    let sc = s.scenes.find((x) => x.kind === "stinger");
+    if (!sc) {
+      sc = { ...STINGER_SCENE, id: s.scenes.some((x) => x.id === STINGER_SCENE_ID) ? nextId("s") : STINGER_SCENE_ID };
+      insertScene(sc);
+    }
+    showScene(sc.id);
+  };
+  const showTable = () => {
+    let sc = s.scenes.find((x) => x.kind === "table");
+    if (!sc) {
+      sc = { id: s.scenes.some((x) => x.id === TABLE_SCENE_ID) ? nextId("s") : TABLE_SCENE_ID, label: "The Table", kind: "table", reveal: false, alt: "The round table from above, one candle per player" };
+      insertScene(sc);
+    }
+    showScene(sc.id);
+  };
+  /** A map, zoomed to one of its pins. A hidden pin is discovered (and its place found), with the banner. */
+  const showPin = (sc: Scene, p: Pin) => {
+    showScene(sc.id);
+    if (!p.discovered) {
+      p.discovered = true;
+      s.live.banner = { pinId: p.id, n: ++s.seq };
+      for (const e of entriesOf(s).filter((x) => x.pin?.sceneId === sc.id && x.pin.pinId === p.id)) if (!isFound(e.stage)) setStage(e, "found", false);
+    }
+    s.live.focus = { pinId: p.id, n: ++s.seq };
+    noteShown(liveRef(s) ?? refForScene(s, sc));
+  };
+  /** An entry's picture scene: a portrait card with its name and title. Made (blank) the first time it's needed. */
+  const ensurePicture = (e: Entry): Scene => {
+    const have = entryScene(s, e);
+    if (have) return have;
+    // A monster borrows its template's picture to start with.
+    const tpl = e.templateId ? (s.monsters ?? []).find((x) => x.id === e.templateId) : undefined;
+    const from = tpl?.sceneId ? s.scenes.find((x) => x.id === tpl.sceneId && x.kind === "portrait") : undefined;
+    const sc: Scene = { id: nextId("s"), label: e.name, kind: "portrait", reveal: false, art: from?.art ? { ...from.art } : {}, name: e.name, title: e.title, alt: `Picture of ${e.name}` };
+    sc.slug = uniqueSceneSlug(s.scenes, `${e.slug}-picture`);
+    insertScene(sc);
+    e.sceneId = sc.id;
+    return sc;
+  };
+  /**
+   * Show anything by its ref. People (and anything else with a picture) show
+   * their picture; a place with no picture shows its map zoomed to its pin; a
+   * shop opens its storefront. Showing something the party hasn't found finds
+   * it, the way showing a portrait always has.
+   */
+  const showRef = (ref: string) => {
+    const a = resolveRef(s, ref) ?? fail("That isn't there any more.");
+    if (a.screen === "leads") {
+      s.live.leads = true;
+      noteShown("leads");
+      return;
+    }
+    if (a.screen === "table") return showTable();
+    if (a.screen === "stinger") return showStinger();
+    if (a.screen) return showScene((a.scene ?? fail(`There's no ${a.label.toLowerCase()} in this game.`)).id);
+    if (a.pin && a.scene) return showPin(a.scene, a.pin);
+    if (!a.entry) return showScene(a.scene!.id);
+    const e = a.entry;
+    const pic = entryScene(s, e);
+    if (pic) return showScene(pic.id);
+    const pinScene = e.pin && s.scenes.find((x) => x.id === e.pin!.sceneId);
+    const pin = pinScene?.map?.pins.find((p) => p.id === e.pin!.pinId);
+    if (pinScene && pin) {
+      if (!isFound(e.stage)) setStage(e, "found", true);
+      return showPin(pinScene, pin);
+    }
+    const sh = e.shopId ? s.shops.find((x) => x.id === e.shopId) : undefined;
+    if (sh) {
+      if (!isFound(e.stage)) setStage(e, "found", true);
+      if (sh.visibility !== "all") fail(`${sh.name} is hidden from the party. Open it to everyone first.`);
+      delete s.live.shopCategory;
+      s.live.shopId = sh.id;
+      s.live.shopOpen = true;
+      delete s.live.recapSessionId;
+      noteShown(entryRef(e));
+      return;
+    }
+    if (s.scenes.length >= 400) fail("There are too many pictures already.");
+    showScene(ensurePicture(e).id);
+  };
+  /** Forget quick slots and recents that point at something deleted. */
+  const pruneRefs = () => {
+    if (s.quick) s.quick = s.quick.map((r) => (r && resolveRef(s, r) ? r : null));
+    if (s.recent) s.recent = s.recent.filter((r) => resolveRef(s, r));
+  };
+  /** Quick slots, written out (games not yet upgraded start from their hotkeys). */
+  const quickSlots = (): (string | null)[] => (s.quick = quickOf(s));
 
   const startSession = (title?: string): Session => {
     const number = nextSessionNumber(s);
@@ -472,6 +574,7 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
   };
   const makeBeat = (b: z.infer<typeof beatBody>): Beat => {
     const beat: Beat = { id: nextId("b"), title: b.title.trim() || "New beat", notes: b.notes, checks: b.checks, branches: b.branches, actions: b.actions };
+    if (b.dismissed?.length) beat.dismissed = [...new Set(b.dismissed)];
     if (b.readAloud?.length) {
       beat.readAloud = b.readAloud;
       beat.readAloudAt = Math.min(b.readAloudAt ?? 0, b.notes.length);
@@ -496,18 +599,14 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
   const fireAction = (a: BeatAction) => {
     if (a.type === "scene") {
       if (s.scenes.some((x) => x.id === a.sceneId)) showScene(a.sceneId);
+    } else if (a.type === "show") {
+      // Something deleted since the beat was written just does nothing.
+      if (resolveRef(s, a.ref)) showRef(a.ref);
     } else if (a.type === "black") {
       const black = s.scenes.find((x) => x.kind === "black");
       if (black) showScene(black.id);
     } else if (a.type === "stinger") {
-      // Games made before the stinger get its scene the first time it plays.
-      let sc = s.scenes.find((x) => x.kind === "stinger");
-      if (!sc) {
-        sc = { ...STINGER_SCENE, id: s.scenes.some((x) => x.id === STINGER_SCENE_ID) ? nextId("s") : STINGER_SCENE_ID };
-        const black = s.scenes.findIndex((x) => x.kind === "black");
-        s.scenes.splice(black < 0 ? s.scenes.length : black, 0, sc);
-      }
-      showScene(sc.id);
+      showStinger();
     } else if (a.type === "bank") {
       // The bank is the DM's screen; the TV shows the purse.
       s.live.purseVisible = true;
@@ -762,37 +861,69 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
     case "scene.show":
       showScene(scene(cmd.sceneId).id);
       break;
+    case "show":
+      showRef(cmd.ref);
+      break;
+    case "quick.set": {
+      const q = quickSlots();
+      if (cmd.ref !== null) {
+        const a = resolveRef(s, cmd.ref) ?? fail("That isn't there any more.");
+        // One key per thing: pinning it here takes it off its old key.
+        for (let k = 0; k < q.length; k++) if (q[k] === a.ref) q[k] = null;
+        q[cmd.key] = a.ref;
+      } else q[cmd.key] = null;
+      break;
+    }
+    case "recent.clear":
+      delete s.recent;
+      break;
     case "scene.step": {
-      const i = s.scenes.findIndex((x) => x.id === s.live.sceneId);
-      const n = s.scenes.length;
-      showScene(s.scenes[(((i < 0 ? 0 : i) + cmd.dir) % n + n) % n].id);
+      // Through the quick bar, in key order (1..9, then 0).
+      const bar = QUICK_KEYS.map((k) => quickOf(s)[k]).filter((r): r is string => !!r && !!resolveRef(s, r));
+      if (!bar.length) fail("The quick bar is empty. Pin something to a number key first.");
+      const now = liveRef(s);
+      const base = now?.replace(/^(map\/[^/]+)\/.*$/, "$1");
+      const i = bar.findIndex((r) => r === now || r === base);
+      const n = bar.length;
+      showRef(bar[i < 0 ? (cmd.dir === 1 ? 0 : n - 1) : (((i + cmd.dir) % n) + n) % n]);
       break;
     }
     case "scene.hotkey": {
-      const sc = s.scenes.find((x) => x.hotkey === cmd.key) ?? fail(`No scene on key ${cmd.key}.`);
-      showScene(sc.id);
+      const ref = quickOf(s)[cmd.key] ?? fail(`Nothing on key ${cmd.key}.`);
+      showRef(ref);
       break;
     }
     case "scene.add": {
-      const used = new Set(s.scenes.map((x) => x.hotkey));
-      const free = [1, 2, 3, 4, 5, 6, 7, 8, 9, 0].find((k) => !used.has(k)) ?? null;
-      const sc: Scene = { id: nextId("s"), label: cmd.label.trim() || "New scene", kind: cmd.kind, hotkey: free, reveal: false, art: {} };
+      const sc: Scene = { id: nextId("s"), label: cmd.label.trim() || "New scene", kind: cmd.kind, reveal: false, art: {} };
       if (cmd.kind === "portrait") Object.assign(sc, { name: sc.label, title: "" });
       if (cmd.kind === "map") sc.map = emptyMap();
+      sc.slug = uniqueSceneSlug(s.scenes, sceneSlug(sc));
       s.scenes.push(sc);
+      out.sceneId = sc.id;
+      // On the first free number key, as new scenes always were.
+      const free = freeQuickKey(s);
+      if (free !== null) quickSlots()[free] = refForScene(s, sc);
       break;
     }
     case "scene.update": {
       const sc = scene(cmd.sceneId);
-      const { patch } = cmd;
-      if (patch.hotkey !== undefined && patch.hotkey !== null) {
-        for (const other of s.scenes) if (other.id !== sc.id && other.hotkey === patch.hotkey) other.hotkey = null;
-      }
+      const { hotkey, slug, ...patch } = cmd.patch;
+      const before = refForScene(s, sc);
       if (patch.art?.url && !/^(https:\/\/|\/api\/files\/)/.test(patch.art.url)) fail("Images must be uploaded first.");
       Object.assign(sc, patch);
       if (patch.label !== undefined) sc.label = patch.label.trim() || sc.label;
+      if (slug !== undefined) sc.slug = uniqueSceneSlug(s.scenes, slug.trim() || sceneSlug({ ...sc, slug: undefined }), sc.id);
+      else if (!sc.slug) sc.slug = uniqueSceneSlug(s.scenes, sceneSlug(sc), sc.id);
       // Pins survive a kind change, so switching to Image and back loses nothing.
       if (sc.kind === "map") sc.map ??= emptyMap();
+      renameRefs(s, before, refForScene(s, sc));
+      // The old hotkey field, from older screens: pin it to that key.
+      if (hotkey !== undefined) {
+        const q = quickSlots();
+        const ref = refForScene(s, sc);
+        for (let k = 0; k < q.length; k++) if (q[k] === ref) q[k] = null;
+        if (hotkey !== null) q[hotkey] = ref;
+      }
       break;
     }
     case "scene.remove": {
@@ -806,6 +937,7 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
       }
       for (const sc of s.scenes) for (const p of sc.map?.pins ?? []) if (p.link?.kind === "scene" && p.link.sceneId === cmd.sceneId) delete p.link;
       for (const e of entriesOf(s)) if (e.sceneId === cmd.sceneId) delete e.sceneId;
+      pruneRefs();
       break;
     }
     case "scene.move": {
@@ -1482,6 +1614,7 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
     case "entry.update": {
       const e = entry(cmd.entryId);
       const p = cmd.patch;
+      const refBefore = entryRef(e);
       if (p.name !== undefined) {
         const name = cleanLine(p.name);
         if (!name) fail("Give it a name.");
@@ -1535,6 +1668,22 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
       }
       // A newly tied storefront takes the entry's stage.
       if (p.shopId) syncOut(e, e.stage);
+      // Its picture card reads its name and title.
+      const pic = entryScene(s, e);
+      if (pic && (p.name !== undefined || p.title !== undefined) && entriesForScene(s, pic.id).length === 1) {
+        pic.label = e.name;
+        pic.name = e.name;
+        pic.title = e.title;
+      }
+      renameRefs(s, refBefore, entryRef(e));
+      break;
+    }
+    case "entry.picture": {
+      const e = entry(cmd.entryId);
+      if (cmd.art.url && !/^(https:\/\/|\/api\/files\/)/.test(cmd.art.url)) fail("Images must be uploaded first.");
+      const sc = ensurePicture(e);
+      sc.art = cmd.art;
+      if (cmd.alt !== undefined) sc.alt = cmd.alt.trim();
       break;
     }
     case "entry.relationFor": {
@@ -1552,6 +1701,7 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
       s.entries = entriesOf(s).filter((x) => x.id !== cmd.entryId);
       for (const e of s.entries) if (e.links.includes(cmd.entryId)) e.links = e.links.filter((x) => x !== cmd.entryId);
       if (s.discovery?.entryId === cmd.entryId) delete s.discovery;
+      pruneRefs();
       break;
     }
     case "entry.move": {
@@ -1769,6 +1919,25 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
       ep.beats[i] = { ...makeBeat(cmd.beat), id: cmd.beatId };
       break;
     }
+    case "beat.dismiss": {
+      const ep = episode(cmd.episodeId);
+      const b = ep.beats.find((x) => x.id === cmd.beatId) ?? fail("That beat doesn't exist.");
+      if (!b.dismissed?.includes(cmd.ref)) b.dismissed = [...(b.dismissed ?? []), cmd.ref].slice(-40);
+      break;
+    }
+    case "episode.acceptSuggestions": {
+      const ep = episode(cmd.episodeId);
+      let n = 0;
+      for (const b of ep.beats) {
+        const { suggested } = beatSuggestions(s, b);
+        if (suggested && b.actions.length < 10) {
+          b.actions.push({ type: "show", ref: suggested });
+          n++;
+        }
+      }
+      out.info = n ? `${n} beat${n === 1 ? "" : "s"} now show what they mention.` : "No suggestions to accept.";
+      break;
+    }
     case "beat.move": {
       const ep = episode(cmd.episodeId);
       const i = ep.beats.findIndex((b) => b.id === cmd.beatId);
@@ -1920,17 +2089,9 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
       if (cmd.seatsLocked !== undefined) a.seatsLocked = cmd.seatsLocked;
       break;
     }
-    case "arrival.showTable": {
-      let sc = s.scenes.find((x) => x.kind === "table");
-      if (!sc) {
-        sc = { id: s.scenes.some((x) => x.id === TABLE_SCENE_ID) ? nextId("s") : TABLE_SCENE_ID, label: "The Table", kind: "table", hotkey: null, reveal: false, alt: "The round table from above, one candle per player" };
-        // Just before the black screen, so ← from the first scene still wraps to black.
-        const black = s.scenes.findIndex((x) => x.kind === "black");
-        s.scenes.splice(black < 0 ? s.scenes.length : black, 0, sc);
-      }
-      showScene(sc.id);
+    case "arrival.showTable":
+      showTable();
       break;
-    }
 
     case "game.rename":
       s.name = cmd.name.trim();
