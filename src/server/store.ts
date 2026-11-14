@@ -2,6 +2,7 @@ import { upgrade } from "@/shared/migrate";
 import type { GameState, LedgerEntry } from "@/shared/types";
 import { withSeedEpisodes } from "./seed-episodes";
 import { withSeedJobNotes } from "./seed-jobs";
+import { withSeedMonsters } from "./seed-monsters";
 
 /**
  * Where a game lives. One JSON document (state), a version number, an
@@ -28,9 +29,9 @@ export interface Store {
   setDmKeyHash(game: string, hash: string): Promise<void>;
 }
 
-/** What a stored document looks like once read: migrated, with the seed run sheets added. */
+/** What a stored document looks like once read: migrated, with the seed run sheets and monsters added. */
 export function hydrate(state: GameState | null): GameState | null {
-  return withSeedJobNotes(withSeedEpisodes(state ? upgrade(state) : null));
+  return withSeedMonsters(withSeedJobNotes(withSeedEpisodes(state ? upgrade(state) : null)));
 }
 
 interface MemoryGame {

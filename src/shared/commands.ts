@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { CATEGORY_IDS, KIND_IDS } from "./progress";
 import { RENOWN_MAX } from "./renown";
+import { fightDmCommands, fightPlayerCommands } from "./combatSchema";
 
 const id = z.string().min(1).max(64);
 const text = (max: number) => z.string().max(max);
@@ -105,6 +106,7 @@ const beatAction = z.discriminatedUnion("type", [
   z.object({ type: z.literal("black") }),
   z.object({ type: z.literal("stinger") }),
   z.object({ type: z.literal("bank") }),
+  z.object({ type: z.literal("fight"), monsters: z.array(z.object({ name: text(80).min(1), count: z.number().int().min(1).max(20) })).min(1).max(10) }),
 ]);
 export const beatBody = z.object({
   title: text(160).min(1),
@@ -259,6 +261,9 @@ export const dmCommand = z.discriminatedUnion("type", [
 
   z.object({ type: z.literal("game.rename"), name: text(120).min(1) }),
   z.object({ type: z.literal("game.vtt"), url: text(300) }),
+
+  // Combat mode.
+  ...fightDmCommands,
 ]);
 
 /** Commands a player may send about themselves. */
@@ -278,6 +283,8 @@ export const playerCommand = z.discriminatedUnion("type", [
   z.object({ type: z.literal("me.noteAdd"), text: noteText, tags: noteTags.optional(), chapterId: id.optional() }),
   z.object({ type: z.literal("me.noteUpdate"), noteId: id, patch: notePatch }),
   z.object({ type: z.literal("me.noteRemove"), noteId: id }),
+  // Combat mode: initiative, my HP, death saves, end my turn.
+  ...fightPlayerCommands,
 ]);
 
 /** Commands the server issues itself; never accepted from a client. */

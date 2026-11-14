@@ -6,6 +6,7 @@ import { heldCp, heldStock } from "./requests";
 import { projectTable, type TableView } from "./arrival";
 import { notesOf, penName, projectChronicle, type ChronicleView } from "./chronicle";
 import { jobsOf, jobTitle, rankName, RENOWN, renownMet, renownNeeded, renownOf, shopOpenNow, tierOf } from "./renown";
+import { fightView, myFight, type FightView, type MyFight } from "./combat";
 import type { Art, Banner, FlyerText, GameState, Job, JobStyle, Item, ItemCategory, ItemKind, LedgerEntry, LegendStyle, LiveState, Player, RequestStatus, Scene, Shop } from "./types";
 
 export const GATED_ART = new Set(["merchant-sigil"]);
@@ -225,6 +226,8 @@ export interface TvView extends Common {
   recap: { number: number; title: string; text: string; notes?: { text: string; author: string }[] } | null;
   /** The Table's seats and the QR links of unclaimed players: only while The Table is live. */
   table?: TableView;
+  /** Combat mode: the fight going on, as the room may see it. */
+  fight: FightView | null;
 }
 
 export interface MyLedgerLine {
@@ -247,7 +250,12 @@ export interface PlayerView extends Common {
     archived: boolean;
     /** Gold held by my pending requests. */
     heldCp: number;
+    /** My hit points for combat mode (not set: max 0). */
+    hp: { cur: number; max: number; temp: number; tv: boolean };
   };
+  /** Combat mode: the fight going on, as the room sees it, and my part in it. */
+  fight: FightView | null;
+  myFight: MyFight | null;
   myLedger: MyLedgerLine[];
   myOrders: MyOrder[];
   /** My purchase and gold requests, newest first. Never anyone else's. */
@@ -427,7 +435,17 @@ export function projectTv(game: GameState, version: number): TvView {
     scenes: game.scenes.filter((sc) => !sc.reveal || sc.id === game.live.sceneId).map((sc) => publicScene(game, sc)),
     recap: publicRecap(game),
     ...(game.scenes.find((sc) => sc.id === game.live.sceneId)?.kind === "table" ? { table: projectTable(game) } : {}),
+    fight: publicFight(game),
   };
+}
+
+/** The fight, for the TV and phones. Portrait art only from scenes the room may see. */
+function publicFight(game: GameState): FightView | null {
+  return fightView(game, Date.now(), (sceneId) => {
+    const sc = game.scenes.find((x) => x.id === sceneId);
+    if (!sc || sc.reveal || sc.kind !== "portrait") return undefined;
+    return artForPublic(game, sc);
+  });
 }
 
 function publicRecap(game: GameState): TvView["recap"] {
@@ -466,7 +484,10 @@ export function projectPlayer(game: GameState, version: number, playerId: string
       locked: !!p.keyHash,
       archived: p.archived,
       heldCp: heldCp(game, p.id),
+      hp: { cur: p.hp?.cur ?? 0, max: p.hp?.max ?? 0, temp: p.hp?.temp ?? 0, tv: p.hp?.tv !== false },
     },
+    fight: publicFight(game),
+    myFight: myFight(game, p.id),
     myRequests: game.requests
       .filter((r) => r.playerId === p.id)
       .slice(-50)

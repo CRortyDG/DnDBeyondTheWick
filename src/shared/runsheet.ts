@@ -5,9 +5,11 @@
 //   -        DM note (also *, •, – bullets from pasted docs)
 //   check:   <skill> DC <n> | <what> | fail: ... | success: ...
 //   if:      <when> → <then>   (-> and => work too)
-//   action:  scene <name> | black | bank | initiative
+//   action:  scene <name> | black | bank | stinger
+//   fight:   <monster> x<n>, <monster>   (sets up a fight from the monster templates)
 // Anything else becomes a note, so nothing pasted is silently lost.
 
+import { fightLineMarkdown, parseFightLine } from "./combat";
 import type { Beat, BeatAction, BeatCheck, Episode, Scene } from "./types";
 
 export interface ParsedEpisode {
@@ -141,6 +143,10 @@ export function parseEpisode(markdown: string, resolve: SceneResolver, fallbackT
     } else if ((v = prefixed(line, "if")) !== null) {
       const [when, ...rest] = v.split(ARROW);
       cur.branches.push({ when: when.trim(), then: rest.join(" → ").trim() });
+    } else if ((v = prefixed(line, "fight")) !== null) {
+      const monsters = parseFightLine(v);
+      if (monsters.length) cur.actions.push({ type: "fight", monsters });
+      else warnings.push(`${where}: “fight:” needs at least one monster, like “fight: Goblin x2”.`);
     } else if ((v = prefixed(line, "action")) !== null) {
       const a = parseAction(v, resolve);
       if ("action" in a) cur.actions.push(a.action);
@@ -173,7 +179,8 @@ function parseAction(v: string, resolve: SceneResolver): { action: BeatAction } 
     case "stinger":
       return { action: { type: "stinger" } };
     case "initiative":
-      return { warning: "there's no initiative tracker yet, so “action: initiative” was left off." };
+    case "fight":
+      return { warning: `“action: ${v}” was left off: set up a fight with a line like “fight: Goblin x2”.` };
     default:
       return { warning: `didn't recognise “action: ${v}”, so it was left off.` };
   }
@@ -186,6 +193,7 @@ export function actionMarkdown(a: BeatAction, scenes: Pick<Scene, "id" | "label"
   if (a.type === "black") return "action: black";
   if (a.type === "bank") return "action: bank";
   if (a.type === "stinger") return "action: stinger";
+  if (a.type === "fight") return fightLineMarkdown(a.monsters);
   const sc = scenes.find((s) => s.id === a.sceneId);
   return sc ? `action: scene ${sc.label}` : null;
 }

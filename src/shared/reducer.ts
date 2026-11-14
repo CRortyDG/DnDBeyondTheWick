@@ -14,6 +14,7 @@ import { starterById } from "./starters";
 import { chapterSessionId, cleanTags, cleanText, defaultChapterId, NOTES_MAX, penName } from "./chronicle";
 import { BOARD_SLOTS, jobsOf, jobTitle, pinnedCount, rankName, RENOWN, renownMet, renownNeeded, renownOf, shopOpenNow, tierOf } from "./renown";
 import { DM_AUTHOR } from "./types";
+import { applyFight, isFightCommand, startFightFromBeat, type FightHelpers } from "./combatReducer";
 import type { Actor, Beat, BeatAction, Episode, FlyerText, GameState, Item, ItemTier, Job, LedgerEntry, LedgerKind, MapData, Note, Pin, PinLink, Player, Scene, Session, SessionRun, Shop, TradeRequest } from "./types";
 import type { z } from "zod";
 
@@ -442,6 +443,21 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
     }
     return beat;
   };
+  // Combat mode (combatReducer.ts) gets the same ids, ledger, Chronicle and TV as everything else.
+  const fightHelpers: FightHelpers = {
+    now: ctx.now,
+    actorPlayerId: ctx.actor.role === "player" ? ctx.actor.playerId : null,
+    rand,
+    nextId,
+    fail,
+    player,
+    move,
+    addNote: (authorId, authorName, text) => {
+      addNote(authorId, authorName, text, undefined, undefined);
+      return s.notes![s.notes!.length - 1].id;
+    },
+    showScene: (id) => showScene(id),
+  };
   const fireAction = (a: BeatAction) => {
     if (a.type === "scene") {
       if (s.scenes.some((x) => x.id === a.sceneId)) showScene(a.sceneId);
@@ -462,6 +478,9 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
       s.live.purseVisible = true;
       s.live.shopOpen = false;
       delete s.live.recapSessionId;
+    } else if (a.type === "fight") {
+      // "Roll initiative!" on the TV and the phones. A fight already going is left alone.
+      startFightFromBeat(s, a.monsters, "", fightHelpers);
     }
   };
   const land = (run: SessionRun, ep: Episode, i: number, skip: number[] = []) => {
@@ -542,6 +561,11 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
     if (s.live.focus?.pinId === pinId) delete s.live.focus;
     if (s.live.banner?.pinId === pinId) delete s.live.banner;
   };
+
+  if (isFightCommand(cmd)) {
+    applyFight(s, cmd, fightHelpers);
+    return out;
+  }
 
   switch (cmd.type) {
     // ---------- scenes ----------

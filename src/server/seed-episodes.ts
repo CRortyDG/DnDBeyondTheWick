@@ -91,7 +91,7 @@ action: scene the chef
 - Give every round a stake: a pudding lunges at a guest, someone gets cornered.
 - Scale: struggling party, wave 2 is one pudding; crushing it, add a third. Rough guide: start with two, let only one create a third.
 - Improvised weapons everywhere (rolling pins, ladles, candelabras): 1d4.
-action: initiative
+fight: Pudding Gremlin x2
 
 ## Celebration and payday
 - Narrate the room for 30 seconds, then one quick question per player ("What's the first thing your character eats?").

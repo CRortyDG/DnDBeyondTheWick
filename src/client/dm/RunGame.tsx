@@ -17,12 +17,13 @@ export function actionLabel(a: BeatAction, scenes: Scene[]): string {
   if (a.type === "black") return "TV → black screen";
   if (a.type === "bank") return "Bank opens · purse on the TV";
   if (a.type === "stinger") return "TV → plays the stinger";
+  if (a.type === "fight") return `Fight: ${a.monsters.map((m) => (m.count > 1 ? `${m.name} ×${m.count}` : m.name)).join(", ")} · TV → Roll initiative!`;
   const sc = scenes.find((x) => x.id === a.sceneId);
   if (!sc) return "TV → a scene that was deleted";
   return sc.kind === "portrait" ? `TV → ${sc.label}’s portrait` : `TV → ${sc.label}`;
 }
 
-export function RunGame({ onExit }: { onExit: () => void }) {
+export function RunGame({ onExit, onFight }: { onExit: () => void; onFight?: () => void }) {
   const { view, run } = useDm();
   const s = view.state;
   const session = s.sessions.find((x) => x.id === s.currentSessionId);
@@ -128,6 +129,11 @@ export function RunGame({ onExit }: { onExit: () => void }) {
           {s.live.purseVisible ? " · purse" : ""}
         </span>
         <Inbox />
+        {s.fight && onFight ? (
+          <button className="btn small primary" type="button" onClick={onFight}>
+            Back to the fight
+          </button>
+        ) : null}
         <button className="btn small" type="button" onClick={() => setBank(true)}>
           <span className="key">B</span> Bank
         </button>

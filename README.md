@@ -96,6 +96,7 @@ In the DM view, **Open TV window** pops the TV page out. Drag it onto the TV and
 | --- | --- |
 | DM view | `0`–`9` scenes · `←` `→` step (while the shop is open: flip shops) · `S` shop on the TV · `P` purse · `B` bank · `T` The Table (Arrival) · `I` requests from phones · `L` map legend · `Esc` closes the requests drawer, then the shop, then zooms a map back out |
 | Map editor | click the map to drop a pin · drag to move · `←` `↑` `→` `↓` nudge (Shift: bigger steps) · `Delete` removes · `Ctrl+Z` undo · `Esc` deselects, then closes |
+| Fight screen | `Space` next turn · `Shift+Space` previous · digits type an amount · `Enter` damages the picked rows · `Shift+Enter` heals them · `Esc` clears the amount, then the picks |
 | Run-game mode | `Space` or `→` next beat · `Shift+Space` or `←` back · `0`–`9` `S` `P` `T` as above · `B` opens the bank on top · `I` requests · `Esc` closes whatever is on top |
 | TV | `F` fullscreen · `H` hide the control bar |
 
@@ -169,8 +170,20 @@ tests/                    vitest
 - **Next** and **jumping** to a beat fire its actions (switch the TV scene, black screen, or the bank: purse on the TV and the bank on your screen). **Back** never fires anything. Tap "↻ Again" to re-fire, or "Skip" on the next beat's action before you press Next.
 - The first screen is check-in (untick anyone who isn't here; they're marked away) and the last session's recap, which you can show on the TV as "Previously on…". The last screen is payday, the recap box and all your quick notes.
 - Your place is saved on the server, so a reload or another device lands on the same beat. If a session ends mid-episode, the next run picks up where it stopped.
-- **DM view → Episodes:** add episodes, edit beats (each beat is edited as Markdown), reorder by dragging or with the arrows, import an episode pasted as Markdown, and export it back out. One beat per `##`; lines start with `>` read-aloud, `-` note, `check:`, `if:` or `action:` (`scene <name>`, `black`, `bank`). There's no initiative tracker yet, so `action: initiative` is skipped.
+- **DM view → Episodes:** add episodes, edit beats (each beat is edited as Markdown), reorder by dragging or with the arrows, import an episode pasted as Markdown, and export it back out. One beat per `##`; lines start with `>` read-aloud, `-` note, `check:`, `if:`, `action:` (`scene <name>`, `black`, `bank`) or `fight:` (`fight: Pudding Gremlin x2, Goblin`: landing on the beat sets up that fight from the Monsters tab).
 - Existing games get the seed episode "Just Desserts" automatically. "Start fresh" keeps episodes; "Reset everything" restores the seed episode.
+
+## Combat mode
+
+For in-person fights: no grid, no tokens. The point is faster turns: everyone always knows who's up and who's next.
+
+- **Start fight** (DM header, the Monsters tab, or a run sheet `fight:` line) puts **Roll initiative!** on the TV and a number pad on every phone. Entries arrive live on the full-screen **fight screen**; type or fix any of them, add monsters from templates (lettered A, B, …) or quick one-offs, roll their initiative in one click, drag to reorder, then **Begin**. Ties go to the higher initiative bonus when both are known, otherwise they stay as entered.
+- **The TV:** the scene dimmed behind a turn-order strip, a big "now" panel with conditions and turns left, "up next", the round, and an optional hourglass (off by default; it just glows when it runs out). Monsters show a state (Unhurt, Hurt, Bloodied, Barely standing, Down), never numbers or AC, and their TV name ("Something in the pudding") until you reveal the real one. Hidden combatants never reach the TV or phones; their turn shows as "…". Crits, a monster falling, a player going down and the end get a short animation. While a fight runs, the shop, "Previously on…" and the purse step aside; **Pause** shows the scene again with a small banner.
+- **Phones:** "You're up next" (short buzz) and "Your turn!" (longer buzz, red screen), the order, your conditions and round, **End my turn**, your HP (optional, "Show my HP on the TV" on by default; D&D Beyond stays the real sheet) and death saves at 0 HP.
+- **Your controls:** damage, heal and temp HP on any picked rows; the 2024 conditions (Exhaustion with levels) or a custom one, with rounds counting down at the start or end of that combatant's turn and a reminder when they end; concentration (the save DC pops up on a hit); recharge abilities (a reminder at the start of its turn once used, with Roll d6); 1/day ticks; on-death reminders (Death Burst); add mid-fight right after another combatant; delay; hide; per-fight DM notes. Previous turn undoes the countdowns exactly.
+- **End fight** shows "The fight is over" on the TV (rounds and who went down). Then the loot step pays coins into purses through the ledger (evenly or by player), notes any items, writes an editable Chronicle line, keeps a summary under Monsters → Past fights, and puts the TV back on the scene from before.
+- **Monsters tab:** templates with AC, HP (`21` or `6d6`, rolled per monster), initiative bonus, speed, attacks, abilities (recharge, uses per day, on-death reminder), resistances, immunities, notes, a DM note (shown when a fight with it starts) and an optional portrait. The Pudding Gremlin is seeded on the server, like the seed run sheet, so its stat block never ships to the TV or phones.
+- Everything lives in the campaign's room, so a refresh on any screen comes back to the same turn. Player HP stays with the player between fights.
 
 ## Sessions and starting over
 

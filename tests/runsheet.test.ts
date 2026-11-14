@@ -53,20 +53,20 @@ describe("importing the seed episode", () => {
     expect(p.beats.flatMap((b) => b.branches)).toHaveLength(1);
   });
 
-  it("maps actions to the existing scenes and leaves initiative off", () => {
+  it("maps actions to the existing scenes and sets up the pudding fight", () => {
     const acts = Object.fromEntries(p.beats.map((b) => [b.title, b.actions]));
     expect(acts["Off the Gull's Promise"]).toEqual([{ type: "scene", sceneId: "s-map" }]);
     expect(acts["At the Flickering Candle"]).toEqual([{ type: "scene", sceneId: "s-board" }]);
     expect(acts["Artum bursts in"]).toEqual([{ type: "scene", sceneId: "s-artum" }]);
     expect(acts["Artum's toast and dessert"]).toEqual([{ type: "scene", sceneId: "s-chef" }]);
-    expect(acts["The pudding fight"]).toEqual([]);
+    expect(acts["The pudding fight"]).toEqual([{ type: "fight", monsters: [{ name: "Pudding Gremlin", count: 2 }] }]);
     expect(acts["Celebration and payday"]).toEqual([{ type: "bank" }]);
     expect(acts["The chef's confession"]).toEqual([{ type: "scene", sceneId: "s-chef" }]);
     expect(acts["The recipes won't burn"]).toEqual([{ type: "scene", sceneId: "s-symbol" }]);
     expect(acts["The stinger"]).toEqual([{ type: "black" }]);
     expect(acts["Roll the stinger"]).toEqual([{ type: "stinger" }]);
     expect(acts["Hang the fir garlands"]).toEqual([]);
-    expect(p.warnings).toEqual([expect.stringContaining("initiative")]);
+    expect(p.warnings).toEqual([]);
   });
 
   it("keeps read-aloud paragraphs and where they sit among the notes", () => {
@@ -357,7 +357,7 @@ describe("spoiler safety", () => {
       const text = fs.readFileSync(f, "utf8");
       expect(text, f).not.toContain("seed-episodes");
       expect(text, f).not.toMatch(/from ["'](@\/server|\.\.?\/(\.\.\/)*server)\//);
-      for (const line of ["Pudding Gremlin", "Where is everyone", "Just Desserts", "one more tiny lantern", "Mardon Rueh", "Robber Baron", "Spell Scroll of See Invisibility"]) expect(text, f).not.toContain(line);
+      for (const line of ["Pudding Gremlin", "Something in the pudding", "Create Gremlin", "Death Burst", "Where is everyone", "Just Desserts", "one more tiny lantern", "Mardon Rueh", "Robber Baron", "Spell Scroll of See Invisibility"]) expect(text, f).not.toContain(line);
     }
   });
 });

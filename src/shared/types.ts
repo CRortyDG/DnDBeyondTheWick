@@ -92,6 +92,17 @@ export interface Player {
   character?: string;
   /** The Arrival intro: their private link and how far they've got. */
   arrival?: PlayerArrival;
+  /** Hit points for the table in combat mode (D&D Beyond stays the real sheet). Missing: not set yet. */
+  hp?: PlayerHp;
+}
+
+/** A player's hit points, as they (or the DM) typed them. */
+export interface PlayerHp {
+  cur: number;
+  max: number;
+  temp: number;
+  /** "Show my HP on the TV". Missing: on. */
+  tv?: boolean;
 }
 
 /** A player's progress through the Arrival intro (the link texted before session 0). */
@@ -457,7 +468,19 @@ export interface Note {
 
 // ---------- run-game (all DM-ONLY) ----------
 
-export type BeatAction = { type: "scene"; sceneId: string } | { type: "black" } | { type: "bank" } | { type: "stinger" };
+export type BeatAction =
+  | { type: "scene"; sceneId: string }
+  | { type: "black" }
+  | { type: "bank" }
+  | { type: "stinger" }
+  /** "fight: Goblin x2": set up a fight with these monster templates, matched by name when it fires. */
+  | { type: "fight"; monsters: FightGroup[] };
+
+/** Some monsters from one template: "Goblin x2". */
+export interface FightGroup {
+  name: string;
+  count: number;
+}
 
 export interface BeatCheck {
   /** "Strength (Athletics)", "Dexterity saving throw", "... or ...". */
@@ -574,12 +597,18 @@ export interface GameState {
   arrival?: ArrivalSettings;
   /** The Chronicle's notes, oldest first. Missing on games made before it; read with notesOf(). */
   notes?: Note[];
+  /** DM-ONLY: monster templates for combat mode. Missing on games made before it; read with monstersOf(). */
+  monsters?: MonsterTemplate[];
+  /** The fight in progress, if any. Only fightView() projections of it ever leave the server for the TV or a phone. */
+  fight?: Fight;
+  /** DM-ONLY: past fights, newest last (summaries only). */
+  fights?: FightSummary[];
   /** One-time content upgrades already applied to this game (see migrate.ts), so a later delete sticks. */
   upgrades?: string[];
   seq: number;
 }
 
-export type LedgerKind = "grant" | "charge" | "purchase" | "payAll" | "transfer" | "rent" | "contribution" | "income" | "bounty";
+export type LedgerKind = "grant" | "charge" | "purchase" | "payAll" | "transfer" | "rent" | "contribution" | "income" | "bounty" | "loot";
 
 export interface LedgerEntry {
   id: string;
@@ -607,3 +636,176 @@ export type Actor =
   | { role: "player"; playerId: string }
   /** The server itself (joins, hellos, knocks). Never derived from a request. */
   | { role: "system" };
+
+// ---------- combat mode ----------
+
+export interface MonsterAttack {
+  name: string;
+  /** To-hit bonus. */
+  bonus: number;
+  /** "1d4 + 3". */
+  damage: string;
+}
+
+export interface MonsterAbility {
+  id: string;
+  name: string;
+  /** Rules text, short. For an on-death ability this is the reminder ("DC 11 Dex, 2d6, 5 ft."). */
+  text: string;
+  /** Recharges on a d6 roll of this or higher: 6 = "Recharge 6", 5 = "Recharge 5–6". */
+  recharge?: number;
+  /** Uses per day (1 = "1/day"). The box stays ticked for the fight. */
+  uses?: number;
+  /** Remind the DM when it drops to 0 HP. */
+  onDeath?: boolean;
+}
+
+/** DM-ONLY: a monster's key numbers, typed in from a stat block. */
+export interface MonsterTemplate {
+  id: string;
+  name: string;
+  /** What the TV calls it until the DM reveals it ("Something in the shadows"). Empty: the real name. */
+  displayName: string;
+  ac: number;
+  /** "21" (fixed) or "6d6" (rolled per monster). */
+  hp: string;
+  initBonus: number;
+  speed: string;
+  attacks: MonsterAttack[];
+  abilities: MonsterAbility[];
+  resist: string;
+  immune: string;
+  notes: string;
+  dmNote: string;
+  /** A portrait scene whose art the TV shows for it. */
+  sceneId?: string;
+}
+
+export type ConditionTick = "start" | "end";
+
+export interface FightCondition {
+  id: string;
+  name: string;
+  /** Exhaustion level, 1-6. */
+  level?: number;
+  /** Rounds left. Missing: until removed. */
+  rounds?: number;
+  /** When it counts down: at the start or the end of its owner's turn. */
+  tick: ConditionTick;
+}
+
+export interface Combatant {
+  id: string;
+  kind: "player" | "monster";
+  playerId?: string;
+  templateId?: string;
+  /** DM-ONLY until revealed: the real name ("Goblin A"). Players: their character name. */
+  name: string;
+  /** What the TV shows until revealed ("Something in the shadows A"). */
+  displayName: string;
+  revealed: boolean;
+  /** DM-ONLY: kept off the TV and phones until the DM shows it (ambushes, invisible enemies). */
+  hidden: boolean;
+  init: number | null;
+  initBonus: number | null;
+  /** Monsters only (DM-ONLY numbers). Players' hit points live on Player.hp. */
+  hp: number;
+  maxHp: number;
+  tempHp: number;
+  /** DM-ONLY */
+  ac?: number;
+  conditions: FightCondition[];
+  concentrating: boolean;
+  /** Ability id -> uses spent this fight. A recharge ability at 1 is waiting to recharge. */
+  spent: Record<string, number>;
+  /** Monsters: at 0 HP. Greyed on the TV until the round ends. */
+  down: boolean;
+  /** Monsters: off the TV strip and skipped (went down in an earlier round). The DM can still revive them. */
+  gone?: boolean;
+  /** Players at 0 HP. */
+  deathSaves?: { ok: number; fail: number };
+  /** Portrait scene for its art. */
+  sceneId?: string;
+  /** DM-ONLY */
+  note?: string;
+  /** Players: the concentration save they owe after the last hit, until the turn moves on. */
+  concDc?: number;
+}
+
+export type FightReminderKind = "info" | "recharge" | "death" | "concentration" | "expired";
+
+/** DM-ONLY: a nudge on the DM's fight screen until dismissed. */
+export interface FightReminder {
+  id: string;
+  kind: FightReminderKind;
+  text: string;
+  combatantId?: string;
+  abilityId?: string;
+  at: number;
+}
+
+/** A big moment for the TV to animate. n changes each time. */
+export interface FightMoment {
+  kind: "crit" | "monsterDown" | "playerDown" | "end";
+  /** The combatant's TV name. */
+  name: string;
+  n: number;
+}
+
+/** One Next, so Previous can put it back exactly. */
+export interface FightStep {
+  round: number;
+  currentId: string | null;
+  /** Conditions that counted down (expired ones are kept whole to restore). */
+  ticks: { combatantId: string; condition: FightCondition; expired: boolean }[];
+  /** Monsters taken off the strip at the end of the round. */
+  gone: string[];
+}
+
+export interface Fight {
+  id: string;
+  /** setup: rolling initiative. over: the end card, then loot. */
+  status: "setup" | "running" | "paused" | "over";
+  /** "2 Goblins". */
+  title: string;
+  /** Where it happens, for the Chronicle ("in the feast hall"). */
+  where: string;
+  round: number;
+  currentId: string | null;
+  order: Combatant[];
+  /** The TV scene to go back to afterwards. */
+  returnSceneId: string;
+  /** Turn timer in seconds, or null for off. */
+  timerSec: number | null;
+  turnStartedAt: number;
+  pausedAt?: number;
+  startedAt: number;
+  endedAt?: number;
+  sessionId: string | null;
+  /** DM-ONLY */
+  dmNotes: string;
+  /** DM-ONLY */
+  reminders: FightReminder[];
+  moment?: FightMoment;
+  /** DM-ONLY: undo for Previous turn, newest last. */
+  steps: FightStep[];
+  /** Combatant ids of everyone who went down, in order (once each). */
+  downed: string[];
+}
+
+/** DM-ONLY: a finished fight, for looking back. */
+export interface FightSummary {
+  id: string;
+  title: string;
+  where: string;
+  startedAt: number;
+  endedAt: number;
+  rounds: number;
+  sessionId: string | null;
+  /** Real names, as the DM knows them. */
+  combatants: string[];
+  downed: string[];
+  lootCp: number;
+  items: string;
+  noteId?: string;
+}

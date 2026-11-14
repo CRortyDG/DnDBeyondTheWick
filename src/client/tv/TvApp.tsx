@@ -11,6 +11,7 @@ import { ShopBoard } from "../ui/ShopBoard";
 import { Notice } from "../ui/Notice";
 import { BannerToast } from "../ui/BannerToast";
 import { RenownMoment } from "../ui/RenownMoment";
+import { FightOverlay } from "../ui/FightOverlay";
 
 const FADE_MS = 600;
 
@@ -50,6 +51,8 @@ function TvScreen({ view, online }: { view: TvView; online: boolean }) {
   }, [togglePinned]);
 
   const shop = view.shops.find((s) => s.id === view.live.shopId) ?? view.shops[0];
+  // A running fight covers the shop and "Previously on…"; paused, the scene shows again.
+  const fighting = !!view.fight && view.fight.status !== "paused";
 
   return (
     <div className={`tv-root${idle ? " idle" : ""}`}>
@@ -59,13 +62,13 @@ function TvScreen({ view, online }: { view: TvView; online: boolean }) {
         </div>
       ))}
 
-      {view.live.shopOpen && shop ? (
+      {view.live.shopOpen && shop && !fighting ? (
         <div className="tv-shop" role="region" aria-label={view.live.shopCategory ? "The market, open on the TV" : `${shop.name}, open on the TV`}>
           <ShopBoard shops={view.shops} items={view.items} shopId={shop.id} size="tv" mode={view.live.shopCategory ? "category" : "shop"} category={view.live.shopCategory} />
         </div>
       ) : null}
 
-      {view.recap ? (
+      {view.recap && !fighting ? (
         <div className="tv-recap" role="region" aria-label="Previously on">
           <div className="tv-recap-sheet">
             <div className="tv-recap-kicker">Previously on&hellip;</div>
@@ -90,7 +93,9 @@ function TvScreen({ view, online }: { view: TvView; online: boolean }) {
         </div>
       ) : null}
 
-      <Purse players={view.purse} visible={view.live.purseVisible} size="tv" />
+      {view.fight ? <FightOverlay fight={view.fight} /> : null}
+
+      <Purse players={view.purse} visible={view.live.purseVisible && !fighting} size="tv" />
 
       <BannerToast banner={view.banner} className="tv-banner" />
 
