@@ -355,3 +355,63 @@
   border-color: var(--slate);
   color: #b9c7d8;
 }
+
+/* A player's "for the DM only" roll: stays until dismissed. */
+.dt-cards {
+  position: fixed;
+  right: 16px;
+  top: 76px;
+  z-index: 69;
+  width: min(340px, calc(100vw - 32px));
+  display: grid;
+  gap: 10px;
+  justify-items: stretch;
+}
+.dt-card {
+  background: var(--wood-2);
+  border: 1px solid var(--gold);
+  border-left: 6px solid var(--slate);
+  border-radius: 8px;
+  padding: 12px 14px;
+  display: grid;
+  gap: 6px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
+  animation: dt-card-in 0.35s cubic-bezier(0.2, 1.4, 0.4, 1) both;
+}
+.dt-card .btn {
+  justify-self: end;
+}
+.dt-card-head b {
+  color: var(--gold-bright);
+  font-weight: normal;
+}
+.dt-card-body {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+}
+.dt-card-total {
+  font-family: var(--font-num);
+  font-weight: 700;
+  font-size: 40px;
+  line-height: 1;
+  color: var(--parchment-3);
+}
+.dt-cards-more {
+  margin: 0;
+  text-align: right;
+}
+.dt-cards-all {
+  justify-self: end;
+}
+@keyframes dt-card-in {
+  from {
+    opacity: 0;
+    transform: translateX(30px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .dt-card {
+    animation: none;
+  }
+}

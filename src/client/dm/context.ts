@@ -20,6 +20,12 @@ export interface DmCtx {
   /** The dice tray, which floats over the console, the fight screen and run-game mode. */
   diceOpen: boolean;
   toggleDice: () => void;
+  /** The newest roll the DM has seen (in the tray, or by dismissing its card). */
+  diceSeen: number;
+  seeDice: (n: number) => void;
+  /** Player rolls whose card the DM dismissed one by one (Got it). */
+  diceGone: number[];
+  dismissRoll: (n: number) => void;
 }
 
 export const DmContext = createContext<DmCtx | null>(null);
