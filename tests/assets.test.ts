@@ -257,6 +257,8 @@ describe("suggestions", () => {
     expect(mentions(g, "Mags pours. Artum's notice is on the wall; the Candlefair map too.")).toEqual(["person/mags", "prop/artums-notice", "map/candlefair"]);
     expect(mentions(g, "Captain Orsa Dell waves. Dell again.")).toEqual(["person/orsa"]);
     expect(mentions(g, "Nothing here, magsy.")).toEqual([]);
+    // Hidden people are never suggested (one key would spoil them).
+    expect(mentions(g, "The merchant smiles at Bolla.")).toEqual([]);
   });
 
   it("suggests the first mention for a beat with no TV action, and stops after a no", () => {

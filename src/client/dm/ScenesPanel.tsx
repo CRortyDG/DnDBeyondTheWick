@@ -91,7 +91,7 @@ export function ScenesPanel() {
         <div className="box form">
           <h3>Maps</h3>
           <p className="note">
-            Add the Candlefair map (8 locations, the first three discovered) and the Sword Coast map (5 locations). Your Town map scene becomes the Candlefair map and keeps its image and hotkey.
+            Add the Candlefair map (8 locations, the first three discovered) and the Sword Coast map (5 locations). Your Town map scene becomes the Candlefair map and keeps its image and number key.
           </p>
           <button className="btn" type="button" onClick={() => run({ type: "map.addSeedMaps" }, "Maps added. Upload their images and drag the pins into place.")}>
             Add the Candlefair and Sword Coast maps

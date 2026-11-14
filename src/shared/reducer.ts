@@ -1029,16 +1029,22 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
       // Turn the old empty "Town map" image scene into the Candlefair map (keeping any image), then add the Sword Coast.
       let cf = s.scenes.find((x) => x.id === "s-map");
       if (cf && cf.kind === "image") {
+        const before = refForScene(s, cf);
         cf.kind = "map";
         if (cf.label === "Town map") cf.label = "Candlefair map";
         cf.map = candlefairMap();
+        cf.slug = uniqueSceneSlug(s.scenes, "candlefair", cf.id);
+        // Its number key and beats now point at the map.
+        renameRefs(s, before, refForScene(s, cf));
       } else if (!s.scenes.some((x) => x.kind === "map" && x.label === "Candlefair map")) {
-        cf = { id: nextId("s"), label: "Candlefair map", kind: "map", hotkey: null, reveal: false, art: {}, alt: "Map of Candlefair", map: candlefairMap() };
+        cf = { id: nextId("s"), label: "Candlefair map", slug: uniqueSceneSlug(s.scenes, "candlefair"), kind: "map", reveal: false, art: {}, alt: "Map of Candlefair", map: candlefairMap() };
         s.scenes.push(cf);
       } else cf = s.scenes.find((x) => x.kind === "map" && x.label === "Candlefair map");
       if (!s.scenes.some((x) => x.kind === "map" && x.label === "Sword Coast map")) {
-        const used = new Set(s.scenes.map((x) => x.hotkey));
-        s.scenes.push({ id: s.scenes.some((x) => x.id === "s-swordcoast") ? nextId("s") : "s-swordcoast", label: "Sword Coast map", kind: "map", hotkey: used.has(9) ? null : 9, reveal: false, art: {}, alt: "Map of the Sword Coast", map: swordCoastMap(cf!.id) });
+        const sw: Scene = { id: s.scenes.some((x) => x.id === "s-swordcoast") ? nextId("s") : "s-swordcoast", label: "Sword Coast map", slug: uniqueSceneSlug(s.scenes, "sword-coast"), kind: "map", reveal: false, art: {}, alt: "Map of the Sword Coast", map: swordCoastMap(cf!.id) };
+        s.scenes.push(sw);
+        const q = quickSlots();
+        if (q[9] === null) q[9] = refForScene(s, sw);
       }
       // Drop shop links to shops this game no longer has.
       for (const sc of s.scenes) {

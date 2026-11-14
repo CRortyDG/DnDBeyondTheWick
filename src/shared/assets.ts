@@ -263,7 +263,9 @@ function needles(g: AssetGame): Needle[] {
     const t = norm(text ?? "").replace(/^the /, "");
     if (t.length >= 3 && !out.some((n) => n.text === t && n.ref === ref)) out.push({ text: t, ref, rank });
   };
+  // Hidden entries are never suggested: one key or "Accept all" would put a secret on the TV.
   for (const e of entriesOf(g)) {
+    if (e.stage === "hidden") continue;
     const ref = entryRef(e);
     add(e.name, ref, 0);
     if (e.nickname.trim().length >= 4) add(e.nickname, ref, 0);
