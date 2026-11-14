@@ -11,6 +11,7 @@ import { artSrc } from "../ui/SceneView";
 import { Check } from "./Check";
 import { useDm } from "./context";
 import { Field } from "./Field";
+import { PlaceLink } from "./PlaceLink";
 import { InlineText } from "./InlineText";
 import { DotSize } from "./LiveMapControls";
 import { uploadImage } from "./upload";
@@ -420,6 +421,7 @@ function PinFields({
       <Check checked={pin.discovered} onChange={(v) => setDiscovered(pin, v)}>
         Discovered (shown on the TV)
       </Check>
+      <PlaceLink sceneId={scene.id} pin={pin} />
       <label>
         Link
         <select

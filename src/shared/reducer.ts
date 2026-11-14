@@ -625,6 +625,15 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
       }
     }
   };
+  /** Tie a place to a map pin (one place per pin). A pin the table can already
+   * see makes the place Found; otherwise the pin follows the place. */
+  const linkPin = (e: Entry, at: { sceneId: string; pinId: string }) => {
+    const pin = pinOf(mapOf(at.sceneId), at.pinId);
+    for (const x of entriesOf(s)) if (x !== e && x.pin?.sceneId === at.sceneId && x.pin.pinId === at.pinId) delete x.pin;
+    e.pin = { sceneId: at.sceneId, pinId: at.pinId };
+    if (pin.discovered && !isFound(e.stage)) setStage(e, "found", false);
+    else syncOut(e, e.stage);
+  };
   /** Monsters the party fought: a rumor under the TV name, or encountered once revealed. create: make entries for new ones (at the end of a fight). */
   const noteMonsters = (create: boolean) => {
     const f = s.fight;
@@ -835,6 +844,7 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
       pinOf(m, cmd.pinId);
       m.pins = m.pins.filter((p) => p.id !== cmd.pinId);
       dropFocus(cmd.pinId);
+      for (const e of entriesOf(s)) if (e.pin?.sceneId === cmd.sceneId && e.pin.pinId === cmd.pinId) delete e.pin;
       break;
     }
     case "pin.restore": {
@@ -855,10 +865,11 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
       p.discovered = cmd.discovered;
       if (!cmd.discovered) dropFocus(p.id);
       else if (!was && cmd.announce && s.live.sceneId === cmd.sceneId) s.live.banner = { pinId: p.id, n: ++s.seq };
-      // The place it marks follows: shown means visited; hiding takes back only a rumor.
+      // The place it marks follows: shown means found, hidden means hidden. A Known
+      // place (the party has learned facts about it) stays in Discover.
       for (const e of entriesOf(s).filter((x) => x.pin?.sceneId === cmd.sceneId && x.pin.pinId === p.id)) {
         if (cmd.discovered && !isFound(e.stage)) setStage(e, "found", false);
-        else if (!cmd.discovered && e.stage === "rumored") setStage(e, "hidden", false);
+        else if (!cmd.discovered && e.stage !== "known") setStage(e, "hidden", false);
       }
       break;
     }
@@ -1464,6 +1475,7 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
       list.push(e);
       // A portrait the table has already seen: they've met.
       if (sc?.known) setStage(e, "found", false);
+      if (f.pin) linkPin(e, f.pin);
       out.entryId = e.id;
       break;
     }
@@ -1511,12 +1523,8 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
         if (p.sceneId) e.sceneId = p.sceneId;
         else delete e.sceneId;
       }
-      if (p.pin !== undefined) {
-        if (p.pin) {
-          pinOf(mapOf(p.pin.sceneId), p.pin.pinId);
-          e.pin = { sceneId: p.pin.sceneId, pinId: p.pin.pinId };
-        } else delete e.pin;
-      }
+      if (p.pin === null) delete e.pin;
+      else if (p.pin) linkPin(e, p.pin);
       if (p.shopId !== undefined) {
         if (p.shopId) e.shopId = shop(p.shopId).id;
         else delete e.shopId;
@@ -1525,8 +1533,8 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
         if (p.templateId) e.templateId = ((s.monsters ?? []).find((x) => x.id === p.templateId) ?? fail("That monster isn't in the library.")).id;
         else delete e.templateId;
       }
-      // A newly tied pin or storefront takes the entry's stage.
-      if (p.pin || p.shopId) syncOut(e, e.stage);
+      // A newly tied storefront takes the entry's stage.
+      if (p.shopId) syncOut(e, e.stage);
       break;
     }
     case "entry.relationFor": {

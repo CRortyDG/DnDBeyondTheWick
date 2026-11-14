@@ -328,14 +328,42 @@ describe("places, shops and monsters", () => {
     expect(pin).toBeUndefined();
   });
 
-  it("discovering a pin visits its place; hiding the pin takes back only a rumor", () => {
+  it("showing a pin finds its place; hiding the pin hides it unless it's Known", () => {
     const lantern = pinOf("s-map", "Lathtarl’s Lantern");
     dm({ type: "pin.discover", sceneId: "s-map", pinId: lantern.id, discovered: false, announce: false });
     expect(ent("e-lantern").stage).toBe("hidden");
     dm({ type: "pin.discover", sceneId: "s-map", pinId: lantern.id, discovered: true, announce: false });
     expect(ent("e-lantern").stage).toBe("found");
     dm({ type: "pin.discover", sceneId: "s-map", pinId: lantern.id, discovered: false, announce: false });
-    expect(ent("e-lantern").stage).toBe("found");
+    expect(ent("e-lantern").stage).toBe("hidden");
+    dm({ type: "entry.stage", entryId: "e-lantern", stage: "known", announce: false });
+    expect(pinOf("s-map", "Lathtarl’s Lantern").discovered).toBe(true);
+    dm({ type: "pin.discover", sceneId: "s-map", pinId: lantern.id, discovered: false, announce: false });
+    expect(ent("e-lantern").stage).toBe("known");
+  });
+
+  it("links an existing pin to a place, one place per pin", () => {
+    const lantern = pinOf("s-map", "Lathtarl’s Lantern");
+    const candle = pinOf("s-map", "The Flickering Candle");
+    // A hidden place tied to a pin the table can see: the place is found.
+    dm({ type: "entry.add", entry: { kind: "place", name: "Somewhere" } });
+    const id = g.entries!.at(-1)!.id;
+    expect(ent(id).stage).toBe("hidden");
+    dm({ type: "entry.update", entryId: id, patch: { pin: { sceneId: "s-map", pinId: candle.id } } });
+    expect(ent(id).stage).toBe("found");
+    expect(ent("e-candle").pin).toBeUndefined();
+    // A hidden pin tied to a hidden place stays hidden; finding the place shows it.
+    dm({ type: "pin.discover", sceneId: "s-map", pinId: lantern.id, discovered: false, announce: false });
+    dm({ type: "entry.add", entry: { kind: "place", name: "The Lantern again", pin: { sceneId: "s-map", pinId: lantern.id } } });
+    const id2 = g.entries!.at(-1)!.id;
+    expect(ent(id2).stage).toBe("hidden");
+    expect(ent("e-lantern").pin).toBeUndefined();
+    expect(pinOf("s-map", "Lathtarl’s Lantern").discovered).toBe(false);
+    dm({ type: "entry.stage", entryId: id2, stage: "found", announce: false });
+    expect(pinOf("s-map", "Lathtarl’s Lantern").discovered).toBe(true);
+    // Deleting the pin unties it.
+    dm({ type: "pin.remove", sceneId: "s-map", pinId: lantern.id });
+    expect(ent(id2).pin).toBeUndefined();
   });
 
   it("go back to their starting stage, pins too, on a fresh start", () => {
