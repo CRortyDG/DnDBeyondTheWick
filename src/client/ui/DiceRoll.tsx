@@ -34,8 +34,10 @@ export function DiceRoll({ roll }: { roll: TvView["diceRoll"] }) {
   const [shown, setShown] = useState<Roll | null>(null);
   const [leaving, setLeaving] = useState(false);
   useEffect(() => void load3D(), []);
+  // Watch only the roll's number: the TV gets a fresh view object on every state update,
+  // so keying on `roll` itself would cancel the dismiss timers mid-roll and leave it up forever.
+  const n = roll?.n ?? null;
   useEffect(() => {
-    const n = roll?.n ?? null;
     if (seen.current === undefined) {
       seen.current = n;
       return;
@@ -45,11 +47,18 @@ export function DiceRoll({ roll }: { roll: TvView["diceRoll"] }) {
     if (!roll) return;
     setShown(roll);
     setLeaving(false);
-    const end = settleAt(count(roll)) + HOLD_MS;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [n]);
+  // The dismiss belongs to the roll on screen, so nothing but a newer roll can cancel it.
+  const shownN = shown?.n;
+  useEffect(() => {
+    if (!shown) return;
+    const end = settleAt(count(shown)) + HOLD_MS;
     const t1 = setTimeout(() => setLeaving(true), end - 600);
     const t2 = setTimeout(() => setShown(null), end);
     return () => (clearTimeout(t1), clearTimeout(t2));
-  }, [roll]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shownN]);
   if (!shown) return null;
   return <DiceRollCard key={shown.n} roll={shown} leaving={leaving} />;
 }

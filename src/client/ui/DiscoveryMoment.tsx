@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useTvMoment } from "./useTvMoment";
 import type { TvView } from "@/shared/projection";
 import { kindInfo } from "@/shared/discovery";
 import { Portrait } from "./Portrait";
@@ -15,28 +16,16 @@ type Moment = NonNullable<TvView["discovery"]>;
  * Never on first load, so a reload doesn't replay it.
  */
 export function DiscoveryMoment({ moment }: { moment: TvView["discovery"] }) {
-  const seen = useRef<number | null | undefined>(undefined);
-  const [shown, setShown] = useState<Moment | null>(null);
   const [sound] = useTvSound();
   const soundRef = useRef(sound);
   soundRef.current = sound;
-  useEffect(() => {
-    const n = moment?.n ?? null;
-    if (seen.current === undefined) {
-      seen.current = n;
-      return;
-    }
-    if (n === seen.current) return;
-    seen.current = n;
-    if (!moment) return setShown(null);
-    setShown(moment);
-    if (soundRef.current) chime(moment.reveal ? "reveal" : moment.fact ? "fact" : "rumor");
-    const t = setTimeout(() => setShown(null), moment.fact ? 10000 : 9000);
-    return () => clearTimeout(t);
-  }, [moment]);
+  const [shown, setShown] = useTvMoment(moment, moment?.n ?? null, (m) => (m.fact ? 10000 : 9000), {
+    clearOnNull: true,
+    onShow: (m) => soundRef.current && chime(m.reveal ? "reveal" : m.fact ? "fact" : "rumor"),
+  });
   // Taken back (hidden again, or a fact locked again): off the TV at once.
   useEffect(() => {
-    if (shown && !moment) setShown(null);
+    if (shown && !moment) setShown();
   }, [moment, shown]);
   if (!shown) return null;
 
