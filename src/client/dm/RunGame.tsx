@@ -4,6 +4,7 @@
 // DM-only. Everything here comes from the DM view; the TV only ever sees the
 // effects of actions (a scene switch, the purse), never the run sheet.
 
+import { Leftovers, MentionText, RunStoryBlocks } from "./EpisodeBuilder";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { previousRecap } from "@/shared/reducer";
 import { beatFirstLine } from "@/shared/runsheet";
@@ -166,7 +167,7 @@ export function RunGame({ onExit, onFight }: { onExit: () => void; onFight?: () 
       <div className="run-body">
         <main className="run-main">
           {r.stage === "start" ? <StartStep session={session} /> : null}
-          {beat ? <BeatCard key={beat.id} beat={beat} onBeat={onBeat} /> : null}
+          {beat ? <BeatCard key={beat.id} beat={beat} onBeat={onBeat} episodeId={ep.id} /> : null}
           {r.stage === "end" ? <EndStep session={session} episode={ep} onBank={() => setBank(true)} onEnded={onExit} /> : null}
 
           {r.stage !== "end" ? (
@@ -262,14 +263,16 @@ export function RunGame({ onExit, onFight }: { onExit: () => void; onFight?: () 
 
 // ---------------------------------------------------------------------------
 
-function BeatCard({ beat, onBeat }: { beat: Beat; onBeat: string[] }) {
+function BeatCard({ beat, onBeat, episodeId }: { beat: Beat; onBeat: string[]; episodeId: string }) {
   const { run, view } = useDm();
   const g = view.state;
   const at = Math.min(beat.readAloudAt ?? 0, beat.notes.length);
   const read = beat.readAloud?.length ? (
     <blockquote className="run-read" key="read">
       {beat.readAloud.map((p, i) => (
-        <p key={i}>{p}</p>
+        <p key={i}>
+          <MentionText text={p} />
+        </p>
       ))}
     </blockquote>
   ) : null;
@@ -279,7 +282,9 @@ function BeatCard({ beat, onBeat }: { beat: Beat; onBeat: string[] }) {
     xs.length ? (
       <ul className="run-notes" key={key}>
         {xs.map((x, i) => (
-          <li key={i}>{x}</li>
+          <li key={i}>
+            <MentionText text={x} />
+          </li>
         ))}
       </ul>
     ) : null;
@@ -315,6 +320,7 @@ function BeatCard({ beat, onBeat }: { beat: Beat; onBeat: string[] }) {
       {notes(before, "before")}
       {read}
       {notes(after, "after")}
+      <RunStoryBlocks episodeId={episodeId} beat={beat} />
       {beat.checks.length ? (
         <table className="run-checks">
           <thead>
@@ -495,6 +501,7 @@ function EndStep({ session, episode, onBank, onEnded }: { session: Session; epis
   return (
     <article className="run-beat">
       <h1 className="run-title">Session end</h1>
+      <Leftovers episode={episode} />
       <section className="run-section">
         <h2>Rent and lessons due</h2>
         <Dues session={session} />
