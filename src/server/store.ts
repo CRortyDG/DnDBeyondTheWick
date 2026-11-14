@@ -1,5 +1,5 @@
 import { withSeedEntries } from "./seed-entries";
-import { upgrade } from "@/shared/migrate";
+import { upgrade, withAssets } from "@/shared/migrate";
 import type { GameState, LedgerEntry } from "@/shared/types";
 import { withSeedEpisodes } from "./seed-episodes";
 import { withSeedJobNotes } from "./seed-jobs";
@@ -32,7 +32,7 @@ export interface Store {
 
 /** What a stored document looks like once read: migrated, with the seed run sheets and monsters added. */
 export function hydrate(state: GameState | null): GameState | null {
-  return withSeedEntries(withSeedMonsters(withSeedJobNotes(withSeedEpisodes(state ? upgrade(state) : null))));
+  return withAssets(withSeedEntries(withSeedMonsters(withSeedJobNotes(withSeedEpisodes(state ? upgrade(state) : null)))));
 }
 
 interface MemoryGame {
