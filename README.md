@@ -221,6 +221,17 @@ The tray keeps your picks, so the same roll again is one tap.
 
 **Players roll too**, from the **Dice** tab on their phone: **Roll on the TV** plays it on the TV with their name, **Roll for the DM only** keeps it off the TV (a Stealth check, say). The DM sees every roll: a toast for TV rolls, a card that stays until **Got it** for "DM only" rolls, a badge on the Dice button for player rolls not looked at yet, and the tray's log (the DM's and players' last 40 rolls, with every die, who rolled and where it went). **Clear history** empties the log. A phone only sees its own last five rolls, and can roll at most once every 1.5 seconds.
 
+## The storyboard (DM only)
+
+Plan the year as **story beats** on **threads**, from Winterfest 2026 to Winterfest 2027. Open it from the **Story** tab.
+
+- **Threads** are the rows: The Merchant, Mags's Candle, Baldur's Gate, Candlefair, and one **Backstory** lane per player (named after their character, made automatically).
+- **Beats** are the cards: a clue, reveal, choice, consequence, background detail or spotlight, with a window (a month, a season, "anytime", or floating), an optional must-happen-by date, links to Discovery entries, facts, flyers, leads, shop projects and monster templates, and **After** beats that have to be played first. Duplicate a beat to keep two versions.
+- **The board**: columns by month or by season, session dates along the top (fill in every two weeks from a start date, then move or cancel any), and Faerûn's festivals as labels. Drag cards between columns and threads; the **Floating** tray holds beats with no window. Cards show planned (outline), placed (filled), played (ticked, faded), dropped (struck through) and a warning mark for a missed must-happen-by date, a passed window, or a beat placed before one it waits for.
+- **Played** asks for a one-line outcome and records the session. "Can happen again and again" beats stay planned and log every play.
+
+None of it ever reaches the TV or a phone: `GameState.story` is never copied into their views, and the seed beats live on the server (`src/server/seed-story.ts`, added once per game as `story-seed`, with hidden stub entries for Mardon, Rolf, Adon, the Eomane family and Warlock's Crypt). Placing beats into episodes, `@mentions`, the cast panel and prep checklist come next.
+
 ## Sessions and starting over
 
 - **Start or end a session** with the button at the top of the DM view. Ledger lines are tagged with the running session.

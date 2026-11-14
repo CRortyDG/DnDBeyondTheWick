@@ -32,11 +32,13 @@ import { ArrivalPanel } from "./ArrivalPanel";
 import { ChroniclePanel } from "./ChroniclePanel";
 import { BoardPanel } from "./BoardPanel";
 import { FightScreen } from "./FightScreen";
+import { Storyboard } from "./Storyboard";
+import { StoryPanel } from "./StoryPanel";
 import { MonstersPanel } from "./MonstersPanel";
 import { FightOverlay } from "../ui/FightOverlay";
 import { DiceButton, DiceTray, PlayerRollCards } from "./DiceTray";
 
-type Tab = "bank" | "shop" | "board" | "scenes" | "discovery" | "leads" | "players" | "arrival" | "episodes" | "monsters" | "chronicle" | "game";
+type Tab = "bank" | "shop" | "board" | "scenes" | "discovery" | "leads" | "players" | "arrival" | "story" | "episodes" | "monsters" | "chronicle" | "game";
 const TABS: [Tab, string, string][] = [
   ["bank", "Bank", "B"],
   ["shop", "Shop", ""],
@@ -46,6 +48,7 @@ const TABS: [Tab, string, string][] = [
   ["leads", "Leads", ""],
   ["players", "Players", ""],
   ["arrival", "Arrival", ""],
+  ["story", "Story", ""],
   ["episodes", "Episodes", ""],
   ["monsters", "Monsters", ""],
   ["chronicle", "Chronicle", ""],
@@ -163,6 +166,9 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
 
   const gated = useGatedArt(ident, GATED_NAMES);
   const [editingMap, setEditingMap] = useState<string | null>(null);
+  /** The storyboard, full-screen; the string is a beat to open (or "" for none). */
+  const [storyOpen, setStoryOpen] = useState<string | null>(null);
+  const closeStory = useCallback(() => setStoryOpen(null), []);
   const [ending, setEnding] = useState(false);
   const closeMap = useCallback(() => setEditingMap(null), []);
   const [diceOpen, setDiceOpen] = useState(false);
@@ -260,7 +266,7 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
 
   // Keyboard: 0-9 scenes, arrows step, S shop on TV, P purse, B bank, T The Table, L map legend, Esc closes the shop (or zooms the map back out).
   useEffect(() => {
-    if (runOpen) return; // run-game mode has its own keys
+    if (runOpen || storyOpen !== null) return; // run-game mode and the storyboard have their own keys
     const onKey = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement | null;
       if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT" || t.isContentEditable)) return;
@@ -295,7 +301,7 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [s.scenes, s.shops, s.live.shopOpen, s.live.shopId, s.live.purseVisible, s.live.sceneId, s.live.focus, run, runOpen]);
+  }, [s.scenes, s.shops, s.live.shopOpen, s.live.shopId, s.live.purseVisible, s.live.sceneId, s.live.focus, run, runOpen, storyOpen]);
 
   const live = s.scenes.find((x) => x.id === s.live.sceneId) ?? s.scenes[0];
   const purse = s.players.filter((p) => !p.archived && !p.away).map((p) => ({ id: p.id, name: p.name, balanceCp: p.balanceCp, inspired: !!p.inspired }));
@@ -506,6 +512,7 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
               {tab === "leads" ? <LeadsPanel /> : null}
               {tab === "players" ? <PlayersPanel /> : null}
               {tab === "arrival" ? <ArrivalPanel /> : null}
+              {tab === "story" ? <StoryPanel onOpen={(id) => setStoryOpen(id ?? "")} /> : null}
               {tab === "episodes" ? <EpisodesPanel onRun={startRun} /> : null}
               {tab === "monsters" ? <MonstersPanel onFight={openFight} /> : null}
               {tab === "chronicle" ? <ChroniclePanel /> : null}
@@ -515,6 +522,7 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
         </div>
 
         {editingMap ? <MapEditor sceneId={editingMap} onClose={closeMap} /> : null}
+        {storyOpen !== null ? <Storyboard onClose={closeStory} select={storyOpen || undefined} /> : null}
       </div>
     );
 
