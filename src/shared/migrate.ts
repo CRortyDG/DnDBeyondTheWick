@@ -1,13 +1,14 @@
 // Upgrades a stored game to the current shape the first time it's read.
 // Safe to run on an already-current game.
-import { emptyProgress, seedJobs, STINGER_SCENE } from "./seed";
+import { ARTUM_LOOK, ARTUM_PLACE, emptyProgress, OLD_ARTUM, seedJobs, seedNotices, STINGER_SCENE } from "./seed";
+import { LEGACY_SLOTS } from "./board";
 import type { Beat, GameState, Item, ItemCategory, Shop } from "./types";
 
 type Any = Record<string, unknown>;
 
 export function upgrade(raw: unknown): GameState {
   const g = raw as Any & { schema?: number };
-  if (g.schema === 2) return withJobs(withStinger(withRequests(g as unknown as GameState)));
+  if (g.schema === 2) return withBoard(withJobs(withStinger(withRequests(g as unknown as GameState))));
 
   // 1 -> 2: shop visibility, item tiers, stock, special orders, banners.
   const shops = ((g.shops as Any[]) ?? []).map(
@@ -39,7 +40,7 @@ export function upgrade(raw: unknown): GameState {
     };
   });
   const live = { ...(g.live as Any), shopOpen: false } as unknown as GameState["live"];
-  return withJobs(withStinger(withRequests({ ...(g as unknown as GameState), schema: 2, shops, items, live, orders: [], banner: null })));
+  return withBoard(withJobs(withStinger(withRequests({ ...(g as unknown as GameState), schema: 2, shops, items, live, orders: [], banner: null }))));
 }
 
 /** Phone purchase requests and the progression shop arrived after schema 2; older saves just have none. */
@@ -126,5 +127,62 @@ function withJobs(g: GameState): GameState {
     const add = seedJobs(out.createdAt ?? 0).filter((j) => ids.includes(j.id) && !have.has(j.id));
     out = { ...out, jobs: [...(out.jobs ?? []), ...add], upgrades: [...(out.upgrades ?? []), tag] };
   }
+  return out;
+}
+
+/**
+ * Free placement, once per game: the notices that were printed on the board become
+ * notes the DM owns, at the same spots; Artum's printed handbill and the Artum job
+ * become one note; and whatever was pinned keeps the spot it showed in.
+ */
+function withBoard(g: GameState): GameState {
+  if (g.upgrades?.includes("board-notes")) return g;
+  const out: GameState = { ...g, jobs: (g.jobs ?? []).map((j) => ({ ...j })), flyers: g.flyers.map((f) => ({ ...f })), upgrades: [...(g.upgrades ?? []), "board-notes"] };
+  const now = out.createdAt ?? 0;
+
+  // Where pinned cards showed: the eight old slots, in the order they went up.
+  type Card = { at: number; set: (x: number, y: number, rot: number, w: number, z: number) => void };
+  const cards: Card[] = [];
+  for (const f of out.flyers) if (f.up) cards.push({ at: f.pinnedAt ?? f.postedAt, set: (x, y, rot, _w, z) => (f.place ??= { x, y, rot, w: 290, z }) });
+  for (const j of out.jobs!) if (j.pinned && j.status !== "expired" && j.id !== "j-artum") cards.push({ at: j.pinnedAt ?? j.createdAt, set: (x, y, rot, w, z) => (j.place ??= { x, y, rot, w: j.style === "sealed" ? 300 : w, z }) });
+  const artum = out.jobs!.find((j) => j.id === "j-artum");
+  // Artum's job used a slot too: count it so the others don't move.
+  if (artum?.pinned && artum.status !== "expired") cards.push({ at: artum.pinnedAt ?? artum.createdAt, set: () => {} });
+  cards.sort((a, b) => a.at - b.at);
+  cards.slice(0, LEGACY_SLOTS.length).forEach((c, i) => {
+    const [x, y, rot] = LEGACY_SLOTS[i];
+    c.set(x, y, rot, 330, 30 + i);
+  });
+
+  const notices = seedNotices(now);
+  if (artum && artum.status !== "expired") {
+    // One note: the printed look, the job's reward. It was always on the board, so it stays up.
+    artum.style = artum.style === "bill" ? "handbill" : artum.style;
+    artum.look ??= structuredClone(ARTUM_LOOK);
+    artum.place ??= { ...ARTUM_PLACE };
+    if (artum.postedBy === OLD_ARTUM.postedBy) artum.postedBy = "Artum";
+    if (artum.body === OLD_ARTUM.body) artum.body = "The Opening Feast is nigh, and your humble planner is in well over his head.";
+    if (!artum.pinned) {
+      artum.pinned = true;
+      artum.pinnedAt = now;
+    }
+  } else {
+    // No Artum job to merge into (deleted or pulled): the handbill stays a plain notice.
+    notices.push({
+      id: "n-winterfest-needs-hands",
+      slug: "winterfest-needs-hands",
+      style: "handbill",
+      title: "Winterfest Needs Hands!",
+      body: "The Opening Feast is nigh, and your humble planner is in well over his head.",
+      sign: "Artum",
+      look: { ...structuredClone(ARTUM_LOOK), footer: "Pay: 25 gold a day, and a seat at the banquet for a job well done.\nInquire: at The Flickering Candle. Ask Mags where to find me." },
+      up: true,
+      place: { ...ARTUM_PLACE },
+      createdAt: now,
+      dmNote: "",
+    });
+  }
+  const have = new Set((out.notices ?? []).map((n) => n.id));
+  out.notices = [...(out.notices ?? []), ...notices.filter((n) => !have.has(n.id))];
   return out;
 }

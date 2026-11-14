@@ -5,7 +5,7 @@ import { GP } from "@/shared/money";
 import { upgrade } from "@/shared/migrate";
 import { projectPlayer, projectTv } from "@/shared/projection";
 import { apply, CommandError, type Ctx } from "@/shared/reducer";
-import { BOARD_SLOTS, defaultPayout, FAMOUS, HEROES, KNOWN, payoutPlayers, TRUSTED } from "@/shared/renown";
+import { BOARD_SLOTS, defaultPayout, pinnedCount, FAMOUS, HEROES, KNOWN, payoutPlayers, TRUSTED } from "@/shared/renown";
 import { SEED_ITEMS, SEED_JOBS, seedGame } from "@/shared/seed";
 import type { Actor, GameState, LedgerEntry } from "@/shared/types";
 import { hydrate } from "@/server/store";
@@ -127,11 +127,12 @@ describe("Renown", () => {
 });
 
 describe("the bounty board", () => {
-  it("starts with the three seed flyers, none pinned", () => {
+  it("starts with the seed flyers in the drawer, and Artum's handbill up", () => {
     expect(g.jobs!.map((j) => j.id)).toEqual(SEED_JOBS.map((j) => j.id));
-    expect(g.jobs!.every((j) => !j.pinned && j.status === "open")).toBe(true);
-    expect(projectTv(g, 1).jobs).toEqual([]);
-    expect(projectPlayer(g, 1, "p1", []).jobs).toEqual([]);
+    expect(g.jobs!.every((j) => j.status === "open")).toBe(true);
+    expect(g.jobs!.filter((j) => j.pinned).map((j) => j.id)).toEqual(["j-artum"]);
+    expect(projectTv(g, 1).jobs.map((j) => j.id)).toEqual(["j-artum"]);
+    expect(projectPlayer(g, 1, "p1", []).jobs.map((j) => j.id)).toEqual(["j-artum"]);
   });
 
   it("shows flyers above the party's renown, but they can't be taken", () => {
@@ -238,14 +239,16 @@ describe("the bounty board", () => {
     const r = dm({ type: "job.add", followUpOf: "j-sheep", job: { title: "Still missing: sheep", postedBy: "The council", body: "Now it's cows too.", reward: { kind: "total", cp: 800 * GP }, renown: KNOWN, style: "official" } });
     expect(job("j-sheep")).toMatchObject({ status: "expired", pinned: false });
     expect(job(r.jobId!)).toMatchObject({ pinned: true, followUpOf: "j-sheep" });
-    expect(projectTv(g, 1).jobs.map((j) => j.title)).toEqual(["Still missing: sheep"]);
+    expect(projectTv(g, 1).jobs.map((j) => j.title).sort()).toEqual(["Still missing: sheep", "Winterfest Needs Hands!"]);
+    // It hangs where the old one did.
+    expect(job(r.jobId!).place).toEqual(job("j-sheep").place);
     dm({ type: "job.expire", jobId: r.jobId! });
-    expect(projectTv(g, 1).jobs).toEqual([]);
+    expect(projectTv(g, 1).jobs.map((j) => j.id)).toEqual(["j-artum"]);
     expect(fails(DM, { type: "job.pin", jobId: r.jobId!, pinned: true })).toMatch(/pulled/);
   });
 
-  it("holds at most eight flyers, jobs and player flyers together", () => {
-    for (let i = 0; i < BOARD_SLOTS - 1; i++) dm({ type: "job.add", job: { title: `Job ${i}` }, pin: true });
+  it("holds at most forty notes, plain notes, jobs and player flyers together", () => {
+    for (let i = 0; pinnedCount(g) < BOARD_SLOTS - 1; i++) dm({ type: "job.add", job: { title: `Job ${i}` }, pin: true });
     // A player flyer takes the last slot.
     open("candle");
     dm({ type: "money.adjust", playerId: "p1", amountCp: 1 * GP, note: "" });
@@ -257,10 +260,13 @@ describe("the bounty board", () => {
     as(P(1), { type: "me.requestBuy", itemId: "c-flyer", qty: 1, note: "", flyer: { title: "Found: a hat", body: "", signedBy: "" } });
     const r = dm({ type: "request.approve", requestId: lastPending().id });
     expect(g.flyers[1].up).toBe(false);
-    expect(r.info).toMatch(/not pinned/);
+    expect(r.info).toMatch(/waiting in the drawer/);
     expect(fails(DM, { type: "flyer.update", flyerId: g.flyers[1].id, patch: { up: true } })).toMatch(/board is full/);
+    expect(fails(DM, { type: "notice.add", notice: { title: "One more" } })).toMatch(/board is full/);
     const tv = projectTv(g, 1);
-    expect(tv.jobs.length + tv.flyers.length).toBe(BOARD_SLOTS);
+    expect(tv.jobs.length + tv.flyers.length + tv.notices.length).toBe(BOARD_SLOTS);
+    // A note can still be written into the drawer.
+    dm({ type: "notice.add", notice: { title: "For later", up: false } });
   });
 
   it("never sends a flyer's DM-only fields to any player or the TV", () => {
@@ -302,11 +308,11 @@ describe("the bounty board", () => {
     old.upgrades = ["stinger", "jobs"];
     const up = upgrade(old);
     expect(up.jobs!.filter((j) => j.id === "j-artum")).toHaveLength(1);
-    expect(up.jobs!.find((j) => j.id === "j-artum")).toMatchObject({ pinned: false, reward: { kind: "each", cp: 25 * GP }, renown: 0 });
+    // It's the printed handbill too, which was always on the board.
+    expect(up.jobs!.find((j) => j.id === "j-artum")).toMatchObject({ pinned: true, style: "handbill", reward: { kind: "each", cp: 25 * GP }, renown: 0 });
   });
 
   it("lets the party take Artum's job and pays 25 gp each", () => {
-    pin("j-artum");
     expect(projectPlayer(g, 1, "p1", []).jobs[0]).toMatchObject({ title: "Winterfest Needs Hands!", canTake: true, reward: { kind: "each", cp: 25 * GP } });
     as(P(1), { type: "me.takeJob", jobId: "j-artum", note: "" });
     dm({ type: "request.approve", requestId: lastPending().id });

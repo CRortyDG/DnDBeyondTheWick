@@ -11,7 +11,8 @@ import { notesOf, penName, projectChronicle, type ChronicleView } from "./chroni
 import { discoveryView, PORTRAIT_ART, portraitArtAllowed, publicEntries, sceneSpoils, type DiscoveryView, type PublicEntry } from "./discovery";
 import { jobsOf, jobTitle, rankName, RENOWN, renownMet, renownNeeded, renownOf, shopOpenNow, tierOf, trustText } from "./renown";
 import { fightView, myFight, type FightView, type MyFight } from "./combat";
-import type { Art, Banner, FlyerText, GameState, Job, JobStyle, Item, ItemCategory, ItemKind, LedgerEntry, LegendStyle, LiveState, Player, RequestStatus, Scene, Shop } from "./types";
+import type { Art, Banner, Flyer, FlyerText, GameState, Job, JobStyle, Item, ItemCategory, ItemKind, LedgerEntry, LegendStyle, LiveState, NoteLook, NotePlace, Notice, Player, RequestStatus, Scene, Shop } from "./types";
+import { noticesOf } from "./board";
 
 export const GATED_ART = new Set(["merchant-sigil", ...PORTRAIT_ART]);
 
@@ -126,6 +127,20 @@ export interface PublicFlyer extends FlyerText {
   id: string;
   /** When it went up (orders the pins with the jobs). */
   at: number;
+  style?: JobStyle;
+  look?: NoteLook;
+  place?: NotePlace;
+}
+
+/** A plain note on the board, as the room sees it (never the DM's note, never one in the drawer). */
+export interface PublicNotice {
+  id: string;
+  style: JobStyle;
+  title: string;
+  body: string;
+  sign: string;
+  look: NoteLook;
+  place: NotePlace;
 }
 
 /**
@@ -148,6 +163,8 @@ export interface PublicJob {
   at: number;
   /** When the party took it (status taken) or finished it (status done). */
   when?: JobWhen;
+  look?: NoteLook;
+  place?: NotePlace;
 }
 
 /** The chapter (session number) it happened in, else just the time. */
@@ -238,6 +255,10 @@ export interface TvView extends Common {
   flyers: PublicFlyer[];
   /** Pinned job flyers. */
   jobs: PublicJob[];
+  /** Plain notes that are up. */
+  notices: PublicNotice[];
+  /** The Renown plaque is off the board's frame. */
+  plaqueHidden?: boolean;
   /** The last rank-up: the TV plays the moment when n changes. */
   renownMoment?: { rank: number; name: string; n: number };
   /** A reveal (a rumor, someone found, a fact): the TV plays it when n changes. */
@@ -470,8 +491,10 @@ export function projectTv(game: GameState, version: number): TvView {
     live: { sceneId: game.live.sceneId, ...liveShop(game, { tv: true }), purseVisible: game.live.purseVisible, ...(game.live.shopCategory ? { shopCategory: game.live.shopCategory } : {}), ...(game.live.leads ? { leads: true } : {}) },
     leads: leadsView(game, Date.now()),
     ...(game.recapCard ? { recapCard: { n: game.recapCard.n, text: game.recapCard.text } } : {}),
-    flyers: game.flyers.filter((f) => f.up).map((f) => ({ id: f.id, title: f.title, body: f.body, signedBy: f.signedBy, at: f.pinnedAt ?? f.postedAt })),
+    flyers: game.flyers.filter((f) => f.up).map(publicFlyer),
     jobs: pinnedJobs(game).map((j) => publicJob(game, j)),
+    notices: noticesOf(game).filter((n) => n.up).map(publicNotice),
+    ...(game.plaqueHidden ? { plaqueHidden: true } : {}),
     ...(game.renownMoment ? { renownMoment: { rank: game.renownMoment.rank, name: rankName(game.renownMoment.rank), n: game.renownMoment.n } } : {}),
     ...(discoveryView(game) ? { discovery: discoveryView(game) } : {}),
     ...(game.diceRoll
@@ -586,8 +609,19 @@ function pinnedJobs(game: GameState): Job[] {
     .sort((a, b) => (a.pinnedAt ?? a.createdAt) - (b.pinnedAt ?? b.createdAt));
 }
 
+/** Field by field. */
+export function publicFlyer(f: Flyer): PublicFlyer {
+  return { id: f.id, title: f.title, body: f.body, signedBy: f.signedBy, at: f.pinnedAt ?? f.postedAt, ...(f.style ? { style: f.style } : {}), ...(f.look ? { look: { ...f.look } } : {}), ...(f.place ? { place: { ...f.place } } : {}) };
+}
+
+/** Field by field: the DM's note never goes out. */
+export function publicNotice(n: Notice): PublicNotice {
+  const sealed = n.style === "sealed";
+  return { id: n.id, style: n.style, title: sealed ? "" : n.title, body: sealed ? "" : n.body, sign: sealed ? "" : n.sign, look: sealed ? (n.look.pin ? { pin: n.look.pin } : {}) : structuredClone(n.look), place: { ...n.place } };
+}
+
 /** Field by field: the DM's notes (adventure, loot, twists) never go out. */
-function publicJob(game: GameState, j: Job): PublicJob {
+export function publicJob(game: GameState, j: Job): PublicJob {
   const sealed = j.style === "sealed";
   const out: PublicJob = {
     id: j.id,
@@ -599,6 +633,9 @@ function publicJob(game: GameState, j: Job): PublicJob {
     reward: j.reward.kind === "hidden" || j.reward.cp <= 0 ? null : { kind: j.reward.kind, cp: j.reward.cp },
     at: j.pinnedAt ?? j.createdAt,
   };
+  if (j.look && !sealed) out.look = structuredClone(j.look);
+  else if (j.look?.pin) out.look = { pin: j.look.pin };
+  if (j.place) out.place = { ...j.place };
   if (!renownMet(game, j.renown)) out.needs = rankName(j.renown);
   const trust = trustText(game, j.trust);
   if (trust) out.goodwill = trust;

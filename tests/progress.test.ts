@@ -295,7 +295,7 @@ describe("services and flyers", () => {
     approveLast({ flyer: { title: "LOST: one ham", body: "Again.", signedBy: "" } });
     expect(bal("p1")).toBe(1 * GP - 1 * SP);
     const flyers = projectTv(g, 1).flyers;
-    expect(flyers).toEqual([{ id: g.flyers[0].id, title: "LOST: one ham", body: "Again.", signedBy: "Player 1", at: expect.any(Number) }]);
+    expect(flyers).toEqual([{ id: g.flyers[0].id, title: "LOST: one ham", body: "Again.", signedBy: "Player 1", at: expect.any(Number), place: expect.objectContaining({ w: 290 }) }]);
     dm({ type: "flyer.update", flyerId: g.flyers[0].id, patch: { up: false } });
     expect(projectTv(g, 1).flyers).toEqual([]);
   });

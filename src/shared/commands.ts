@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { CATEGORY_IDS, KIND_IDS } from "./progress";
 import { RENOWN_MAX } from "./renown";
+import { FONT_IDS, LIST_MAX, NOTE_W_MAX, NOTE_W_MIN, PAPER_IDS, PIN_IDS, TITLE_SIZE_MAX, TITLE_SIZE_MIN } from "./board";
 import { DIE_SIDES, diceCount, MAX_DICE, MAX_OF_ONE, MAX_PLUS } from "./dice";
 import { fightDmCommands, fightPlayerCommands } from "./combatSchema";
 import { AREAS_MAX, DM_TEXT_MAX, FACT_REF_RE, LEAD_MAX, REF_RE, FACT_MAX, HINT_MAX, LINKS_MAX, NAME_MAX, RELATION_IDS, STAGE_IDS, SUMMARY_MAX, TITLE_MAX } from "./discovery";
@@ -126,15 +127,49 @@ const itemFields = {
   trust: trustNeed.nullable(),
 };
 
+// The notice board: how a note looks and where it hangs.
+const imageUrl = z.string().max(2048).regex(/^(https:\/\/|\/api\/files\/)/, "Images must be uploaded first.");
+const noteLook = z.object({
+  pin: z.enum(PIN_IDS),
+  font: z.enum(FONT_IDS),
+  align: z.enum(["left", "center"]),
+  band: z.boolean(),
+  ink: z.enum(["red", "blue", "gold"]),
+  kicker: text(80),
+  titleSize: z.number().min(TITLE_SIZE_MIN).max(TITLE_SIZE_MAX),
+  sub: text(80),
+  list: z.array(z.object({ head: text(40), text: text(160) })).max(LIST_MAX),
+  listLabel: text(30),
+  footer: text(400),
+  signNote: text(80),
+  image: imageUrl,
+}).partial();
+const notePlace = z.object({ x: z.number().min(-2000).max(4000), y: z.number().min(-2000).max(4000), rot: z.number().min(-180).max(180), w: z.number().min(NOTE_W_MIN).max(NOTE_W_MAX), z: z.number().int().min(0).max(1_000_000) });
+const paper = z.enum(PAPER_IDS);
+const noticeFields = {
+  slug: z.string().max(40).regex(/^[a-z0-9-]*$/, "Short names use a-z, 0-9 and dashes."),
+  style: paper,
+  title: text(120),
+  body: text(800),
+  sign: text(80),
+  look: noteLook,
+  up: z.boolean(),
+  place: notePlace,
+  dmNote: text(DM_TEXT_MAX),
+};
+const noteRef = z.object({ kind: z.enum(["notice", "job", "flyer"]), id });
+
 // The bounty board. dm: DM-ONLY notes, never sent to the TV or a phone.
 const jobFields = {
+  look: noteLook,
+  place: notePlace,
   trust: trustNeed.nullable(),
   title: text(80),
   postedBy: text(80),
   body: text(600),
   reward: z.object({ kind: z.enum(["each", "total", "hidden"]), cp }),
   renown: rank,
-  style: z.enum(["scrawl", "bill", "official", "sealed"]),
+  style: paper,
   dm: z.object({ adventure: text(300), loot: text(1000), twists: text(1000), notes: text(2000) }).partial(),
 };
 const itemPatch = z.object(itemFields).partial();
@@ -199,7 +234,7 @@ export const dmCommand = z.discriminatedUnion("type", [
   z.object({ type: z.literal("award.grant"), itemId: id, playerIds: z.array(id).min(1).max(50), note: text(200) }),
   z.object({ type: z.literal("award.revoke"), awardId: id }),
   z.object({ type: z.literal("task.done"), taskId: id, done: z.boolean() }),
-  z.object({ type: z.literal("flyer.update"), flyerId: id, patch: flyerText.partial().extend({ up: z.boolean().optional() }) }),
+  z.object({ type: z.literal("flyer.update"), flyerId: id, patch: flyerText.partial().extend({ up: z.boolean().optional(), style: paper.optional(), look: noteLook.optional(), place: notePlace.optional() }) }),
   z.object({ type: z.literal("flyer.remove"), flyerId: id }),
 
   /** The party's Renown. Raising it is announced on the TV and written in the Chronicle; lowering it is quiet. */
@@ -212,7 +247,15 @@ export const dmCommand = z.discriminatedUnion("type", [
   z.object({ type: z.literal("job.add"), job: z.object(jobFields).partial(), followUpOf: id.optional(), pin: z.boolean().optional() }),
   /** status: back to open, or taken by hand. Done goes through job.done (it pays); expired through job.expire. */
   z.object({ type: z.literal("job.update"), jobId: id, patch: z.object({ ...jobFields, status: z.enum(["open", "taken"]) }).partial() }),
-  z.object({ type: z.literal("job.pin"), jobId: id, pinned: z.boolean() }),
+  z.object({ type: z.literal("job.pin"), jobId: id, pinned: z.boolean(), place: notePlace.optional() }),
+  /** A plain note for the board: up (at place, or the emptiest spot) unless up is false. */
+  z.object({ type: z.literal("notice.add"), notice: z.object(noticeFields).partial() }),
+  z.object({ type: z.literal("notice.update"), noticeId: id, patch: z.object(noticeFields).partial() }),
+  z.object({ type: z.literal("notice.remove"), noticeId: id }),
+  /** Move, tilt, resize or restack any note on the board. */
+  z.object({ type: z.literal("board.place"), note: noteRef, place: notePlace }),
+  /** Show or hide the Renown plaque on the board's frame. */
+  z.object({ type: z.literal("board.plaque"), shown: z.boolean() }),
   /** Mark it done and pay these amounts into purses, once. */
   z.object({ type: z.literal("job.done"), jobId: id, payouts: z.array(z.object({ playerId: id, cp })).max(50) }),
   z.object({ type: z.literal("job.expire"), jobId: id }),

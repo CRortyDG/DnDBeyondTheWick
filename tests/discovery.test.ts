@@ -88,6 +88,8 @@ describe("what players get", () => {
   });
 
   it("a rumor as its nickname or ???, the hint and a silhouette only", () => {
+    // Artum signs his handbill on the board (on the TV and phones), so take it down: this checks the entry itself.
+    dm({ type: "job.pin", jobId: "j-artum", pinned: false });
     const a = pub("e-artum")!;
     expect(a).toMatchObject({ stage: "rumored", name: "???", hint: "Whoever nailed up the Help Wanted poster." });
     expect(a.art).toBeUndefined();

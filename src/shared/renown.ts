@@ -1,6 +1,7 @@
 // Renown: one shared party rank the DM sets (no automatic points), and the
 // bounty board it gates. Items, storefronts and job flyers can need a rank.
 
+import { BOARD_MAX, upCount } from "./board";
 import type { GameState, Item, ItemTier, Job, Relation, Shop, TrustNeed } from "./types";
 
 export interface RenownRank {
@@ -85,16 +86,16 @@ export function shopOpenNow(g: Gated, sh: Pick<Shop, "closed" | "renown" | "trus
 
 // ---------- the bounty board ----------
 
-/** How many flyers (jobs and player flyers together) the notice board shows at once. */
-export const BOARD_SLOTS = 8;
+/** How many notes (plain notes, jobs and player flyers together) the notice board shows at once. */
+export const BOARD_SLOTS = BOARD_MAX;
 
 export function jobsOf(g: Pick<GameState, "jobs">): Job[] {
   return g.jobs ?? [];
 }
 
-/** Flyers on the board right now: pinned jobs and player flyers that are up. */
-export function pinnedCount(g: Pick<GameState, "jobs" | "flyers">): number {
-  return jobsOf(g).filter((j) => j.pinned).length + g.flyers.filter((f) => f.up).length;
+/** Notes on the board right now: plain notes, pinned jobs and player flyers that are up. */
+export function pinnedCount(g: Pick<GameState, "jobs" | "flyers" | "notices">): number {
+  return upCount(g);
 }
 
 /** "50 gp each", "500 gp total", or null when the reward is hidden. */
