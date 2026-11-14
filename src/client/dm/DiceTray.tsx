@@ -12,9 +12,9 @@ const TAG: Record<RollEntry["to"], string> = { tv: "on TV", dm: "to you", secret
 
 /** The header button (and the D key) that opens the tray, on the console, the fight screen and run-game mode. */
 export function DiceButton({ small }: { small?: boolean }) {
-  const { view, diceOpen, toggleDice, diceSeen } = useDm();
+  const { view, diceOpen, toggleDice, diceSeen, diceGone } = useDm();
   // Players' rolls the DM hasn't looked at yet.
-  const unseen = (view.state.rolls ?? []).filter((r) => r.by && r.n > diceSeen).length;
+  const unseen = (view.state.rolls ?? []).filter((r) => r.by && r.n > diceSeen && !diceGone.includes(r.n)).length;
   return (
     <button
       type="button"
@@ -35,8 +35,7 @@ export function DiceButton({ small }: { small?: boolean }) {
  * (or opens the dice tray), so it can't be missed the way a toast can.
  */
 export function PlayerRollCards() {
-  const { view, diceOpen, diceSeen, seeDice } = useDm();
-  const [gone, setGone] = useState<number[]>([]);
+  const { view, diceOpen, diceSeen, seeDice, diceGone: gone, dismissRoll } = useDm();
   if (diceOpen) return null;
   const waiting = (view.state.rolls ?? []).filter((r) => r.by && r.to === "dm" && r.n > diceSeen && !gone.includes(r.n)).reverse();
   if (!waiting.length) return null;
@@ -59,7 +58,7 @@ export function PlayerRollCards() {
               </span>
             </span>
           </div>
-          <button type="button" className="btn small" onClick={() => setGone((g) => [...g, r.n])}>
+          <button type="button" className="btn small" onClick={() => dismissRoll(r.n)}>
             Got it
           </button>
         </div>

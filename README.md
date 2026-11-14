@@ -194,7 +194,7 @@ For in-person fights: no grid, no tokens. The point is faster turns: everyone al
 
 The tray keeps your picks, so the same roll again is one tap.
 
-**Players roll too**, from the **Dice** tab on their phone: **Roll on the TV** plays it on the TV with their name, **Roll for the DM only** keeps it off the TV (a Stealth check, say). The DM sees every roll: a toast when it lands, and in the tray's log (the DM's and players' last 40 rolls, with every die, who rolled and where it went). **Clear history** empties the log. A phone only sees its own last five rolls, and can roll at most once every 1.5 seconds.
+**Players roll too**, from the **Dice** tab on their phone: **Roll on the TV** plays it on the TV with their name, **Roll for the DM only** keeps it off the TV (a Stealth check, say). The DM sees every roll: a toast for TV rolls, a card that stays until **Got it** for "DM only" rolls, a badge on the Dice button for player rolls not looked at yet, and the tray's log (the DM's and players' last 40 rolls, with every die, who rolled and where it went). **Clear history** empties the log. A phone only sees its own last five rolls, and can roll at most once every 1.5 seconds.
 
 ## Sessions and starting over
 
