@@ -4,7 +4,7 @@
 import { useState } from "react";
 import type { PlayerView } from "@/shared/projection";
 import { RENOWN } from "@/shared/renown";
-import { JobCard } from "../scenes/Board";
+import { JobCard, jobStatusLine } from "../scenes/Board";
 
 type Send = (c: object) => Promise<string | null>;
 
@@ -13,11 +13,11 @@ export function Jobs({ view, send }: { view: PlayerView; send: Send }) {
   const [busy, setBusy] = useState<string | null>(null);
   const rank = view.renown.rank;
   const take = async (jobId: string, title: string) => {
-    if (!confirm(`Ask the DM for “${title}”?`)) return;
+    if (!confirm(`Ask the DM if the party can take “${title}”?`)) return;
     setBusy(jobId);
     const err = await send({ type: "me.takeJob", jobId, note: "" });
     setBusy(null);
-    setMsg(err ?? "Asked. The DM will say yes or no.");
+    setMsg(err ?? "Asked for the party. The DM will say yes or no.");
   };
   return (
     <>
@@ -52,14 +52,13 @@ export function Jobs({ view, send }: { view: PlayerView; send: Send }) {
                 <div className="job-actions">
                   {j.canTake && !j.asked ? (
                     <button type="button" className="btn primary" disabled={busy === j.id} onClick={() => void take(j.id, title)}>
-                      Take this job
+                      Take this job for the party
                     </button>
                   ) : null}
-                  {j.asked ? <span className="tag">Asked the DM</span> : null}
+                  {j.asked ? <span className="tag">The party asked the DM</span> : null}
                   {j.status === "open" && j.needs ? <span className="note">For experienced parties: opens when you&rsquo;re {j.needs}.</span> : null}
                   {j.status === "open" && !j.needs && j.goodwill ? <span className="note">Opens with {j.goodwill}.</span> : null}
-                  {j.status === "taken" ? <span className="note">Taken{j.takenBy ? ` by ${j.takenBy}` : ""}.</span> : null}
-                  {j.status === "done" ? <span className="note">Done{j.takenBy ? ` by ${j.takenBy}` : ""}.</span> : null}
+                  {jobStatusLine(j) ? <span className="note">{jobStatusLine(j)}</span> : null}
                 </div>
               </div>
             );

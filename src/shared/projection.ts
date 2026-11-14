@@ -146,16 +146,22 @@ export interface PublicJob {
   /** Someone's goodwill it waits on ("Mags Wick’s friendship"). */
   goodwill?: string;
   at: number;
+  /** When the party took it (status taken) or finished it (status done). */
+  when?: JobWhen;
+}
+
+/** The chapter (session number) it happened in, else just the time. */
+export interface JobWhen {
+  at: number;
+  chapter?: number;
 }
 
 /** A job on my phone. */
 export interface MyJob extends PublicJob {
   /** Open, and the party has the Renown for it. */
   canTake: boolean;
-  /** I've asked the DM for it. */
+  /** Someone at the table has asked the DM for it, for the party. */
   asked: boolean;
-  /** Taken by me (or the player who asked). */
-  takenBy?: string;
 }
 
 export interface PublicRenown {
@@ -564,11 +570,8 @@ export function projectPlayer(game: GameState, version: number, playerId: string
     chronicle: projectChronicle(game, { dm: false, playerId: p.id }),
     jobs: pinnedJobs(game).map((j) => {
       const pub = publicJob(game, j);
-      const asked = game.requests.some((r) => r.status === "pending" && r.kind === "job" && r.jobId === j.id && r.playerId === p.id);
-      const out: MyJob = { ...pub, canTake: pub.status === "open" && !pub.needs && !pub.goodwill && !p.archived, asked };
-      const by = j.takenBy?.[0] && game.players.find((x) => x.id === j.takenBy![0]);
-      if (by && pub.status !== "open") out.takenBy = penName(by);
-      return out;
+      const asked = game.requests.some((r) => r.status === "pending" && r.kind === "job" && r.jobId === j.id);
+      return { ...pub, canTake: pub.status === "open" && !pub.needs && !pub.goodwill && !p.archived, asked } satisfies MyJob;
     }),
     entries: publicEntries(game, p.id),
     leads: leadsView(game, Date.now(), p.id),
@@ -599,7 +602,24 @@ function publicJob(game: GameState, j: Job): PublicJob {
   if (!renownMet(game, j.renown)) out.needs = rankName(j.renown);
   const trust = trustText(game, j.trust);
   if (trust) out.goodwill = trust;
+  const when = jobWhen(game, j);
+  if (when) out.when = when;
   return out;
+}
+
+/** When a job was taken or done, and the chapter that was. */
+export function jobWhen(game: Pick<GameState, "sessions">, j: Pick<Job, "status" | "takenAt" | "doneAt">): JobWhen | undefined {
+  const at = j.status === "done" ? j.doneAt : j.status === "taken" ? j.takenAt : undefined;
+  if (at === undefined) return undefined;
+  const chapter = chapterAt(game, at);
+  return chapter === undefined ? { at } : { at, chapter };
+}
+
+/** The chapter running at a time: the latest session started by then (between sessions, the one just played). */
+export function chapterAt(game: Pick<GameState, "sessions">, at: number): number | undefined {
+  let best: { number: number; startedAt: number } | undefined;
+  for (const x of game.sessions) if (x.startedAt <= at && (!best || x.startedAt > best.startedAt)) best = x;
+  return best?.number;
 }
 
 function myThings(game: GameState, playerId: string): MyThings {

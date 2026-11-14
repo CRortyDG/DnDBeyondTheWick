@@ -190,7 +190,7 @@ function InboxDrawer({ pending, muted, onMute, onClose }: { pending: TradeReques
 function describe(r: TradeRequest): string {
   if (r.kind === "give") return `send ${formatCp(r.totalCp)} to ${r.toPlayerName}`;
   if (r.kind === "contribute") return `${formatCp(r.chargedCp ?? r.totalCp)} toward ${r.itemName}`;
-  if (r.kind === "job") return `take the job “${r.jobTitle ?? "a job"}”`;
+  if (r.kind === "job") return `the job “${r.jobTitle ?? "a job"}” for the party`;
   if (r.flyer) return `flyer “${r.flyer.title}”`;
   return `${r.qty > 1 ? `${r.qty} × ` : ""}${r.itemName}`;
 }
@@ -366,7 +366,7 @@ function RequestRow({ r }: { r: TradeRequest }) {
       ) : (
         <div className="inline">
           <button type="button" className="btn primary" onClick={() => void approve()}>
-            {r.kind === "job" ? "Give them the job" : r.flyer ? "Pin it up" : service ? (answer.trim() ? "Answer and charge" : "Done, charge it") : "Approve"}
+            {r.kind === "job" ? "Give the party the job" : r.flyer ? "Pin it up" : service ? (answer.trim() ? "Answer and charge" : "Done, charge it") : "Approve"}
           </button>
           <button type="button" className="btn" onClick={() => setMode("decline")}>
             Decline
@@ -447,7 +447,7 @@ function JobAsk({ r }: { r: TradeRequest }) {
   const j = jobsOf(view.state).find((x) => x.id === r.jobId);
   return (
     <>
-      Wants to take the job <b>{r.jobTitle}</b>
+      Asks for the party to take the job <b>{r.jobTitle}</b>
       {j ? (
         <div className="note">
           {j.reward.kind === "hidden" ? "Reward hidden" : `${formatCp(j.reward.cp)} ${j.reward.kind === "each" ? "each" : "for the party"}`} · needs {rankName(j.renown)}

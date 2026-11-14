@@ -6,10 +6,10 @@
 import { TrustSelect } from "./TrustSelect";
 import { useMemo, useState } from "react";
 import { cpToGpInput, formatCp, parseAmount } from "@/shared/money";
-import type { PublicJob } from "@/shared/projection";
+import { jobWhen, type PublicJob } from "@/shared/projection";
 import { BOARD_SLOTS, defaultPayout, jobsOf, jobTitle, payoutPlayers, pinnedCount, rankName, RENOWN, renownOf } from "@/shared/renown";
 import type { Job, JobReward, JobStatus, JobStyle, TrustNeed } from "@/shared/types";
-import { JobCard, STYLE_LABELS } from "../scenes/Board";
+import { JobCard, STYLE_LABELS, whenLabel } from "../scenes/Board";
 import { useDm } from "./context";
 
 const STATUS_LABELS: Record<JobStatus, string> = { open: "Open", taken: "Taken", done: "Done", expired: "Pulled" };
@@ -106,7 +106,7 @@ function JobRow({ job: j, onEdit, onFollowUp, onPay }: { job: Job; onEdit: () =>
   const { view, run } = useDm();
   const s = view.state;
   const name = j.style === "sealed" ? `Sealed envelope${j.title ? `: ${j.title}` : ""}` : j.title;
-  const taker = j.takenBy?.[0] ? s.players.find((p) => p.id === j.takenBy![0])?.name : undefined;
+  const when = jobWhen(s, j);
   const reward = j.reward.kind === "hidden" ? "reward hidden" : `${formatCp(j.reward.cp)} ${j.reward.kind}`;
   return (
     <div className="board-row">
@@ -116,7 +116,7 @@ function JobRow({ job: j, onEdit, onFollowUp, onPay }: { job: Job; onEdit: () =>
         </div>
         <div className="note">
           {STYLE_LABELS[j.style]} · {reward} · needs {rankName(j.renown)}
-          {taker ? ` · taken by ${taker}` : ""}
+          {when ? ` · ${j.status === "done" ? "done" : "taken"} ${when.chapter !== undefined ? "in" : "on"} ${whenLabel(when)}` : ""}
           {j.status === "done" && j.paidCp !== undefined ? ` · paid ${formatCp(j.paidCp)}` : ""}
         </div>
         {j.dm.adventure ? <div className="note">Runs: {j.dm.adventure}</div> : null}

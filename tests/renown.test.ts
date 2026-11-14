@@ -151,23 +151,48 @@ describe("the bounty board", () => {
     expect(fails(P(1), { type: "me.takeJob", jobId: "j-ransom", note: "" })).toMatch(/isn't on the board/);
   });
 
-  it("takes a job through the DM's inbox; the first approved wins", () => {
+  it("takes a job for the whole party: one ask per job, no names on it", () => {
     pin("j-ransom");
     as(P(1), { type: "me.takeJob", jobId: "j-ransom", note: "We'll go" });
-    expect(fails(P(1), { type: "me.takeJob", jobId: "j-ransom", note: "" })).toMatch(/already asked/);
-    as(P(2), { type: "me.takeJob", jobId: "j-ransom", note: "" });
-    expect(projectPlayer(g, 1, "p1", []).jobs[0]).toMatchObject({ asked: true });
+    expect(fails(P(1), { type: "me.takeJob", jobId: "j-ransom", note: "" })).toMatch(/party already asked/);
+    expect(fails(P(2), { type: "me.takeJob", jobId: "j-ransom", note: "" })).toMatch(/party already asked/);
+    // Everyone sees the party's ask, not just the one who tapped.
+    expect(projectPlayer(g, 1, "p1", []).jobs[0]).toMatchObject({ asked: true, canTake: true });
+    expect(projectPlayer(g, 1, "p2", []).jobs[0]).toMatchObject({ asked: true });
     // Taking a job holds no gold.
     expect(g.requests.every((r) => r.totalCp === 0)).toBe(true);
     dm({ type: "request.approveAll" });
     expect(job("j-ransom").status).toBe("open"); // jobs need a decision
-    const first = g.requests.find((r) => r.playerId === "p1")!;
-    dm({ type: "request.approve", requestId: first.id });
-    expect(job("j-ransom")).toMatchObject({ status: "taken", takenBy: ["p1"] });
-    expect(g.requests.find((r) => r.playerId === "p2")).toMatchObject({ status: "declined" });
+    const ask = g.requests.find((r) => r.kind === "job")!;
+    dm({ type: "request.approve", requestId: ask.id });
+    expect(job("j-ransom").status).toBe("taken");
+    expect(job("j-ransom").takenBy).toBeUndefined();
     expect(projectTv(g, 1).jobs[0].status).toBe("taken");
-    expect(projectPlayer(g, 1, "p2", []).jobs[0]).toMatchObject({ canTake: false, takenBy: "Player 1" });
-    expect(g.banner?.text).toContain("Player 1 took the job");
+    const mine = projectPlayer(g, 1, "p2", []).jobs[0];
+    expect(mine).toMatchObject({ canTake: false, when: { at: job("j-ransom").takenAt } });
+    expect(JSON.stringify(mine)).not.toContain("Player 1");
+    expect(g.banner?.text).toBe("The party took the job: " + job("j-ransom").title);
+    expect(fails(P(2), { type: "me.takeJob", jobId: "j-ransom", note: "" })).toMatch(/party already took/);
+  });
+
+  it("marks a finished job with the chapter it was done in", () => {
+    pin("j-ransom");
+    dm({ type: "session.start" });
+    dm({ type: "session.end" });
+    dm({ type: "session.start" });
+    const chapter = g.sessions.find((x) => x.id === g.currentSessionId)!.number;
+    expect(chapter).toBe(2);
+    dm({ type: "job.done", jobId: "j-ransom", payouts: defaultPayout(job("j-ransom"), payoutPlayers(g)) });
+    expect(projectTv(g, 1).jobs[0]).toMatchObject({ status: "done", when: { chapter: 2 } });
+    expect(projectPlayer(g, 1, "p3", []).jobs[0]).toMatchObject({ status: "done", when: { chapter: 2 } });
+  });
+
+  it("marks a job done before any session with just the time", () => {
+    pin("j-ransom");
+    dm({ type: "job.done", jobId: "j-ransom", payouts: [] });
+    const when = projectTv(g, 1).jobs[0].when!;
+    expect(when.at).toBe(job("j-ransom").doneAt);
+    expect(when.chapter).toBeUndefined();
   });
 
   it("pays out once, through the ledger, per player by default", () => {
