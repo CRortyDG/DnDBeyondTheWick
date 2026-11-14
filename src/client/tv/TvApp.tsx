@@ -11,6 +11,7 @@ import { ShopBoard } from "../ui/ShopBoard";
 import { Notice } from "../ui/Notice";
 import { BannerToast } from "../ui/BannerToast";
 import { RenownMoment } from "../ui/RenownMoment";
+import { NpcMoment } from "../ui/NpcMoment";
 import { FightOverlay } from "../ui/FightOverlay";
 import { DiceRoll } from "../ui/DiceRoll";
 
@@ -103,6 +104,7 @@ function TvScreen({ view, online }: { view: TvView; online: boolean }) {
       <DiceRoll roll={view.diceRoll} />
 
       <RenownMoment moment={view.renownMoment} />
+      <NpcMoment moment={view.npcMoment} />
 
       {showOffline ? (
         <div className="tv-offline" role="status">

@@ -17,6 +17,7 @@ import { nextSessionNumber } from "@/shared/reducer";
 import { BankPanel } from "./BankPanel";
 import { ShopPanel } from "./ShopPanel";
 import { ScenesPanel } from "./ScenesPanel";
+import { PeoplePanel } from "./PeoplePanel";
 import { PlayersPanel } from "./PlayersPanel";
 import { GamePanel } from "./GamePanel";
 import { EpisodesPanel } from "./EpisodesPanel";
@@ -34,12 +35,13 @@ import { MonstersPanel } from "./MonstersPanel";
 import { FightOverlay } from "../ui/FightOverlay";
 import { DiceButton, DiceTray } from "./DiceTray";
 
-type Tab = "bank" | "shop" | "board" | "scenes" | "players" | "arrival" | "episodes" | "monsters" | "chronicle" | "game";
+type Tab = "bank" | "shop" | "board" | "scenes" | "people" | "players" | "arrival" | "episodes" | "monsters" | "chronicle" | "game";
 const TABS: [Tab, string, string][] = [
   ["bank", "Bank", "B"],
   ["shop", "Shop", ""],
   ["board", "Board", ""],
   ["scenes", "Scenes", ""],
+  ["people", "People", ""],
   ["players", "Players", ""],
   ["arrival", "Arrival", ""],
   ["episodes", "Episodes", ""],
@@ -488,6 +490,7 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
               {tab === "shop" ? <ShopPanel /> : null}
               {tab === "board" ? <BoardPanel /> : null}
               {tab === "scenes" ? <ScenesPanel /> : null}
+              {tab === "people" ? <PeoplePanel /> : null}
               {tab === "players" ? <PlayersPanel /> : null}
               {tab === "arrival" ? <ArrivalPanel /> : null}
               {tab === "episodes" ? <EpisodesPanel onRun={startRun} /> : null}

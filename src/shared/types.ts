@@ -468,6 +468,36 @@ export interface Note {
   editedAt?: number;
 }
 
+// ---------- the People compendium (NPCs the party has met) ----------
+
+/** How an NPC feels about the party, shown to players when set. */
+export type NpcMood = "ally" | "friendly" | "neutral" | "wary" | "hostile";
+
+export interface NpcFact {
+  id: string;
+  text: string;
+  /** Players know it. Unrevealed facts are DM-ONLY. */
+  revealedAt?: number;
+}
+
+export interface Npc {
+  id: string;
+  name: string;
+  /** "Keeper of the Flickering Candle". Players see it once met. */
+  title: string;
+  /** A line or two about them. Players see it once met. */
+  blurb: string;
+  /** A portrait scene: its art is theirs, and showing it on the TV is meeting them. */
+  sceneId?: string;
+  /** Set when the party meets them. Until then the whole entry is DM-ONLY. */
+  met?: { at: number; sessionId: string | null };
+  mood?: NpcMood;
+  /** Key facts, in the DM's order. */
+  facts: NpcFact[];
+  /** DM-ONLY */
+  dmNote: string;
+}
+
 // ---------- run-game (all DM-ONLY) ----------
 
 export type BeatAction =
@@ -601,6 +631,10 @@ export interface GameState {
   arrival?: ArrivalSettings;
   /** The Chronicle's notes, oldest first. Missing on games made before it; read with notesOf(). */
   notes?: Note[];
+  /** The People compendium, in the DM's order. Missing on games made before it; read with npcsOf(). */
+  npcs?: Npc[];
+  /** The last meeting or revealed fact the TV should play. n changes each time. */
+  npcMoment?: { npcId: string; n: number; factId?: string };
   /** DM-ONLY: monster templates for combat mode. Missing on games made before it; read with monstersOf(). */
   monsters?: MonsterTemplate[];
   /** The fight in progress, if any. Only fightView() projections of it ever leave the server for the TV or a phone. */

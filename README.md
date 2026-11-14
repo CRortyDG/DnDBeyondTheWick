@@ -164,6 +164,13 @@ tests/                    vitest
 - **One at a time:** untick *Players can ask for several at once* on gear like armor.
 - Phones get no push notifications; a banner appears on the page when you decide. Anyone who opens an unlocked name can ask to spend that player's gold, so players are nudged to lock their name; your approval is the safeguard either way.
 
+## People (the NPC compendium)
+
+- **DM view → People** holds everyone the party might meet: name, title, a short public blurb, a portrait (pick one of your portrait scenes), how they feel about the party, key facts and your own notes. Mags, Artum, the Chef, Bolla and the ship's captain come pre-written, with every fact locked.
+- **Meeting someone** unlocks them: the first time their portrait goes on the TV, or when you press **Introduce** (or **Add to phones quietly**). The TV plays a short "A new face" card and a line goes in the Chronicle. A new portrait scene gets its own entry the first time you show it.
+- **Facts** stay on your screen until you **Reveal** one; it shows on phones straight away, and **Reveal on TV** also puts it on the TV.
+- **Players** get a **People** tab with everyone they've met, what they know, and the table's notes. Notes are Chronicle notes tagged with the person's name, so hiding and starring work as usual. Unmet people, locked facts and your notes never leave your screen, and phones don't learn how many people are still to meet. The starter entries live in `src/server/` so their locked facts aren't in the browser code.
+
 ## Running a session (run-game mode)
 
 - **DM view → Run game** starts (or resumes) a session for an episode and opens the presenter view: the current beat big, the next one underneath, every beat in a side list (a drawer on phones).

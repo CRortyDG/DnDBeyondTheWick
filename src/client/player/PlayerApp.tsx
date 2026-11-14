@@ -12,6 +12,7 @@ import { Chronicle } from "../ui/Chronicle";
 import { BannerToast } from "../ui/BannerToast";
 import { InspirationIcon, LockIcon } from "../ui/icons";
 import { Jobs } from "./Jobs";
+import { People, usePeopleSeen } from "./People";
 import { FightCard } from "./FightCard";
 import { askLabel, DecisionBanners, MyRequests, RequestSheet, SendGold, whyNot } from "./Requests";
 
@@ -83,7 +84,8 @@ function PlayerScreen({ view, online, send, ident, setIdent }: { view: PlayerVie
   const [purseOpen, setPurseOpen] = useState(false);
   const [looking, setLooking] = useState<string | null>(null);
   // During a session the phone opens on the Chronicle, so a note is one tap away.
-  const [screen, setScreen] = useState<"chronicle" | "purse" | "jobs">(view.session ? "chronicle" : "purse");
+  const [screen, setScreen] = useState<"chronicle" | "people" | "purse" | "jobs">(view.session ? "chronicle" : "purse");
+  const peopleSeen = usePeopleSeen(view);
   const [mode, setMode] = useState<ShopMode>("category");
   const [category, setCategory] = useState<ItemCategory | undefined>(undefined);
   const me = view.me;
@@ -146,6 +148,9 @@ function PlayerScreen({ view, online, send, ident, setIdent }: { view: PlayerVie
         <button type="button" role="tab" aria-selected={screen === "chronicle"} className={`btn tab${screen === "chronicle" ? " on" : ""}`} onClick={() => setScreen("chronicle")}>
           The Chronicle
         </button>
+        <button type="button" role="tab" aria-selected={screen === "people"} className={`btn tab${screen === "people" ? " on" : ""}`} onClick={() => setScreen("people")}>
+          People{peopleSeen.newCount ? <span className="badge">{peopleSeen.newCount}</span> : null}
+        </button>
         <button type="button" role="tab" aria-selected={screen === "purse"} className={`btn tab${screen === "purse" ? " on" : ""}`} onClick={() => setScreen("purse")}>
           Gold &amp; shops
         </button>
@@ -160,6 +165,7 @@ function PlayerScreen({ view, online, send, ident, setIdent }: { view: PlayerVie
       ) : null}
       {screen === "chronicle" ? <Chronicle view={view.chronicle} gameName={view.game.name} send={send} /> : null}
       {screen === "jobs" ? <Jobs view={view} send={send} /> : null}
+      {screen === "people" ? <People view={view} send={send} seen={peopleSeen} /> : null}
       {screen === "purse" ? (
       <>
       {me.balanceCp < 0 && view.mine.credit.length ? (

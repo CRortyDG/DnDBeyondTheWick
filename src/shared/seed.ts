@@ -335,6 +335,8 @@ export function freshStart(g: GameState): GameState {
   // The Chronicle starts again on an empty Chapter 1, and nobody has met anyone yet.
   s.notes = [];
   for (const sc of s.scenes) delete sc.known;
+  delete s.npcMoment;
+  s.npcs = (s.npcs ?? []).map(({ met, ...n }) => ({ ...n, facts: n.facts.map(({ revealedAt, ...f }) => f) }));
   const home = s.scenes.find((x) => x.kind === "notice" && !x.reveal) ?? s.scenes.find((x) => !x.reveal) ?? s.scenes[0];
   if (home) s.live.sceneId = home.id;
   s.live.shopOpen = false;

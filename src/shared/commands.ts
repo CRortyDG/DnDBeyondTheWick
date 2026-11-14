@@ -3,6 +3,7 @@ import { CATEGORY_IDS, KIND_IDS } from "./progress";
 import { RENOWN_MAX } from "./renown";
 import { DIE_SIDES, diceCount, MAX_DICE, MAX_OF_ONE, MAX_PLUS } from "./dice";
 import { fightDmCommands, fightPlayerCommands } from "./combatSchema";
+import { FACT_MAX, MOOD_IDS, NPC_BLURB_MAX, NPC_DM_NOTE_MAX, NPC_NAME_MAX, NPC_TITLE_MAX } from "./people";
 
 const id = z.string().min(1).max(64);
 const text = (max: number) => z.string().max(max);
@@ -51,6 +52,18 @@ const scenePatch = z
     dmNote: text(4000),
   })
   .partial();
+
+// The People compendium.
+const npcFields = {
+  name: text(NPC_NAME_MAX),
+  title: text(NPC_TITLE_MAX),
+  blurb: text(NPC_BLURB_MAX),
+  sceneId: id.nullable(),
+  mood: z.enum(MOOD_IDS).nullable(),
+  dmNote: text(NPC_DM_NOTE_MAX),
+};
+const factText = text(FACT_MAX);
+const updown = z.union([z.literal(1), z.literal(-1)]);
 
 const category = z.enum(CATEGORY_IDS);
 const effect = z.discriminatedUnion("type", [
@@ -223,6 +236,21 @@ export const dmCommand = z.discriminatedUnion("type", [
   z.object({ type: z.literal("note.remove"), noteId: id }),
   /** A portrait's NPC: the players have met them (feeds the Chronicle's tag picker). */
   z.object({ type: z.literal("scene.known"), sceneId: id, known: z.boolean() }),
+
+  // The People compendium. Meeting someone with announce plays the "new face" moment on the TV.
+  z.object({ type: z.literal("npc.add"), npc: z.object(npcFields).partial(), facts: z.array(factText).max(40).optional() }),
+  z.object({ type: z.literal("npc.update"), npcId: id, patch: z.object(npcFields).partial() }),
+  z.object({ type: z.literal("npc.remove"), npcId: id }),
+  z.object({ type: z.literal("npc.move"), npcId: id, dir: updown }),
+  z.object({ type: z.literal("npc.meet"), npcId: id, met: z.boolean(), announce: z.boolean() }),
+  /** Play their moment on the TV again (met NPCs only); factId: a revealed fact instead. */
+  z.object({ type: z.literal("npc.show"), npcId: id, factId: id.optional() }),
+  z.object({ type: z.literal("npc.factAdd"), npcId: id, text: factText }),
+  z.object({ type: z.literal("npc.factUpdate"), npcId: id, factId: id, text: factText }),
+  z.object({ type: z.literal("npc.factRemove"), npcId: id, factId: id }),
+  z.object({ type: z.literal("npc.factMove"), npcId: id, factId: id, dir: updown }),
+  /** tv: also show it on the TV (only once they've met). */
+  z.object({ type: z.literal("npc.factReveal"), npcId: id, factId: id, revealed: z.boolean(), tv: z.boolean().optional() }),
 
   z.object({ type: z.literal("episode.add"), title: text(160), beats: z.array(beatBody).max(200).optional() }),
   z.object({ type: z.literal("episode.update"), episodeId: id, title: text(160).min(1) }),

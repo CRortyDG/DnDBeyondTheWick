@@ -9,6 +9,7 @@
 import type { GameState, Note, Player, Session } from "./types";
 import { DM_AUTHOR } from "./types";
 import { shopOpenNow, tierOf } from "./renown";
+import { npcsOf, npcTags } from "./people";
 
 export const NOTE_MAX = 2000;
 export const TAG_MAX = 40;
@@ -211,6 +212,8 @@ export function tagSuggestions(g: GameState): string[] {
       for (const p of sc.map.pins) if (p.discovered) add(p.name);
     }
   }
+  // People the party has met (the compendium), under the names their notes are filed by.
+  for (const npc of npcsOf(g)) if (npc.met) npcTags(g, npc).forEach(add);
   // Loot: things a player can hold that everyone can see on a shelf (for sale or
   // locked). Never rumored or hidden items, closed shops, or shops shown only to
   // some players; never rent, services or building projects; earned honours only

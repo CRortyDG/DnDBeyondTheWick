@@ -6,6 +6,7 @@ import type { DiceGroup } from "./dice";
 import { heldCp, heldStock } from "./requests";
 import { projectTable, type TableView } from "./arrival";
 import { notesOf, penName, projectChronicle, type ChronicleView } from "./chronicle";
+import { npcMomentView, publicPeople, type NpcMomentView, type PublicNpc } from "./people";
 import { jobsOf, jobTitle, rankName, RENOWN, renownMet, renownNeeded, renownOf, shopOpenNow, tierOf } from "./renown";
 import { fightView, myFight, type FightView, type MyFight } from "./combat";
 import type { Art, Banner, FlyerText, GameState, Job, JobStyle, Item, ItemCategory, ItemKind, LedgerEntry, LegendStyle, LiveState, Player, RequestStatus, Scene, Shop } from "./types";
@@ -221,6 +222,8 @@ export interface TvView extends Common {
   jobs: PublicJob[];
   /** The last rank-up: the TV plays the moment when n changes. */
   renownMoment?: { rank: number; name: string; n: number };
+  /** Someone new met, or a fact revealed: the TV plays it when n changes. */
+  npcMoment?: NpcMomentView;
   /** The DM's last dice roll: the TV plays it when n changes. */
   diceRoll?: { n: number; groups: DiceGroup[]; plus: number; total: number };
   /** Every non-reveal scene (for instant switching), plus the live scene even if it's a reveal. */
@@ -272,6 +275,8 @@ export interface PlayerView extends Common {
   chronicle: ChronicleView;
   /** The bounty board: pinned jobs. */
   jobs: MyJob[];
+  /** The People compendium: only NPCs the party has met, only revealed facts. */
+  people: PublicNpc[];
 }
 
 export type DmPlayer = Omit<Player, "keyHash"> & { hasKey: boolean };
@@ -435,6 +440,7 @@ export function projectTv(game: GameState, version: number): TvView {
     flyers: game.flyers.filter((f) => f.up).map((f) => ({ id: f.id, title: f.title, body: f.body, signedBy: f.signedBy, at: f.pinnedAt ?? f.postedAt })),
     jobs: pinnedJobs(game).map((j) => publicJob(game, j)),
     ...(game.renownMoment ? { renownMoment: { rank: game.renownMoment.rank, name: rankName(game.renownMoment.rank), n: game.renownMoment.n } } : {}),
+    ...(npcMomentView(game) ? { npcMoment: npcMomentView(game) } : {}),
     ...(game.diceRoll ? { diceRoll: { n: game.diceRoll.n, groups: game.diceRoll.groups, plus: game.diceRoll.plus, total: game.diceRoll.total } } : {}),
     scenes: game.scenes.filter((sc) => !sc.reveal || sc.id === game.live.sceneId).map((sc) => publicScene(game, sc)),
     recap: publicRecap(game),
@@ -525,6 +531,7 @@ export function projectPlayer(game: GameState, version: number, playerId: string
       if (by && pub.status !== "open") out.takenBy = by.name;
       return out;
     }),
+    people: publicPeople(game),
   };
 }
 
