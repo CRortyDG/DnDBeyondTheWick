@@ -4192,16 +4192,29 @@ input.fld.inline-input {
 }
 
 /* Renown on phones and in the DM view. */
-.renown-chip {
-  display: inline-flex;
-  gap: 6px;
+/* Under the name on a phone: the party's rank, as a quiet line (not a link). */
+.renown-line {
+  display: flex;
   align-items: baseline;
-  padding: 2px 10px;
-  border-radius: 999px;
-  border: 1px solid var(--line, #c9b48a);
-  font-size: 14px;
+  gap: 8px;
+  margin: 2px 0 0;
+  font-size: 15px;
+  line-height: 1.2;
 }
-.renown-chip b {
+.renown-line-k {
+  color: var(--muted);
+  font-family: var(--font-sc);
+  font-size: 13px;
+  letter-spacing: 0.06em;
+}
+.renown-line-k::after {
+  content: "\2766";
+  margin-left: 8px;
+  color: var(--gold);
+  font-size: 12px;
+}
+.renown-line-v {
+  color: var(--gold-bright);
   font-family: var(--font-sc);
 }
 .renown-ladder {

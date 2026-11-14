@@ -119,3 +119,21 @@ describe("the VTT link", () => {
     expect(JSON.stringify(projectTv(g, 1))).not.toContain("dndbeyond.com/games");
   });
 });
+
+describe("character names on player-facing screens", () => {
+  it("shows the character (falling back to the player's name) on phones and the TV", () => {
+    const g = seedGame("t");
+    g.players = g.players.slice(0, 2);
+    const [a, b] = g.players;
+    b.name = "Sam";
+    a.character = "Brin Ashcombe";
+    b.character = "";
+    const ph = projectPlayer(g, 1, a.id, []);
+    expect(ph.me.name).toBe(a.name);
+    expect(ph.me.character).toBe("Brin Ashcombe");
+    expect(projectPlayer(g, 1, b.id, []).me.character).toBeUndefined();
+    expect(ph.purse.map((p) => p.name)).toEqual(["Brin Ashcombe", "Sam"]);
+    expect(projectPlayer(g, 1, b.id, []).table.map((p) => p.name)).toEqual(["Brin Ashcombe"]);
+    expect(projectTv(g, 1).purse.map((p) => p.name)).toEqual(["Brin Ashcombe", "Sam"]);
+  });
+});
