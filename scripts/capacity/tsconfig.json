@@ -1,0 +1,5 @@
+{
+  "extends": "../../tsconfig.worker.json",
+  "compilerOptions": { "paths": { "@/*": ["../../src/*"] } },
+  "include": ["worker.ts", "../../worker", "../../src/server", "../../src/shared"]
+}
