@@ -146,7 +146,7 @@ export function seedSceneResolver(scenes: Pick<Scene, "id" | "label" | "name" | 
   const byLabel = sceneResolver(scenes);
   return (name: string) => {
     const pinned = SEED_SCENE_IDS[sceneKey(name)];
-    if (pinned && scenes.some((s) => s.id === pinned)) return pinned;
+    if (pinned && scenes.some((s) => s.id === pinned)) return { type: "scene" as const, sceneId: pinned };
     return byLabel(name);
   };
 }

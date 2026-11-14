@@ -3,6 +3,8 @@
 import { ARTUM_LOOK, ARTUM_PLACE, emptyProgress, OLD_ARTUM, seedJobs, seedNotices, STINGER_SCENE } from "./seed";
 import { LEGACY_SLOTS } from "./board";
 import type { Beat, GameState, Item, ItemCategory, Shop } from "./types";
+import { refForScene, sceneSlugBase, uniqueSceneSlug } from "./assets";
+import { entryFromScene } from "./discovery";
 
 type Any = Record<string, unknown>;
 
@@ -185,4 +187,46 @@ function withBoard(g: GameState): GameState {
   const have = new Set((out.notices ?? []).map((n) => n.id));
   out.notices = [...(out.notices ?? []), ...notices.filter((n) => !have.has(n.id))];
   return out;
+}
+
+/**
+ * Scenes become assets (see assets.ts). Runs on every read, after the seed
+ * entries, so portraits already belong to their people:
+ * - once: every scene gets a slug, a portrait nobody owns becomes a person,
+ *   and the old hotkeys move to the quick bar on the same keys;
+ * - always: "show scene X" beat actions become "show: <ref>", so a run sheet
+ *   keeps pointing at the same thing (people by name, not by scene).
+ */
+export function withAssets<T extends GameState | null>(g: T): T {
+  if (!g) return g;
+  if (!g.upgrades?.includes("assets")) {
+    for (const sc of g.scenes) if (!sc.slug) sc.slug = uniqueSceneSlug(g.scenes, sceneSlugBase(sc), sc.id);
+    // withSeedEntries made people for the portraits it saw; these came later.
+    if (g.upgrades?.includes("discovery-seed")) {
+      const list = (g.entries ??= []);
+      for (const sc of g.scenes) {
+        if (sc.kind !== "portrait" || list.some((e) => e.sceneId === sc.id)) continue;
+        const e = entryFromScene(list, sc, `e-${sc.id}`);
+        if (sc.known) Object.assign(e, { stage: "found", foundAt: g.createdAt ?? 0, foundIn: null });
+        list.push(e);
+      }
+    }
+    if (!g.quick) {
+      const quick: (string | null)[] = Array(10).fill(null);
+      for (const sc of g.scenes) if (typeof sc.hotkey === "number" && quick[sc.hotkey] === null) quick[sc.hotkey] = refForScene(g, sc);
+      g.quick = quick;
+    }
+    for (const sc of g.scenes) delete sc.hotkey;
+    g.upgrades = [...(g.upgrades ?? []), "assets"];
+  }
+  for (const ep of g.episodes ?? []) {
+    for (const b of ep.beats) {
+      b.actions = b.actions.map((a) => {
+        if (a.type !== "scene") return a;
+        const sc = g.scenes.find((x) => x.id === a.sceneId);
+        return sc ? { type: "show" as const, ref: refForScene(g, sc) } : a;
+      });
+    }
+  }
+  return g;
 }

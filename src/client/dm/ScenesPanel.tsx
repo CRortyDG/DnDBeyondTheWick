@@ -8,18 +8,21 @@ import { useDm } from "./context";
 import { Field } from "./Field";
 import { Check } from "./Check";
 import { uploadImage } from "./upload";
+import { ShowControls } from "./QuickBar";
+import { isProp, pictureOwner, refForScene, sceneSlug } from "@/shared/assets";
 
 const KINDS: [SceneKind, string][] = [
   ["map", "Map with numbered locations"],
   ["image", "Image"],
-  ["portrait", "NPC portrait"],
   ["handout", "Handout on paper"],
   ["notice", "Notice board"],
   ["black", "Black screen"],
   ["table", "The Table (Arrival seats)"],
   ["stinger", "Episode one stinger (animated)"],
 ];
+const PORTRAIT: [SceneKind, string] = ["portrait", "Picture card (name and title)"];
 
+/** Maps & props: the pictures the TV shows that aren't someone's (people's pictures live with them in Discovery). */
 export function ScenesPanel() {
   const { view, run, openMap } = useDm();
   const s = view.state;
@@ -27,52 +30,68 @@ export function ScenesPanel() {
   const [openId, setOpenId] = useState<string | null>(null);
   const [newKind, setNewKind] = useState<SceneKind>("image");
   const [newLabel, setNewLabel] = useState("");
+  const pictures = s.scenes.filter((x) => pictureOwner(s, x)).length;
+  const sections: [string, Scene[]][] = [
+    ["Maps", s.scenes.filter((x) => x.kind === "map")],
+    ["Props", s.scenes.filter((x) => isProp(s, x))],
+    ["Screens", s.scenes.filter((x) => x.kind !== "map" && !isProp(s, x) && !pictureOwner(s, x))],
+  ];
 
   return (
     <div className="scenes-panel">
       <p className="note">
-        Reveal scenes never reach the TV until you show them. Images you upload are stored online, so they show on every screen.
+        Everything here has a <b>Show</b> button and can sit on a number key. People, places, shops and monsters are shown from Discovery
+        {pictures ? ` (${pictures} picture${pictures === 1 ? "" : "s"} live there with their people)` : ""}. Reveal props never reach the TV until you show them. Images you upload are stored online, so they show on every screen.
       </p>
-      <ol className="scene-list">
-        {s.scenes.map((sc, i) => (
-          <li key={sc.id} className={`scene-item${sc.id === s.live.sceneId ? " live" : ""}`}>
-            <div className="scene-row">
-              <span className="key">{sc.hotkey ?? "–"}</span>
-              <span className="scene-label">
-                {sc.label}
-                {sc.reveal ? <span className="tag wax">reveal</span> : null}
-                {sc.kind === "map" ? <span className="tag">map · {sc.map?.pins.length ?? 0}</span> : null}
-                {sc.id === s.live.sceneId ? <span className="tag">on the TV</span> : null}
-              </span>
-              <span className="spacer" />
-              <button className="btn small icon" type="button" aria-label={`Move ${sc.label} up`} disabled={i === 0} onClick={() => run({ type: "scene.move", sceneId: sc.id, dir: -1 })}>
-                <UpIcon />
-              </button>
-              <button className="btn small icon" type="button" aria-label={`Move ${sc.label} down`} disabled={i === s.scenes.length - 1} onClick={() => run({ type: "scene.move", sceneId: sc.id, dir: 1 })}>
-                <DownIcon />
-              </button>
-              <button className="btn small" type="button" onClick={() => run({ type: "scene.show", sceneId: sc.id })}>
-                Show
-              </button>
-              {sc.kind === "map" ? (
-                <button className="btn small" type="button" onClick={() => openMap(sc.id)}>
-                  Pins
-                </button>
-              ) : null}
-              <button className="btn small" type="button" aria-expanded={openId === sc.id} onClick={() => setOpenId(openId === sc.id ? null : sc.id)}>
-                {openId === sc.id ? "Done" : "Edit"}
-              </button>
-            </div>
-            {openId === sc.id ? <SceneEditor scene={sc} /> : null}
-          </li>
-        ))}
-      </ol>
+      {sections.map(([title, list]) =>
+        list.length ? (
+          <section key={title} className="assets-section">
+            <h3>{title}</h3>
+            <ol className="scene-list">
+              {list.map((sc) => {
+                const i = s.scenes.indexOf(sc);
+                const ref = refForScene(s, sc);
+                return (
+                  <li key={sc.id} className={`scene-item${sc.id === s.live.sceneId ? " live" : ""}`}>
+                    <div className="scene-row">
+                      <span className="scene-label">
+                        {sc.label}
+                        {sc.reveal ? <span className="tag wax">reveal</span> : null}
+                        {sc.kind === "map" ? <span className="tag">{sc.map?.pins.length ?? 0} locations</span> : null}
+                        {sc.id === s.live.sceneId ? <span className="tag">on the TV</span> : null}
+                        <code className="note ref-code">{ref}</code>
+                      </span>
+                      <span className="spacer" />
+                      <button className="btn small icon" type="button" aria-label={`Move ${sc.label} up`} disabled={i === 0} onClick={() => run({ type: "scene.move", sceneId: sc.id, dir: -1 })}>
+                        <UpIcon />
+                      </button>
+                      <button className="btn small icon" type="button" aria-label={`Move ${sc.label} down`} disabled={i === s.scenes.length - 1} onClick={() => run({ type: "scene.move", sceneId: sc.id, dir: 1 })}>
+                        <DownIcon />
+                      </button>
+                      <ShowControls refName={ref} label={sc.label} />
+                      {sc.kind === "map" ? (
+                        <button className="btn small" type="button" onClick={() => openMap(sc.id)}>
+                          Pins
+                        </button>
+                      ) : null}
+                      <button className="btn small" type="button" aria-expanded={openId === sc.id} onClick={() => setOpenId(openId === sc.id ? null : sc.id)}>
+                        {openId === sc.id ? "Done" : "Edit"}
+                      </button>
+                    </div>
+                    {openId === sc.id ? <SceneEditor scene={sc} /> : null}
+                  </li>
+                );
+              })}
+            </ol>
+          </section>
+        ) : null,
+      )}
 
       {!hasSeedMaps ? (
         <div className="box form">
           <h3>Maps</h3>
           <p className="note">
-            Add the Candlefair map (8 locations, the first three discovered) and the Sword Coast map (5 locations). Your Town map scene becomes the Candlefair map and keeps its image and hotkey.
+            Add the Candlefair map (8 locations, the first three discovered) and the Sword Coast map (5 locations). Your Town map scene becomes the Candlefair map and keeps its image and number key.
           </p>
           <button className="btn" type="button" onClick={() => run({ type: "map.addSeedMaps" }, "Maps added. Upload their images and drag the pins into place.")}>
             Add the Candlefair and Sword Coast maps
@@ -84,10 +103,10 @@ export function ScenesPanel() {
         className="box form add-scene"
         onSubmit={async (e) => {
           e.preventDefault();
-          if (await run({ type: "scene.add", kind: newKind, label: newLabel || KINDS.find((k) => k[0] === newKind)![1] }, "Scene added.")) setNewLabel("");
+          if (await run({ type: "scene.add", kind: newKind, label: newLabel || KINDS.find((k) => k[0] === newKind)![1] }, "Added, on the first free number key.")) setNewLabel("");
         }}
       >
-        <h3>Add a scene</h3>
+        <h3>Add a map or prop</h3>
         <div className="inline">
           <label>
             Kind
@@ -116,7 +135,6 @@ function SceneEditor({ scene }: { scene: Scene }) {
   const { view, run, ident, toast, gated, openMap } = useDm();
   const [busy, setBusy] = useState(false);
   const file = useRef<HTMLInputElement>(null);
-  const usedKeys = new Map(view.state.scenes.filter((x) => x.id !== scene.id && x.hotkey !== null).map((x) => [x.hotkey, x.label]));
   const patch = (p: Partial<Scene>) => run({ type: "scene.update", sceneId: scene.id, patch: p });
   const takesImage = scene.kind !== "black" && scene.kind !== "table" && scene.kind !== "stinger" && !(scene.art?.builtin === "candlefair-board" || scene.art?.builtin === "artum-notice");
 
@@ -161,25 +179,14 @@ function SceneEditor({ scene }: { scene: Scene }) {
           <label>
             Kind
             <select className="fld" value={scene.kind} onChange={(e) => patch({ kind: e.target.value as SceneKind })}>
-              {KINDS.map(([k, l]) => (
+              {(scene.kind === "portrait" ? [...KINDS, PORTRAIT] : KINDS).map(([k, l]) => (
                 <option key={k} value={k}>
                   {l}
                 </option>
               ))}
             </select>
           </label>
-          <label>
-            Hotkey
-            <select className="fld" value={scene.hotkey ?? ""} onChange={(e) => patch({ hotkey: e.target.value === "" ? null : Number(e.target.value) })}>
-              <option value="">None</option>
-              {[1, 2, 3, 4, 5, 6, 7, 8, 9, 0].map((k) => (
-                <option key={k} value={k}>
-                  {k}
-                  {usedKeys.has(k) ? ` (now ${usedKeys.get(k)})` : ""}
-                </option>
-              ))}
-            </select>
-          </label>
+          <Field label="Run sheet name" value={sceneSlug(scene)} hint={refForScene(view.state, scene)} onCommit={(v) => patch({ slug: v })} />
           <Check checked={scene.reveal} onChange={(v) => patch({ reveal: v })}>
             Reveal (hidden from the TV until shown)
           </Check>

@@ -9,7 +9,8 @@ import type { DmCommand } from "@/shared/commands";
 import { projectPlayer, projectTv } from "@/shared/projection";
 import { apply, previousRecap } from "@/shared/reducer";
 import { upgrade } from "@/shared/migrate";
-import { episodeMarkdown, parseEpisode, sceneResolver } from "@/shared/runsheet";
+import { assetResolver, episodeMarkdown, parseEpisode, sceneResolver } from "@/shared/runsheet";
+import { actionRef } from "@/shared/assets";
 import { SEED_SCENES, seedGame } from "@/shared/seed";
 import type { GameState } from "@/shared/types";
 
@@ -102,10 +103,14 @@ describe("importing the seed episode", () => {
   });
 
   it("exports back to Markdown that imports to the same beats", () => {
-    const md = episodeMarkdown({ title: p.title, beats: p.beats.map((b, i) => ({ id: String(i), ...b })) }, SEED_SCENES);
-    const again = parseEpisode(md, seedSceneResolver(SEED_SCENES));
+    const g = { scenes: SEED_SCENES, entries: [] };
+    const md = episodeMarkdown({ title: p.title, beats: p.beats.map((b, i) => ({ id: String(i), ...b })) }, g);
+    // Scenes go out as "show: <ref>" and come back as show actions for the same thing.
+    expect(md).toContain("show: map/candlefair");
+    const again = parseEpisode(md, assetResolver(g));
     expect(again.title).toBe("Just Desserts");
-    expect(again.beats).toEqual(p.beats);
+    const asShows = p.beats.map((b) => ({ ...b, actions: b.actions.map((a) => (a.type === "scene" ? { type: "show", ref: actionRef(g, a) } : a)) }));
+    expect(again.beats).toEqual(asShows);
   });
 });
 

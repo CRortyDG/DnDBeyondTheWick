@@ -7,21 +7,28 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { previousRecap } from "@/shared/reducer";
 import { beatFirstLine } from "@/shared/runsheet";
-import type { Beat, BeatAction, Episode, Scene, Session, SessionRun } from "@/shared/types";
+import type { Beat, BeatAction, Episode, Session, SessionRun } from "@/shared/types";
+import { beatAssets, quickOf, resolveRef, type AssetGame } from "@/shared/assets";
+import { Finder, quickKey, typing } from "./QuickBar";
 import { BankPanel } from "./BankPanel";
 import { Inbox, isInboxOpen } from "./Inbox";
 import { Dues } from "./Dues";
 import { useDm } from "./context";
 import { DiceButton } from "./DiceTray";
 
-export function actionLabel(a: BeatAction, scenes: Scene[]): string {
+export function actionLabel(a: BeatAction, g: AssetGame): string {
   if (a.type === "black") return "TV → black screen";
   if (a.type === "bank") return "Bank opens · purse on the TV";
   if (a.type === "stinger") return "TV → plays the stinger";
   if (a.type === "fight") return `Fight: ${a.monsters.map((m) => (m.count > 1 ? `${m.name} ×${m.count}` : m.name)).join(", ")} · TV → Roll initiative!`;
   if (a.type === "reveal") return a.stage === "rumored" ? `Rumor: ${a.ref}` : `Reveal: ${a.ref}${a.stage === "known" ? " (known)" : ""}`;
   if (a.type === "fact") return `Reveal fact: ${a.ref}`;
-  const sc = scenes.find((x) => x.id === a.sceneId);
+  if (a.type === "show") {
+    const hit = resolveRef(g, a.ref);
+    if (!hit) return `TV → ${a.ref} (not found)`;
+    return hit.entry && hit.scene ? `TV → ${hit.label}’s picture` : `TV → ${hit.label}`;
+  }
+  const sc = g.scenes.find((x) => x.id === a.sceneId);
   if (!sc) return "TV → a scene that was deleted";
   return sc.kind === "portrait" ? `TV → ${sc.label}’s portrait` : `TV → ${sc.label}`;
 }
@@ -35,6 +42,7 @@ export function RunGame({ onExit, onFight }: { onExit: () => void; onFight?: () 
   const [drawer, setDrawer] = useState(false);
   const [bank, setBank] = useState(false);
   const [skip, setSkip] = useState<number[]>([]);
+  const [finder, setFinder] = useState<{ pinTo?: number } | null>(null);
 
   // Skips belong to the beat you're about to land on; reset them when you move.
   const where = r ? `${r.stage}:${r.beat}` : "";
@@ -62,19 +70,25 @@ export function RunGame({ onExit, onFight }: { onExit: () => void; onFight?: () 
     [ep, run],
   );
 
-  // Keys: Space or → next, Shift+Space or ← back. 0–9, S, P and Esc work as in the DM view; B opens the bank here.
+  // This beat's things, on Shift+1..9.
+  const onBeat = r?.stage === "beat" && ep?.beats[r.beat] ? beatAssets(s, ep.beats[r.beat]) : [];
+
+  // Keys: Space or → next, Shift+Space or ← back. 0–9 (the quick bar), /, S, P and Esc work as in the DM view; Shift+1–9 shows this beat's things; B opens the bank here.
   useEffect(() => {
+    if (finder) return; // the finder has the keyboard while it's open
     const onKey = (e: KeyboardEvent) => {
-      const t = e.target as HTMLElement | null;
-      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT" || t.isContentEditable)) return;
+      if (typing(e)) return;
       if (e.metaKey || e.ctrlKey || e.altKey) return;
       if (isInboxOpen()) return; // the requests drawer has the keys while it's open
       const k = e.key;
-      if ((k === " " && !e.shiftKey) || k === "ArrowRight" || k === "PageDown") next();
+      const digit = /^Digit([1-9])$/.exec(e.code);
+      if (e.shiftKey && digit) {
+        const ref = onBeat[Number(digit[1]) - 1];
+        if (ref) void run({ type: "show", ref });
+      } else if ((k === " " && !e.shiftKey) || k === "ArrowRight" || k === "PageDown") next();
       else if ((k === " " && e.shiftKey) || k === "ArrowLeft" || k === "PageUp") back();
-      else if (/^[0-9]$/.test(k)) {
-        const sc = s.scenes.find((x) => x.hotkey === Number(k));
-        if (sc) void run({ type: "scene.show", sceneId: sc.id });
+      else if (quickKey(e, { show: (ref) => void run({ type: "show", ref }), find: () => setFinder({}), quick: quickOf(s) })) {
+        // handled
       } else if (k === "s" || k === "S") void run({ type: "live.shop", open: !s.live.shopOpen });
       else if (k === "p" || k === "P") void run({ type: "live.purse", visible: !s.live.purseVisible });
       else if (k === "b" || k === "B") setBank((v) => !v);
@@ -89,7 +103,7 @@ export function RunGame({ onExit, onFight }: { onExit: () => void; onFight?: () 
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [next, back, run, s.scenes, s.live.shopOpen, s.live.purseVisible, bank, drawer]);
+  }, [next, back, run, s, s.live.shopOpen, s.live.purseVisible, bank, drawer, finder, onBeat]);
 
   if (!session || !r || !ep) {
     return (
@@ -152,7 +166,7 @@ export function RunGame({ onExit, onFight }: { onExit: () => void; onFight?: () 
       <div className="run-body">
         <main className="run-main">
           {r.stage === "start" ? <StartStep session={session} /> : null}
-          {beat ? <BeatCard key={beat.id} beat={beat} scenes={s.scenes} /> : null}
+          {beat ? <BeatCard key={beat.id} beat={beat} onBeat={onBeat} /> : null}
           {r.stage === "end" ? <EndStep session={session} episode={ep} onBank={() => setBank(true)} onEnded={onExit} /> : null}
 
           {r.stage !== "end" ? (
@@ -168,7 +182,7 @@ export function RunGame({ onExit, onFight }: { onExit: () => void; onFight?: () 
                         const skipped = skip.includes(i);
                         return (
                           <li key={i} className={skipped ? "skipped" : ""}>
-                            <span>{actionLabel(a, s.scenes)}</span>
+                            <span>{actionLabel(a, s)}</span>
                             <button className="btn small" type="button" aria-pressed={skipped} onClick={() => setSkip((xs) => (skipped ? xs.filter((x) => x !== i) : [...xs, i]))}>
                               {skipped ? "Skipped" : "Skip"}
                             </button>
@@ -230,6 +244,7 @@ export function RunGame({ onExit, onFight }: { onExit: () => void; onFight?: () 
         </button>
       </footer>
 
+      {finder ? <Finder pinTo={finder.pinTo} onClose={() => setFinder(null)} /> : null}
       {bank ? (
         <div className="run-overlay" role="dialog" aria-modal="true" aria-label="Bank">
           <div className="run-overlay-head">
@@ -247,8 +262,9 @@ export function RunGame({ onExit, onFight }: { onExit: () => void; onFight?: () 
 
 // ---------------------------------------------------------------------------
 
-function BeatCard({ beat, scenes }: { beat: Beat; scenes: Scene[] }) {
-  const { run } = useDm();
+function BeatCard({ beat, onBeat }: { beat: Beat; onBeat: string[] }) {
+  const { run, view } = useDm();
+  const g = view.state;
   const at = Math.min(beat.readAloudAt ?? 0, beat.notes.length);
   const read = beat.readAloud?.length ? (
     <blockquote className="run-read" key="read">
@@ -275,13 +291,26 @@ function BeatCard({ beat, scenes }: { beat: Beat; scenes: Scene[] }) {
         <ul className="run-actions current">
           {beat.actions.map((a, i) => (
             <li key={i}>
-              <span>{actionLabel(a, scenes)}</span>
+              <span>{actionLabel(a, g)}</span>
               <button className="btn small" type="button" onClick={() => run({ type: "run.fire", beatId: beat.id, index: i })}>
                 ↻ Again
               </button>
             </li>
           ))}
         </ul>
+      ) : null}
+      {onBeat.length ? (
+        <div className="run-onbeat" role="group" aria-label="On this beat: Shift and a number shows it">
+          <span className="note">On this beat:</span>
+          {onBeat.map((ref, i) => {
+            const a = resolveRef(g, ref);
+            return a ? (
+              <button key={ref} type="button" className="btn small" title={ref} onClick={() => run({ type: "show", ref })}>
+                <span className="key">⇧{i + 1}</span> {a.label}
+              </button>
+            ) : null;
+          })}
+        </div>
       ) : null}
       {notes(before, "before")}
       {read}

@@ -94,10 +94,10 @@ In the DM view, **Open TV window** pops the TV page out. Drag it onto the TV and
 
 | Where | Keys |
 | --- | --- |
-| DM view | `D` dice · `0`–`9` scenes · `←` `→` step (while the shop is open: flip shops) · `S` shop on the TV · `P` purse · `B` bank · `T` The Table (Arrival) · `I` requests from phones · `L` map legend · `Esc` closes the requests drawer, then the shop, then zooms a map back out |
+| DM view | `D` dice · `0`–`9` the quick bar · `/` find anything to show · `←` `→` step through the quick bar (while the shop is open: flip shops) · `S` shop on the TV · `P` purse · `B` bank · `T` The Table (Arrival) · `I` requests from phones · `L` map legend · `Esc` closes the requests drawer, then the shop, then zooms a map back out |
 | Map editor | click the map to drop a pin · drag to move · `←` `↑` `→` `↓` nudge (Shift: bigger steps) · `Delete` removes · `Ctrl+Z` undo · `Esc` deselects, then closes |
 | Fight screen | `D` dice · `Space` next turn · `Shift+Space` previous · digits type an amount · `Enter` damages the picked rows · `Shift+Enter` heals them · `Esc` clears the amount, then the picks |
-| Run-game mode | `D` dice · `Space` or `→` next beat · `Shift+Space` or `←` back · `0`–`9` `S` `P` `T` as above · `B` opens the bank on top · `I` requests · `Esc` closes whatever is on top |
+| Run-game mode | `D` dice · `Space` or `→` next beat · `Shift+Space` or `←` back · `0`–`9` `/` `S` `P` `T` as above · `Shift`+`1`–`9` shows what this beat mentions (the "On this beat" buttons) · `B` opens the bank on top · `I` requests · `Esc` closes whatever is on top |
 | TV | `F` fullscreen · `H` hide the control bar |
 
 ## How it's built
@@ -123,7 +123,7 @@ tests/                    vitest
 
 - **Gold lives here, not on D&D Beyond.** Players keep D&D Beyond's coins at 0. Anything bought here, they add to their D&D Beyond inventory themselves; the ledger keeps the purchase history.
 - **Heroic Inspiration:** tap the d20 beside a player's name in the Bank (or "Inspiration" on their card under Players). A gold d20 then shows beside their name in the TV purse; tap again when it's spent.
-- **Maps:** a Map scene shows an uploaded image letterboxed on the TV, with numbered wax-seal locations you place yourself (Scenes → Pins, or Edit map under the preview). Each location has a seal label (up to 4 characters), name, type, description, private DM notes, and an optional link (a shop, an NPC portrait or another map). Only **discovered** locations reach the TV; hidden ones and every DM note stay on the server. While a map is on the TV, tap a location to zoom the TV to it (tap again or Esc to zoom out), reveal it with a "Discovered: …" banner or quietly, and toggle the legend with L. **Dot size** (a slider in the map editor and under the preview) shrinks or grows that map's dots, from 25% to 200%. With the "numbers only" legend, names aren't sent to the TV until you focus a location. Games created before maps existed get an **Add the Candlefair and Sword Coast maps** button under Scenes.
+- **Maps:** a Map scene shows an uploaded image letterboxed on the TV, with numbered wax-seal locations you place yourself (Maps & props → Pins, or Edit map under the preview). Each location has a seal label (up to 4 characters), name, type, description, private DM notes, and an optional link (a shop, an NPC portrait or another map). Only **discovered** locations reach the TV; hidden ones and every DM note stay on the server. While a map is on the TV, tap a location to zoom the TV to it (tap again or Esc to zoom out), reveal it with a "Discovered: …" banner or quietly, and toggle the legend with L. **Dot size** (a slider in the map editor and under the preview) shrinks or grows that map's dots, from 25% to 200%. With the "numbers only" legend, names aren't sent to the TV until you focus a location. Games created before maps existed get an **Add the Candlefair and Sword Coast maps** button under Maps & props.
 - **Launch VTT:** paste the campaign's D&D Beyond game link under Game. It shows as a Launch VTT button at the top of your view and on every player's phone.
 
 ## Shops
@@ -189,13 +189,32 @@ One compendium for everything the party can find: people, places, shops, monster
 - **Phones** list leads in the Discover tab, grouped by place. **Leads board on the TV** puts the same list over the scene.
 - **Votes:** tick two or three shown leads and open a vote, with an optional time limit. Each player gets one vote and can change it until the vote closes, and everyone sees the count live. The vote closes when you press **Close now**, or by itself at its time (on the next thing anyone does). A tie waits for you to break it, and you can always pick a different lead. The chosen lead becomes Followed, and the TV shows "You chose: …" at the start of the next session.
 
+## Showing things on the TV
+
+There's no list of scenes to keep up. Everything the TV can show lives where it belongs and has a **Show** button there, plus a short name (its *ref*) that the quick bar, the finder and run sheets use:
+
+| Thing | Lives in | Show puts on the TV | Ref |
+| --- | --- | --- | --- |
+| Person, monster, mystery… | Discovery (upload its picture there) | Its picture with name and title. A rumored or hidden one is found, as a portrait always did. Something with no picture gets a plain card. | `person/mags` |
+| Place | Discovery | Its picture, or its map zoomed to its pin | `place/flickering-candle` |
+| Shop | Discovery, tied to its storefront | The storefront | `shop/<name>` |
+| Map, or one pin on it | Maps & props | The map; with a pin number, zoomed to that pin (a hidden pin is discovered, with its banner) | `map/candlefair`, `map/candlefair/3` |
+| Handout or image | Maps & props | It (reveal props still never reach the TV before they're shown) | `prop/the-symbol` |
+| Built-in screens | always there | Notice board, leads board, The Table, the stinger, black | `board`, `leads`, `table`, `stinger`, `black` |
+
+- **Quick bar:** keys `1`–`9` and `0` each hold one thing. Pin with the **Key** picker beside any Show button, from an empty slot, or with Shift+Enter in the finder. Arrows step through the bar in key order. Games made before this kept their old hotkeys on the same keys.
+- **Finder:** press `/`, type a few letters ("mags", "docks", "symbol"), Enter shows it.
+- **Discovery's Announce** (was "Show on TV") plays the reveal card; **Show** puts the thing itself up.
+- Renaming a ref (an entry's or map's "Run sheet name") updates the quick bar and every run sheet that uses it. The quick bar, recents and suggestions are DM-only; none of it reaches the TV or phones. Code: `src/shared/assets.ts`.
+
 ## Running a session (run-game mode)
 
 - **DM view → Run game** starts (or resumes) a session for an episode and opens the presenter view: the current beat big, the next one underneath, every beat in a side list (a drawer on phones).
-- **Next** and **jumping** to a beat fire its actions (switch the TV scene, black screen, or the bank: purse on the TV and the bank on your screen). **Back** never fires anything. Tap "↻ Again" to re-fire, or "Skip" on the next beat's action before you press Next.
+- **Next** and **jumping** to a beat fire its actions (show something on the TV, black screen, or the bank: purse on the TV and the bank on your screen). **Back** never fires anything. Tap "↻ Again" to re-fire, or "Skip" on the next beat's action before you press Next.
 - The first screen is check-in (untick anyone who isn't here; they're marked away) and the last session's recap, which you can show on the TV as "Previously on…". The last screen is payday, the recap box and all your quick notes.
 - Your place is saved on the server, so a reload or another device lands on the same beat. If a session ends mid-episode, the next run picks up where it stopped.
-- **DM view → Episodes:** add episodes, edit beats (each beat is edited as Markdown), reorder by dragging or with the arrows, import an episode pasted as Markdown, and export it back out. One beat per `##`; lines start with `>` read-aloud, `-` note, `check:`, `if:`, `action:` (`scene <name>`, `black`, `bank`), `reveal:`, `rumor:`, `fact:` (see Discovery) or `fight:` (`fight: Pudding Gremlin x2, Goblin`: landing on the beat sets up that fight from the Monsters tab).
+- **DM view → Episodes:** add episodes, edit beats (each beat is edited as Markdown), reorder by dragging or with the arrows, import an episode pasted as Markdown, and export it back out. One beat per `##`; lines start with `>` read-aloud, `-` note, `check:`, `if:`, `show:` (a ref or a name: `show: person/mags`, `show: map/candlefair/3`, `show: The symbol`, `show: black`), `action: bank`, `reveal:`, `rumor:`, `fact:` (see Discovery) or `fight:` (`fight: Pudding Gremlin x2, Goblin`: landing on the beat sets up that fight from the Monsters tab).
+- **Suggestions:** a beat that doesn't change the TV gets a dotted "Suggested: …" chip for the first thing its words mention (a person, place, map, pin or prop; never a hidden entry). Click it to add it as `show:`, or × to stop suggesting it there. **Accept all suggestions** does every beat at once. Nothing fires until you've accepted it. Everything else a beat mentions sits under "On this beat" while it runs, on `Shift`+`1`–`9`. The old `action: scene <name>` still imports.
 - Existing games get the seed episode "Just Desserts" automatically. "Start fresh" keeps episodes; "Reset everything" restores the seed episode.
 
 ## Combat mode
@@ -220,6 +239,17 @@ For in-person fights: no grid, no tokens. The point is faster turns: everyone al
 The tray keeps your picks, so the same roll again is one tap.
 
 **Players roll too**, from the **Dice** tab on their phone: **Roll on the TV** plays it on the TV with their name, **Roll for the DM only** keeps it off the TV (a Stealth check, say). The DM sees every roll: a toast for TV rolls, a card that stays until **Got it** for "DM only" rolls, a badge on the Dice button for player rolls not looked at yet, and the tray's log (the DM's and players' last 40 rolls, with every die, who rolled and where it went). **Clear history** empties the log. A phone only sees its own last five rolls, and can roll at most once every 1.5 seconds.
+
+## The storyboard (DM only)
+
+Plan the year as **story beats** on **threads**, from Winterfest 2026 to Winterfest 2027. Open it from the **Story** tab.
+
+- **Threads** are the rows: The Merchant, Mags's Candle, Baldur's Gate, Candlefair, and one **Backstory** lane per player (named after their character, made automatically).
+- **Beats** are the cards: a clue, reveal, choice, consequence, background detail or spotlight, with a window (a month, a season, "anytime", or floating), an optional must-happen-by date, links to Discovery entries, facts, flyers, leads, shop projects and monster templates, and **After** beats that have to be played first. Duplicate a beat to keep two versions.
+- **The board**: columns by month or by season, session dates along the top (fill in every two weeks from a start date, then move or cancel any), and Faerûn's festivals as labels. Drag cards between columns and threads; the **Floating** tray holds beats with no window. Cards show planned (outline), placed (filled), played (ticked, faded), dropped (struck through) and a warning mark for a missed must-happen-by date, a passed window, or a beat placed before one it waits for.
+- **Played** asks for a one-line outcome and records the session. "Can happen again and again" beats stay planned and log every play.
+
+None of it ever reaches the TV or a phone: `GameState.story` is never copied into their views, and the seed beats live on the server (`src/server/seed-story.ts`, added once per game as `story-seed`, with hidden stub entries for Mardon, Rolf, Adon, the Eomane family and Warlock's Crypt). Placing beats into episodes, `@mentions`, the cast panel and prep checklist come next.
 
 ## Sessions and starting over
 

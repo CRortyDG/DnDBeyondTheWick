@@ -44,7 +44,8 @@ beforeEach(() => {
 
 describe("the starter entries", () => {
   it("come from the server at their seed stages", () => {
-    expect(g.entries!.map((n) => n.id)).toEqual(SEED_ENTRIES.map((n) => n.id));
+    // The storyboard seed adds hidden stubs (Mardon, Rolf...) after the Discovery seed.
+    expect(g.entries!.slice(0, SEED_ENTRIES.length).map((n) => n.id)).toEqual(SEED_ENTRIES.map((n) => n.id));
     expect(ent("e-mags").stage).toBe("found");
     expect(ent("e-orsa").stage).toBe("found");
     expect(ent("e-artum").stage).toBe("rumored");
@@ -432,7 +433,7 @@ reveal: person/nobody`;
       { type: "reveal", ref: "person/artum", stage: "known" },
       { type: "reveal", ref: "person/nobody", stage: "found" },
     ]);
-    const out = episodeMarkdown({ title: "T", beats: p.beats.map((b, i) => ({ ...b, id: `b${i}` })) }, []);
+    const out = episodeMarkdown({ title: "T", beats: p.beats.map((b, i) => ({ ...b, id: `b${i}` })) }, { scenes: [], entries: [] });
     expect(out).toContain("reveal: person/fennick\n");
     expect(out).toContain("fact: person/mags/owes-the-baker");
     expect(out).toContain("rumor: place/the-trollbark");

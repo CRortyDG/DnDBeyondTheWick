@@ -147,9 +147,11 @@ describe("scenes", () => {
     const { state } = run(seedGame("t"), [{ type: "scene.show", sceneId: "s-symbol" }, { type: "session.start" }]);
     expect(state.live.sceneId).toBe("s-board");
   });
-  it("giving a scene a taken hotkey frees the old one", () => {
+  it("giving a scene a taken hotkey puts it on that key of the quick bar instead", () => {
     const { state } = run(seedGame("t"), [{ type: "scene.update", sceneId: "s-black", patch: { hotkey: 1 } }]);
-    expect(state.scenes.find((s) => s.id === "s-board")!.hotkey).toBeNull();
+    expect(state.quick![1]).toBe("black");
+    expect(state.quick![0]).toBeNull();
+    expect(state.quick!.includes("board")).toBe(false);
   });
   it("refuses image URLs that weren't uploaded", () => {
     expect(() => apply(seedGame("t"), { type: "scene.update", sceneId: "s-map", patch: { art: { url: "javascript:alert(1)" } } }, DM)).toThrow();

@@ -354,8 +354,12 @@ export function artForPublic(game: GameState, sc: Scene): Art {
 
 function publicScene(game: GameState, sc: Scene): PublicScene {
   const out: PublicScene = { id: sc.id, kind: sc.kind, art: artForPublic(game, sc) };
-  if (sc.name !== undefined) out.name = sc.name;
-  if (sc.title !== undefined) out.title = sc.title;
+  // A person's picture reads their name and title (once the room may see them; a portrait still hidden is only sent while it's live, and showing it finds them).
+  const owner = sc.kind === "portrait" ? (game.entries ?? []).find((e) => e.sceneId === sc.id && (e.stage === "found" || e.stage === "known")) : undefined;
+  const name = owner ? owner.name : sc.name;
+  const title = owner ? owner.title : sc.title;
+  if (name !== undefined) out.name = name;
+  if (title !== undefined) out.title = title;
   if (sc.alt !== undefined) out.alt = sc.alt;
   if (sc.kind === "map" && sc.map) out.map = publicMap(game, sc);
   return out;
