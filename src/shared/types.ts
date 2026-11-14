@@ -791,7 +791,11 @@ export interface Fight {
   steps: FightStep[];
   /** Combatant ids of everyone who went down, in order (once each). */
   downed: string[];
+  /** Set when the fight ends: won (every foe down), fallen (every player at 0 HP), or ended (stopped with both sides standing). */
+  outcome?: FightOutcome;
 }
+
+export type FightOutcome = "won" | "fallen" | "ended";
 
 /** DM-ONLY: a finished fight, for looking back. */
 export interface FightSummary {

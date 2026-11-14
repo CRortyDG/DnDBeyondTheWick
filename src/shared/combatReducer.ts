@@ -10,6 +10,7 @@ import {
   CONDITIONS,
   currentOf,
   FIGHTS_KEPT,
+  fightOutcome,
   groupTitle,
   insertSorted,
   markDeathSave,
@@ -533,6 +534,7 @@ export function applyFight(s: GameState, cmd: FightCommand, h: FightHelpers): vo
       f.status = "over";
       f.endedAt = h.now;
       delete f.pausedAt;
+      f.outcome = fightOutcome(f, (id) => s.players.find((p) => p.id === id)?.hp);
       f.moment = { kind: "end", name: "", n: (f.moment?.n ?? 0) + 1 };
       break;
     }
@@ -541,6 +543,7 @@ export function applyFight(s: GameState, cmd: FightCommand, h: FightHelpers): vo
       if (f.status !== "over") fail("The fight isn't over.");
       f.status = "running";
       delete f.endedAt;
+      delete f.outcome;
       f.turnStartedAt = h.now;
       break;
     }
@@ -619,7 +622,8 @@ export function chronicleLine(f: Fight, items = "", lootCp = 0): string {
     .map((id) => f.order.find((c) => c.id === id))
     .filter((c): c is Combatant => !!c && c.kind === "player")
     .map(tvName);
-  if (down.length) parts.push(`${down.join(" and ")} went down.`);
+  if (f.outcome === "fallen") parts.push("The whole party fell.");
+  else if (down.length) parts.push(`${down.join(" and ")} went down.`);
   const found = [lootCp > 0 ? formatCp(lootCp) : "", items.trim()].filter(Boolean);
   if (found.length) parts.push(`Found: ${found.join(", ")}.`);
   return parts.join(" ");

@@ -267,20 +267,33 @@ function Hourglass({ timer, turnKey }: { timer: NonNullable<FightView["timer"]>;
 }
 
 function Over({ fight }: { fight: FightView }) {
-  const o = fight.over ?? { rounds: fight.round, downed: [] };
+  const o = fight.over ?? { rounds: fight.round, downed: [], outcome: "ended" as const };
+  const card = END_CARD[o.outcome];
   return (
     <div className="fv-roll">
-      <div className="fv-roll-card fv-over">
-        <div className="fv-kicker">Steel is sheathed</div>
-        <h2 className="fv-roll-title">The fight is over</h2>
+      <div className={`fv-roll-card fv-over ${o.outcome}`}>
+        <div className="fv-kicker">{card.kicker}</div>
+        <h2 className="fv-roll-title">{card.title}</h2>
         <p className="fv-roll-sub">
           {o.rounds} round{o.rounds === 1 ? "" : "s"}
         </p>
-        {o.downed.length ? <p className="fv-over-down">Went down: {o.downed.join(", ")}</p> : <p className="fv-over-down">Nobody went down.</p>}
+        {o.outcome === "fallen" ? (
+          <p className="fv-over-down">Every hero lies still. What happens next is up to the DM.</p>
+        ) : o.downed.length ? (
+          <p className="fv-over-down">Went down: {o.downed.join(", ")}</p>
+        ) : (
+          <p className="fv-over-down">Nobody went down.</p>
+        )}
       </div>
     </div>
   );
 }
+
+const END_CARD: Record<NonNullable<FightView["over"]>["outcome"], { kicker: string; title: string; moment: string }> = {
+  won: { kicker: "Steel is sheathed", title: "Victory!", moment: "Victory" },
+  fallen: { kicker: "Darkness closes in", title: "The party has fallen", moment: "The party has fallen" },
+  ended: { kicker: "Steel is sheathed", title: "The fight is over", moment: "The fight is over" },
+};
 
 /** A crit, a monster falling, a player at 0 HP, the fight ending: a short flourish when moment.n changes. */
 function Moment({ fight }: { fight: FightView }) {
@@ -295,9 +308,9 @@ function Moment({ fight }: { fight: FightView }) {
     return () => clearTimeout(t);
   }, [n]); // eslint-disable-line react-hooks/exhaustive-deps
   if (!show) return null;
-  const text = show.kind === "crit" ? "Critical hit!" : show.kind === "monsterDown" ? `${show.name} falls!` : show.kind === "playerDown" ? `${show.name} is down!` : "Victory";
+  const text = show.kind === "crit" ? "Critical hit!" : show.kind === "monsterDown" ? `${show.name} falls!` : show.kind === "playerDown" ? `${show.name} is down!` : END_CARD[fight.over?.outcome ?? "ended"].moment;
   return (
-    <div key={show.n} className={`fv-moment ${show.kind}`} role="status" aria-live="assertive">
+    <div key={show.n} className={`fv-moment ${show.kind}${show.kind === "end" ? ` ${fight.over?.outcome ?? "ended"}` : ""}`} role="status" aria-live="assertive">
       <div className="fv-moment-burst" aria-hidden="true" />
       <div className="fv-moment-text">{text}</div>
       {show.kind === "crit" && show.name ? <div className="fv-moment-sub">on {show.name}</div> : null}

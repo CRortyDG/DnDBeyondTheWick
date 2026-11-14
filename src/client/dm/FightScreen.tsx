@@ -799,10 +799,11 @@ function EndStep({ f, players, onDone }: { f: Fight; players: DmPlayer[]; onDone
   return (
     <div className="fx-end">
       <section className="box">
-        <h2>The fight is over</h2>
+        <h2>{f.outcome === "won" ? "Victory!" : f.outcome === "fallen" ? "The party has fallen" : "The fight is over"}</h2>
         <p>
           {rounds} round{rounds === 1 ? "" : "s"}. {downed.length ? `Went down: ${downed.join(", ")}.` : "Nobody went down."}
         </p>
+        {f.outcome === "fallen" ? <p className="note">Everyone is at 0 HP, so the TV says the party has fallen. If they win after all, go back to the fight, heal someone and end it again.</p> : null}
         <p className="note">The TV is showing the end card. Finishing puts it back on the scene from before the fight.</p>
         <button className="btn small" type="button" onClick={() => run({ type: "fight.reopen" })}>
           ‹ Back to the fight

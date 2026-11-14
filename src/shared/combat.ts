@@ -7,7 +7,7 @@
 
 import { parseDice, rollDice } from "./progress";
 import { penName } from "./chronicle";
-import type { Art, Combatant, ConditionTick, Fight, FightCondition, FightGroup, FightMoment, FightReminder, FightReminderKind, FightStep, GameState, MonsterTemplate, Player, PlayerHp } from "./types";
+import type { Art, Combatant, ConditionTick, Fight, FightCondition, FightGroup, FightMoment, FightOutcome, FightReminder, FightReminderKind, FightStep, GameState, MonsterTemplate, Player, PlayerHp } from "./types";
 
 /** The 2024 conditions, in the order the DM picks from. */
 export const CONDITIONS = [
@@ -446,8 +446,8 @@ export interface FightView {
   /** Turn timer: seconds and when the turn started, by the server's clock (clock = the server's now when sent). */
   timer: { sec: number; startedAt: number; pausedAt?: number; clock: number } | null;
   moment?: FightMoment;
-  /** The end card: rounds and who went down (names only). */
-  over?: { rounds: number; downed: string[] };
+  /** The end card: rounds, who went down (names only), and how it ended. */
+  over?: { rounds: number; downed: string[]; outcome: FightOutcome };
 }
 
 /** Field by field, for the TV and phones. art: resolves a portrait scene to public art, or nothing. */
@@ -475,6 +475,7 @@ export function fightView(game: GameState, now: number, art: (sceneId: string) =
         .map((id) => f.order.find((c) => c.id === id))
         .filter((c): c is Combatant => !!c && !c.hidden)
         .map(tvName),
+      outcome: f.outcome ?? "ended",
     };
   }
   return out;
@@ -539,6 +540,23 @@ export interface HpHooks {
 }
 
 /** A player's hit points (new players start at 0/0, "not set"). */
+/**
+ * How a fight ended. fallen: there were players and every one is at 0 HP
+ * (a player who never set their HP counts as standing). won: there were foes
+ * and every one is down or gone. Otherwise the DM stopped it early: ended.
+ */
+export function fightOutcome(f: Fight, hpOf: (playerId: string) => PlayerHp | undefined): FightOutcome {
+  const players = f.order.filter((c) => c.kind === "player" && !c.gone);
+  const atZero = (c: Combatant) => {
+    const hp = c.playerId ? hpOf(c.playerId) : undefined;
+    return !!hp && hp.max > 0 && hp.cur <= 0;
+  };
+  if (players.length && players.every(atZero)) return "fallen";
+  const foes = f.order.filter((c) => c.kind === "monster");
+  if (foes.length && foes.every((c) => c.down || c.gone)) return "won";
+  return "ended";
+}
+
 export function playerHp(p: Player): PlayerHp {
   return (p.hp ??= { cur: 0, max: 0, temp: 0 });
 }
