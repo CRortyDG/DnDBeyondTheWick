@@ -274,6 +274,110 @@ describe("entries", () => {
     expect(ent("e-mags").facts[0].revealedAt).toBeUndefined();
     expect(ent("e-mags").facts).toHaveLength(3);
     expect(g.discovery).toBeUndefined();
-    expect(publicEntries(g).map((e) => e.id)).toEqual(["e-orsa", "e-mags", "e-artum", "e-fennick", "e-baker"]);
+    expect(publicEntries(g).map((e) => e.id)).toEqual(["e-orsa", "e-mags", "e-artum", "e-fennick", "e-baker", "e-candle", "e-docks", "e-baldurs-gate", "e-lantern", "e-trollbark"]);
+  });
+});
+
+describe("places, shops and monsters", () => {
+  const pinOf = (sceneId: string, name: string) => g.scenes.find((x) => x.id === sceneId)!.map!.pins.find((p) => p.name === name)!;
+  const tvMap = (sceneId: string) => projectTv(g, 1).scenes.find((x) => x.id === sceneId)!.map!;
+  const tvPins = (sceneId: string) => {
+    dm({ type: "scene.show", sceneId });
+    dm({ type: "map.legend", sceneId, on: true, style: "names" });
+    return tvMap(sceneId).pins;
+  };
+
+  it("seed places tied to their pins, at their stages", () => {
+    expect(ent("e-candle").stage).toBe("found");
+    expect(ent("e-baldurs-gate").stage).toBe("found");
+    expect(ent("e-lantern").stage).toBe("rumored");
+    expect(ent("e-trollbark").pin).toEqual({ sceneId: "s-swordcoast", pinId: pinOf("s-swordcoast", "The Trollbark Forest").id });
+    expect(ent("e-broken-ring").stage).toBe("hidden");
+    expect(pinOf("s-map", "Lathtarl’s Lantern").description).toBe("The old lighthouse across the river. Dark.");
+  });
+
+  it("a rumored place is a ? seal with its hint, never its real name", () => {
+    const lantern = pinOf("s-map", "Lathtarl’s Lantern");
+    const pin = tvPins("s-map").find((p) => p.id === lantern.id)!;
+    expect(pin.label).toBe("?");
+    expect(pin.name).toBe("???");
+    expect(pin.description).toBe("The old lighthouse across the river. Dark.");
+    expect(tvJson()).not.toContain("Lathtarl");
+    expect(phoneJson()).not.toContain("Lathtarl");
+  });
+
+  it("the hint only goes with the names legend", () => {
+    const lantern = pinOf("s-map", "Lathtarl’s Lantern");
+    dm({ type: "scene.show", sceneId: "s-map" });
+    dm({ type: "map.legend", sceneId: "s-map", on: true, style: "numbers" });
+    const pin = tvMap("s-map").pins.find((p) => p.id === lantern.id)!;
+    expect(pin.label).toBe("?");
+    expect(pin.description).toBeUndefined();
+  });
+
+  it("finding a place shows its pin as it is; hiding it hides the pin", () => {
+    const lantern = pinOf("s-map", "Lathtarl’s Lantern");
+    dm({ type: "entry.stage", entryId: "e-lantern", stage: "found", announce: false });
+    let pin = tvPins("s-map").find((p) => p.id === lantern.id)!;
+    expect(pin.name).toBe("Lathtarl’s Lantern");
+    expect(pin.label).not.toBe("?");
+    dm({ type: "entry.stage", entryId: "e-lantern", stage: "hidden", announce: false });
+    expect(pinOf("s-map", "Lathtarl’s Lantern").discovered).toBe(false);
+    pin = tvPins("s-map").find((p) => p.id === lantern.id)!;
+    expect(pin).toBeUndefined();
+  });
+
+  it("discovering a pin visits its place; hiding the pin takes back only a rumor", () => {
+    const lantern = pinOf("s-map", "Lathtarl’s Lantern");
+    dm({ type: "pin.discover", sceneId: "s-map", pinId: lantern.id, discovered: false, announce: false });
+    expect(ent("e-lantern").stage).toBe("hidden");
+    dm({ type: "pin.discover", sceneId: "s-map", pinId: lantern.id, discovered: true, announce: false });
+    expect(ent("e-lantern").stage).toBe("found");
+    dm({ type: "pin.discover", sceneId: "s-map", pinId: lantern.id, discovered: false, announce: false });
+    expect(ent("e-lantern").stage).toBe("found");
+  });
+
+  it("go back to their starting stage, pins too, on a fresh start", () => {
+    dm({ type: "entry.stage", entryId: "e-lantern", stage: "found", announce: false });
+    dm({ type: "entry.stage", entryId: "e-trollbark", stage: "hidden", announce: false });
+    g = freshStart(g);
+    expect(ent("e-lantern").stage).toBe("rumored");
+    expect(pinOf("s-swordcoast", "The Trollbark Forest").discovered).toBe(true);
+  });
+
+  it("a shop's storefront opens when it's found, and opening the storefront finds it", () => {
+    const shopId = g.shops.find((x) => x.visibility === "hidden")!.id;
+    const id = dm({ type: "entry.add", entry: { kind: "shop", name: "The Smithy" } }).entryId!;
+    dm({ type: "entry.update", entryId: id, patch: { shopId } });
+    dm({ type: "entry.stage", entryId: id, stage: "rumored", announce: false });
+    expect(g.shops.find((x) => x.id === shopId)!.visibility).toBe("hidden");
+    dm({ type: "entry.stage", entryId: id, stage: "found", announce: false });
+    expect(g.shops.find((x) => x.id === shopId)!.visibility).toBe("all");
+    dm({ type: "entry.stage", entryId: id, stage: "hidden", announce: false });
+    expect(g.shops.find((x) => x.id === shopId)!.visibility).toBe("hidden");
+    dm({ type: "shop.visibility", shopId, visibility: "all" });
+    expect(ent(id).stage).toBe("found");
+  });
+
+  it("a monster becomes a rumor under its TV name when a fight ends, then encountered once revealed", () => {
+    const tpl = g.monsters![0];
+    dm({ type: "fight.start", groups: [{ templateId: tpl.id, count: 2 }] });
+    for (const c of g.fight!.order) dm({ type: "fight.init", combatantId: c.id, init: 10, bonus: 0 });
+    dm({ type: "fight.begin" });
+    dm({ type: "fight.end" });
+    const e = g.entries!.find((x) => x.templateId === tpl.id)!;
+    expect(e.kind).toBe("monster");
+    expect(e.stage).toBe("rumored");
+    expect(phoneJson()).not.toContain(tpl.name);
+    expect(pub(e.id)!.name).toBe(tpl.displayName);
+    dm({ type: "fight.close" });
+    // The next fight, revealed: encountered.
+    dm({ type: "fight.start", groups: [{ templateId: tpl.id, count: 1 }] });
+    for (const c of g.fight!.order) dm({ type: "fight.init", combatantId: c.id, init: 10, bonus: 0 });
+    dm({ type: "fight.begin" });
+    const m = g.fight!.order.find((c) => c.kind === "monster")!;
+    dm({ type: "fight.patch", combatantIds: [m.id], patch: { revealed: true } });
+    expect(ent(e.id).stage).toBe("found");
+    expect(g.entries!.filter((x) => x.templateId === tpl.id)).toHaveLength(1);
   });
 });

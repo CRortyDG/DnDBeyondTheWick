@@ -4,7 +4,13 @@
 import type { Entry, GameState, Stage } from "@/shared/types";
 import { entriesOf, entryFromScene, factSlug, isFound } from "@/shared/discovery";
 
-type SeedEntry = Pick<Entry, "id" | "kind" | "slug" | "name"> & Partial<Omit<Entry, "facts">> & { stage: Stage; facts?: string[] };
+type SeedEntry = Pick<Entry, "id" | "kind" | "slug" | "name"> &
+  Partial<Omit<Entry, "facts" | "pin">> & {
+    stage: Stage;
+    facts?: string[];
+    /** A pin on one of the seed maps, found by its name (the DM may have moved or renamed things). */
+    pinAt?: { sceneId: string; name: string };
+  };
 
 /** Drafted from "Just Desserts" and the Discovery spec. Every fact starts locked. */
 export const SEED_ENTRIES: SeedEntry[] = [
@@ -88,10 +94,66 @@ export const SEED_ENTRIES: SeedEntry[] = [
     dmNote: "No portrait yet: find Bolla from the Discovery tab during the horses beat.",
   },
   { id: "e-merchant", kind: "person", slug: "the-merchant", name: "The merchant", stage: "hidden", dmNote: "The villain. Never seed facts players could see." },
+
+  // Places
+  {
+    id: "e-candle",
+    kind: "place",
+    slug: "flickering-candle",
+    name: "The Flickering Candle",
+    title: "Mags’s tavern",
+    stage: "found",
+    areas: ["Candlefair"],
+    links: ["e-mags"],
+    pinAt: { sceneId: "s-map", name: "The Flickering Candle" },
+  },
+  {
+    id: "e-docks",
+    kind: "place",
+    slug: "candlefair-docks",
+    name: "Candlefair Docks",
+    stage: "found",
+    areas: ["Candlefair", "The Docks"],
+    links: ["e-orsa"],
+    pinAt: { sceneId: "s-map", name: "The Docks" },
+  },
+  {
+    id: "e-baldurs-gate",
+    kind: "place",
+    slug: "baldurs-gate",
+    name: "Baldur’s Gate",
+    summary: "Where the Gull’s Promise sailed from.",
+    stage: "found",
+    areas: ["The Sword Coast"],
+    pinAt: { sceneId: "s-swordcoast", name: "Baldur’s Gate" },
+  },
+  {
+    id: "e-lantern",
+    kind: "place",
+    slug: "lathtarls-lantern",
+    name: "Lathtarl’s Lantern",
+    hint: "The old lighthouse across the river. Dark.",
+    stage: "rumored",
+    areas: ["Candlefair"],
+    pinAt: { sceneId: "s-map", name: "Lathtarl’s Lantern" },
+  },
+  {
+    id: "e-trollbark",
+    kind: "place",
+    slug: "the-trollbark",
+    name: "The Trollbark",
+    hint: "The forest north of town. Locals don’t go far in.",
+    stage: "rumored",
+    areas: ["The Sword Coast"],
+    pinAt: { sceneId: "s-swordcoast", name: "The Trollbark Forest" },
+  },
+
+  // Mysteries
+  { id: "e-broken-ring", kind: "mystery", slug: "the-broken-ring", name: "The broken ring", stage: "hidden", dmNote: "Unlocks in Episode 1. Facts to fill in later." },
 ];
 
 function toSeed(e: SeedEntry): Entry {
-  const { facts, stage, ...rest } = e;
+  const { facts, stage, pinAt: _pinAt, ...rest } = e;
   const out: Entry = {
     title: "",
     summary: "",
@@ -126,6 +188,17 @@ export function withSeedEntries<T extends GameState | null>(state: T): T {
     const sc = portrait(e.sceneId);
     if (e.sceneId && !sc) delete e.sceneId;
     if (sc?.known && !isFound(e.stage)) e.stage = "found";
+    const pin = seed.pinAt && state.scenes.find((x) => x.id === seed.pinAt!.sceneId)?.map?.pins.find((p) => p.name === seed.pinAt!.name);
+    if (pin) {
+      e.pin = { sceneId: seed.pinAt!.sceneId, pinId: pin.id };
+      // Already on the TV's map: they know of it at least.
+      if (pin.discovered && e.stage === "hidden") e.stage = "rumored";
+      pin.discovered = e.stage !== "hidden";
+      if (pin.name === "Lathtarl’s Lantern" && pin.description === "The little fishing village across the river.") {
+        pin.type = "lighthouse";
+        pin.description = "The old lighthouse across the river. Dark.";
+      }
+    }
     if (isFound(e.stage)) {
       e.foundAt = state.createdAt ?? 0;
       e.foundIn = null;

@@ -320,13 +320,16 @@ export function publicMap(game: GameState, sc: Scene): PublicMap {
   const isLive = game.live.sceneId === sc.id;
   const shown = m.pins.filter((p) => p.discovered);
   const focus = isLive && game.live.focus && shown.some((p) => p.id === game.live.focus!.pinId) ? game.live.focus : undefined;
+  // A place that's only a rumor: a "?" seal, its nickname and hint, never the pin's own name or text.
+  const rumors = new Map((game.entries ?? []).filter((e) => e.stage === "rumored" && e.pin?.sceneId === sc.id).map((e) => [e.pin!.pinId, e]));
   const out: PublicMap = {
     pins: shown.map((p) => {
-      const pin: PublicPin = { id: p.id, label: sealText(p), x: p.x, y: p.y };
+      const rumor = rumors.get(p.id);
+      const pin: PublicPin = { id: p.id, label: rumor ? "?" : sealText(p), x: p.x, y: p.y };
       if (m.legendStyle === "names" || focus?.pinId === p.id) {
-        pin.name = p.name;
-        pin.type = p.type;
-        pin.description = p.description;
+        pin.name = rumor ? rumor.nickname || "???" : p.name;
+        pin.type = rumor ? "rumor" : p.type;
+        pin.description = rumor ? rumor.hint : p.description;
       }
       return pin;
     }),
@@ -336,7 +339,7 @@ export function publicMap(game: GameState, sc: Scene): PublicMap {
   if (focus) out.focus = { pinId: focus.pinId, n: focus.n };
   const b = isLive ? game.live.banner : undefined;
   const bannerPin = b && shown.find((p) => p.id === b.pinId);
-  if (b && bannerPin) out.banner = { n: b.n, name: bannerPin.name };
+  if (b && bannerPin) out.banner = { n: b.n, name: rumors.has(bannerPin.id) ? rumors.get(bannerPin.id)!.nickname || "???" : bannerPin.name };
   return out;
 }
 

@@ -166,13 +166,16 @@ tests/                    vitest
 
 ## Discovery (people, places, shops, monsters, mysteries)
 
-One compendium for everything the party can find. Step 1 covers people; places, shops, monsters and mysteries use the same entries as later steps land.
+One compendium for everything the party can find: people, places, shops, monsters, mysteries and factions.
 
 - **DM view → Discovery** lists every entry by kind. Each has a stage: **Hidden** (only you see it), **Rumored** (phones and TV see the nickname, or "???", a hint and a silhouette, nothing else), **Met/Found** and **Known**. Revealing any fact makes an entry Known. Changing a stage twice does nothing the second time.
 - **Seeded:** Captain Orsa Dell, Mags and Artum (met), Fennick and the baker (rumored), the merchant, the Chef and Bolla (hidden). Seed entries are added to existing games only if missing; "Start fresh" returns every entry to its starting stage. They live in `src/server/` so locked facts and DM notes never ship in the browser code.
 - **Pictures:** pick a portrait scene. Portraits are served from `/api/art/…` only once the entry is found, so phones can't guess their way to a face. Rumors show a silhouette: **Make silhouette from portrait** builds one in your browser, or upload one, or use the generic shape for the kind.
 - **The TV** plays a short reveal (silhouette, then the picture fills in) when an entry is found or a fact is revealed on the TV, with an optional chime (the speaker toggle on the TV, off by default). Untick "Play stage changes on the TV" to change stages quietly.
 - **Relationships:** how they feel about the party (Stranger, Friendly, Ally, Hostile), with an optional override per player shown as a badge on that player's phone.
+- **Places** can be tied to a map pin. Hidden hides the pin, Rumored shows a `?` seal (with the nickname and hint only in the names legend), and Visited shows the pin as it is. Discovering a pin on the map visits its place; hiding the pin takes back only a rumor. Seeded: the Flickering Candle, Candlefair Docks and Baldur's Gate (visited), Lathtarl's Lantern and the Trollbark (rumored), and the broken ring mystery (hidden).
+- **Shops** can be tied to a storefront: finding the shop opens it to everyone, and opening the storefront finds the shop. Hiding the storefront doesn't unfind it.
+- **Monsters** get an entry when a fight ends: a rumor under the TV name, or Encountered once revealed (revealing one mid-fight also counts).
 - **Ties** link entries together; players see a tie only when both ends are visible to them.
 - **Phones** get a **Discover** tab with a "new" badge for anything changed since they last looked, each entry's facts, and the table's notes (Chronicle notes tagged with the entry's name). Hidden entries, locked facts, real names behind nicknames, DM notes and secrets never leave your screen.
 

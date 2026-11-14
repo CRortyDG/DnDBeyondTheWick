@@ -159,7 +159,7 @@ function EntryRow({ entry: e, tv, first, last, open, onToggle }: { entry: Entry;
   );
 }
 
-type Patch = { name?: string; kind?: string; slug?: string; title?: string; summary?: string; nickname?: string; hint?: string; sceneId?: string | null; silhouette?: string | null; areas?: string[]; links?: string[]; relation?: Relation | null; start?: Stage; dmNote?: string; secrets?: string };
+type Patch = { name?: string; kind?: string; slug?: string; title?: string; summary?: string; nickname?: string; hint?: string; sceneId?: string | null; pin?: { sceneId: string; pinId: string } | null; shopId?: string | null; templateId?: string | null; silhouette?: string | null; areas?: string[]; links?: string[]; relation?: Relation | null; start?: Stage; dmNote?: string; secrets?: string };
 
 function EntryEditor({ entry: e, tv }: { entry: Entry; tv: boolean }) {
   const { view, run, call, ident, toast, gated } = useDm();
@@ -258,6 +258,56 @@ function EntryEditor({ entry: e, tv }: { entry: Entry; tv: boolean }) {
             ))}
           </select>
         </label>
+        {e.kind === "place" ? (
+          <label>
+            Its pin (shown, a ? seal, or hidden with the stage)
+            <select
+              className="fld"
+              value={e.pin ? `${e.pin.sceneId}|${e.pin.pinId}` : ""}
+              onChange={(ev) => {
+                const [sceneId, pinId] = ev.target.value.split("|");
+                void patch({ pin: pinId ? { sceneId, pinId } : null });
+              }}
+            >
+              <option value="">No pin</option>
+              {s.scenes
+                .filter((x) => x.map)
+                .flatMap((x) =>
+                  x.map!.pins.map((p) => (
+                    <option key={`${x.id}|${p.id}`} value={`${x.id}|${p.id}`}>
+                      {x.label}: {p.name || `#${p.number}`}
+                    </option>
+                  )),
+                )}
+            </select>
+          </label>
+        ) : null}
+        {e.kind === "shop" ? (
+          <label>
+            Its storefront (opens when found)
+            <select className="fld" value={e.shopId ?? ""} onChange={(ev) => void patch({ shopId: ev.target.value || null })}>
+              <option value="">No storefront</option>
+              {s.shops.map((sh) => (
+                <option key={sh.id} value={sh.id}>
+                  {sh.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : null}
+        {e.kind === "monster" ? (
+          <label>
+            From the Monsters tab
+            <select className="fld" value={e.templateId ?? ""} onChange={(ev) => void patch({ templateId: ev.target.value || null })}>
+              <option value="">None</option>
+              {(s.monsters ?? []).map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : null}
       </div>
       <div className="entry-links">
         {e.links.map((id) => {

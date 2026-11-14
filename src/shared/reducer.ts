@@ -553,10 +553,53 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
       delete e.foundIn;
       if (sc && !entriesForScene(s, sc.id).some((x) => isFound(x.stage))) delete sc.known;
     }
+    syncOut(e, from);
     if (to === "hidden") {
       if (s.discovery?.entryId === e.id) delete s.discovery;
     } else if (announce) playMoment(e, from);
     return true;
+  };
+  /** A place's pin and a shop's storefront follow the entry's stage. */
+  const syncOut = (e: Entry, from: Stage) => {
+    const pin = e.pin && s.scenes.find((x) => x.id === e.pin!.sceneId)?.map?.pins.find((p) => p.id === e.pin!.pinId);
+    if (pin) {
+      pin.discovered = e.stage !== "hidden";
+      if (!pin.discovered) dropFocus(pin.id);
+    }
+    const sh = e.shopId ? s.shops.find((x) => x.id === e.shopId) : undefined;
+    if (sh) {
+      if (isFound(e.stage) && sh.visibility === "hidden") {
+        sh.visibility = "all";
+        sh.playerIds = [];
+      } else if (!isFound(e.stage) && isFound(from) && sh.visibility !== "hidden") {
+        sh.visibility = "hidden";
+        sh.playerIds = [];
+        if (s.live.shopId === sh.id) s.live.shopOpen = false;
+      }
+    }
+  };
+  /** Monsters the party fought: a rumor under the TV name, or encountered once revealed. create: make entries for new ones (at the end of a fight). */
+  const noteMonsters = (create: boolean) => {
+    const f = s.fight;
+    if (!f) return;
+    const seen = new Map<string, boolean>();
+    for (const c of f.order) {
+      if (c.kind !== "monster" || c.hidden || !c.templateId) continue;
+      seen.set(c.templateId, (seen.get(c.templateId) ?? false) || c.revealed || !c.displayName.trim());
+    }
+    for (const [tid, revealed] of seen) {
+      const t = (s.monsters ?? []).find((x) => x.id === tid);
+      if (!t) continue;
+      let e = entriesOf(s).find((x) => x.templateId === tid);
+      if (!e) {
+        if (!create || entriesOf(s).length >= ENTRIES_MAX) continue;
+        const list = (s.entries ??= []);
+        e = blankEntry(list, nextId("e"), "monster", t.name, { nickname: t.displayName.trim(), templateId: tid });
+        list.push(e);
+      }
+      if (revealed) setStage(e, isFound(e.stage) ? e.stage : "found", false);
+      else if (create && e.stage === "hidden") setStage(e, "rumored", false);
+    }
   };
   /** A portrait on the TV for the first time: find whoever it is, making an entry if they don't have one. */
   const meetPortrait = (sc: Scene) => {
@@ -630,7 +673,10 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
   };
 
   if (isFightCommand(cmd)) {
+    const wasOver = s.fight?.status === "over";
     applyFight(s, cmd, fightHelpers);
+    if (cmd.type === "fight.end" && !wasOver) noteMonsters(true);
+    else if (cmd.type === "fight.patch") noteMonsters(false);
     return out;
   }
 
@@ -741,6 +787,11 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
       p.discovered = cmd.discovered;
       if (!cmd.discovered) dropFocus(p.id);
       else if (!was && cmd.announce && s.live.sceneId === cmd.sceneId) s.live.banner = { pinId: p.id, n: ++s.seq };
+      // The place it marks follows: shown means visited; hiding takes back only a rumor.
+      for (const e of entriesOf(s).filter((x) => x.pin?.sceneId === cmd.sceneId && x.pin.pinId === p.id)) {
+        if (cmd.discovered && !isFound(e.stage)) setStage(e, "found", false);
+        else if (!cmd.discovered && e.stage === "rumored") setStage(e, "hidden", false);
+      }
       break;
     }
     case "map.legend": {
@@ -1144,6 +1195,8 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
       sh.playerIds = cmd.visibility === "some" ? ids : [];
       if (cmd.visibility !== "all" && s.live.shopId === sh.id) s.live.shopOpen = false;
       if (cmd.visibility === "all" && !wasPublic && !cmd.quiet) announce(sh.closed ? `${sh.name} has come to town` : `Now open: ${sh.name}`);
+      // Its compendium entry: open means found. Hiding a storefront doesn't unfind it.
+      if (cmd.visibility !== "hidden") for (const e of entriesOf(s).filter((x) => x.shopId === sh.id && !isFound(x.stage))) setStage(e, "found", false);
       break;
     }
     case "shop.remove": {
@@ -1377,6 +1430,22 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
         if (p.sceneId) e.sceneId = p.sceneId;
         else delete e.sceneId;
       }
+      if (p.pin !== undefined) {
+        if (p.pin) {
+          pinOf(mapOf(p.pin.sceneId), p.pin.pinId);
+          e.pin = { sceneId: p.pin.sceneId, pinId: p.pin.pinId };
+        } else delete e.pin;
+      }
+      if (p.shopId !== undefined) {
+        if (p.shopId) e.shopId = shop(p.shopId).id;
+        else delete e.shopId;
+      }
+      if (p.templateId !== undefined) {
+        if (p.templateId) e.templateId = ((s.monsters ?? []).find((x) => x.id === p.templateId) ?? fail("That monster isn't in the library.")).id;
+        else delete e.templateId;
+      }
+      // A newly tied pin or storefront takes the entry's stage.
+      if (p.pin || p.shopId) syncOut(e, e.stage);
       break;
     }
     case "entry.relationFor": {

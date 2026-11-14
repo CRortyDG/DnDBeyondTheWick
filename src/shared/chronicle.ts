@@ -209,7 +209,9 @@ export function tagSuggestions(g: GameState): string[] {
     // Map locations: discovered pins, only where the TV prints their names
     // (a "numbers only" legend keeps names off the TV, so here too).
     if (sc.kind === "map" && sc.map && sc.map.legendStyle === "names" && !sc.reveal) {
-      for (const p of sc.map.pins) if (p.discovered) add(p.name);
+      // A pin that's only a rumored place keeps its name to itself.
+      const rumors = new Set(entriesOf(g).filter((e) => !isFound(e.stage) && e.pin?.sceneId === sc.id).map((e) => e.pin!.pinId));
+      for (const p of sc.map.pins) if (p.discovered && !rumors.has(p.id)) add(p.name);
     }
   }
   // Everything the party has found (people, places...), under the names their notes are filed by.

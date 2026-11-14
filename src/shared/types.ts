@@ -517,6 +517,12 @@ export interface Entry {
   sceneId?: string;
   /** An uploaded silhouette for the rumor stage. Missing: the kind's generic one. */
   silhouette?: string;
+  /** Places: its pin on a map. Hidden: the pin is hidden; rumored: a "?" seal with the hint; found: the pin as it is. DM-ONLY. */
+  pin?: { sceneId: string; pinId: string };
+  /** Shops: its storefront. Found opens it to everyone; back to hidden or rumored hides it. DM-ONLY. */
+  shopId?: string;
+  /** Monsters: the template it came from. DM-ONLY. */
+  templateId?: string;
   /** Areas it belongs to ("Candlefair", "The Docks"). */
   areas: string[];
   /** Other entries it's tied to. Players see a link only when both ends are visible to them. */
