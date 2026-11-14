@@ -720,12 +720,23 @@ export interface Beat {
   actions: BeatAction[];
   /** Suggested shows the DM said no to, so they don't come back. */
   dismissed?: string[];
+  /** DM-ONLY: story beats placed here (see story.ts). Written "story: sb-id — Title" in the run sheet. */
+  stories?: StoryBlock[];
+}
+
+/** A story beat placed in a run-sheet beat. Ticking it in run-game mode marks the story beat Played. */
+export interface StoryBlock {
+  storyBeatId: string;
+  /** Ticked: when, and in which session. */
+  done?: { at: number; sessionId: string | null };
 }
 
 export interface Episode {
   id: string;
   title: string;
   beats: Beat[];
+  /** DM-ONLY: prep checklist items ticked off or dismissed, by item key. */
+  prep?: Record<string, "done" | "dismissed">;
 }
 
 export interface SessionRun {

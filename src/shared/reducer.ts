@@ -22,7 +22,8 @@ import { applyFight, isFightCommand, startFightFromBeat, type FightHelpers } fro
 import type { Notice, NotePlace } from "./types";
 import { beatSuggestions, entryRef, freeQuickKey, liveRef, QUICK_KEYS, quickOf, RECENT_MAX, refForScene, renameRefs, resolveRef, sceneSlug, uniqueSceneSlug } from "./assets";
 import { applyStory, isStoryCommand } from "./storyReducer";
-import type { Actor, Beat, BeatAction, Entry, EntryFact, Episode, FlyerText, Stage, GameState, Item, ItemTier, Job, Lead, LedgerEntry, LedgerKind, MapData, Note, Pin, PinLink, Player, Scene, Session, SessionRun, Shop, TradeRequest, Vote } from "./types";
+import { pendingPlacement, STORY_SECTION, syncStoryStatus } from "./episodeBuilder";
+import type { Actor, Beat, BeatAction, Entry, EntryFact, Episode, FlyerText, Stage, GameState, Item, ItemTier, Job, Lead, LedgerEntry, LedgerKind, MapData, Note, Pin, PinLink, Player, Scene, Session, SessionRun, Shop, StoryBlock, TradeRequest, Vote } from "./types";
 import type { z } from "zod";
 
 export class CommandError extends Error {
@@ -593,6 +594,15 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
 
   // ---------- run-game helpers ----------
   const episode = (id: string): Episode => episodes.find((e) => e.id === id) ?? fail("That episode doesn't exist.");
+  const storyBeat = (id: string) => (s.story?.beats ?? []).find((b) => b.id === id) ?? fail("That story beat isn't there any more.");
+  /** A beat rewritten from Markdown keeps the ticks its story blocks had. */
+  const keepTicks = (b: Beat, old: StoryBlock[] | undefined): Beat => {
+    for (const x of b.stories ?? []) {
+      const was = old?.find((o) => o.storyBeatId === x.storyBeatId && o.done);
+      if (was?.done) x.done = was.done;
+    }
+    return b;
+  };
   const session = (id: string): Session => s.sessions.find((x) => x.id === id) ?? fail("That session doesn't exist.");
   const curSession = (): Session => s.sessions.find((x) => x.id === s.currentSessionId) ?? fail("No session is running.");
   const curRun = () => {
@@ -603,6 +613,11 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
   const makeBeat = (b: z.infer<typeof beatBody>): Beat => {
     const beat: Beat = { id: nextId("b"), title: b.title.trim() || "New beat", notes: b.notes, checks: b.checks, branches: b.branches, actions: b.actions };
     if (b.dismissed?.length) beat.dismissed = [...new Set(b.dismissed)];
+    if (b.stories?.length) {
+      const known = new Set((s.story?.beats ?? []).map((x) => x.id));
+      const ids = [...new Set(b.stories.map((x) => x.storyBeatId))].filter((x) => known.has(x));
+      if (ids.length) beat.stories = ids.map((storyBeatId) => ({ storyBeatId }));
+    }
     if (b.readAloud?.length) {
       beat.readAloud = b.readAloud;
       beat.readAloudAt = Math.min(b.readAloudAt ?? 0, b.notes.length);
@@ -887,6 +902,7 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
   if (isStoryCommand(cmd)) {
     const made = applyStory(s, cmd, { now: ctx.now, nextId, fail });
     if (made) out.storyId = made;
+    syncStoryStatus(s);
     return out;
   }
 
@@ -2006,7 +2022,8 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
       break;
     case "episode.replaceBeats": {
       const ep = episode(cmd.episodeId);
-      keepCurrentBeat(ep, () => (ep.beats = cmd.beats.map(makeBeat)));
+      const old = ep.beats.flatMap((b) => b.stories ?? []);
+      keepCurrentBeat(ep, () => (ep.beats = cmd.beats.map((b) => keepTicks(makeBeat(b), old))));
       break;
     }
     case "episode.remove": {
@@ -2026,7 +2043,91 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
       const ep = episode(cmd.episodeId);
       const i = ep.beats.findIndex((b) => b.id === cmd.beatId);
       if (i < 0) fail("That beat doesn't exist.");
-      ep.beats[i] = { ...makeBeat(cmd.beat), id: cmd.beatId };
+      const old = ep.beats[i];
+      ep.beats[i] = keepTicks({ ...makeBeat(cmd.beat), id: cmd.beatId }, old.stories);
+      break;
+    }
+    case "episode.placeStory": {
+      const ep = episode(cmd.episodeId);
+      const sb = storyBeat(cmd.storyBeatId);
+      if (!sb.repeat) {
+        const at = pendingPlacement(s, sb.id);
+        if (at) fail(`“${sb.title}” is already placed in “${at.episode.title}”. Remove it there first.`);
+        if (sb.plays.length) fail(`“${sb.title}” has been played. Mark it not played first, or tick “Can happen again”.`);
+      }
+      let b: Beat | undefined;
+      if (cmd.beatId) b = ep.beats.find((x) => x.id === cmd.beatId) ?? fail("That beat doesn't exist.");
+      else {
+        b = ep.beats.find((x) => x.title === STORY_SECTION);
+        if (!b) {
+          const made: Beat = { id: nextId("b"), title: STORY_SECTION, notes: [], checks: [], branches: [], actions: [] };
+          keepCurrentBeat(ep, () => ep.beats.push(made));
+          b = made;
+        }
+      }
+      const list = (b.stories ??= []);
+      if (list.some((x) => x.storyBeatId === sb.id && !x.done)) fail("It's already in that beat.");
+      if (list.length >= 20) fail("That beat has a lot of story beats already.");
+      // A ticked copy from an earlier run makes way for the new one.
+      b.stories = [...list.filter((x) => x.storyBeatId !== sb.id), { storyBeatId: sb.id }];
+      if (sb.status === "dropped") sb.status = "planned";
+      out.beatId = b.id;
+      break;
+    }
+    case "episode.unplaceStory": {
+      const ep = episode(cmd.episodeId);
+      const b = ep.beats.find((x) => x.id === cmd.beatId) ?? fail("That beat doesn't exist.");
+      b.stories = (b.stories ?? []).filter((x) => x.storyBeatId !== cmd.storyBeatId);
+      if (!b.stories.length) delete b.stories;
+      break;
+    }
+    case "episode.leftover": {
+      const ep = episode(cmd.episodeId);
+      const sb = storyBeat(cmd.storyBeatId);
+      if (cmd.choice === "keep") break;
+      for (const b of ep.beats) {
+        if (!b.stories) continue;
+        b.stories = b.stories.filter((x) => x.storyBeatId !== sb.id || x.done);
+        if (!b.stories.length) delete b.stories;
+      }
+      if (cmd.choice === "drop") sb.status = "dropped";
+      break;
+    }
+    case "episode.prep": {
+      const ep = episode(cmd.episodeId);
+      const prep = (ep.prep ??= {});
+      if (cmd.state) prep[cmd.key] = cmd.state;
+      else delete prep[cmd.key];
+      // Keep the record small.
+      const keys = Object.keys(prep);
+      if (keys.length > 300) for (const k of keys.slice(0, keys.length - 300)) delete prep[k];
+      break;
+    }
+    case "run.story": {
+      const ep = episode(cmd.episodeId);
+      const b = ep.beats.find((x) => x.id === cmd.beatId) ?? fail("That beat doesn't exist.");
+      const block = (b.stories ?? []).find((x) => x.storyBeatId === cmd.storyBeatId) ?? fail("That story beat isn't in this beat any more.");
+      const sb = storyBeat(cmd.storyBeatId);
+      if (cmd.done) {
+        if (block.done) break;
+        const sessionId = s.currentSessionId;
+        block.done = { at: ctx.now, sessionId };
+        sb.plays.push({ at: ctx.now, sessionId, episodeId: ep.id, outcome: cleanLine(cmd.outcome ?? "") });
+        // The facts it reveals go up on the TV, as "fact:" lines do.
+        for (const l of sb.links) {
+          if (l.kind !== "fact") continue;
+          const e = entriesOf(s).find((x) => x.id === l.entryId);
+          const f = e?.facts.find((x) => x.id === l.factId);
+          if (e && f) revealFact(e, f, true);
+        }
+        // The planned date this episode sat on became this session.
+        const date = s.story?.dates.filter((d) => d.episodeId === ep.id && !d.cancelled && !d.sessionId).sort((x, y) => x.date.localeCompare(y.date))[0];
+        if (date && sessionId) date.sessionId = sessionId;
+      } else if (block.done) {
+        const i = sb.plays.findLastIndex((p) => p.episodeId === ep.id && p.sessionId === block.done!.sessionId);
+        if (i >= 0) sb.plays.splice(i, 1);
+        delete block.done;
+      }
       break;
     }
     case "beat.dismiss": {
@@ -2494,6 +2595,7 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
     }
   }
 
+  if (/^(episode|beat|run)\./.test(cmd.type)) syncStoryStatus(s);
   return out;
 }
 

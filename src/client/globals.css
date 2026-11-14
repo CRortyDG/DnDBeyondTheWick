@@ -6080,3 +6080,230 @@ input.fld.inline-input {
     opacity: 0;
   }
 }
+
+/* ---------- the episode builder (DM only) ---------- */
+
+.story-blocks {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.story-block,
+.run-story-block {
+  position: relative;
+  border: 1px solid var(--thread);
+  border-left-width: 5px;
+  border-radius: 6px;
+  padding: 6px 40px 6px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  background: color-mix(in srgb, var(--thread) 12%, transparent);
+}
+.story-block .chip-x {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+}
+.story-block.done,
+.run-story-block.done {
+  opacity: 0.65;
+}
+.sb-kind {
+  font-family: var(--font-sc);
+  font-size: 13px;
+  color: var(--muted);
+}
+.sb-facts {
+  list-style: none;
+  margin: 2px 0 0;
+  padding: 0;
+  font-size: 14px;
+}
+.sb-facts code {
+  color: var(--gold-bright);
+}
+.add-story {
+  margin: 10px 0;
+}
+.cast-prep {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 12px;
+  margin: 12px 0;
+}
+.cast-panel,
+.prep-panel {
+  border: 1px solid var(--wood);
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+.cast-panel h4,
+.prep-panel h4 {
+  font-family: var(--font-sc);
+  color: var(--gold);
+  font-size: 18px;
+  font-weight: normal;
+  margin-bottom: 6px;
+}
+.cast-list {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.cast-list dt {
+  font-family: var(--font-sc);
+  color: var(--muted);
+  font-size: 14px;
+}
+.cast-list dd {
+  margin: 2px 0 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.cast-list .chip {
+  padding: 2px 10px;
+}
+.prep-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.prep-list li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  justify-content: space-between;
+}
+.prep-list label.check {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+}
+.prep-list.done {
+  margin-top: 6px;
+  opacity: 0.7;
+}
+.mention-wrap {
+  position: relative;
+}
+.mention-menu {
+  position: absolute;
+  z-index: 20;
+  left: 8px;
+  right: 8px;
+  bottom: calc(100% - 4px);
+  list-style: none;
+  margin: 0;
+  padding: 4px;
+  background: var(--wood-2);
+  border: 1px solid var(--gold);
+  border-radius: 8px;
+  max-height: 300px;
+  overflow: auto;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
+}
+.mention-menu li {
+  padding: 6px 8px;
+  border-radius: 5px;
+  cursor: pointer;
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  flex-wrap: wrap;
+}
+.mention-menu li.on,
+.mention-menu li:hover {
+  background: var(--wax);
+}
+.mention-menu li code {
+  margin-left: auto;
+  font-size: 13px;
+  color: var(--gold-bright);
+}
+.mention-menu li.create {
+  font-style: italic;
+  border-top: 1px solid var(--line);
+}
+.mention-anchor {
+  position: relative;
+  display: inline;
+}
+.mention {
+  font: inherit;
+  color: var(--gold-bright);
+  background: rgba(201, 154, 58, 0.14);
+  border: 1px solid rgba(201, 154, 58, 0.5);
+  border-radius: 999px;
+  padding: 0 8px;
+  cursor: pointer;
+}
+.mention.missing {
+  color: var(--down);
+  border-color: var(--down);
+  cursor: default;
+}
+.mention-card {
+  position: absolute;
+  z-index: 30;
+  left: 0;
+  top: 1.6em;
+  width: 320px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  background: var(--wood-2);
+  border: 1px solid var(--gold);
+  border-radius: 8px;
+  font-size: 16px;
+  font-style: normal;
+  color: var(--parchment);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
+}
+.run-story {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 12px 0;
+}
+.run-story-block {
+  padding: 10px 12px;
+}
+.run-story-block label.check {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  font-size: 19px;
+}
+.run-story-block label.check input {
+  width: 22px;
+  height: 22px;
+}
+.leftovers {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.leftovers li {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+.sess-marker.over {
+  outline: 2px dashed var(--gold);
+  background: var(--wax);
+}

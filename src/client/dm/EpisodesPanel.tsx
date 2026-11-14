@@ -19,6 +19,8 @@ import { useDm } from "./context";
 import { monstersOf } from "@/shared/combat";
 import { Field } from "./Field";
 import { actionLabel } from "./RunGame";
+import { AddStoryBeat, CastAndPrep, MentionTextarea, StoryBlocks } from "./EpisodeBuilder";
+import { storyResolver } from "@/shared/runsheet";
 
 // A made-up example: the browser bundle must not carry any real episode text.
 const FORMAT_HELP = `## The toll bridge
@@ -131,7 +133,7 @@ function ImportBox({
   const [md, setMd] = useState("");
   const [into, setInto] = useState<"new" | "replace">("new");
   const parsed: ParsedEpisode | null = md.trim()
-    ? parseEpisode(md, assetResolver(view.state))
+    ? parseEpisode(md, assetResolver(view.state), undefined, storyResolver(view.state))
     : null;
   return (
     <div className="import-box">
@@ -330,6 +332,8 @@ function EpisodeEditor({
         </div>
       ) : null}
 
+      <CastAndPrep ep={ep} />
+
       <ol className="beat-list">
         {ep.beats.map((b, i) => (
           <li
@@ -440,6 +444,7 @@ function EpisodeEditor({
                 </button>
               )}
             </div>
+            {editing !== b.id ? <StoryBlocks episodeId={ep.id} beat={b} /> : null}
             {editing === b.id ? (
               <BeatEditor
                 episodeId={ep.id}
@@ -465,6 +470,7 @@ function EpisodeEditor({
           </li>
         ))}
       </ol>
+      <AddStoryBeat ep={ep} />
       {editing === "__new__" ? (
         <div className="scene-item beat-item">
           <BeatEditor episodeId={ep.id} onDone={() => setEditing(null)} />
@@ -499,19 +505,19 @@ function BeatEditor({
   const [md, setMd] = useState(() =>
     beat ? beatMarkdown(beat, view.state) : NEW_BEAT,
   );
-  const parsed = parseEpisode(md, assetResolver(view.state), "");
+  const parsed = parseEpisode(md, assetResolver(view.state), "", storyResolver(view.state));
   const parsedOne = parsed.beats.length === 1 ? parsed.beats[0] : null;
   // Suggestions you said no to aren't in the Markdown; keep them.
   const one = parsedOne && beat?.dismissed?.length ? { ...parsedOne, dismissed: beat.dismissed } : parsedOne;
   return (
     <div className="beat-editor">
-      <textarea
-        className="fld mono"
+      <MentionTextarea
         rows={Math.min(24, Math.max(6, md.split("\n").length + 1))}
         value={md}
-        onChange={(e) => setMd(e.target.value)}
-        aria-label={beat ? `Edit ${beat.title}` : "New beat"}
+        onChange={setMd}
+        label={beat ? `Edit ${beat.title}` : "New beat"}
       />
+      <p className="note">Type @ to mention someone: @person/mags, @flyer/rolf, @monster/pudding-gremlin.</p>
       {one ? (
         <ActionsPicker
           actions={one.actions}
@@ -579,7 +585,8 @@ function withActions(
   const kept = md
     .replace(/\s+$/, "")
     .split("\n")
-    .filter((l) => !/^\s*(?:action|fight|show|reveal|rumor|fact)\s*:/i.test(l));
+    // Indented fact: lines belong to a "story:" line above them; keep those.
+    .filter((l) => !/^(?:action|fight|show|reveal|rumor|fact)\s*:/i.test(l));
   const lines = actions
     .map((a) => actionMarkdown(a, g))
     .filter((l): l is string => !!l);
