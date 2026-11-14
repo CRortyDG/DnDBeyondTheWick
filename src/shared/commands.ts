@@ -3,6 +3,7 @@ import { CATEGORY_IDS, KIND_IDS } from "./progress";
 import { RENOWN_MAX } from "./renown";
 import { DIE_SIDES, diceCount, MAX_DICE, MAX_OF_ONE, MAX_PLUS } from "./dice";
 import { fightDmCommands, fightPlayerCommands } from "./combatSchema";
+import { storyDmCommands } from "./storySchema";
 import { AREAS_MAX, DM_TEXT_MAX, FACT_REF_RE, LEAD_MAX, REF_RE, FACT_MAX, HINT_MAX, LINKS_MAX, NAME_MAX, RELATION_IDS, STAGE_IDS, SUMMARY_MAX, TITLE_MAX } from "./discovery";
 
 const id = z.string().min(1).max(64);
@@ -345,6 +346,9 @@ export const dmCommand = z.discriminatedUnion("type", [
 
   // Combat mode.
   ...fightDmCommands,
+
+  // The storyboard (DM-only planning).
+  ...storyDmCommands,
 ]);
 
 /** Commands a player may send about themselves. */

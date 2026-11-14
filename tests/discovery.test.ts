@@ -44,7 +44,8 @@ beforeEach(() => {
 
 describe("the starter entries", () => {
   it("come from the server at their seed stages", () => {
-    expect(g.entries!.map((n) => n.id)).toEqual(SEED_ENTRIES.map((n) => n.id));
+    // The storyboard seed adds hidden stubs (Mardon, Rolf...) after the Discovery seed.
+    expect(g.entries!.slice(0, SEED_ENTRIES.length).map((n) => n.id)).toEqual(SEED_ENTRIES.map((n) => n.id));
     expect(ent("e-mags").stage).toBe("found");
     expect(ent("e-orsa").stage).toBe("found");
     expect(ent("e-artum").stage).toBe("rumored");
