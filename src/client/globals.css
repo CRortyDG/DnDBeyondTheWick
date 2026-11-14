@@ -6307,3 +6307,63 @@ input.fld.inline-input {
   outline: 2px dashed var(--gold);
   background: var(--wax);
 }
+
+/* Start a campaign: what it starts from. */
+.start-from {
+  border: 1px solid color-mix(in srgb, var(--line) 50%, transparent);
+  border-radius: 8px;
+  padding: 10px 12px 12px;
+  margin: 0;
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+.start-from legend {
+  padding: 0 6px;
+  font-weight: 600;
+}
+.start-from-opt,
+.form label.start-from-opt {
+  display: flex;
+  font-size: 15px;
+  color: inherit;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 8px 10px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  cursor: pointer;
+}
+.start-from-opt.on {
+  border-color: var(--gold);
+  background: color-mix(in srgb, var(--gold) 10%, transparent);
+}
+.start-from-opt input[type="radio"] {
+  margin-top: 4px;
+  flex: none;
+  width: auto;
+  min-height: 0;
+}
+.start-from-opt > span {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+/* The DM's presets, on the Game tab. */
+.preset-list {
+  list-style: none;
+  padding: 0;
+  margin: 10px 0 0;
+  display: grid;
+  gap: 8px;
+}
+.preset-list li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 0;
+  border-top: 1px solid color-mix(in srgb, var(--line) 35%, transparent);
+}

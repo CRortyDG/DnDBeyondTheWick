@@ -1,4 +1,6 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { describeCounts } from "@/shared/presets";
+import { devicePresets, presetInfo, type PresetInfo } from "./presets";
 import { dmLink, hrefFor } from "./api";
 import { Notice } from "./ui/Notice";
 
@@ -48,6 +50,9 @@ function StartForm({ onCreated }: { onCreated: (c: { game: string; key: string }
   const [code, setCode] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  // "blank", "candlefair", or a preset code.
+  const [from, setFrom] = useState("blank");
+  const mine = devicePresets();
   if (!open) {
     return (
       <p className="landing-links">
@@ -68,7 +73,11 @@ function StartForm({ onCreated }: { onCreated: (c: { game: string; key: string }
           const r = await fetch("/api/create", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ ...(name.trim() ? { name: name.trim() } : {}), ...(code.trim() ? { code: code.trim() } : {}) }),
+            body: JSON.stringify({
+              from: from === "blank" || from === "candlefair" ? from : `preset:${from}`,
+              ...(name.trim() ? { name: name.trim() } : {}),
+              ...(code.trim() ? { code: code.trim() } : {}),
+            }),
           });
           const data = (await r.json().catch(() => ({}))) as { game?: string; key?: string; error?: string };
           if (!r.ok || !data.game || !data.key) throw new Error(data.error ?? "Couldn't start the campaign. Try again.");
@@ -84,17 +93,81 @@ function StartForm({ onCreated }: { onCreated: (c: { game: string; key: string }
       <p>You&rsquo;ll get a private DM link. Anyone with it can run this campaign, so keep it safe.</p>
       <label>
         Campaign name
-        <input className="fld" value={name} onChange={(e) => setName(e.target.value)} maxLength={80} placeholder="Tales from the Flickering Candle" />
+        <input className="fld" value={name} onChange={(e) => setName(e.target.value)} maxLength={80} placeholder={from === "candlefair" ? "Tales from the Flickering Candle" : "A new campaign"} />
       </label>
+      <StartFrom from={from} onFrom={setFrom} mine={mine} />
       <label>
         Campaign code (optional)
         <input className="fld" value={code} onChange={(e) => setCode(e.target.value)} maxLength={40} autoCapitalize="none" spellCheck={false} placeholder="Leave blank for a random one" />
       </label>
       {err ? <p className="error-text">{err}</p> : null}
-      <button className="btn primary" type="submit" disabled={busy}>
+      <button className="btn primary" type="submit" disabled={busy || from === ""}>
         {busy ? "Starting…" : "Start the campaign"}
       </button>
     </form>
+  );
+}
+
+/**
+ * What the campaign starts with: nothing (the default), the built-in Candlefair
+ * setup, a preset this device saved, or a preset code someone gave you.
+ */
+function StartFrom({ from, onFrom, mine }: { from: string; onFrom: (f: string) => void; mine: { code: string; name: string }[] }) {
+  const [typed, setTyped] = useState("");
+  const [found, setFound] = useState<PresetInfo | null>(null);
+  const [lookErr, setLookErr] = useState<string | null>(null);
+  const clean = typed.trim().toLowerCase();
+  const usingTyped = from !== "blank" && from !== "candlefair" && !mine.some((p) => p.code === from);
+  useEffect(() => {
+    setFound(null);
+    setLookErr(null);
+    if (!/^[a-z0-9]{10}$/.test(clean)) return;
+    let live = true;
+    presetInfo(clean)
+      .then((info) => live && setFound(info))
+      .catch((e) => live && setLookErr(e instanceof Error ? e.message : String(e)));
+    return () => {
+      live = false;
+    };
+  }, [clean]);
+  useEffect(() => {
+    if (usingTyped) onFrom(found ? found.code : "");
+  }, [found, usingTyped]);
+  const option = (value: string, title: string, note: string) => (
+    <label className={`start-from-opt${from === value ? " on" : ""}`} key={value}>
+      <input type="radio" name="from" value={value} checked={from === value} onChange={() => onFrom(value)} />
+      <span>
+        <b>{title}</b>
+        <span className="note">{note}</span>
+      </span>
+    </label>
+  );
+  return (
+    <fieldset className="start-from">
+      <legend>Start from</legend>
+      {option("blank", "A blank campaign", "Nothing set up: no shops, people, maps or episodes. Build it your way.")}
+      {option("candlefair", "Candlefair", "The Flickering Candle starter: shops, maps, people, the episode-one run sheet, monsters and the storyboard.")}
+      {mine.map((p) => option(p.code, p.name, `Your preset · code ${p.code}`))}
+      <label className={`start-from-opt${usingTyped ? " on" : ""}`}>
+        <input type="radio" name="from" checked={usingTyped} onChange={() => onFrom(found ? found.code : "")} />
+        <span>
+          <b>A preset code</b>
+          <span className="note">Someone gave you one, or you saved it on another device.</span>
+          {usingTyped ? (
+            <>
+              <input className="fld" value={typed} onChange={(e) => setTyped(e.target.value)} maxLength={10} autoCapitalize="none" spellCheck={false} placeholder="10 letters and numbers" aria-label="Preset code" />
+              {found ? (
+                <span className="note">
+                  <b>{found.name}</b>: {describeCounts(found.counts)}.
+                </span>
+              ) : lookErr ? (
+                <span className="error-text">{lookErr}</span>
+              ) : null}
+            </>
+          ) : null}
+        </span>
+      </label>
+    </fieldset>
   );
 }
 

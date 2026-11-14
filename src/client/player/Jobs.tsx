@@ -24,7 +24,7 @@ export function Jobs({ view, send }: { view: PlayerView; send: Send }) {
       <section className="box" aria-label="Renown">
         <h2>Renown</h2>
         <p>
-          Candlefair knows the party as <b>{view.renown.name}</b>. <span className="note">{view.renown.meaning}.</span>
+          {view.game.town || "The town"} knows the party as <b>{view.renown.name}</b>. <span className="note">{view.renown.meaning}.</span>
         </p>
         <ol className="renown-ladder">
           {RENOWN.map((r, i) => (

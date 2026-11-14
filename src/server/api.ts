@@ -2,14 +2,16 @@ import { z } from "zod";
 import { MERCHANT_SIGIL_SVG } from "./art/merchant-sigil";
 import { ARTUM_SVG, CHEF_SVG, MAGS_WICK_SVG } from "./art/portraits";
 import { isDmKey, KEY_HEADER, newDmKey, sha256 } from "./auth";
-import { actorOf, createGame, execute, hello, HttpError, identify, MAX_STATE_CHARS, parseClientCommand, viewFor } from "./game";
+import { actorOf, createGame, execute, startingState, hello, HttpError, identify, MAX_STATE_CHARS, parseClientCommand, viewFor } from "./game";
 import type { Store } from "./store";
 import { CHARACTER_MAX, isToken, playerByToken, projectArrival, WHY_MAX } from "@/shared/arrival";
 import { STARTER_IDS } from "@/shared/starters";
 import { normaliseGameId } from "@/shared/handles";
 import { upgrade } from "@/shared/migrate";
 import { gatedArtIsLive } from "@/shared/projection";
-import { freshStart, seedGame } from "@/shared/seed";
+import { originOf, presetSetup } from "@/shared/presets";
+import { freshStart } from "@/shared/seed";
+import { deletePreset, presetInfo, renamePreset, savePreset, type PresetStore } from "./presets";
 import type { GameState, LedgerEntry } from "@/shared/types";
 
 /**
@@ -37,7 +39,7 @@ export function json(data: unknown, status = 200) {
  * address and shuts out an address that keeps guessing, then strips the header.
  */
 export const MISS_HEADER = "x-candlefair-miss";
-const MISS_CODES = new Set(["no-game", "bad-key", "taken", "no-link"]);
+const MISS_CODES = new Set(["no-game", "bad-key", "taken", "no-link", "no-preset"]);
 
 export function miss(res: Response): Response {
   res.headers.set(MISS_HEADER, "1");
@@ -83,7 +85,11 @@ const arrivalBody = z.discriminatedUnion("type", [
   z.object({ type: z.literal("claim"), character: z.string().max(CHARACTER_MAX * 2), why: z.string().max(WHY_MAX * 2), pick: z.enum(STARTER_IDS).nullable().optional() }),
 ]);
 
-const createBody = z.object({ dmKeyHash: z.string().regex(/^[0-9a-f]{64}$/), name: z.string().trim().max(80).optional() });
+const createBody = z.object({
+  dmKeyHash: z.string().regex(/^[0-9a-f]{64}$/),
+  name: z.string().trim().max(80).optional(),
+  from: z.union([z.enum(["blank", "candlefair"]), z.string().regex(/^preset:[a-z0-9]{10}$/)]).optional(),
+});
 
 const GATED: Record<string, string> = { "merchant-sigil": MERCHANT_SIGIL_SVG, artum: ARTUM_SVG, "mags-wick": MAGS_WICK_SVG, chef: CHEF_SVG };
 
@@ -182,17 +188,32 @@ export async function handleApi(req: Request, store: Store): Promise<Response> {
     }
 
     // DM only. mode "play": zero every purse, clear the ledger and sessions, keep
-    // players, scenes, shops and items. mode "all": back to the original seed.
+    // players, scenes, shops and items. mode "all": back to where the campaign
+    // started (blank, Candlefair, or the preset it was made from).
     if (path === "/api/reset" && method === "POST") {
       await requireDm(req, store, game);
       const body = ((await readJson(req)) ?? {}) as { mode?: string };
       if (body.mode !== "play" && body.mode !== "all") throw new HttpError(400, "Choose what to reset.");
       const { state } = await store.read(game);
       if (!state) throw new HttpError(404, "No game here yet.", "no-game");
-      const next = body.mode === "all" ? seedGame(game, state.name) : freshStart(state);
+      let next: GameState;
+      if (body.mode === "all") {
+        const o = originOf(state);
+        next = await startingState(store, game, state.name, o.kind === "preset" ? `preset:${o.code}` : o.kind);
+      } else next = freshStart(state);
       const v = await store.overwrite(game, next, []);
       await store.publish(game, v);
       return json({ ok: true, version: v });
+    }
+
+    // DM only: save this campaign's setup as a preset (or, with its code and owner token, over one).
+    if (path === "/api/preset/save" && method === "POST") {
+      await requireDm(req, store, game);
+      if (!store.presets) throw new HttpError(503, "Presets aren't available here.");
+      const body = ((await readJson(req)) ?? {}) as { name?: unknown; code?: unknown; token?: unknown };
+      const { state } = await store.read(game);
+      if (!state) throw new HttpError(404, "No game here yet.", "no-game");
+      return json({ ok: true, ...(await savePreset(store.presets, presetSetup(state), body)) });
     }
 
     // DM only: replace the DM key. Every old DM link and saved key stops working.
@@ -222,7 +243,7 @@ export async function handleApi(req: Request, store: Store): Promise<Response> {
     if (path === "/internal/create" && method === "POST") {
       const r = createBody.safeParse(await readJson(req));
       if (!r.success) throw new HttpError(400, "That request didn't make sense.");
-      const v = await createGame(store, game, r.data.dmKeyHash, r.data.name || undefined);
+      const v = await createGame(store, game, r.data.dmKeyHash, r.data.name || undefined, r.data.from);
       return json({ ok: true, game, version: v });
     }
     if (path === "/internal/dm-check" && method === "GET") {
@@ -230,6 +251,27 @@ export async function handleApi(req: Request, store: Store): Promise<Response> {
       return json({ ok: true });
     }
 
+    throw new HttpError(404, "Not found.");
+  });
+}
+
+/**
+ * Preset routes that belong to no campaign, so the Worker answers them itself:
+ * look a code up (for the create screen), rename or delete one you saved.
+ */
+export function isPresetPath(path: string): boolean {
+  return path === "/api/preset" || path === "/api/preset/rename" || path === "/api/preset/delete";
+}
+
+export async function handlePresetApi(req: Request, presets: PresetStore): Promise<Response> {
+  const url = new URL(req.url);
+  const path = url.pathname;
+  return guard(async () => {
+    if (path === "/api/preset" && req.method === "GET") return json(await presetInfo(presets, url.searchParams.get("code")));
+    if (req.method !== "POST") throw new HttpError(404, "Not found.");
+    const body = ((await readJson(req)) ?? {}) as { code?: unknown; token?: unknown; name?: unknown };
+    if (path === "/api/preset/rename") return json({ ok: true, ...(await renamePreset(presets, body.code, body.token, body.name)) });
+    if (path === "/api/preset/delete") return json(await deletePreset(presets, body.code, body.token));
     throw new HttpError(404, "Not found.");
   });
 }

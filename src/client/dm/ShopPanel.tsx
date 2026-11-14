@@ -1,4 +1,5 @@
 "use client";
+import { townOf } from "@/shared/presets";
 
 import { TrustSelect } from "./TrustSelect";
 import { useState } from "react";
@@ -107,6 +108,21 @@ export function ShopPanel() {
     );
   };
 
+  if (!shop) {
+    // A blank campaign (or every shop removed): start with one.
+    return (
+      <div className="dm-shop">
+        <div className="panel-grid">
+          <section className="box">
+            <h3>Shops</h3>
+            <p className="note">No shops yet. Add one here; it starts hidden, so players only see it once you open it to them. Then add its items.</p>
+          </section>
+          <AddShop />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="dm-shop">
       <ShopVisibilityBox key={shop.id} shop={shop} quiet={quiet} />
@@ -135,6 +151,7 @@ export function ShopPanel() {
       </div>
 
       <ShopBoard
+        town={townOf(s)}
         shops={s.shops}
         items={cards}
         shopId={shop.id}

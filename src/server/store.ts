@@ -5,6 +5,7 @@ import { withSeedEpisodes } from "./seed-episodes";
 import { withSeedJobNotes } from "./seed-jobs";
 import { withSeedMonsters } from "./seed-monsters";
 import { withSeedStory } from "./seed-story";
+import type { PresetStore } from "./presets";
 
 /**
  * Where a game lives. One JSON document (state), a version number, an
@@ -29,6 +30,8 @@ export interface Store {
   /** sha256 of the campaign's DM key, or null if none is set. */
   dmKeyHash(game: string): Promise<string | null>;
   setDmKeyHash(game: string, hash: string): Promise<void>;
+  /** Saved presets (shared by every campaign). Missing: presets are off (some tests). */
+  presets?: PresetStore;
 }
 
 /** What a stored document looks like once read: migrated, with the seed run sheets and monsters added. */
@@ -47,6 +50,7 @@ interface MemoryGame {
 export class MemoryStore implements Store {
   private games = new Map<string, MemoryGame>();
   readonly published: { game: string; version: number }[] = [];
+  presets?: PresetStore;
 
   private load(game: string): MemoryGame {
     let g = this.games.get(game);
