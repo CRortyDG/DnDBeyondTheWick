@@ -761,6 +761,8 @@ export interface LiveState {
   shopCategory?: ItemCategory;
   /** The leads board is up on the TV, over the scene. */
   leads?: boolean;
+  /** One note from the notice board, up close over the board. Cleared by any scene change. */
+  note?: { kind: "notice" | "job" | "flyer"; id: string };
 }
 
 export interface GameState {

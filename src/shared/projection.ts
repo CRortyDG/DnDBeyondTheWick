@@ -132,6 +132,9 @@ export interface PublicFlyer extends FlyerText {
   place?: NotePlace;
 }
 
+/** The note the DM is showing up close. */
+export type CloseUp = { kind: "notice"; notice: PublicNotice } | { kind: "job"; job: PublicJob } | { kind: "flyer"; flyer: PublicFlyer };
+
 /** A plain note on the board, as the room sees it (never the DM's note, never one in the drawer). */
 export interface PublicNotice {
   id: string;
@@ -257,6 +260,8 @@ export interface TvView extends Common {
   jobs: PublicJob[];
   /** Plain notes that are up. */
   notices: PublicNotice[];
+  /** One note up close over the board (it may be one from the drawer). */
+  closeUp?: CloseUp;
   /** The Renown plaque is off the board's frame. */
   plaqueHidden?: boolean;
   /** The last rank-up: the TV plays the moment when n changes. */
@@ -498,6 +503,7 @@ export function projectTv(game: GameState, version: number): TvView {
     flyers: game.flyers.filter((f) => f.up).map(publicFlyer),
     jobs: pinnedJobs(game).map((j) => publicJob(game, j)),
     notices: noticesOf(game).filter((n) => n.up).map(publicNotice),
+    ...(closeUpOf(game) ? { closeUp: closeUpOf(game) } : {}),
     ...(game.plaqueHidden ? { plaqueHidden: true } : {}),
     ...(game.renownMoment ? { renownMoment: { rank: game.renownMoment.rank, name: rankName(game.renownMoment.rank), n: game.renownMoment.n } } : {}),
     ...(discoveryView(game) ? { discovery: discoveryView(game) } : {}),
@@ -611,6 +617,22 @@ function pinnedJobs(game: GameState): Job[] {
   return jobsOf(game)
     .filter((j) => j.pinned && j.status !== "expired")
     .sort((a, b) => (a.pinnedAt ?? a.createdAt) - (b.pinnedAt ?? b.createdAt));
+}
+
+/** The note on the TV up close, only while the board is the live scene. */
+function closeUpOf(game: GameState): CloseUp | undefined {
+  const want = game.live.note;
+  if (!want || game.scenes.find((x) => x.id === game.live.sceneId)?.kind !== "notice") return undefined;
+  if (want.kind === "notice") {
+    const n = noticesOf(game).find((x) => x.id === want.id);
+    return n ? { kind: "notice", notice: publicNotice(n) } : undefined;
+  }
+  if (want.kind === "job") {
+    const j = jobsOf(game).find((x) => x.id === want.id);
+    return j ? { kind: "job", job: publicJob(game, j) } : undefined;
+  }
+  const f = game.flyers.find((x) => x.id === want.id);
+  return f ? { kind: "flyer", flyer: publicFlyer(f) } : undefined;
 }
 
 /** Field by field. */

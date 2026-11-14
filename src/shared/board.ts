@@ -95,7 +95,9 @@ export interface BoardNote {
 }
 
 /** Everything the DM can put on the board, with a slug unique across all three kinds. */
-export function boardNotes(g: Pick<GameState, "notices" | "jobs" | "flyers">): BoardNote[] {
+export type BoardGame = Partial<Pick<GameState, "notices" | "jobs" | "flyers">>;
+
+export function boardNotes(g: BoardGame): BoardNote[] {
   const out: BoardNote[] = [];
   const used = new Set<string>();
   const take = (want: string) => {
@@ -106,15 +108,34 @@ export function boardNotes(g: Pick<GameState, "notices" | "jobs" | "flyers">): B
   };
   for (const n of noticesOf(g)) out.push({ kind: "notice", id: n.id, slug: take(n.slug || slugify(n.title)), title: n.title, up: n.up, place: n.place });
   for (const j of g.jobs ?? []) out.push({ kind: "job", id: j.id, slug: take(slugify(j.style === "sealed" ? j.title || "sealed-envelope" : j.title)), title: j.title, up: j.pinned && j.status !== "expired", place: j.place });
-  for (const f of g.flyers) out.push({ kind: "flyer", id: f.id, slug: take(slugify(f.title)), title: f.title, up: f.up, place: f.place });
+  for (const f of g.flyers ?? []) out.push({ kind: "flyer", id: f.id, slug: take(slugify(f.title)), title: f.title, up: f.up, place: f.place });
   return out;
 }
 
-/** Find a note by its slug (with or without the "flyer/" prefix). */
-export function findBoardNote(g: Pick<GameState, "notices" | "jobs" | "flyers">, ref: string): BoardNote | undefined {
-  const slug = ref.replace(/^@?flyer\//, "");
-  return boardNotes(g).find((n) => n.slug === slug);
+/**
+ * Find a note by its short name, with or without "@flyer/" or "note/" in front.
+ * A job also answers to its poster's first name ("@flyer/rolf"), when only one job has it.
+ */
+export function findBoardNote(g: BoardGame, ref: string): BoardNote | undefined {
+  const slug = ref
+    .trim()
+    .toLowerCase()
+    .replace(/^@?(?:flyer|note)\//, "");
+  const all = boardNotes(g);
+  const hit = all.find((n) => n.slug === slug);
+  if (hit) return hit;
+  const posters = all.filter((n) => n.kind === "job" && posterSlug((g.jobs ?? []).find((j) => j.id === n.id)?.postedBy ?? "") === slug);
+  return posters.length === 1 ? posters[0] : undefined;
 }
+
+/** "Rolf Twyrtho, trader" -> "rolf". */
+export function posterSlug(postedBy: string): string {
+  const first = postedBy.trim().split(/[\s,]+/)[0] ?? "";
+  return first ? slugify(first) : "";
+}
+
+/** The ref that shows a note up close on the TV. */
+export const noteRef = (n: Pick<BoardNote, "slug">) => `note/${n.slug}`;
 
 /** Notes hanging right now, of every kind. */
 export function upCount(g: Pick<GameState, "notices" | "jobs" | "flyers">): number {

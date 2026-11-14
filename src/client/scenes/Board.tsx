@@ -1,9 +1,9 @@
 // The notice board's notes: plain notices, job flyers and player flyers, each
 // hanging where the DM put it. Positions are on the cork (see shared/board.ts).
-import type { CSSProperties, PointerEvent as ReactPointerEvent, ReactNode } from "react";
+import { useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { isJobPaper, LEGACY_SLOTS, PAPERS, type NoteKind } from "@/shared/board";
 import { formatCp } from "@/shared/money";
-import type { JobWhen, PublicFlyer, PublicJob, PublicNotice, PublicRenown } from "@/shared/projection";
+import type { CloseUp, JobWhen, PublicFlyer, PublicJob, PublicNotice, PublicRenown } from "@/shared/projection";
 import type { JobStyle, NoteLook, NotePlace, PinColor } from "@/shared/types";
 
 export interface BoardView {
@@ -12,6 +12,7 @@ export interface BoardView {
   notices?: PublicNotice[];
   renown?: PublicRenown;
   plaqueHidden?: boolean;
+  closeUp?: CloseUp;
 }
 
 /** What any note shows: its paper and words. */
@@ -211,4 +212,27 @@ export function NoteCard({ face, reward, stamp, style, page, label }: { face: No
   );
 }
 
-export type NotePointer = (kind: NoteKind, id: string, e: ReactPointerEvent<HTMLDivElement>) => void;
+/** One note up close over a dimmed board: as big as fits, straightened. */
+export function CloseUpNote({ closeUp }: { closeUp: CloseUp }) {
+  const inner = useRef<HTMLDivElement>(null);
+  const [scale, setScale] = useState(0);
+  const card = closeUp.kind === "notice" ? closeUp.notice : closeUp.kind === "job" ? closeUp.job : closeUp.flyer;
+  const w = card.place?.w ?? (closeUp.kind === "job" ? (closeUp.job.style === "sealed" ? 300 : 330) : 290);
+  const id = `${closeUp.kind}-${card.id}`;
+  useLayoutEffect(() => {
+    const el = inner.current;
+    if (!el) return;
+    const fit = () => setScale(Math.min(2.6, 1700 / el.offsetWidth, 960 / Math.max(1, el.offsetHeight)));
+    fit();
+    const ro = new ResizeObserver(fit);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [id]);
+  return (
+    <div className="close-up" role="figure" aria-label="A note from the board, up close">
+      <div ref={inner} key={id} className="close-up-note" style={{ width: `${w}px`, transform: `scale(${scale})`, visibility: scale ? "visible" : "hidden" }}>
+        {closeUp.kind === "notice" ? <NoteCard face={closeUp.notice} page /> : closeUp.kind === "job" ? <JobCard job={closeUp.job} page /> : <FlyerCard flyer={closeUp.flyer} page />}
+      </div>
+    </div>
+  );
+}

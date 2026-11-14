@@ -5576,6 +5576,9 @@ input.fld.inline-input {
   }
   .quick-bar {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
 /* ---------- the storyboard (DM only) ---------- */
 
 .story-overlay {
@@ -6048,5 +6051,32 @@ input.fld.inline-input {
   .story-body.with-side {
     grid-template-columns: 1fr;
     grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
+  }
+}
+
+/* One note up close on the TV, over the dimmed board. */
+.board-frame {
+  position: relative;
+}
+.close-up {
+  position: absolute;
+  inset: 0;
+  z-index: 600;
+  display: grid;
+  place-items: center;
+  background: rgba(20, 12, 6, 0.72);
+  animation: close-up-in 0.35s ease-out;
+}
+.close-up-note {
+  transform-origin: 50% 50%;
+}
+.close-up-note > .job-page,
+.close-up-note > .note-page,
+.close-up-note > .flyer-page {
+  max-width: none;
+}
+@keyframes close-up-in {
+  from {
+    opacity: 0;
   }
 }

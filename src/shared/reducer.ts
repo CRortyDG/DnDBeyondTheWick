@@ -441,6 +441,7 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
     delete s.live.recapSessionId;
     delete s.live.focus;
     delete s.live.banner;
+    delete s.live.note;
     if (shown) noteShown(refForScene(s, shown));
   };
   /** "Recently shown" on the DM's console. */
@@ -507,6 +508,14 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
       return;
     }
     if (a.screen === "table") return showTable();
+    if (a.note) {
+      // Up close, over the notice board. A note in the drawer can be shown without hanging it.
+      const board = s.scenes.find((x) => x.kind === "notice") ?? fail("There's no notice board in this game.");
+      showScene(board.id);
+      s.live.note = { kind: a.note.kind, id: a.note.id };
+      noteShown(a.ref);
+      return;
+    }
     if (a.screen === "stinger") return showStinger();
     if (a.screen) return showScene((a.scene ?? fail(`There's no ${a.label.toLowerCase()} in this game.`)).id);
     if (a.pin && a.scene) return showPin(a.scene, a.pin);
@@ -1357,7 +1366,11 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
       Object.assign(n, rest);
       if (look) n.look = cleanLook(look);
       cleanNotice(n);
-      if (slug !== undefined) n.slug = freeSlug(slug || n.title, n.id);
+      if (slug !== undefined) {
+        const before = n.slug;
+        n.slug = freeSlug(slug || n.title, n.id);
+        if (before && before !== n.slug) renameRefs(s, `note/${before}`, `note/${n.slug}`);
+      }
       if (up && !n.up) {
         needRoom();
         n.place = goingUp(n, place);

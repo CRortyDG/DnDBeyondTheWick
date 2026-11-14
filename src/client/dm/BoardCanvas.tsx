@@ -242,6 +242,17 @@ export function BoardCanvas({ onEditJob, onNewJob }: { onEditJob: (id: string) =
           <button type="button" className="btn small" onClick={() => void setUp(sel, false)}>
             Take down
           </button>
+          <button type="button" className="btn small primary" onClick={() => run({ type: "show", ref: `note/${sel.slug}` })}>
+            Show up close on the TV
+          </button>
+        </div>
+      ) : null}
+      {s.live.note ? (
+        <div className="inline">
+          <span className="note">The TV is showing one note up close.</span>
+          <button type="button" className="btn small" onClick={() => run({ type: "show", ref: "board" })}>
+            Back to the whole board
+          </button>
         </div>
       ) : null}
 
@@ -273,6 +284,9 @@ export function BoardCanvas({ onEditJob, onNewJob }: { onEditJob: (id: string) =
                 </button>
                 <button type="button" className="btn small" onClick={() => (d.key.kind === "job" ? onEditJob(d.key.id) : setEditing(d.key))}>
                   Edit
+                </button>
+                <button type="button" className="btn small" title="Show it up close on the TV without hanging it" onClick={() => run({ type: "show", ref: `note/${notes.find((n) => n.kind === d.key.kind && n.id === d.key.id)?.slug ?? ""}` })}>
+                  Show
                 </button>
                 {d.key.kind !== "job" ? (
                   <button

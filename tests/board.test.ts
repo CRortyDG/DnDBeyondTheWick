@@ -2,6 +2,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import type { Command } from "@/shared/commands";
 import { dmCommand } from "@/shared/commands";
+import { listAssets, liveRef, resolveRef } from "@/shared/assets";
 import { BOARD_H, BOARD_MAX, BOARD_W, boardNotes, findBoardNote, LEGACY_SLOTS, upCount } from "@/shared/board";
 import { GP } from "@/shared/money";
 import { upgrade } from "@/shared/migrate";
@@ -211,5 +212,48 @@ describe("games saved before free placement", () => {
     const [x1, y1, r1] = LEGACY_SLOTS[1];
     expect(up.jobs!.find((j) => j.id === "j-ransom")!.place).toMatchObject({ x: x0, y: y0, rot: r0, w: 330 });
     expect(up.flyers[0].place).toMatchObject({ x: x1, y: y1, rot: r1, w: 290 });
+  });
+});
+
+describe("one note up close on the TV", () => {
+  it("shows a note over the board, and any other scene clears it", () => {
+    dm({ type: "show", ref: "note/tale-night" });
+    const board = g.scenes.find((x) => x.kind === "notice")!;
+    expect(g.live).toMatchObject({ sceneId: board.id, note: { kind: "notice", id: notice("tale-night").id } });
+    expect(projectTv(g, 1).closeUp).toMatchObject({ kind: "notice", notice: { title: "Tale Night" } });
+    expect(liveRef(g)).toBe("note/tale-night");
+    expect(g.recent?.[0]).toBe("note/tale-night");
+    dm({ type: "show", ref: "board" });
+    expect(g.live.note).toBeUndefined();
+    expect(projectTv(g, 1).closeUp).toBeUndefined();
+  });
+
+  it("shows a job up close, and one from the drawer without hanging it", () => {
+    dm({ type: "show", ref: "note/winterfest-needs-hands" });
+    expect(projectTv(g, 1).closeUp).toMatchObject({ kind: "job", job: { id: "j-artum", reward: { kind: "each" } } });
+    dm({ type: "show", ref: "note/my-brother-is-being-held-for-ransom" });
+    expect(job("j-ransom").pinned).toBe(false);
+    expect(projectTv(g, 1).closeUp).toMatchObject({ kind: "job", job: { id: "j-ransom" } });
+    expect(JSON.stringify(projectTv(g, 1))).not.toContain("Mardon");
+  });
+
+  it("keeps a sealed note sealed up close", () => {
+    dm({ type: "notice.add", notice: { style: "sealed", title: "SECRET-SEALED", up: false } });
+    dm({ type: "show", ref: `note/${newest().slug}` });
+    expect(JSON.stringify(projectTv(g, 1))).not.toContain("SECRET-");
+  });
+
+  it("is in the finder and the quick bar, and survives a rename", () => {
+    expect(listAssets(g).some((a) => a.ref === "note/tale-night" && a.group === "Notes")).toBe(true);
+    dm({ type: "quick.set", key: 9, ref: "note/tale-night" });
+    dm({ type: "notice.update", noticeId: notice("tale-night").id, patch: { slug: "story-night" } });
+    expect(g.quick?.[9]).toBe("note/story-night");
+    expect(resolveRef(g, "note/story-night")?.note?.kind).toBe("notice");
+  });
+
+  it("answers to the storyboard's @flyer/ names, including a poster's first name", () => {
+    expect(resolveRef(g, "flyer/rolf")?.note).toMatchObject({ kind: "job", id: "j-ransom" });
+    expect(findBoardNote(g, "@flyer/rolf")).toMatchObject({ id: "j-ransom" });
+    expect(findBoardNote(g, "@flyer/artum")).toMatchObject({ id: "j-artum" });
   });
 });
