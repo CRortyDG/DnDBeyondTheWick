@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useRef } from "react";
+import { useTvMoment } from "./useTvMoment";
 import type { LeadsView } from "@/shared/leads";
 import { groupByPlace } from "../player/Leads";
 import { chime, useTvSound } from "./tvSound";
@@ -56,25 +57,13 @@ export function LeadsBoard({ leads: view }: { leads: LeadsView }) {
 
 /** "You chose: …" at the start of a session, over the lead's place. Never on first load. */
 export function ChosenMoment({ chosen }: { chosen: LeadsView["chosen"] }) {
-  const seen = useRef<number | null | undefined>(undefined);
-  const [shown, setShown] = useState<NonNullable<LeadsView["chosen"]> | null>(null);
   const [sound] = useTvSound();
   const soundRef = useRef(sound);
   soundRef.current = sound;
-  useEffect(() => {
-    const n = chosen?.n ?? null;
-    if (seen.current === undefined) {
-      seen.current = n;
-      return;
-    }
-    if (n === seen.current) return;
-    seen.current = n;
-    if (!chosen) return setShown(null);
-    setShown(chosen);
-    if (soundRef.current) chime("fact");
-    const t = setTimeout(() => setShown(null), 9000);
-    return () => clearTimeout(t);
-  }, [chosen]);
+  const [shown] = useTvMoment(chosen, chosen?.n ?? null, () => 9000, {
+    clearOnNull: true,
+    onShow: () => soundRef.current && chime("fact"),
+  });
   if (!shown) return null;
   return (
     <div className="disc-moment chosen" role="status" key={shown.n} aria-label={`You chose: ${shown.lead.text}`}>
