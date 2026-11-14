@@ -13,6 +13,7 @@ import { BannerToast } from "../ui/BannerToast";
 import { InspirationIcon, LockIcon } from "../ui/icons";
 import { Jobs } from "./Jobs";
 import { Discovery, useDiscoverySeen } from "./Discovery";
+import { Dice } from "./Dice";
 import { FightCard } from "./FightCard";
 import { askLabel, DecisionBanners, MyRequests, RequestSheet, SendGold, whyNot } from "./Requests";
 
@@ -84,7 +85,7 @@ function PlayerScreen({ view, online, send, ident, setIdent }: { view: PlayerVie
   const [purseOpen, setPurseOpen] = useState(false);
   const [looking, setLooking] = useState<string | null>(null);
   // During a session the phone opens on the Chronicle, so a note is one tap away.
-  const [screen, setScreen] = useState<"chronicle" | "discovery" | "purse" | "jobs">(view.session ? "chronicle" : "purse");
+  const [screen, setScreen] = useState<"chronicle" | "discovery" | "purse" | "jobs" | "dice">(view.session ? "chronicle" : "purse");
   const seen = useDiscoverySeen(view);
   const [mode, setMode] = useState<ShopMode>("category");
   const [category, setCategory] = useState<ItemCategory | undefined>(undefined);
@@ -97,7 +98,7 @@ function PlayerScreen({ view, online, send, ident, setIdent }: { view: PlayerVie
 
   if (me.archived) {
     return (
-      <Notice title={`Farewell, ${me.name}`}>
+      <Notice title={`Farewell, ${me.character ?? me.name}`}>
         <p>The DM has marked you as having left the table. Ask them to bring you back.</p>
       </Notice>
     );
@@ -118,10 +119,11 @@ function PlayerScreen({ view, online, send, ident, setIdent }: { view: PlayerVie
       <header className="player-top">
         <div>
           <div className="player-hello">{view.game.name}</div>
-          <h1 className="player-name">{me.name}</h1>
-          <button type="button" className="renown-chip linkish" onClick={() => setScreen("jobs")} aria-label={`Party Renown: ${view.renown.name}. See the notice board.`}>
-            Renown <b>{view.renown.name}</b>
-          </button>
+          <h1 className="player-name">{me.character ?? me.name}</h1>
+          <p className="renown-line" title={view.renown.meaning}>
+            <span className="renown-line-k">Party renown</span>
+            <span className="renown-line-v">{view.renown.name}</span>
+          </p>
         </div>
         <div className="player-gold-wrap">
           <div className="player-gold" aria-label={`Your gold: ${formatCp(me.balanceCp)}`}>
@@ -157,6 +159,9 @@ function PlayerScreen({ view, online, send, ident, setIdent }: { view: PlayerVie
         <button type="button" role="tab" aria-selected={screen === "jobs"} className={`btn tab${screen === "jobs" ? " on" : ""}`} onClick={() => setScreen("jobs")}>
           Jobs{view.jobs.some((j) => j.canTake && !j.asked) ? <span className="badge">{view.jobs.filter((j) => j.canTake && !j.asked).length}</span> : null}
         </button>
+        <button type="button" role="tab" aria-selected={screen === "dice"} className={`btn tab${screen === "dice" ? " on" : ""}`} onClick={() => setScreen("dice")}>
+          Dice
+        </button>
       </div>
       {!online ? (
         <p className="player-offline" role="status">
@@ -166,6 +171,7 @@ function PlayerScreen({ view, online, send, ident, setIdent }: { view: PlayerVie
       {screen === "chronicle" ? <Chronicle view={view.chronicle} gameName={view.game.name} send={send} /> : null}
       {screen === "jobs" ? <Jobs view={view} send={send} /> : null}
       {screen === "discovery" ? <Discovery view={view} send={send} seen={seen} /> : null}
+      {screen === "dice" ? <Dice view={view} send={send} /> : null}
       {screen === "purse" ? (
       <>
       {me.balanceCp < 0 && view.mine.credit.length ? (

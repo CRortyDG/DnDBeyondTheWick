@@ -4,7 +4,7 @@
 import { leadsView, type LeadsView } from "./leads";
 import { areaCounts, type AreaCount } from "./discovery";
 import { creditLines, discountPct, firstChargeCp, priceOf, raisedCp, stakeTotals } from "./progress";
-import type { DiceGroup } from "./dice";
+import type { DiceGroup, RollTo } from "./dice";
 import { heldCp, heldStock } from "./requests";
 import { projectTable, type TableView } from "./arrival";
 import { notesOf, penName, projectChronicle, type ChronicleView } from "./chronicle";
@@ -236,8 +236,8 @@ export interface TvView extends Common {
   renownMoment?: { rank: number; name: string; n: number };
   /** A reveal (a rumor, someone found, a fact): the TV plays it when n changes. */
   discovery?: DiscoveryView;
-  /** The DM's last dice roll: the TV plays it when n changes. */
-  diceRoll?: { n: number; groups: DiceGroup[]; plus: number; total: number };
+  /** The last roll on the TV: the TV plays it when n changes. name: the player who rolled (none: the DM). */
+  diceRoll?: { n: number; groups: DiceGroup[]; plus: number; total: number; name?: string };
   /** Every non-reveal scene (for instant switching), plus the live scene even if it's a reveal. */
   scenes: PublicScene[];
   /** "Previously on…": only while the DM is showing it. The only session text the TV ever gets. */
@@ -262,6 +262,8 @@ export interface PlayerView extends Common {
     id: string;
     handle: string;
     name: string;
+    /** Their character's name, once they've picked one. Shown instead of `name` on the phone. */
+    character?: string;
     balanceCp: number;
     dndbUrl?: string;
     locked: boolean;
@@ -293,6 +295,8 @@ export interface PlayerView extends Common {
   leads: LeadsView;
   /** Per area, how much the party has found (and, in totals mode, how much there is). */
   areas: AreaCount[];
+  /** My own last few dice rolls, newest first. Never anyone else's. */
+  myRolls: { n: number; at: number; groups: DiceGroup[]; plus: number; total: number; to: RollTo }[];
 }
 
 export type DmPlayer = Omit<Player, "keyHash"> & { hasKey: boolean };
@@ -410,7 +414,7 @@ function publicItem(game: GameState, it: Item): PublicItem | null {
   }
   if (it.kind === "earned") {
     const ids = new Set(game.awards.filter((a) => a.itemId === it.id).flatMap((a) => a.playerIds));
-    out.earnedBy = game.players.filter((p) => ids.has(p.id)).map((p) => p.name);
+    out.earnedBy = game.players.filter((p) => ids.has(p.id)).map(penName);
   }
   if (tier === "locked") out.reason = it.reason;
   const need = renownNeeded(game, it);
@@ -437,7 +441,7 @@ function common(game: GameState, version: number, viewer: Viewer): Common {
   return {
     version,
     game: { id: game.id, name: game.name },
-    purse: game.players.filter((p) => !p.archived && !p.away).map((p) => ({ id: p.id, name: p.name, balanceCp: p.balanceCp, inspired: !!p.inspired })),
+    purse: game.players.filter((p) => !p.archived && !p.away).map((p) => ({ id: p.id, name: penName(p), balanceCp: p.balanceCp, inspired: !!p.inspired })),
     shops: shops.map((x) => ({ id: x.id, name: x.name, subtitle: x.subtitle, closed: !!x.closed, ...(renownMet(game, x.renown) ? {} : { needs: rankName(x.renown ?? 0) }), ...(trustText(game, x.trust) ? { goodwill: trustText(game, x.trust)! } : {}) })),
     items: game.items.filter((it) => open.has(it.shopId)).map((it) => publicItem(game, it)).filter((x): x is PublicItem => x !== null),
     session: cur ? { number: cur.number, title: cur.title } : null,
@@ -464,7 +468,9 @@ export function projectTv(game: GameState, version: number): TvView {
     jobs: pinnedJobs(game).map((j) => publicJob(game, j)),
     ...(game.renownMoment ? { renownMoment: { rank: game.renownMoment.rank, name: rankName(game.renownMoment.rank), n: game.renownMoment.n } } : {}),
     ...(discoveryView(game) ? { discovery: discoveryView(game) } : {}),
-    ...(game.diceRoll ? { diceRoll: { n: game.diceRoll.n, groups: game.diceRoll.groups, plus: game.diceRoll.plus, total: game.diceRoll.total } } : {}),
+    ...(game.diceRoll
+      ? { diceRoll: { n: game.diceRoll.n, groups: game.diceRoll.groups, plus: game.diceRoll.plus, total: game.diceRoll.total, ...(game.diceRoll.name ? { name: game.diceRoll.name } : {}) } }
+      : {}),
     // Reveal scenes, and portraits of people the party hasn't found, only while they're live.
     scenes: game.scenes.filter((sc) => sc.id === game.live.sceneId || (!sc.reveal && !sceneSpoils(game, sc))).map((sc) => publicScene(game, sc)),
     recap: publicRecap(game),
@@ -513,6 +519,7 @@ export function projectPlayer(game: GameState, version: number, playerId: string
       id: p.id,
       handle: p.handle,
       name: p.name,
+      ...(p.character?.trim() ? { character: p.character.trim() } : {}),
       balanceCp: p.balanceCp,
       ...(p.dndbUrl ? { dndbUrl: p.dndbUrl } : {}),
       locked: !!p.keyHash,
@@ -522,6 +529,11 @@ export function projectPlayer(game: GameState, version: number, playerId: string
     },
     fight: publicFight(game),
     myFight: myFight(game, p.id),
+    myRolls: (game.rolls ?? [])
+      .filter((r) => r.by === p.id)
+      .slice(-5)
+      .reverse()
+      .map((r) => ({ n: r.n, at: r.at, groups: r.groups, plus: r.plus, total: r.total, to: r.to })),
     myRequests: game.requests
       .filter((r) => r.playerId === p.id)
       .slice(-50)
@@ -529,7 +541,10 @@ export function projectPlayer(game: GameState, version: number, playerId: string
       .map((r) => {
         const out: MyRequest = { id: r.id, kind: r.kind, at: r.at, status: r.status, totalCp: r.totalCp, note: r.note, qty: r.qty };
         if (r.itemName !== undefined) out.itemName = r.itemName;
-        if (r.toPlayerName !== undefined) out.toPlayerName = r.toPlayerName;
+        if (r.toPlayerName !== undefined) {
+          const to = r.toPlayerId ? game.players.find((x) => x.id === r.toPlayerId) : undefined;
+          out.toPlayerName = to ? penName(to) : r.toPlayerName;
+        }
         if (r.decidedAt !== undefined) out.decidedAt = r.decidedAt;
         if (r.reason !== undefined) out.reason = r.reason;
         if (r.chargedCp !== undefined) out.chargedCp = r.chargedCp;
@@ -540,7 +555,7 @@ export function projectPlayer(game: GameState, version: number, playerId: string
         return out;
       }),
     mine: myThings(game, p.id),
-    table: game.players.filter((x) => !x.archived && x.id !== p.id).map((x) => ({ id: x.id, name: x.name })),
+    table: game.players.filter((x) => !x.archived && x.id !== p.id).map((x) => ({ id: x.id, name: penName(x) })),
     myLedger: ledger
       .filter((l) => l.playerId === p.id)
       .slice(-100)
@@ -552,7 +567,7 @@ export function projectPlayer(game: GameState, version: number, playerId: string
       const asked = game.requests.some((r) => r.status === "pending" && r.kind === "job" && r.jobId === j.id && r.playerId === p.id);
       const out: MyJob = { ...pub, canTake: pub.status === "open" && !pub.needs && !pub.goodwill && !p.archived, asked };
       const by = j.takenBy?.[0] && game.players.find((x) => x.id === j.takenBy![0]);
-      if (by && pub.status !== "open") out.takenBy = by.name;
+      if (by && pub.status !== "open") out.takenBy = penName(by);
       return out;
     }),
     entries: publicEntries(game, p.id),

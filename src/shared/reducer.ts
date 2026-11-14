@@ -13,7 +13,7 @@ import { CHARACTER_MAX, STINGER_SCENE_ID, TABLE_SCENE_ID, WHY_MAX } from "./arri
 import { starterById } from "./starters";
 import { chapterSessionId, cleanTags, cleanText, defaultChapterId, NOTES_MAX, penName } from "./chronicle";
 import { BOARD_SLOTS, jobsOf, jobTitle, pinnedCount, rankName, RENOWN, renownMet, renownNeeded, renownOf, shopOpenNow, tierOf, trustMet, trustText } from "./renown";
-import { rollPool } from "./dice";
+import { LOG_MAX, PLAYER_ROLL_GAP_MS, rollPool, type RollTo } from "./dice";
 import { leadsOf, leadVisible, tally, voteClosed } from "./leads";
 import { findRef, sessionRecap, stageRank, blankEntry, ENTRIES_MAX, LEADS_MAX, entriesForScene, entriesOf, entryFromScene, entryScene, entryTags, factSlug, FACTS_MAX, isFound, slugify, uniqueSlug } from "./discovery";
 import { DM_AUTHOR } from "./types";
@@ -95,6 +95,9 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
     if (sh && sh.visibility === "all" && !isSecretShop(sh)) announce(text);
   };
   const rand = ctx.rand ?? Math.random;
+  const logRoll = (e: NonNullable<GameState["rolls"]>[number]) => {
+    s.rolls = [...(s.rolls ?? []), e].slice(-LOG_MAX);
+  };
   const item = (id: string): Item => s.items.find((x) => x.id === id) ?? fail("That item doesn't exist.");
   /** The session a payment made now covers: the running one, or the next one between sessions. */
   const coversSession = () => s.sessions.find((x) => x.id === s.currentSessionId)?.number ?? nextSessionNumber(s);
@@ -234,7 +237,7 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
       move(p, -chargeCp, `${it.name}${question ? `: ${question}` : ""}${haggled}`, "purchase", ledgerExtra);
       if (more.flyer) {
         const up = boardHasRoom();
-        s.flyers.push({ id: nextId("fl"), playerId: p.id, ...cleanFlyer(more.flyer, p.name), postedAt: ctx.now, up, ...(up ? { pinnedAt: ctx.now } : {}) });
+        s.flyers.push({ id: nextId("fl"), playerId: p.id, ...cleanFlyer(more.flyer, penName(p)), postedAt: ctx.now, up, ...(up ? { pinnedAt: ctx.now } : {}) });
         if (!up) out.info = `The board is full (${BOARD_SLOTS} pinned), so the flyer is approved but not pinned yet. Pin it from the Board tab.`;
       }
     } else {
@@ -288,7 +291,7 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
       j.status = "taken";
       j.takenBy = [p.id];
       j.takenAt = ctx.now;
-      if (j.pinned) announce(`${p.name} took the job: ${jobTitle(j)}`);
+      if (j.pinned) announce(`${penName(p)} took the job: ${jobTitle(j)}`);
       // Nobody else needs to ask for it now.
       for (const o of s.requests) {
         if (o.id !== r.id && o.status === "pending" && o.kind === "job" && o.jobId === j.id) {
@@ -322,8 +325,8 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
       if (!override && to.archived) fail(`${to.name} has left the table.`, "recheck");
       const batchId = nextId("b");
       const note = r.note ? `: ${r.note}` : "";
-      move(p, -r.totalCp, `Sent ${formatCp(r.totalCp)} to ${to.name}${note}`, "transfer", { batchId, requestId: r.id });
-      move(to, r.totalCp, `From ${p.name}${note}`, "transfer", { batchId, requestId: r.id });
+      move(p, -r.totalCp, `Sent ${formatCp(r.totalCp)} to ${penName(to)}${note}`, "transfer", { batchId, requestId: r.id });
+      move(to, r.totalCp, `From ${penName(p)}${note}`, "transfer", { batchId, requestId: r.id });
       r.chargedCp = r.totalCp;
     } else {
       const item = s.items.find((x) => x.id === r.itemId) ?? fail(`${r.itemName ?? "That item"} is no longer in the shop. Decline it instead.`);
@@ -338,13 +341,13 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
         if (tierOf(s, item) !== "sale") fail(renownLock(item) ?? `${item.name} isn't for sale any more.`, "recheck");
       }
       const flyer = more.flyer ?? r.flyer;
-      if (flyer) r.flyer = cleanFlyer(flyer, p.name);
+      if (flyer) r.flyer = cleanFlyer(flyer, penName(p));
       fulfil(p, item, r.qty, charge, { requestId: r.id }, { question: r.question, flyer: r.flyer });
       r.chargedCp = charge;
       const answer = more.answer?.trim();
       if (answer) r.answer = answer;
       if (s.tvPurchases !== false && !r.secret && !isSecretShop(s.shops.find((x) => x.id === item.shopId)) && (item.kind === "purchase" || item.kind === "order")) {
-        announce(`${p.name} bought ${boughtPhrase(item.name, r.qty)}`);
+        announce(`${penName(p)} bought ${boughtPhrase(item.name, r.qty)}`);
       }
     }
     r.status = "approved";
@@ -436,7 +439,10 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
     const due = s.orders.filter((o) => !o.arrived && o.arrivesAtSession <= number);
     for (const o of due) o.arrived = true;
     const log: string[] = due.map((o) => `Arrived: ${o.itemName} for ${s.players.find((p) => p.id === o.playerId)?.name ?? "someone"}`);
-    if (due.length === 1) announce(`Arrived from Baldur\u2019s Gate: ${due[0].itemName} for ${s.players.find((p) => p.id === due[0].playerId)?.name ?? "someone"}`);
+    if (due.length === 1) {
+      const who = s.players.find((p) => p.id === due[0].playerId);
+      announce(`Arrived from Baldur\u2019s Gate: ${due[0].itemName} for ${who ? penName(who) : "someone"}`);
+    }
     else if (due.length > 1) announce(`${due.length} special orders have arrived from Baldur\u2019s Gate`);
     // Income: roll for each live income effect and pay the owners by share.
     for (const { item: it, effect } of liveEffects(s, "income")) {
@@ -1047,9 +1053,14 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
     // ---------- The dice tray ----------
     case "dice.roll": {
       const r = rollPool(cmd.dice, cmd.plus, rand);
-      s.diceRoll = { n: ++s.seq, at: ctx.now, ...r };
+      const n = ++s.seq;
+      if (!cmd.secret) s.diceRoll = { n, at: ctx.now, ...r };
+      logRoll({ ...r, n, at: ctx.now, by: null, name: "DM", to: cmd.secret ? "secret" : "tv" });
       break;
     }
+    case "dice.clearLog":
+      delete s.rolls;
+      break;
 
     // ---------- Renown and the bounty board ----------
     case "renown.set": {
@@ -1300,7 +1311,7 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
       const o = s.orders.find((x) => x.id === cmd.orderId) ?? fail("That order doesn't exist.");
       if (!o.arrived) {
         o.arrived = true;
-        announce(`Arrived from Baldur\u2019s Gate: ${o.itemName} for ${player(o.playerId).name}`);
+        announce(`Arrived from Baldur\u2019s Gate: ${o.itemName} for ${penName(player(o.playerId))}`);
       }
       break;
     }
@@ -2015,7 +2026,7 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
         qty: cmd.qty,
         unitCp,
         ...(question ? { question } : {}),
-        ...(item.flyer && cmd.flyer ? { flyer: cleanFlyer(cmd.flyer, p.name) } : {}),
+        ...(item.flyer && cmd.flyer ? { flyer: cleanFlyer(cmd.flyer, penName(p)) } : {}),
       });
       break;
     }
@@ -2122,6 +2133,17 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
     }
 
     // ---------- players acting on themselves ----------
+    case "me.diceRoll": {
+      const p = me();
+      const last = (s.rolls ?? []).findLast((x) => x.by === p.id);
+      if (last && ctx.now - last.at < PLAYER_ROLL_GAP_MS) fail("One roll at a time. Try again in a moment.");
+      const r = rollPool(cmd.dice, cmd.plus, rand);
+      const n = ++s.seq;
+      const to: RollTo = cmd.tv ? "tv" : "dm";
+      if (cmd.tv) s.diceRoll = { n, at: ctx.now, ...r, name: penName(p) };
+      logRoll({ ...r, n, at: ctx.now, by: p.id, name: p.name, to });
+      break;
+    }
     case "me.update": {
       const p = player(ctx.actor.role === "player" ? ctx.actor.playerId : "");
       if (cmd.patch.name !== undefined) p.name = cmd.patch.name.trim() || p.name;

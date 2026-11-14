@@ -110,3 +110,51 @@ describe("dice.roll", () => {
     expect(projectTv(freshStart(g), 1).diceRoll).toBeUndefined();
   });
 });
+
+describe("the roll log and players' rolls", () => {
+  const pid = () => g.players[0].id;
+  const P = (): Actor => ({ role: "player", playerId: pid() });
+  const d20 = { dice: [{ sides: 20 as const, count: 1 }], plus: 0 };
+
+  it("keeps the DM's secret rolls off the TV but in the log", () => {
+    as(DM, { type: "dice.roll", ...d20, secret: true }, seq(0.5));
+    expect(projectTv(g, 1).diceRoll).toBeUndefined();
+    expect(g.rolls).toMatchObject([{ by: null, name: "DM", to: "secret", total: 11 }]);
+  });
+
+  it("puts a player's TV roll on the TV with their name, and in the DM's log", () => {
+    as(P(), { type: "me.diceRoll", ...d20, tv: true }, seq(0.95));
+    const name = g.players[0].name;
+    expect(projectTv(g, 1).diceRoll).toMatchObject({ total: 20, name });
+    expect(g.rolls!.at(-1)).toMatchObject({ by: pid(), name, to: "tv" });
+  });
+
+  it("keeps a DM-only player roll off the TV; the player sees only their own rolls", () => {
+    as(DM, { type: "dice.roll", ...d20, secret: true });
+    now += 5000;
+    as(P(), { type: "me.diceRoll", ...d20, tv: false }, seq(0));
+    expect(projectTv(g, 1).diceRoll).toBeUndefined();
+    const mine = projectPlayer(g, 1, pid(), []).myRolls;
+    expect(mine).toEqual([expect.objectContaining({ total: 1, to: "dm" })]);
+    const other = g.players[1];
+    if (other) expect(projectPlayer(g, 1, other.id, []).myRolls).toEqual([]);
+    expect(projectPlayer(g, 1, pid(), [])).not.toHaveProperty("rolls");
+    expect(projectTv(g, 1)).not.toHaveProperty("rolls");
+  });
+
+  it("makes a player wait a moment between rolls", () => {
+    as(P(), { type: "me.diceRoll", ...d20, tv: true });
+    expect(() => as(P(), { type: "me.diceRoll", ...d20, tv: true })).toThrow(CommandError);
+    now += 2000;
+    as(P(), { type: "me.diceRoll", ...d20, tv: true });
+    expect(g.rolls).toHaveLength(2);
+  });
+
+  it("caps the log, and the DM can clear it", () => {
+    for (let i = 0; i < 45; i++) as(DM, { type: "dice.roll", ...d20, secret: true });
+    expect(g.rolls).toHaveLength(40);
+    as(DM, { type: "dice.clearLog" });
+    expect(g.rolls).toBeUndefined();
+    expect(() => as(P(), { type: "dice.clearLog" })).toThrow(CommandError);
+  });
+});

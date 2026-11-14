@@ -34,7 +34,7 @@ import { BoardPanel } from "./BoardPanel";
 import { FightScreen } from "./FightScreen";
 import { MonstersPanel } from "./MonstersPanel";
 import { FightOverlay } from "../ui/FightOverlay";
-import { DiceButton, DiceTray } from "./DiceTray";
+import { DiceButton, DiceTray, PlayerRollCards } from "./DiceTray";
 
 type Tab = "bank" | "shop" | "board" | "scenes" | "discovery" | "leads" | "players" | "arrival" | "episodes" | "monsters" | "chronicle" | "game";
 const TABS: [Tab, string, string][] = [
@@ -167,7 +167,15 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
   const closeMap = useCallback(() => setEditingMap(null), []);
   const [diceOpen, setDiceOpen] = useState(false);
   const toggleDice = useCallback(() => setDiceOpen((v) => !v), []);
-  const ctx: DmCtx = useMemo(() => ({ view, ident, run, toast, gated, call, openMap: setEditingMap, diceOpen, toggleDice }), [view, ident, run, toast, gated, call, diceOpen, toggleDice]);
+  // Rolls from before this page opened count as seen, so a reload doesn't pop old cards.
+  const [diceSeen, setDiceSeen] = useState(() => s.rolls?.at(-1)?.n ?? 0);
+  const seeDice = useCallback((n: number) => setDiceSeen((x) => Math.max(x, n)), []);
+  const [diceGone, setDiceGone] = useState<number[]>([]);
+  const dismissRoll = useCallback((n: number) => setDiceGone((g) => [...g.slice(-50), n]), []);
+  const ctx: DmCtx = useMemo(
+    () => ({ view, ident, run, toast, gated, call, openMap: setEditingMap, diceOpen, toggleDice, diceSeen, seeDice, diceGone, dismissRoll }),
+    [view, ident, run, toast, gated, call, diceOpen, toggleDice, diceSeen, seeDice, diceGone, dismissRoll],
+  );
 
   /** S: open the shop on the TV (at a shop the party can see), or close it. */
   const toggleShop = () => {
@@ -514,6 +522,7 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
     <DmContext.Provider value={ctx}>
       {screen}
       <DiceTray />
+      <PlayerRollCards />
       <div className={`toast${toastMsg ? " show" : ""}`} role="status" aria-live="polite">
         {toastMsg?.text}
       </div>

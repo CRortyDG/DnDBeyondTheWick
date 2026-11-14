@@ -18,6 +18,23 @@ export interface DiceGroup {
   rolls: number[];
 }
 
+/** Keep this many rolls in the DM's log. */
+export const LOG_MAX = 40;
+/** A player waits this long between rolls (so a phone can't flood the TV). */
+export const PLAYER_ROLL_GAP_MS = 1500;
+
+/** Where a roll went: the TV, the DM alone (a player's quiet roll), or the DM's own secret roll. */
+export type RollTo = "tv" | "dm" | "secret";
+
+export interface RollEntry extends DiceResult {
+  n: number;
+  at: number;
+  /** The player who rolled; null for the DM. */
+  by: string | null;
+  name: string;
+  to: RollTo;
+}
+
 export interface DiceResult {
   groups: DiceGroup[];
   plus: number;
