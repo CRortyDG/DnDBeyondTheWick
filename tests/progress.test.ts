@@ -241,7 +241,7 @@ describe("income", () => {
 describe("Mags's tab", () => {
   beforeEach(() => {
     open("candle");
-    dm({ type: "item.update", itemId: "c-tab", patch: { tier: "sale" }, quiet: true });
+    dm({ type: "renown.set", rank: 1 }); // the tab opens once the party is Known in town
     as(P(1), { type: "me.requestBuy", itemId: "c-tab", qty: 1, note: "" });
     approveLast();
   });
@@ -295,7 +295,7 @@ describe("services and flyers", () => {
     approveLast({ flyer: { title: "LOST: one ham", body: "Again.", signedBy: "" } });
     expect(bal("p1")).toBe(1 * GP - 1 * SP);
     const flyers = projectTv(g, 1).flyers;
-    expect(flyers).toEqual([{ id: g.flyers[0].id, title: "LOST: one ham", body: "Again.", signedBy: "Player 1" }]);
+    expect(flyers).toEqual([{ id: g.flyers[0].id, title: "LOST: one ham", body: "Again.", signedBy: "Player 1", at: expect.any(Number) }]);
     dm({ type: "flyer.update", flyerId: g.flyers[0].id, patch: { up: false } });
     expect(projectTv(g, 1).flyers).toEqual([]);
   });

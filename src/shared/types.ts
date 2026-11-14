@@ -1,6 +1,8 @@
 // The whole campaign ("game") lives in one JSON document, plus an append-only ledger.
 // Anything marked DM-ONLY must never reach the TV or a player: see projection.ts.
 
+import type { DiceGroup, RollEntry } from "./dice";
+
 export type SceneKind = "notice" | "portrait" | "handout" | "image" | "black" | "map" | "table" | "stinger";
 
 /** Built-in art. "merchant-sigil" is DM-only and served through a gated route. */
@@ -92,6 +94,17 @@ export interface Player {
   character?: string;
   /** The Arrival intro: their private link and how far they've got. */
   arrival?: PlayerArrival;
+  /** Hit points for the table in combat mode (D&D Beyond stays the real sheet). Missing: not set yet. */
+  hp?: PlayerHp;
+}
+
+/** A player's hit points, as they (or the DM) typed them. */
+export interface PlayerHp {
+  cur: number;
+  max: number;
+  temp: number;
+  /** "Show my HP on the TV". Missing: on. */
+  tv?: boolean;
 }
 
 /** A player's progress through the Arrival intro (the link texted before session 0). */
@@ -108,6 +121,8 @@ export interface PlayerArrival {
   claimedAt?: number;
   /** "Why did you get on that boat?" Up to 120 characters. */
   why?: string;
+  /** The starting point they picked for a first character (see starters.ts), if any. */
+  pick?: string;
 }
 
 /** Game-wide Arrival settings. */
@@ -136,6 +151,16 @@ export interface Shop {
   closed?: boolean;
   /** Purchases here are secret (the Peddler): never on the TV or other players' screens. */
   secretSales?: boolean;
+  /** The party's Renown this storefront needs (see renown.ts). Below it: name and rank only, no goods. */
+  renown?: number;
+  /** Someone's goodwill it also needs (see renown.ts). */
+  trust?: TrustNeed;
+}
+
+/** A lock on someone's goodwill: how that person feels about the party must be at least this. */
+export interface TrustNeed {
+  entryId: string;
+  relation: "friendly" | "ally";
 }
 
 /**
@@ -212,6 +237,10 @@ export interface Item {
   keep?: boolean;
   /** DM-ONLY */
   effects?: Effect[];
+  /** The party's Renown this needs (see renown.ts). Below it, a "sale" item shows as locked with the rank. */
+  renown?: number;
+  /** Someone's goodwill it also needs. Without it, a "sale" item shows as locked. (null only in a patch: cleared.) */
+  trust?: TrustNeed | null;
 }
 
 /** A rented room, safekeeping, the Back Room. */
@@ -283,6 +312,57 @@ export interface Flyer {
   signedBy: string;
   postedAt: number;
   up: boolean;
+  /** When it last went up on the board (orders the pins). Missing: postedAt. */
+  pinnedAt?: number;
+}
+
+// ---------- the bounty board ----------
+
+/** Paper on the notice board. A sealed envelope shows no text at all. */
+export type JobStyle = "scrawl" | "bill" | "official" | "sealed";
+export type JobStatus = "open" | "taken" | "done" | "expired";
+
+export interface JobReward {
+  /** each: per player; total: for the party; hidden: not shown. */
+  kind: "each" | "total" | "hidden";
+  cp: number;
+}
+
+/** A job flyer on the bounty board. */
+export interface Job {
+  id: string;
+  title: string;
+  postedBy: string;
+  body: string;
+  reward: JobReward;
+  /** The party's Renown needed to take it (0 = Strangers). */
+  renown: number;
+  style: JobStyle;
+  status: JobStatus;
+  /** On the TV's notice board (and so on phones). */
+  pinned: boolean;
+  pinnedAt?: number;
+  createdAt: number;
+  /** Who asked to take it. */
+  takenBy?: string[];
+  takenAt?: number;
+  doneAt?: number;
+  /** What was paid out in all. */
+  paidCp?: number;
+  /** The flyer this one follows up. */
+  followUpOf?: string;
+  /** DM-ONLY: never sent to the TV or a phone. */
+  dm: JobDmNotes;
+  /** Someone's goodwill it also needs before the party can take it. (null only in a patch: cleared.) */
+  trust?: TrustNeed | null;
+}
+
+/** DM-ONLY */
+export interface JobDmNotes {
+  adventure: string;
+  loot: string;
+  twists: string;
+  notes: string;
 }
 
 export interface FlyerText {
@@ -300,7 +380,7 @@ export type RequestStatus = "pending" | "approved" | "declined" | "cancelled";
  */
 export interface TradeRequest {
   id: string;
-  kind: "buy" | "give" | "contribute";
+  kind: "buy" | "give" | "contribute" | "job";
   playerId: string;
   playerName: string;
   at: number;
@@ -332,6 +412,9 @@ export interface TradeRequest {
   answer?: string;
   /** "Post on the notice board": the flyer as written (or as the DM edited it). */
   flyer?: FlyerText;
+  // job: "Take this job"
+  jobId?: string;
+  jobTitle?: string;
 }
 
 /** A special order: paid for, on its way. */
@@ -397,9 +480,140 @@ export interface Note {
   editedAt?: number;
 }
 
+// ---------- Discovery: people, places, shops, monsters, mysteries ----------
+
+/** What an entry is. Plain text, so a new kind needs no schema change. */
+export type EntryKind = "person" | "place" | "shop" | "monster" | "mystery" | "faction" | (string & {});
+
+/**
+ * - hidden: DM-ONLY, never sent or counted (unless an area shows totals)
+ * - rumored: a silhouette, the nickname or "???", and the hint
+ * - found: met / visited / open / encountered / found: name, image, summary
+ * - known: found, plus the facts the DM has revealed
+ */
+export type Stage = "hidden" | "rumored" | "found" | "known";
+
+/** How a person feels about the party. */
+export type Relation = "stranger" | "friendly" | "ally" | "hostile";
+
+export interface EntryFact {
+  id: string;
+  /** For the run sheet: "fact: person/mags/owes-the-baker". */
+  slug: string;
+  text: string;
+  /** Players know it. Unrevealed facts are DM-ONLY. */
+  revealedAt?: number;
+  /** The session it was learned in. */
+  learnedIn?: string | null;
+}
+
+export interface Entry {
+  id: string;
+  kind: EntryKind;
+  /** Unique per kind; run sheet refs are kind/slug ("person/fennick"). */
+  slug: string;
+  stage: Stage;
+  /** The stage a fresh start goes back to. Missing: hidden. */
+  start?: Stage;
+  /** The real name. DM-ONLY until the entry is found. */
+  name: string;
+  /** "Keeper of the Flickering Candle". Players see it once found. */
+  title: string;
+  /** A line or two. Players see it once found. */
+  summary: string;
+  /** What players call it while it's a rumor ("The man with the lantern"). Empty: "???". */
+  nickname: string;
+  /** The one line players get while it's a rumor. */
+  hint: string;
+  /** A portrait scene: its art is theirs, and showing it on the TV finds them. */
+  sceneId?: string;
+  /** An uploaded silhouette for the rumor stage. Missing: the kind's generic one. */
+  silhouette?: string;
+  /** Places: its pin on a map. Hidden: the pin is hidden; rumored: a "?" seal with the hint; found: the pin as it is. DM-ONLY. */
+  pin?: { sceneId: string; pinId: string };
+  /** Shops: its storefront. Found opens it to everyone; back to hidden or rumored hides it. DM-ONLY. */
+  shopId?: string;
+  /** Monsters: the template it came from. DM-ONLY. */
+  templateId?: string;
+  /** Areas it belongs to ("Candlefair", "The Docks"). */
+  areas: string[];
+  /** Other entries it's tied to. Players see a link only when both ends are visible to them. */
+  links: string[];
+  /** Key facts, in the DM's order. */
+  facts: EntryFact[];
+  /** People: how they feel about the party. Missing: stranger. */
+  relation?: Relation;
+  /** People: how they feel about one player, where it differs. */
+  relationBy?: Record<string, Relation>;
+  /** When its stage last changed. */
+  stagedAt?: number;
+  /** When it was found, and in which session. */
+  foundAt?: number;
+  foundIn?: string | null;
+  /** DM-ONLY */
+  dmNote: string;
+  /** DM-ONLY */
+  secrets: string;
+}
+
+// ---------- leads and votes ----------
+
+export type LeadStatus = "open" | "followed" | "closed";
+
+export interface Lead {
+  id: string;
+  /** "Who's buying all the lantern oil?" */
+  text: string;
+  /** Players see it. Unshown leads are the DM's drafts. */
+  shown: boolean;
+  status: LeadStatus;
+  /** What it's about (any entry). Players see the lead only once that entry isn't hidden. */
+  entryId?: string;
+  /** Where it points (a place entry). The TV and phones group leads by it. */
+  placeId?: string;
+  /** Its job flyer, shown once the flyer is on the board. */
+  jobId?: string;
+  createdAt: number;
+  /** DM-ONLY */
+  dmNote: string;
+}
+
+export interface Vote {
+  id: string;
+  /** 2 or 3 leads. */
+  leadIds: string[];
+  openedAt: number;
+  /** Closes by itself at this time (checked on the next command). */
+  closesAt?: number;
+  /** One per player, by player id. Changeable until it closes. */
+  ballots: Record<string, string>;
+  closedAt?: number;
+  winnerId?: string;
+  /** A tie, for the DM to break. */
+  tied?: string[];
+  /** The "You chose" card has played at a session start. */
+  played?: boolean;
+}
+
 // ---------- run-game (all DM-ONLY) ----------
 
-export type BeatAction = { type: "scene"; sceneId: string } | { type: "black" } | { type: "bank" } | { type: "stinger" };
+export type BeatAction =
+  | { type: "scene"; sceneId: string }
+  | { type: "black" }
+  | { type: "bank" }
+  | { type: "stinger" }
+  /** "fight: Goblin x2": set up a fight with these monster templates, matched by name when it fires. */
+  | { type: "fight"; monsters: FightGroup[] }
+  /** "reveal: person/fennick [known]" or "rumor: place/lathtarls-lantern": move a Discovery entry forward (never back), on the TV. */
+  | { type: "reveal"; ref: string; stage: Stage }
+  /** "fact: person/mags/owes-the-baker": reveal that fact, on the TV. */
+  | { type: "fact"; ref: string };
+
+/** Some monsters from one template: "Goblin x2". */
+export interface FightGroup {
+  name: string;
+  count: number;
+}
 
 export interface BeatCheck {
   /** "Strength (Athletics)", "Dexterity saving throw", "... or ...". */
@@ -467,6 +681,8 @@ export interface LiveState {
   banner?: { pinId: string; n: number };
   /** The TV shop shows this category instead of a storefront. */
   shopCategory?: ItemCategory;
+  /** The leads board is up on the TV, over the scene. */
+  leads?: boolean;
 }
 
 export interface GameState {
@@ -506,14 +722,46 @@ export interface GameState {
   awards: Award[];
   tasks: DmTask[];
   flyers: Flyer[];
+  /** The bounty board's job flyers. Missing on games made before it; read with jobsOf(). */
+  jobs?: Job[];
+  /** The party's Renown rank, 0 = Strangers. Missing: 0. */
+  renown?: number;
+  /** The last time Renown went up: the TV plays the moment when n changes. */
+  renownMoment?: { rank: number; n: number; at: number };
+  /** The last dice roll on the TV (the DM's or a player's): the TV plays it when n changes. Secret and DM-only rolls never get here. */
+  diceRoll?: { n: number; at: number; groups: DiceGroup[]; plus: number; total: number; /** Set when a player rolled. */ name?: string };
+  /** DM-ONLY: every roll, the DM's and the players', newest last (capped). Players see only their own. */
+  rolls?: RollEntry[];
   /** The Arrival intro's settings. Missing on games made before it. */
   arrival?: ArrivalSettings;
   /** The Chronicle's notes, oldest first. Missing on games made before it; read with notesOf(). */
   notes?: Note[];
+  /** Discovery entries (people, places, ...), in the DM's order. Missing on games made before it; read with entriesOf(). */
+  entries?: Entry[];
+  /** The last reveal the TV should play. n changes each time. from: the stage it moved from. */
+  discovery?: { entryId: string; n: number; factId?: string; from?: Stage; at: number };
+  /** Discovery counters show how much is left to find per area (empty slots), hidden entries included. */
+  discoveryTotals?: boolean;
+  /** The end-of-session recap card on the TV ("Tonight you met…"). n changes each time. */
+  recapCard?: { n: number; at: number; text: string };
+  /** Threads the party can pull on. */
+  leads?: Lead[];
+  /** The party's vote on what to follow next. One at a time. */
+  vote?: Vote;
+  /** "You chose: …" on the TV at the start of a session. n changes each time. */
+  chosen?: { leadId: string; n: number; at: number };
+  /** DM-ONLY: monster templates for combat mode. Missing on games made before it; read with monstersOf(). */
+  monsters?: MonsterTemplate[];
+  /** The fight in progress, if any. Only fightView() projections of it ever leave the server for the TV or a phone. */
+  fight?: Fight;
+  /** DM-ONLY: past fights, newest last (summaries only). */
+  fights?: FightSummary[];
+  /** One-time content upgrades already applied to this game (see migrate.ts), so a later delete sticks. */
+  upgrades?: string[];
   seq: number;
 }
 
-export type LedgerKind = "grant" | "charge" | "purchase" | "payAll" | "transfer" | "rent" | "contribution" | "income";
+export type LedgerKind = "grant" | "charge" | "purchase" | "payAll" | "transfer" | "rent" | "contribution" | "income" | "bounty" | "loot";
 
 export interface LedgerEntry {
   id: string;
@@ -541,3 +789,180 @@ export type Actor =
   | { role: "player"; playerId: string }
   /** The server itself (joins, hellos, knocks). Never derived from a request. */
   | { role: "system" };
+
+// ---------- combat mode ----------
+
+export interface MonsterAttack {
+  name: string;
+  /** To-hit bonus. */
+  bonus: number;
+  /** "1d4 + 3". */
+  damage: string;
+}
+
+export interface MonsterAbility {
+  id: string;
+  name: string;
+  /** Rules text, short. For an on-death ability this is the reminder ("DC 11 Dex, 2d6, 5 ft."). */
+  text: string;
+  /** Recharges on a d6 roll of this or higher: 6 = "Recharge 6", 5 = "Recharge 5–6". */
+  recharge?: number;
+  /** Uses per day (1 = "1/day"). The box stays ticked for the fight. */
+  uses?: number;
+  /** Remind the DM when it drops to 0 HP. */
+  onDeath?: boolean;
+}
+
+/** DM-ONLY: a monster's key numbers, typed in from a stat block. */
+export interface MonsterTemplate {
+  id: string;
+  name: string;
+  /** What the TV calls it until the DM reveals it ("Something in the shadows"). Empty: the real name. */
+  displayName: string;
+  ac: number;
+  /** "21" (fixed) or "6d6" (rolled per monster). */
+  hp: string;
+  initBonus: number;
+  speed: string;
+  attacks: MonsterAttack[];
+  abilities: MonsterAbility[];
+  resist: string;
+  immune: string;
+  notes: string;
+  dmNote: string;
+  /** A portrait scene whose art the TV shows for it. */
+  sceneId?: string;
+}
+
+export type ConditionTick = "start" | "end";
+
+export interface FightCondition {
+  id: string;
+  name: string;
+  /** Exhaustion level, 1-6. */
+  level?: number;
+  /** Rounds left. Missing: until removed. */
+  rounds?: number;
+  /** When it counts down: at the start or the end of its owner's turn. */
+  tick: ConditionTick;
+}
+
+export interface Combatant {
+  id: string;
+  kind: "player" | "monster";
+  playerId?: string;
+  templateId?: string;
+  /** DM-ONLY until revealed: the real name ("Goblin A"). Players: their character name. */
+  name: string;
+  /** What the TV shows until revealed ("Something in the shadows A"). */
+  displayName: string;
+  revealed: boolean;
+  /** DM-ONLY: kept off the TV and phones until the DM shows it (ambushes, invisible enemies). */
+  hidden: boolean;
+  init: number | null;
+  initBonus: number | null;
+  /** Monsters only (DM-ONLY numbers). Players' hit points live on Player.hp. */
+  hp: number;
+  maxHp: number;
+  tempHp: number;
+  /** DM-ONLY */
+  ac?: number;
+  conditions: FightCondition[];
+  concentrating: boolean;
+  /** Ability id -> uses spent this fight. A recharge ability at 1 is waiting to recharge. */
+  spent: Record<string, number>;
+  /** Monsters: at 0 HP. Greyed on the TV until the round ends. */
+  down: boolean;
+  /** Monsters: off the TV strip and skipped (went down in an earlier round). The DM can still revive them. */
+  gone?: boolean;
+  /** Players at 0 HP. */
+  deathSaves?: { ok: number; fail: number };
+  /** Portrait scene for its art. */
+  sceneId?: string;
+  /** DM-ONLY */
+  note?: string;
+  /** Players: the concentration save they owe after the last hit, until the turn moves on. */
+  concDc?: number;
+}
+
+export type FightReminderKind = "info" | "recharge" | "death" | "concentration" | "expired";
+
+/** DM-ONLY: a nudge on the DM's fight screen until dismissed. */
+export interface FightReminder {
+  id: string;
+  kind: FightReminderKind;
+  text: string;
+  combatantId?: string;
+  abilityId?: string;
+  at: number;
+}
+
+/** A big moment for the TV to animate. n changes each time. */
+export interface FightMoment {
+  kind: "crit" | "monsterDown" | "playerDown" | "end";
+  /** The combatant's TV name. */
+  name: string;
+  n: number;
+}
+
+/** One Next, so Previous can put it back exactly. */
+export interface FightStep {
+  round: number;
+  currentId: string | null;
+  /** Conditions that counted down (expired ones are kept whole to restore). */
+  ticks: { combatantId: string; condition: FightCondition; expired: boolean }[];
+  /** Monsters taken off the strip at the end of the round. */
+  gone: string[];
+}
+
+export interface Fight {
+  id: string;
+  /** setup: rolling initiative. over: the end card, then loot. */
+  status: "setup" | "running" | "paused" | "over";
+  /** "2 Goblins". */
+  title: string;
+  /** Where it happens, for the Chronicle ("in the feast hall"). */
+  where: string;
+  round: number;
+  currentId: string | null;
+  order: Combatant[];
+  /** The TV scene to go back to afterwards. */
+  returnSceneId: string;
+  /** Turn timer in seconds, or null for off. */
+  timerSec: number | null;
+  turnStartedAt: number;
+  pausedAt?: number;
+  startedAt: number;
+  endedAt?: number;
+  sessionId: string | null;
+  /** DM-ONLY */
+  dmNotes: string;
+  /** DM-ONLY */
+  reminders: FightReminder[];
+  moment?: FightMoment;
+  /** DM-ONLY: undo for Previous turn, newest last. */
+  steps: FightStep[];
+  /** Combatant ids of everyone who went down, in order (once each). */
+  downed: string[];
+  /** Set when the fight ends: won (every foe down), fallen (every player at 0 HP), or ended (stopped with both sides standing). */
+  outcome?: FightOutcome;
+}
+
+export type FightOutcome = "won" | "fallen" | "ended";
+
+/** DM-ONLY: a finished fight, for looking back. */
+export interface FightSummary {
+  id: string;
+  title: string;
+  where: string;
+  startedAt: number;
+  endedAt: number;
+  rounds: number;
+  sessionId: string | null;
+  /** Real names, as the DM knows them. */
+  combatants: string[];
+  downed: string[];
+  lootCp: number;
+  items: string;
+  noteId?: string;
+}

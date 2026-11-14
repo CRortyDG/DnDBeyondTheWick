@@ -1,13 +1,19 @@
 // Spoiler safety lives here. Each role gets a view built field-by-field from
 // an explicit allow-list, so a new DM-only field can't leak by accident.
 
+import { leadsView, type LeadsView } from "./leads";
+import { areaCounts, type AreaCount } from "./discovery";
 import { creditLines, discountPct, firstChargeCp, priceOf, raisedCp, stakeTotals } from "./progress";
+import type { DiceGroup, RollTo } from "./dice";
 import { heldCp, heldStock } from "./requests";
 import { projectTable, type TableView } from "./arrival";
 import { notesOf, penName, projectChronicle, type ChronicleView } from "./chronicle";
-import type { Art, Banner, FlyerText, GameState, Item, ItemCategory, ItemKind, LedgerEntry, LegendStyle, LiveState, Player, RequestStatus, Scene, Shop } from "./types";
+import { discoveryView, PORTRAIT_ART, portraitArtAllowed, publicEntries, sceneSpoils, type DiscoveryView, type PublicEntry } from "./discovery";
+import { jobsOf, jobTitle, rankName, RENOWN, renownMet, renownNeeded, renownOf, shopOpenNow, tierOf, trustText } from "./renown";
+import { fightView, myFight, type FightView, type MyFight } from "./combat";
+import type { Art, Banner, FlyerText, GameState, Job, JobStyle, Item, ItemCategory, ItemKind, LedgerEntry, LegendStyle, LiveState, Player, RequestStatus, Scene, Shop } from "./types";
 
-export const GATED_ART = new Set(["merchant-sigil"]);
+export const GATED_ART = new Set(["merchant-sigil", ...PORTRAIT_ART]);
 
 export interface PublicScene {
   id: string;
@@ -57,6 +63,10 @@ export interface PublicShop {
   subtitle: string;
   /** Visible but not selling yet: no goods are sent. */
   closed: boolean;
+  /** Waiting on the party's Renown: the rank it needs ("Known in town"). No goods are sent. */
+  needs?: string;
+  /** Someone's goodwill it waits on ("Mags Wick’s friendship"). */
+  goodwill?: string;
 }
 
 /**
@@ -76,6 +86,10 @@ export interface PublicItem {
   tier: "sale" | "locked" | "rumored";
   /** Locked: why. */
   reason?: string;
+  /** Locked until the party has this Renown ("Known in town"). */
+  needs?: string;
+  /** Someone's goodwill it waits on ("Mags Wick’s friendship"). */
+  goodwill?: string;
   /** Rumored: the one-line hint. */
   hint?: string;
   /** null = no limit. */
@@ -110,12 +124,56 @@ export interface PublicItem {
 /** A player flyer on the notice board. */
 export interface PublicFlyer extends FlyerText {
   id: string;
+  /** When it went up (orders the pins with the jobs). */
+  at: number;
+}
+
+/**
+ * A job flyer as the room sees it: only pinned ones, never the DM's notes.
+ * A sealed envelope comes with no title, poster or text.
+ */
+export interface PublicJob {
+  id: string;
+  style: JobStyle;
+  status: "open" | "taken" | "done";
+  title: string;
+  postedBy: string;
+  body: string;
+  /** null: the reward is hidden. */
+  reward: { kind: "each" | "total"; cp: number } | null;
+  /** The party isn't there yet: stamped "Experienced parties only", with the rank it needs. */
+  needs?: string;
+  /** Someone's goodwill it waits on ("Mags Wick’s friendship"). */
+  goodwill?: string;
+  at: number;
+  /** When the party took it (status taken) or finished it (status done). */
+  when?: JobWhen;
+}
+
+/** The chapter (session number) it happened in, else just the time. */
+export interface JobWhen {
+  at: number;
+  chapter?: number;
+}
+
+/** A job on my phone. */
+export interface MyJob extends PublicJob {
+  /** Open, and the party has the Renown for it. */
+  canTake: boolean;
+  /** Someone at the table has asked the DM for it, for the party. */
+  asked: boolean;
+}
+
+export interface PublicRenown {
+  rank: number;
+  name: string;
+  meaning: string;
 }
 
 /** One of my phone requests, as I see it. */
 export interface MyRequest {
   id: string;
-  kind: "buy" | "give" | "contribute";
+  kind: "buy" | "give" | "contribute" | "job";
   at: number;
   status: RequestStatus;
   totalCp: number;
@@ -130,6 +188,7 @@ export interface MyRequest {
   /** The DM's answer to a service. */
   answer?: string;
   flyerTitle?: string;
+  jobTitle?: string;
 }
 
 /** What I have going: rentals, lessons, shares, titles, honours. */
@@ -164,19 +223,35 @@ interface Common {
   session: PublicSession | null;
   /** The latest "New at the Smithy" banner (only ever about things this viewer can see). */
   banner: Banner | null;
+  /** The party's Renown. */
+  renown: PublicRenown;
 }
 
 export interface TvView extends Common {
   role: "tv";
-  live: Pick<LiveState, "sceneId" | "shopOpen" | "shopId" | "purseVisible" | "shopCategory">;
+  live: Pick<LiveState, "sceneId" | "shopOpen" | "shopId" | "purseVisible" | "shopCategory" | "leads">;
+  /** Leads the party can see, the vote, and "You chose". */
+  leads: LeadsView;
+  /** "Tonight you met…" at the end of a session: the TV plays it when n changes. */
+  recapCard?: { n: number; text: string };
   /** Approved player flyers, while they're up. */
   flyers: PublicFlyer[];
+  /** Pinned job flyers. */
+  jobs: PublicJob[];
+  /** The last rank-up: the TV plays the moment when n changes. */
+  renownMoment?: { rank: number; name: string; n: number };
+  /** A reveal (a rumor, someone found, a fact): the TV plays it when n changes. */
+  discovery?: DiscoveryView;
+  /** The last roll on the TV: the TV plays it when n changes. name: the player who rolled (none: the DM). */
+  diceRoll?: { n: number; groups: DiceGroup[]; plus: number; total: number; name?: string };
   /** Every non-reveal scene (for instant switching), plus the live scene even if it's a reveal. */
   scenes: PublicScene[];
   /** "Previously on…": only while the DM is showing it. The only session text the TV ever gets. */
   recap: { number: number; title: string; text: string; notes?: { text: string; author: string }[] } | null;
   /** The Table's seats and the QR links of unclaimed players: only while The Table is live. */
   table?: TableView;
+  /** Combat mode: the fight going on, as the room may see it. */
+  fight: FightView | null;
 }
 
 export interface MyLedgerLine {
@@ -193,13 +268,20 @@ export interface PlayerView extends Common {
     id: string;
     handle: string;
     name: string;
+    /** Their character's name, once they've picked one. Shown instead of `name` on the phone. */
+    character?: string;
     balanceCp: number;
     dndbUrl?: string;
     locked: boolean;
     archived: boolean;
     /** Gold held by my pending requests. */
     heldCp: number;
+    /** My hit points for combat mode (not set: max 0). */
+    hp: { cur: number; max: number; temp: number; tv: boolean };
   };
+  /** Combat mode: the fight going on, as the room sees it, and my part in it. */
+  fight: FightView | null;
+  myFight: MyFight | null;
   myLedger: MyLedgerLine[];
   myOrders: MyOrder[];
   /** My purchase and gold requests, newest first. Never anyone else's. */
@@ -211,6 +293,16 @@ export interface PlayerView extends Common {
   vttUrl?: string;
   /** The table's story notes. Hidden notes are left out entirely. */
   chronicle: ChronicleView;
+  /** The bounty board: pinned jobs. */
+  jobs: MyJob[];
+  /** Discovery: rumored, found and known entries only; revealed facts only. */
+  entries: PublicEntry[];
+  /** Leads the party can see, the vote (with this player's ballot), and "You chose". */
+  leads: LeadsView;
+  /** Per area, how much the party has found (and, in totals mode, how much there is). */
+  areas: AreaCount[];
+  /** My own last few dice rolls, newest first. Never anyone else's. */
+  myRolls: { n: number; at: number; groups: DiceGroup[]; plus: number; total: number; to: RollTo }[];
 }
 
 export type DmPlayer = Omit<Player, "keyHash"> & { hasKey: boolean };
@@ -254,13 +346,16 @@ export function publicMap(game: GameState, sc: Scene): PublicMap {
   const isLive = game.live.sceneId === sc.id;
   const shown = m.pins.filter((p) => p.discovered);
   const focus = isLive && game.live.focus && shown.some((p) => p.id === game.live.focus!.pinId) ? game.live.focus : undefined;
+  // A place that's only a rumor: a "?" seal, its nickname and hint, never the pin's own name or text.
+  const rumors = new Map((game.entries ?? []).filter((e) => e.stage === "rumored" && e.pin?.sceneId === sc.id).map((e) => [e.pin!.pinId, e]));
   const out: PublicMap = {
     pins: shown.map((p) => {
-      const pin: PublicPin = { id: p.id, label: sealText(p), x: p.x, y: p.y };
+      const rumor = rumors.get(p.id);
+      const pin: PublicPin = { id: p.id, label: rumor ? "?" : sealText(p), x: p.x, y: p.y };
       if (m.legendStyle === "names" || focus?.pinId === p.id) {
-        pin.name = p.name;
-        pin.type = p.type;
-        pin.description = p.description;
+        pin.name = rumor ? rumor.nickname || "???" : p.name;
+        pin.type = rumor ? "rumor" : p.type;
+        pin.description = rumor ? rumor.hint : p.description;
       }
       return pin;
     }),
@@ -270,7 +365,7 @@ export function publicMap(game: GameState, sc: Scene): PublicMap {
   if (focus) out.focus = { pinId: focus.pinId, n: focus.n };
   const b = isLive ? game.live.banner : undefined;
   const bannerPin = b && shown.find((p) => p.id === b.pinId);
-  if (b && bannerPin) out.banner = { n: b.n, name: bannerPin.name };
+  if (b && bannerPin) out.banner = { n: b.n, name: rumors.has(bannerPin.id) ? rumors.get(bannerPin.id)!.nickname || "???" : bannerPin.name };
   return out;
 }
 
@@ -295,6 +390,7 @@ function publicItem(game: GameState, it: Item): PublicItem | null {
     // Name, price and description stay on the server; only the hint goes out.
     return { id: it.id, shopId: it.shopId, name: "???", priceCp: null, description: "", tier: "rumored", hint: it.hint, stock: null, category: it.category, kind: it.kind };
   }
+  const tier = tierOf(game, it);
   const hide = it.tier === "locked" && it.hidePrice;
   const out: PublicItem = {
     id: it.id,
@@ -302,7 +398,7 @@ function publicItem(game: GameState, it: Item): PublicItem | null {
     name: it.name,
     priceCp: hide ? null : priceOf(game, it),
     description: it.description,
-    tier: it.tier,
+    tier: tier as PublicItem["tier"],
     stock: it.stock,
     category: it.category,
     kind: it.kind,
@@ -324,9 +420,13 @@ function publicItem(game: GameState, it: Item): PublicItem | null {
   }
   if (it.kind === "earned") {
     const ids = new Set(game.awards.filter((a) => a.itemId === it.id).flatMap((a) => a.playerIds));
-    out.earnedBy = game.players.filter((p) => ids.has(p.id)).map((p) => p.name);
+    out.earnedBy = game.players.filter((p) => ids.has(p.id)).map(penName);
   }
-  if (it.tier === "locked") out.reason = it.reason;
+  if (tier === "locked") out.reason = it.reason;
+  const need = renownNeeded(game, it);
+  if (need !== null) out.needs = rankName(need);
+  const trust = it.tier === "sale" || it.tier === "locked" ? trustText(game, it.trust) : null;
+  if (trust) out.goodwill = trust;
   if (it.priceLabel) out.priceLabel = it.priceLabel;
   if (it.finePrint) out.finePrint = it.finePrint;
   if (it.arrivesInSessions) out.arrivesInSessions = it.arrivesInSessions;
@@ -342,15 +442,17 @@ function publicItem(game: GameState, it: Item): PublicItem | null {
 function common(game: GameState, version: number, viewer: Viewer): Common {
   const cur = game.sessions.find((x) => x.id === game.currentSessionId);
   const shops = game.shops.filter((sh) => shopVisibleTo(sh, viewer));
-  const open = new Set(shops.filter((sh) => !sh.closed).map((sh) => sh.id));
+  const open = new Set(shops.filter((sh) => shopOpenNow(game, sh)).map((sh) => sh.id));
+  const rank = renownOf(game);
   return {
     version,
     game: { id: game.id, name: game.name },
-    purse: game.players.filter((p) => !p.archived && !p.away).map((p) => ({ id: p.id, name: p.name, balanceCp: p.balanceCp, inspired: !!p.inspired })),
-    shops: shops.map((x) => ({ id: x.id, name: x.name, subtitle: x.subtitle, closed: !!x.closed })),
+    purse: game.players.filter((p) => !p.archived && !p.away).map((p) => ({ id: p.id, name: penName(p), balanceCp: p.balanceCp, inspired: !!p.inspired })),
+    shops: shops.map((x) => ({ id: x.id, name: x.name, subtitle: x.subtitle, closed: !!x.closed, ...(renownMet(game, x.renown) ? {} : { needs: rankName(x.renown ?? 0) }), ...(trustText(game, x.trust) ? { goodwill: trustText(game, x.trust)! } : {}) })),
     items: game.items.filter((it) => open.has(it.shopId)).map((it) => publicItem(game, it)).filter((x): x is PublicItem => x !== null),
     session: cur ? { number: cur.number, title: cur.title } : null,
     banner: game.banner ? { ...game.banner } : null,
+    renown: { rank, name: RENOWN[rank].name, meaning: RENOWN[rank].meaning },
   };
 }
 
@@ -365,12 +467,31 @@ export function projectTv(game: GameState, version: number): TvView {
   return {
     ...common(game, version, { tv: true }),
     role: "tv",
-    live: { sceneId: game.live.sceneId, ...liveShop(game, { tv: true }), purseVisible: game.live.purseVisible, ...(game.live.shopCategory ? { shopCategory: game.live.shopCategory } : {}) },
-    flyers: game.flyers.filter((f) => f.up).map((f) => ({ id: f.id, title: f.title, body: f.body, signedBy: f.signedBy })),
-    scenes: game.scenes.filter((sc) => !sc.reveal || sc.id === game.live.sceneId).map((sc) => publicScene(game, sc)),
+    live: { sceneId: game.live.sceneId, ...liveShop(game, { tv: true }), purseVisible: game.live.purseVisible, ...(game.live.shopCategory ? { shopCategory: game.live.shopCategory } : {}), ...(game.live.leads ? { leads: true } : {}) },
+    leads: leadsView(game, Date.now()),
+    ...(game.recapCard ? { recapCard: { n: game.recapCard.n, text: game.recapCard.text } } : {}),
+    flyers: game.flyers.filter((f) => f.up).map((f) => ({ id: f.id, title: f.title, body: f.body, signedBy: f.signedBy, at: f.pinnedAt ?? f.postedAt })),
+    jobs: pinnedJobs(game).map((j) => publicJob(game, j)),
+    ...(game.renownMoment ? { renownMoment: { rank: game.renownMoment.rank, name: rankName(game.renownMoment.rank), n: game.renownMoment.n } } : {}),
+    ...(discoveryView(game) ? { discovery: discoveryView(game) } : {}),
+    ...(game.diceRoll
+      ? { diceRoll: { n: game.diceRoll.n, groups: game.diceRoll.groups, plus: game.diceRoll.plus, total: game.diceRoll.total, ...(game.diceRoll.name ? { name: game.diceRoll.name } : {}) } }
+      : {}),
+    // Reveal scenes, and portraits of people the party hasn't found, only while they're live.
+    scenes: game.scenes.filter((sc) => sc.id === game.live.sceneId || (!sc.reveal && !sceneSpoils(game, sc))).map((sc) => publicScene(game, sc)),
     recap: publicRecap(game),
     ...(game.scenes.find((sc) => sc.id === game.live.sceneId)?.kind === "table" ? { table: projectTable(game) } : {}),
+    fight: publicFight(game),
   };
+}
+
+/** The fight, for the TV and phones. Portrait art only from scenes the room may see. */
+function publicFight(game: GameState): FightView | null {
+  return fightView(game, Date.now(), (sceneId) => {
+    const sc = game.scenes.find((x) => x.id === sceneId);
+    if (!sc || sc.reveal || sc.kind !== "portrait" || sceneSpoils(game, sc)) return undefined;
+    return artForPublic(game, sc);
+  });
 }
 
 function publicRecap(game: GameState): TvView["recap"] {
@@ -404,12 +525,21 @@ export function projectPlayer(game: GameState, version: number, playerId: string
       id: p.id,
       handle: p.handle,
       name: p.name,
+      ...(p.character?.trim() ? { character: p.character.trim() } : {}),
       balanceCp: p.balanceCp,
       ...(p.dndbUrl ? { dndbUrl: p.dndbUrl } : {}),
       locked: !!p.keyHash,
       archived: p.archived,
       heldCp: heldCp(game, p.id),
+      hp: { cur: p.hp?.cur ?? 0, max: p.hp?.max ?? 0, temp: p.hp?.temp ?? 0, tv: p.hp?.tv !== false },
     },
+    fight: publicFight(game),
+    myFight: myFight(game, p.id),
+    myRolls: (game.rolls ?? [])
+      .filter((r) => r.by === p.id)
+      .slice(-5)
+      .reverse()
+      .map((r) => ({ n: r.n, at: r.at, groups: r.groups, plus: r.plus, total: r.total, to: r.to })),
     myRequests: game.requests
       .filter((r) => r.playerId === p.id)
       .slice(-50)
@@ -417,24 +547,79 @@ export function projectPlayer(game: GameState, version: number, playerId: string
       .map((r) => {
         const out: MyRequest = { id: r.id, kind: r.kind, at: r.at, status: r.status, totalCp: r.totalCp, note: r.note, qty: r.qty };
         if (r.itemName !== undefined) out.itemName = r.itemName;
-        if (r.toPlayerName !== undefined) out.toPlayerName = r.toPlayerName;
+        if (r.toPlayerName !== undefined) {
+          const to = r.toPlayerId ? game.players.find((x) => x.id === r.toPlayerId) : undefined;
+          out.toPlayerName = to ? penName(to) : r.toPlayerName;
+        }
         if (r.decidedAt !== undefined) out.decidedAt = r.decidedAt;
         if (r.reason !== undefined) out.reason = r.reason;
         if (r.chargedCp !== undefined) out.chargedCp = r.chargedCp;
         if (r.question) out.question = r.question;
         if (r.answer) out.answer = r.answer;
         if (r.flyer) out.flyerTitle = r.flyer.title;
+        if (r.jobTitle) out.jobTitle = r.jobTitle;
         return out;
       }),
     mine: myThings(game, p.id),
-    table: game.players.filter((x) => !x.archived && x.id !== p.id).map((x) => ({ id: x.id, name: x.name })),
+    table: game.players.filter((x) => !x.archived && x.id !== p.id).map((x) => ({ id: x.id, name: penName(x) })),
     myLedger: ledger
       .filter((l) => l.playerId === p.id)
       .slice(-100)
       .reverse()
       .map((l) => ({ id: l.id, at: l.at, amountCp: l.amountCp, note: l.note })),
     chronicle: projectChronicle(game, { dm: false, playerId: p.id }),
+    jobs: pinnedJobs(game).map((j) => {
+      const pub = publicJob(game, j);
+      const asked = game.requests.some((r) => r.status === "pending" && r.kind === "job" && r.jobId === j.id);
+      return { ...pub, canTake: pub.status === "open" && !pub.needs && !pub.goodwill && !p.archived, asked } satisfies MyJob;
+    }),
+    entries: publicEntries(game, p.id),
+    leads: leadsView(game, Date.now(), p.id),
+    areas: areaCounts(game),
   };
+}
+
+/** Jobs on the board, in the order they went up. Pulled jobs never leave the server. */
+function pinnedJobs(game: GameState): Job[] {
+  return jobsOf(game)
+    .filter((j) => j.pinned && j.status !== "expired")
+    .sort((a, b) => (a.pinnedAt ?? a.createdAt) - (b.pinnedAt ?? b.createdAt));
+}
+
+/** Field by field: the DM's notes (adventure, loot, twists) never go out. */
+function publicJob(game: GameState, j: Job): PublicJob {
+  const sealed = j.style === "sealed";
+  const out: PublicJob = {
+    id: j.id,
+    style: j.style,
+    status: j.status === "expired" ? "open" : j.status,
+    title: sealed ? "" : jobTitle(j),
+    postedBy: sealed ? "" : j.postedBy,
+    body: sealed ? "" : j.body,
+    reward: j.reward.kind === "hidden" || j.reward.cp <= 0 ? null : { kind: j.reward.kind, cp: j.reward.cp },
+    at: j.pinnedAt ?? j.createdAt,
+  };
+  if (!renownMet(game, j.renown)) out.needs = rankName(j.renown);
+  const trust = trustText(game, j.trust);
+  if (trust) out.goodwill = trust;
+  const when = jobWhen(game, j);
+  if (when) out.when = when;
+  return out;
+}
+
+/** When a job was taken or done, and the chapter that was. */
+export function jobWhen(game: Pick<GameState, "sessions">, j: Pick<Job, "status" | "takenAt" | "doneAt">): JobWhen | undefined {
+  const at = j.status === "done" ? j.doneAt : j.status === "taken" ? j.takenAt : undefined;
+  if (at === undefined) return undefined;
+  const chapter = chapterAt(game, at);
+  return chapter === undefined ? { at } : { at, chapter };
+}
+
+/** The chapter running at a time: the latest session started by then (between sessions, the one just played). */
+export function chapterAt(game: Pick<GameState, "sessions">, at: number): number | undefined {
+  let best: { number: number; startedAt: number } | undefined;
+  for (const x of game.sessions) if (x.startedAt <= at && (!best || x.startedAt > best.startedAt)) best = x;
+  return best?.number;
 }
 
 function myThings(game: GameState, playerId: string): MyThings {
@@ -467,5 +652,7 @@ export function projectDm(game: GameState, version: number, ledger: LedgerEntry[
 /** Is a gated built-in allowed for a non-DM right now? */
 export function gatedArtIsLive(game: GameState, builtin: string): boolean {
   const live = game.scenes.find((sc) => sc.id === game.live.sceneId);
-  return !!live && live.art?.builtin === builtin;
+  if (live?.art?.builtin === builtin) return true;
+  // Built-in portraits: once the party has found whoever they show.
+  return PORTRAIT_ART.has(builtin) && portraitArtAllowed(game, builtin);
 }

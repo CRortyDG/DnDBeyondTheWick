@@ -5,6 +5,8 @@ import type { ArrivalView } from "@/shared/arrival";
 import { SEAT_PAGE } from "./content";
 import { SoundIcon } from "./Intro";
 import { RoundTable } from "./RoundTable";
+import { Starters } from "./Starters";
+import { starterById, type StarterId } from "@/shared/starters";
 
 const CHARACTER_MAX = 40;
 const WHY_MAX = 120;
@@ -19,7 +21,7 @@ export function SeatPage({
 }: {
   view: ArrivalView | null;
   loading: boolean;
-  onClaim: (character: string, why: string) => Promise<string | null>;
+  onClaim: (character: string, why: string, pick: StarterId | null) => Promise<string | null>;
   onReplay: () => void;
   soundOn: boolean;
   onToggleSound: () => void;
@@ -28,6 +30,8 @@ export function SeatPage({
   const [editing, setEditing] = useState(false);
   const [character, setCharacter] = useState(me?.character ?? "");
   const [why, setWhy] = useState(me?.why ?? "");
+  const [pick, setPick] = useState<StarterId | null>((starterById(me?.pick)?.id ?? null));
+  const [picking, setPicking] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   /** Bumped on each claim: replays the flare and Mags's key. */
@@ -39,6 +43,7 @@ export function SeatPage({
       seeded.current = true;
       setCharacter(me.character);
       setWhy(me.why);
+      setPick(starterById(me.pick)?.id ?? null);
     }
   }, [me]);
 
@@ -48,11 +53,32 @@ export function SeatPage({
   async function claim(c: string, w: string) {
     setBusy(true);
     setError(null);
-    const err = await onClaim(c, w);
+    const err = await onClaim(c, w, pick);
     setBusy(false);
     if (err) return setError(err);
     setEditing(false);
     setClaimedNow((n) => n + 1);
+  }
+
+  const starter = starterById(pick);
+  const mine = starterById(me?.pick);
+
+  if (picking && me) {
+    return (
+      <Starters
+        current={pick}
+        onBack={() => setPicking(false)}
+        onChoose={(s) => {
+          // Fill in the suggestions, but never overwrite what they've written themselves.
+          const prev = starterById(pick);
+          if (!character.trim() || character === prev?.sampleName) setCharacter(s.sampleName);
+          if (!why.trim() || why === prev?.sampleWhy) setWhy(s.sampleWhy);
+          setPick(s.id);
+          setPicking(false);
+          window.scrollTo(0, 0);
+        }}
+      />
+    );
   }
 
   const seats = (view?.seats ?? []).map((s) => ({ ...s, flare: s.me ? claimedNow : 0 }));
@@ -82,6 +108,21 @@ export function SeatPage({
           }}
         >
           <h2>{SEAT_PAGE.question}</h2>
+          {starter ? (
+            <div className="starter-chip">
+              <span>
+                Starting as <strong>{starter.title}</strong> <small>({starter.dnd.cls})</small>
+              </span>
+              <button type="button" className="seat-link inline" onClick={() => setPicking(true)}>
+                Change
+              </button>
+            </div>
+          ) : (
+            <button type="button" className="starter-open" onClick={() => setPicking(true)}>
+              <strong>Never played? Not sure who to be?</strong>
+              <span>Pick a starting point &rarr;</span>
+            </button>
+          )}
           <label>
             <span>{SEAT_PAGE.nameLabel}</span>
             <input value={character} onChange={(e) => setCharacter(e.target.value)} maxLength={CHARACTER_MAX} autoComplete="off" autoCapitalize="words" spellCheck={false} enterKeyHint="next" />
@@ -126,6 +167,16 @@ export function SeatPage({
             <p className="speech mine">{me.character ? me.character : "A stranger, for now."}</p>
           )}
           {me.why ? <p className="seat-why">&ldquo;{me.why}&rdquo;</p> : null}
+          {mine ? (
+            <div className="starter-recipe">
+              <p>
+                Starting as <strong>{mine.title}</strong>
+              </p>
+              <p className="small">
+                To build in D&amp;D Beyond: <strong>{mine.dnd.cls}</strong> · {mine.dnd.species} · {mine.dnd.background} background. Put your highest score in <strong>{mine.best}</strong>.
+              </p>
+            </div>
+          ) : null}
 
           <h2>{SEAT_PAGE.seatsHeading}</h2>
           <ul className="seat-list">

@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { arrivalPath, arrivalStatus, arrivalText, DEFAULT_TEMPLATE, genericArrivalPath, seatedPlayers, type ArrivalStatus } from "@/shared/arrival";
 import type { DmPlayer } from "@/shared/projection";
+import { starterById } from "@/shared/starters";
 import { Check } from "./Check";
 import { useDm } from "./context";
 import { Field } from "./Field";
@@ -95,6 +96,7 @@ function ArrivalRow({ p }: { p: DmPlayer }) {
   const { view, run, toast } = useDm();
   const [confirming, setConfirming] = useState(false);
   const a = p.arrival;
+  const starter = starterById(a?.pick);
   const status = arrivalStatus(p);
   const reached = ORDER.indexOf(status);
   const link = a?.token ? window.location.origin + arrivalPath(view.state.id, a.token) : null;
@@ -116,6 +118,11 @@ function ArrivalRow({ p }: { p: DmPlayer }) {
         <span className={`arrival-character${p.character ? "" : " none"}`}>{p.character || (a?.claimedAt ? "No name yet" : "")}</span>
       </div>
       {a?.why ? <p className="arrival-why">&ldquo;{a.why}&rdquo;</p> : null}
+      {starter ? (
+        <p className="arrival-pick">
+          Picked: <strong>{starter.title}</strong> ({starter.dnd.cls} · {starter.dnd.species} · {starter.dnd.background})
+        </p>
+      ) : null}
       <ol className="arrival-steps" aria-label={`${p.name}'s progress`}>
         {STEPS.map(([k, label]) => {
           // A later step implies the earlier ones, except copying (they may have got the link another way).

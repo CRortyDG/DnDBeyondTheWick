@@ -3868,6 +3868,1071 @@ input.fld.inline-input {
     animation-iteration-count: 1 !important;
   }
 }
+.arrival-pick {
+  margin: 0 0 6px;
+  font-size: 0.92em;
+  opacity: 0.9;
+}
+
+/* ---------- the bounty board: job flyers, stamps, Renown ---------- */
+.job {
+  position: absolute;
+  width: 330px;
+  z-index: 10;
+  box-sizing: border-box;
+  color: #2b2118;
+  padding: 32px 22px 18px;
+  box-shadow: 0 4px 10px rgba(30, 18, 10, 0.55);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-family: var(--font-body);
+}
+.job::before {
+  content: "";
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  width: 14px;
+  height: 14px;
+  margin-left: -7px;
+  border-radius: 50%;
+  background: #3a4a5c;
+  z-index: 2;
+}
+.job-title {
+  font-family: var(--font-sc);
+  font-size: 28px;
+  line-height: 1.05;
+  text-align: center;
+}
+.job-body {
+  font-size: 17px;
+  line-height: 1.3;
+  display: -webkit-box;
+  -webkit-line-clamp: 11;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  white-space: pre-line;
+}
+.job-kicker {
+  font-family: var(--font-sc);
+  font-size: 14px;
+  letter-spacing: 3px;
+  text-align: center;
+  color: #5b4a3a;
+}
+.job-reward {
+  font-family: var(--font-sc);
+  font-size: 22px;
+  text-align: center;
+  color: #7a2a1f;
+}
+.job-by {
+  font-size: 15px;
+  font-style: italic;
+  text-align: right;
+}
+/* Scrawled note: handwriting on cheap paper. */
+.job-scrawl {
+  background: #f6f1e4;
+  font-family: var(--font-hand);
+}
+.job-scrawl::before {
+  background: #2e5a3a;
+}
+.job-scrawl .job-title {
+  font-family: var(--font-hand);
+  font-weight: 700;
+  font-size: 38px;
+  text-align: left;
+}
+.job-scrawl .job-body {
+  font-size: 25px;
+  line-height: 1.1;
+}
+.job-scrawl .job-reward,
+.job-scrawl .job-by {
+  font-family: var(--font-hand);
+  font-size: 26px;
+  font-style: normal;
+}
+/* Merchant's bill: printed, ruled, with the reward boxed. */
+.job-bill {
+  background: #efe3c8;
+  outline: 2px solid #2b2118;
+  outline-offset: -10px;
+  padding: 34px 26px 22px;
+}
+.job-bill::before {
+  background: #7a2a1f;
+}
+.job-bill .job-reward {
+  border-top: 1px solid #2b2118;
+  border-bottom: 1px solid #2b2118;
+  padding: 4px 0;
+}
+/* Official notice: a blue band and the council's wax seal. */
+.job-official {
+  background: #f3ecdc;
+  border-top: 8px solid #3a4a5c;
+  padding-bottom: 26px;
+}
+.job-seal {
+  position: absolute;
+  right: 18px;
+  bottom: -14px;
+  width: 54px;
+  height: 54px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 38% 35%, #c0473b, #7a2a1f 60%, #5c1d14);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.4);
+}
+.job-official .job-by {
+  padding-right: 64px;
+}
+/* Sealed envelope: no words, just the wax. */
+.job-sealed {
+  width: 300px;
+  height: 200px;
+  padding: 0;
+  background: #d9c7a0;
+  overflow: hidden;
+  justify-content: flex-end;
+}
+.job-sealed::before {
+  background: #2b2118;
+}
+.job-flap {
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 0;
+  border-left: 150px solid transparent;
+  border-right: 150px solid transparent;
+  border-top: 110px solid #cbb68a;
+  filter: drop-shadow(0 2px 1px rgba(60, 40, 20, 0.35));
+}
+.job-wax {
+  position: absolute;
+  left: 50%;
+  top: 110px;
+  width: 58px;
+  height: 58px;
+  margin: -29px 0 0 -29px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 38% 35%, #c0473b, #7a2a1f 60%, #5c1d14);
+  color: #e9c9a0;
+  font-size: 26px;
+  display: grid;
+  place-items: center;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.45);
+}
+.job-sealed .job-reward {
+  position: relative;
+  padding: 0 0 10px;
+}
+/* Rubber stamps over the paper. */
+.job-stamp {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%) rotate(-14deg);
+  z-index: 3;
+  padding: 6px 14px;
+  border: 4px solid currentColor;
+  border-radius: 6px;
+  font-family: var(--font-sc);
+  font-size: 44px;
+  letter-spacing: 4px;
+  text-transform: uppercase;
+  line-height: 1;
+  text-align: center;
+  white-space: nowrap;
+  opacity: 0.82;
+  mix-blend-mode: multiply;
+  background: rgba(255, 255, 255, 0.08);
+}
+.job-stamp small {
+  display: block;
+  font-size: 15px;
+  letter-spacing: 2px;
+  margin-top: 4px;
+}
+.stamp-taken {
+  color: #9b2318;
+}
+.stamp-done {
+  color: #2e5a3a;
+}
+/* "Experienced parties only" sits under the text, so the flyer stays readable. */
+.stamp-locked {
+  position: relative;
+  left: auto;
+  top: auto;
+  transform: rotate(-4deg);
+  align-self: center;
+  margin-top: 4px;
+  color: #3a4a5c;
+  font-size: 20px;
+  letter-spacing: 2px;
+  white-space: normal;
+  max-width: 260px;
+  opacity: 0.9;
+}
+.job-sealed .stamp-locked {
+  position: absolute;
+  top: auto;
+  bottom: 12px;
+  left: 50%;
+  transform: translateX(-50%) rotate(-4deg);
+  margin: 0;
+  background: rgba(233, 220, 192, 0.92);
+  mix-blend-mode: normal;
+}
+/* On a phone or in the DM's preview: in the flow, no tilt. */
+.job.job-page {
+  position: relative;
+  width: 100%;
+  max-width: 360px;
+  margin: 0 auto;
+}
+.job-sealed.job-page {
+  height: 200px;
+  max-width: 300px;
+}
+
+/* The party's Renown, on the board's frame. */
+.renown-plaque {
+  position: absolute;
+  left: 50%;
+  top: 12px;
+  transform: translateX(-50%);
+  z-index: 12;
+  display: flex;
+  gap: 12px;
+  align-items: baseline;
+  padding: 2px 22px 3px;
+  background: linear-gradient(#c99a3a, #a77a24);
+  color: #2b2118;
+  border: 2px solid #3a2416;
+  border-radius: 4px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.45);
+  white-space: nowrap;
+}
+.renown-plaque-kicker {
+  font-family: var(--font-sc);
+  font-size: 13px;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+}
+.renown-plaque-name {
+  font-family: var(--font-sc);
+  font-size: 22px;
+}
+
+/* The TV moment when Renown goes up. */
+.renown-moment {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  place-items: center;
+  background: radial-gradient(circle, rgba(20, 10, 4, 0.55), rgba(10, 5, 2, 0.85));
+  animation: renown-in 8s ease both;
+  pointer-events: none;
+}
+.renown-moment-card {
+  text-align: center;
+  color: #f4dcae;
+  padding: 4vh 8vw;
+  border-top: 2px solid #c99a3a;
+  border-bottom: 2px solid #c99a3a;
+}
+.renown-moment-kicker {
+  font-family: var(--font-sc);
+  font-size: 2.2vw;
+  letter-spacing: 0.6vw;
+  color: #c99a3a;
+  text-transform: uppercase;
+}
+.renown-moment-line {
+  font-family: var(--font-sc);
+  font-size: 6vw;
+  line-height: 1.05;
+  margin: 1.5vh 0;
+  text-shadow: 0 0 30px rgba(255, 180, 80, 0.45);
+}
+.renown-moment-rank {
+  font-family: var(--font-body);
+  font-size: 2.6vw;
+}
+.renown-moment-meaning {
+  font-family: var(--font-body);
+  font-style: italic;
+  font-size: 1.8vw;
+  opacity: 0.8;
+  margin-top: 0.6vh;
+}
+@keyframes renown-in {
+  0% {
+    opacity: 0;
+  }
+  8%,
+  88% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .renown-moment {
+    animation: none;
+  }
+}
+
+/* Renown on phones and in the DM view. */
+/* Under the name on a phone: the party's rank, as a quiet line (not a link). */
+.renown-line {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 2px 0 0;
+  font-size: 15px;
+  line-height: 1.2;
+}
+.renown-line-k {
+  color: var(--muted);
+  font-family: var(--font-sc);
+  font-size: 13px;
+  letter-spacing: 0.06em;
+}
+.renown-line-k::after {
+  content: "\2766";
+  margin-left: 8px;
+  color: var(--gold);
+  font-size: 12px;
+}
+.renown-line-v {
+  color: var(--gold-bright);
+  font-family: var(--font-sc);
+}
+.renown-ladder {
+  list-style: none;
+  margin: 8px 0;
+  padding: 0;
+  display: grid;
+  gap: 4px;
+}
+.renown-ladder li {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 4px 8px;
+  border-radius: 6px;
+}
+.renown-ladder li.on {
+  background: rgba(201, 154, 58, 0.22);
+  font-weight: 600;
+}
+.renown-ladder li.past {
+  opacity: 0.6;
+}
+.job-list {
+  display: grid;
+  gap: 22px;
+  margin: 12px 0;
+  /* Flyers carry z-index 10 for the TV board; keep them in their own layer so they scroll under the phone's sticky header. */
+  isolation: isolate;
+}
+.job-item {
+  display: grid;
+  gap: 8px;
+  justify-items: center;
+}
+.job-item .job-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+.board-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--line, #e2d6bd);
+}
+.board-row-main {
+  min-width: 0;
+  flex: 1;
+}
+.board-row-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.board-wide {
+  grid-column: 1 / -1;
+}
+.board-previews {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 18px;
+  align-items: start;
+  padding: 18px 6px;
+  background: #b98a55;
+  border-radius: 8px;
+}
+.board-previews .job.job-page {
+  font-size: 0.9em;
+}
+.board-preview {
+  display: grid;
+  gap: 6px;
+}
+.board-preview > .note {
+  text-align: center;
+  color: #2b2118;
+}
+.board-preview.on .job {
+  outline: 3px solid #c99a3a;
+}
+.payout-grid {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 6px 10px;
+  align-items: center;
+}
+.card-lock-why {
+  display: block;
+  font-style: italic;
+  opacity: 0.85;
+}
+
+/* ---------- People: the NPC compendium ---------- */
+.portrait-thumb {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  object-fit: cover;
+  object-position: center 20%;
+  flex: none;
+  background: var(--parchment-2);
+  border: 2px solid var(--gold);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
+}
+.portrait-initial {
+  display: inline-grid;
+  place-items: center;
+  background: radial-gradient(circle at 35% 30%, #a23a2c, var(--wax-dark));
+  color: var(--parchment);
+  font-family: var(--font-sc);
+  font-size: 30px;
+}
+.person-face.small {
+  width: 36px;
+  height: 36px;
+  font-size: 18px;
+  border-width: 1px;
+}
+.person-face.big {
+  width: 96px;
+  height: 96px;
+  font-size: 44px;
+}
+.people-grid {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+.person-card {
+  all: unset;
+  box-sizing: border-box;
+  cursor: pointer;
+  width: 100%;
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  padding: 12px;
+  border-radius: 8px;
+  background: var(--parchment);
+  color: var(--ink);
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.4), inset 0 0 30px rgba(122, 90, 50, 0.15);
+}
+.person-card:focus-visible {
+  outline: 3px solid var(--gold-bright);
+  outline-offset: 2px;
+}
+.person-card-text {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.person-name,
+.person-page-name {
+  font-family: var(--font-sc);
+  font-size: 22px;
+  line-height: 1.1;
+  color: var(--wax-dark);
+}
+.person-page-name {
+  margin: 0;
+  font-size: 28px;
+  color: var(--gold-bright);
+}
+.person-title {
+  font-family: var(--font-body);
+  font-style: italic;
+  font-size: 16px;
+}
+.person-card .person-title {
+  color: var(--ink-soft);
+}
+.person-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 10px;
+  font-size: 14px;
+}
+.person-card .person-meta {
+  color: var(--ink-soft);
+}
+.person-new {
+  vertical-align: 3px;
+  font-family: var(--font-body);
+  font-size: 12px;
+  margin-left: 8px;
+}
+.person-page {
+  display: grid;
+  gap: 12px;
+}
+.person-page > .btn {
+  justify-self: start;
+}
+.person-page h3 {
+  margin: 6px 0 0;
+}
+.person-head {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+}
+.person-blurb {
+  margin: 0;
+  font-size: 18px;
+  line-height: 1.45;
+}
+.person-facts {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 8px;
+}
+.person-facts li {
+  background: var(--parchment);
+  color: var(--ink);
+  font-family: var(--font-num);
+  font-size: 18px;
+  line-height: 1.4;
+  padding: 10px 14px;
+  border-left: 4px solid var(--gold);
+  border-radius: 4px;
+}
+.person-notes {
+  display: grid;
+  gap: 10px;
+}
+.person-note-page {
+  padding: 4px 18px;
+}
+.person-note-page > .note {
+  margin: 12px 0;
+}
+
+/* DM side */
+.people-list .scene-row {
+  align-items: center;
+}
+.person-item:not(.met) .person-face {
+  filter: grayscale(0.8);
+  opacity: 0.75;
+}
+.person-editor h4 {
+  margin: 14px 0 4px;
+}
+.person-fact-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+.person-fact-list li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 8px;
+  align-items: center;
+}
+.person-fact-text {
+  flex: 1 1 260px;
+}
+.person-fact-list li.locked .person-fact-text {
+  border-style: dashed;
+}
+.person-fact-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+/* The TV's reveal card: low on the screen, so a portrait behind it still shows. */
+.disc-moment {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: calc(70 * var(--u));
+  z-index: 59;
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+  animation: disc-in 9s ease both;
+}
+.disc-moment.fact {
+  animation-duration: 10s;
+}
+.disc-card {
+  display: flex;
+  align-items: center;
+  gap: calc(36 * var(--u));
+  max-width: calc(1500 * var(--u));
+  padding: calc(28 * var(--u)) calc(56 * var(--u)) calc(28 * var(--u)) calc(30 * var(--u));
+  background: linear-gradient(180deg, rgba(30, 18, 10, 0.94), rgba(16, 10, 6, 0.96));
+  border-top: calc(3 * var(--u)) solid var(--gold);
+  border-bottom: calc(3 * var(--u)) solid var(--gold);
+  border-radius: calc(10 * var(--u));
+  box-shadow: 0 calc(10 * var(--u)) calc(50 * var(--u)) rgba(0, 0, 0, 0.7);
+  color: #f4dcae;
+}
+.disc-face-wrap {
+  position: relative;
+}
+.disc-face {
+  width: calc(220 * var(--u));
+  height: calc(220 * var(--u));
+  border-width: calc(4 * var(--u));
+  font-size: calc(110 * var(--u));
+}
+.disc-face.small {
+  width: calc(150 * var(--u));
+  height: calc(150 * var(--u));
+  font-size: calc(70 * var(--u));
+}
+/* Found: the silhouette fills with colour. */
+.disc-moment.reveal .disc-face {
+  animation: disc-fill 2.2s ease-in both;
+}
+@keyframes disc-fill {
+  0%,
+  25% {
+    filter: brightness(0) drop-shadow(0 0 calc(18 * var(--u)) rgba(236, 198, 106, 0.6));
+  }
+  100% {
+    filter: none;
+  }
+}
+.disc-text {
+  display: grid;
+  gap: calc(6 * var(--u));
+}
+.disc-kicker {
+  font-family: var(--font-sc);
+  font-size: calc(36 * var(--u));
+  letter-spacing: calc(8 * var(--u));
+  text-transform: uppercase;
+  color: var(--gold);
+}
+.disc-name {
+  font-family: var(--font-sc);
+  font-size: calc(96 * var(--u));
+  line-height: 1;
+  text-shadow: 0 0 calc(30 * var(--u)) rgba(255, 180, 80, 0.45);
+}
+.disc-ghost {
+  opacity: 0;
+}
+.disc-title {
+  font-family: var(--font-body);
+  font-style: italic;
+  font-size: calc(42 * var(--u));
+  animation: disc-late 2.6s ease both;
+}
+.disc-moment:not(.reveal) .disc-title {
+  animation: none;
+}
+@keyframes disc-late {
+  0%,
+  70% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+.disc-hint {
+  font-family: var(--font-body);
+  font-style: italic;
+  font-size: calc(44 * var(--u));
+  max-width: calc(1000 * var(--u));
+}
+.disc-fact {
+  font-family: var(--font-body);
+  font-size: calc(54 * var(--u));
+  line-height: 1.2;
+}
+@keyframes disc-in {
+  0% {
+    opacity: 0;
+    transform: translateY(calc(40 * var(--u)));
+  }
+  6%,
+  90% {
+    opacity: 1;
+    transform: none;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .disc-moment,
+  .disc-moment.reveal .disc-face,
+  .disc-title {
+    animation: none;
+  }
+}
+
+/* Silhouettes and stages */
+.portrait-silhouette {
+  display: inline-grid;
+  place-items: center;
+  object-fit: contain;
+  object-position: center bottom;
+  background: radial-gradient(circle at 50% 40%, #6b5640, #3a2a1c);
+  border-style: dashed;
+  overflow: hidden;
+}
+.generic-silhouette {
+  width: 78%;
+  height: 78%;
+  margin-top: 18%;
+  fill: #1b130d;
+  opacity: 0.92;
+}
+.person-card.rumored {
+  cursor: default;
+  background: repeating-linear-gradient(135deg, var(--parchment-2) 0 12px, #d8c59c 12px 24px);
+}
+.person-card.rumored .person-name {
+  color: var(--ink-soft);
+}
+.entry-stage {
+  font-weight: 600;
+}
+.entry-stage-rumored {
+  color: #a8740f;
+}
+.person-page .entry-stage-found,
+.person-page .entry-stage-known {
+  color: var(--gold-bright);
+}
+.relation {
+  font-weight: 600;
+  border-radius: 999px;
+  padding: 0 8px;
+  border: 1px solid currentColor;
+}
+.relation-friendly,
+.relation-ally {
+  color: #4f8a4f;
+}
+.person-page .relation-friendly,
+.person-page .relation-ally {
+  color: var(--up);
+}
+.relation-hostile {
+  color: var(--wax);
+}
+.person-page .relation-hostile {
+  color: var(--down);
+}
+.entry-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+.person-page .entry-links .chron-tag {
+  background: var(--parchment-2);
+  color: var(--ink);
+}
+.discovery-filters .tabs {
+  flex-wrap: wrap;
+}
+.stage-select.stage-hidden {
+  opacity: 0.75;
+}
+.stage-select.stage-rumored {
+  border-style: dashed;
+}
+.person-item.stage-hidden .scene-label {
+  opacity: 0.7;
+}
+.silhouette-preview {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+}
+.fact-ref {
+  font-family: monospace;
+  font-size: 12px;
+}
+.person-editor {
+  display: grid;
+  gap: 10px;
+  padding: 12px 4px 4px;
+}
+.person-editor > .btn {
+  justify-self: start;
+}
+.people-list .scene-label {
+  min-width: 0;
+}
+
+/* ---------- leads and votes ---------- */
+.lead-group h3 {
+  margin: 12px 0 4px;
+  font-size: 1rem;
+  color: var(--gold);
+}
+.lead-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+.lead {
+  display: grid;
+  gap: 2px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: var(--parchment);
+  color: var(--ink);
+}
+.lead-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  color: var(--ink-soft);
+}
+.lead-status-followed {
+  font-weight: 600;
+  color: #2f6b3a;
+}
+.lead.lead-closed {
+  opacity: 0.6;
+}
+.lead-closed summary {
+  margin-top: 10px;
+  cursor: pointer;
+}
+.vote-card {
+  border: 2px solid var(--gold);
+  border-radius: 10px;
+  padding: 12px;
+  margin-bottom: 12px;
+}
+.vote-card h3 {
+  margin: 0 0 4px;
+}
+.vote-options {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+.vote-option {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 2px 10px;
+  text-align: left;
+  align-items: center;
+}
+.vote-option .vote-count {
+  font-size: 1.4rem;
+  font-weight: 700;
+  grid-row: span 2;
+}
+.vote-option .vote-who,
+.vote-option .badge {
+  grid-column: 1;
+  justify-self: start;
+}
+.vote-option.mine {
+  border-color: var(--gold-bright);
+  box-shadow: 0 0 0 2px var(--gold-bright) inset;
+}
+.vote-option.won {
+  background: #2f4a2c;
+}
+.vote-box .vote-options li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  align-items: center;
+}
+.vote-box .vote-options li.won strong {
+  color: var(--gold-bright);
+}
+.lead-item.lead-closed {
+  opacity: 0.65;
+}
+.tv-leads {
+  position: absolute;
+  inset: 0;
+  z-index: 12;
+  display: grid;
+  place-items: center;
+  background: rgba(13, 10, 8, 0.72);
+  animation: fade-in 0.6s ease both;
+}
+.tv-leads-sheet {
+  width: calc(1500 * var(--u));
+  max-height: calc(960 * var(--u));
+  overflow: hidden;
+  background: var(--parchment);
+  color: var(--ink);
+  border-radius: calc(4 * var(--u));
+  padding: calc(50 * var(--u)) calc(70 * var(--u));
+  box-shadow: 0 calc(24 * var(--u)) calc(70 * var(--u)) rgba(0, 0, 0, 0.6);
+  font-size: calc(34 * var(--u));
+}
+.tv-leads-groups {
+  columns: 2;
+  column-gap: calc(60 * var(--u));
+}
+.tv-leads-group {
+  break-inside: avoid;
+  margin-bottom: calc(24 * var(--u));
+}
+.tv-leads-group h3 {
+  font-family: var(--font-sc);
+  color: var(--wax, #8a2b1f);
+  margin: 0 0 calc(8 * var(--u));
+  font-size: calc(40 * var(--u));
+}
+.tv-leads-group ul {
+  margin: 0;
+  padding-left: calc(30 * var(--u));
+}
+.tv-lead-status {
+  font-style: italic;
+  color: #2f6b3a;
+}
+.tv-vote {
+  margin-bottom: calc(30 * var(--u));
+}
+.tv-vote-options {
+  list-style: none;
+  padding: 0;
+  margin: calc(12 * var(--u)) 0 0;
+  display: grid;
+  gap: calc(12 * var(--u));
+}
+.tv-vote-options li {
+  display: flex;
+  gap: calc(24 * var(--u));
+  align-items: center;
+  padding: calc(10 * var(--u)) calc(20 * var(--u));
+  border: calc(2 * var(--u)) solid rgba(0, 0, 0, 0.15);
+  border-radius: calc(10 * var(--u));
+  transition: background 0.4s;
+}
+.tv-vote-options li.won {
+  background: rgba(214, 164, 60, 0.35);
+  border-color: var(--gold);
+}
+.tv-vote-count {
+  font-family: var(--font-sc);
+  font-size: calc(64 * var(--u));
+  min-width: calc(70 * var(--u));
+  text-align: center;
+}
+.tv-vote-text {
+  display: grid;
+}
+.tv-vote-place {
+  display: inline;
+  font-style: italic;
+  color: var(--ink-soft);
+}
+.tv-vote-who {
+  font-size: calc(26 * var(--u));
+  color: var(--ink-soft);
+}
+.disc-moment.chosen .disc-name {
+  font-size: calc(72 * var(--u));
+}
+
+/* ---------- discovery counters and the recap card ---------- */
+.area-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+.area-list li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+}
+.area-name {
+  font-weight: 600;
+}
+.area-slots {
+  flex-basis: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.area-slot {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 1px dashed var(--ink-soft);
+}
+.area-slot.rumored {
+  border-style: solid;
+  border-color: #a8740f;
+  background: rgba(168, 116, 15, 0.35);
+}
+.area-slot.found {
+  border: 1px solid var(--gold-bright);
+  background: var(--gold);
+}
+.disc-moment.recap-card .disc-fact {
+  font-size: calc(52 * var(--u));
+}
 
 /* DM: manage the Chronicle by author */
 .chron-manage {

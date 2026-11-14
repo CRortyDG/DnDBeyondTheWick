@@ -36,6 +36,8 @@ Tests in `tests/projection.test.ts` put a marker string in every DM-only field a
 
 Each player gets a private link, `/arrive/<code>`, from the DM view's **Arrival** tab (**Copy text** copies a ready-to-send message; edit the message there). On a phone it plays a short tap-through intro (their arrival in Candlefair by ship), then lands on their seat: a character name, an optional "Why did you get on that boat?" line, and **Take a seat**. After that the link opens straight on the seat page, with **Replay intro**.
 
+For first-time players, the seat page has **Pick a starting point**: six kinds of hero in plain words (The Protector, The Sneak, The Spellcaster, The Healer, The Wild One, The Charmer), each with what you do on your turn and the D&D Beyond recipe (2024 rules: class, species, background, best ability). **Help me choose** asks three questions and suggests one. Picking fills in a sample name and line they can change; the pick shows on their row in the Arrival tab. Edit the cards in `src/shared/starters.ts`.
+
 - **The DM's Arrival tab** shows, per player: link copied, intro opened, finished, seat claimed, character name. **Reset** puts a player back to new (same link). **Lock seats** stops name changes.
 - **The Table** on the TV (press `T`, or the button in the Arrival tab) shows one candle per player. Seats light live as players claim them; a QR code in the corner cycles through whoever hasn't claimed yet. When the last seat lights, every candle flares and the title fades in.
 - **The generic link** `/arrive` plays the intro and then asks for the link the DM sent. It can't claim a seat.
@@ -92,9 +94,10 @@ In the DM view, **Open TV window** pops the TV page out. Drag it onto the TV and
 
 | Where | Keys |
 | --- | --- |
-| DM view | `0`–`9` scenes · `←` `→` step (while the shop is open: flip shops) · `S` shop on the TV · `P` purse · `B` bank · `T` The Table (Arrival) · `I` requests from phones · `L` map legend · `Esc` closes the requests drawer, then the shop, then zooms a map back out |
+| DM view | `D` dice · `0`–`9` scenes · `←` `→` step (while the shop is open: flip shops) · `S` shop on the TV · `P` purse · `B` bank · `T` The Table (Arrival) · `I` requests from phones · `L` map legend · `Esc` closes the requests drawer, then the shop, then zooms a map back out |
 | Map editor | click the map to drop a pin · drag to move · `←` `↑` `→` `↓` nudge (Shift: bigger steps) · `Delete` removes · `Ctrl+Z` undo · `Esc` deselects, then closes |
-| Run-game mode | `Space` or `→` next beat · `Shift+Space` or `←` back · `0`–`9` `S` `P` `T` as above · `B` opens the bank on top · `I` requests · `Esc` closes whatever is on top |
+| Fight screen | `D` dice · `Space` next turn · `Shift+Space` previous · digits type an amount · `Enter` damages the picked rows · `Shift+Enter` heals them · `Esc` clears the amount, then the picks |
+| Run-game mode | `D` dice · `Space` or `→` next beat · `Shift+Space` or `←` back · `0`–`9` `S` `P` `T` as above · `B` opens the bank on top · `I` requests · `Esc` closes whatever is on top |
 | TV | `F` fullscreen · `H` hide the control bar |
 
 ## How it's built
@@ -142,6 +145,14 @@ tests/                    vitest
 - **Closed shops** (the Peddler) show only their name and tagline until you untick Closed.
 - **Starter catalog:** DM view → Game → **Load the starter catalog** swaps in the latest one, with all shops hidden. Gold and history aren't touched.
 
+## Renown and the bounty board
+
+- **Renown** is one rank for the whole party: Strangers → Known in town → Trusted → Heroes of Candlefair → Famous on the Coast. Set it in DM view → **Board**. Raising it plays a moment on the TV ("Candlefair knows your names"), adds a line to the Chronicle, and opens anything that was waiting on it. Lowering it is quiet, and those things lock again.
+- **Renown locks:** any item or storefront can need a rank (Edit → *Needs Renown*). Until the party has it, players see it locked with the rank ("Needs Known in town") and your line underneath. Storefronts show their name and the rank, but no goods.
+- **Job flyers** live on the same notice board as player flyers, and the board holds 8 pins in all. Each has a title, who posted it, a few lines, a reward (per person, for the party, or hidden), the Renown it needs, and a paper: scrawled note, merchant's bill, official notice, or sealed envelope (no text at all). Your notes on it (adventure, loot, twists) never leave the DM view.
+- **Statuses:** Open → Taken → Done, or Pulled. Jobs belong to the whole party: anyone can tap **Take this job for the party** on their phone (Jobs tab), it comes to your Requests drawer, and everyone's phone shows the party has asked (one ask per job). Taken and done flyers say when, not who: "Taken by the party in Chapter 4", "Completed in Chapter 4" (the session it happened in, or the date before the first session). Jobs above the party's Renown stay readable, stamped "Experienced parties only", with no take button. **Done…** pays the reward to each player at the table by default (a party total is split evenly; type any amount you like); it goes through the ledger once, is written in the Chronicle, and the DONE flyer comes down after the next full session. **Pull and follow up…** replaces a flyer with a new one in the same spot.
+- New campaigns start with four job flyers (Artum’s Winterfest job among them), all unpinned. Older campaigns get them once.
+
 ## Buying from phones
 
 - **Players ask, you decide.** On their phone a player sees their gold, their *available* gold (gold minus anything waiting), and the shops you've opened to them. They tap an item, pick a quantity if it stacks, add an optional note ("for the bard"), and ask. They can cancel while it's waiting.
@@ -153,14 +164,62 @@ tests/                    vitest
 - **One at a time:** untick *Players can ask for several at once* on gear like armor.
 - Phones get no push notifications; a banner appears on the page when you decide. Anyone who opens an unlocked name can ask to spend that player's gold, so players are nudged to lock their name; your approval is the safeguard either way.
 
+## Discovery (people, places, shops, monsters, mysteries)
+
+One compendium for everything the party can find: people, places, shops, monsters, mysteries and factions.
+
+- **DM view → Discovery** lists every entry by kind. Each has a stage: **Hidden** (only you see it), **Rumored** (phones and TV see the nickname, or "???", a hint and a silhouette, nothing else), **Met/Found** and **Known**. Revealing any fact makes an entry Known. Changing a stage twice does nothing the second time.
+- **Seeded:** Captain Orsa Dell, Mags and Artum (met), Fennick and the baker (rumored), the merchant, the Chef and Bolla (hidden). Seed entries are added to existing games only if missing; "Start fresh" returns every entry to its starting stage. They live in `src/server/` so locked facts and DM notes never ship in the browser code.
+- **Pictures:** pick a portrait scene. Portraits are served from `/api/art/…` only once the entry is found, so phones can't guess their way to a face. Rumors show a silhouette: **Make silhouette from portrait** builds one in your browser, or upload one, or use the generic shape for the kind.
+- **The TV** plays a short reveal (silhouette, then the picture fills in) when an entry is found or a fact is revealed on the TV, with an optional chime (the speaker toggle on the TV, off by default). Untick "Play stage changes on the TV" to change stages quietly.
+- **Relationships:** how they feel about the party (Stranger, Friendly, Ally, Hostile), with an optional override per player shown as a badge on that player's phone.
+- **Places** can be tied to a map pin. Hidden hides the pin, Rumored shows a `?` seal (with the nickname and hint only in the names legend), and Visited shows the pin as it is. It works both ways: discovering a pin on the map visits its place, and hiding the pin hides the place again (a Known place stays in Discover). Tie a pin from either side: the pin's **Place in Discover** picker in the map editor (including **+ New place from this pin**), or the place's pin picker in Discover. One place per pin. If the pin is already showing when you tie it, the place becomes Visited; otherwise the pin follows the place. Seeded: the Flickering Candle, Candlefair Docks and Baldur's Gate (visited), Lathtarl's Lantern and the Trollbark (rumored), and the broken ring mystery (hidden).
+- **Shops** can be tied to a storefront: finding the shop opens it to everyone, and opening the storefront finds the shop. Hiding the storefront doesn't unfind it.
+- **Monsters** get an entry when a fight ends: a rumor under the TV name, or Encountered once revealed (revealing one mid-fight also counts).
+- **From the table:** the dice tray has a **Reveal…** picker next to the last roll, so a good Insight check turns straight into a fact on the TV or someone found. Run sheets take `reveal: person/fennick` (found), `reveal: person/fennick known`, `rumor: place/lathtarls-lantern` and `fact: person/mags/owes-the-baker` (the names are each entry's and fact's run sheet name). These lines only move things forward and play on the TV; a name that doesn't match anything is skipped.
+- **Areas:** phones count what the party has found in each area. **Show how much is left to find** adds one slot per entry in the area, hidden ones too, as empty slots. It's off by default, so phones don't learn how much is still hidden.
+- **Goodwill locks:** an item, a storefront or a job flyer can need a person to be Friendly or an Ally with the party (Shop and Board editors, next to Renown). Until then it shows as locked with "Needs Mags Wick’s friendship" ("someone’s" for people the party hasn't met). Raising someone's feelings announces whatever opens.
+- **Session recap:** ending a session puts "Tonight you met…, visited… and learned…" on the TV and in the Chronicle, from what was found and learned that session. A quiet night adds nothing.
+- **Ties** link entries together; players see a tie only when both ends are visible to them.
+- **Phones** get a **Discover** tab with a "new" badge for anything changed since they last looked, each entry's facts, and the table's notes (Chronicle notes tagged with the entry's name). Hidden entries, locked facts, real names behind nicknames, DM notes and secrets never leave your screen.
+
+## Leads and votes
+
+- **DM view → Leads:** threads the party can pull on. Each can be about an entry, point to a place, and be tied to a job flyer. Leads go Open → Followed → Closed. New leads start as drafts; tick **Shown** when the party learns of one. Players never see a draft, your note, or a lead about something still hidden. A rumored place or person reads as its hint.
+- **Phones** list leads in the Discover tab, grouped by place. **Leads board on the TV** puts the same list over the scene.
+- **Votes:** tick two or three shown leads and open a vote, with an optional time limit. Each player gets one vote and can change it until the vote closes, and everyone sees the count live. The vote closes when you press **Close now**, or by itself at its time (on the next thing anyone does). A tie waits for you to break it, and you can always pick a different lead. The chosen lead becomes Followed, and the TV shows "You chose: …" at the start of the next session.
+
 ## Running a session (run-game mode)
 
 - **DM view → Run game** starts (or resumes) a session for an episode and opens the presenter view: the current beat big, the next one underneath, every beat in a side list (a drawer on phones).
 - **Next** and **jumping** to a beat fire its actions (switch the TV scene, black screen, or the bank: purse on the TV and the bank on your screen). **Back** never fires anything. Tap "↻ Again" to re-fire, or "Skip" on the next beat's action before you press Next.
 - The first screen is check-in (untick anyone who isn't here; they're marked away) and the last session's recap, which you can show on the TV as "Previously on…". The last screen is payday, the recap box and all your quick notes.
 - Your place is saved on the server, so a reload or another device lands on the same beat. If a session ends mid-episode, the next run picks up where it stopped.
-- **DM view → Episodes:** add episodes, edit beats (each beat is edited as Markdown), reorder by dragging or with the arrows, import an episode pasted as Markdown, and export it back out. One beat per `##`; lines start with `>` read-aloud, `-` note, `check:`, `if:` or `action:` (`scene <name>`, `black`, `bank`). There's no initiative tracker yet, so `action: initiative` is skipped.
+- **DM view → Episodes:** add episodes, edit beats (each beat is edited as Markdown), reorder by dragging or with the arrows, import an episode pasted as Markdown, and export it back out. One beat per `##`; lines start with `>` read-aloud, `-` note, `check:`, `if:`, `action:` (`scene <name>`, `black`, `bank`), `reveal:`, `rumor:`, `fact:` (see Discovery) or `fight:` (`fight: Pudding Gremlin x2, Goblin`: landing on the beat sets up that fight from the Monsters tab).
 - Existing games get the seed episode "Just Desserts" automatically. "Start fresh" keeps episodes; "Reset everything" restores the seed episode.
+
+## Combat mode
+
+For in-person fights: no grid, no tokens. The point is faster turns: everyone always knows who's up and who's next.
+
+- **Start fight** (DM header, the Monsters tab, or a run sheet `fight:` line) puts **Roll initiative!** on the TV and a number pad on every phone. Entries arrive live on the full-screen **fight screen**; type or fix any of them, add monsters from templates (lettered A, B, …) or quick one-offs, roll their initiative in one click, drag to reorder, then **Begin**. Ties go to the higher initiative bonus when both are known, otherwise they stay as entered.
+- **The TV:** the scene dimmed behind a turn-order strip, a big "now" panel with conditions and turns left, "up next", the round, and an optional hourglass (off by default; it just glows when it runs out). Monsters show a state (Unhurt, Hurt, Bloodied, Barely standing, Down), never numbers or AC, and their TV name ("Something in the pudding") until you reveal the real one. Hidden combatants never reach the TV or phones; their turn shows as "…". Crits, a monster falling, a player going down and the end get a short animation. While a fight runs, the shop, "Previously on…" and the purse step aside; **Pause** shows the scene again with a small banner.
+- **Phones:** "You're up next" (short buzz) and "Your turn!" (longer buzz, red screen), the order, your conditions and round, **End my turn**, your HP (optional, "Show my HP on the TV" on by default; D&D Beyond stays the real sheet) and death saves at 0 HP.
+- **Your controls:** damage, heal and temp HP on any picked rows; the 2024 conditions (Exhaustion with levels) or a custom one, with rounds counting down at the start or end of that combatant's turn and a reminder when they end; concentration (the save DC pops up on a hit); recharge abilities (a reminder at the start of its turn once used, with Roll d6); 1/day ticks; on-death reminders (Death Burst); add mid-fight right after another combatant; delay; hide; per-fight DM notes. Previous turn undoes the countdowns exactly.
+- **End fight** shows "The fight is over" on the TV (rounds and who went down). Then the loot step pays coins into purses through the ledger (evenly or by player), notes any items, writes an editable Chronicle line, keeps a summary under Monsters → Past fights, and puts the TV back on the scene from before.
+- **Monsters tab:** templates with AC, HP (`21` or `6d6`, rolled per monster), initiative bonus, speed, attacks, abilities (recharge, uses per day, on-death reminder), resistances, immunities, notes, a DM note (shown when a fight with it starts) and an optional portrait. The Pudding Gremlin is seeded on the server, like the seed run sheet, so its stat block never ships to the TV or phones.
+- Everything lives in the campaign's room, so a refresh on any screen comes back to the same turn. Player HP stays with the player between fights.
+
+## Dice
+
+**Dice** (in the DM header, the fight screen and run-game mode, or press `D`) opens a tray of d4, d6, d8, d10, d12, d20 and d100. Tap a die to add one (the badge counts them, `−` takes one away), set a modifier, then:
+
+- **Roll on the TV**: the server rolls, and 3D dice (three.js) tumble onto the TV over whatever is showing (fights included), land one by one with the rolled number facing the room, then the total. three.js loads only on the TV page, in its own chunk. With reduced motion on, the dice appear already landed; where WebGL isn't available, the TV falls back to flat dice. A lone d20 calls out a natural 20 or natural 1. It clears itself after a few seconds; phones don't see it.
+- **Roll secretly**: only the DM sees it, in the roll log; nothing goes to the TV or phones.
+
+The tray keeps your picks, so the same roll again is one tap.
+
+**Players roll too**, from the **Dice** tab on their phone: **Roll on the TV** plays it on the TV with their name, **Roll for the DM only** keeps it off the TV (a Stealth check, say). The DM sees every roll: a toast for TV rolls, a card that stays until **Got it** for "DM only" rolls, a badge on the Dice button for player rolls not looked at yet, and the tray's log (the DM's and players' last 40 rolls, with every die, who rolled and where it went). **Clear history** empties the log. A phone only sees its own last five rolls, and can roll at most once every 1.5 seconds.
 
 ## Sessions and starting over
 

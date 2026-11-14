@@ -15,6 +15,7 @@ import {
 import type { Beat, BeatAction, Episode, Scene } from "@/shared/types";
 import { DownIcon, UpIcon } from "../ui/icons";
 import { useDm } from "./context";
+import { monstersOf } from "@/shared/combat";
 import { Field } from "./Field";
 import { actionLabel } from "./RunGame";
 
@@ -147,7 +148,7 @@ function ImportBox({
         Lines: <code>&gt;</code> read-aloud · <code>-</code> note ·{" "}
         <code>check:</code> skill DC n | what | fail: … | success: … ·{" "}
         <code>if:</code> … → … · <code>action:</code> scene &lt;name&gt;, black
-        or bank. A <code># Title</code> line names the episode.
+        or bank · <code>fight:</code> Goblin x2, Orc (monsters from the Monsters tab). A <code># Title</code> line names the episode.
       </p>
       {parsed ? (
         <div className="import-preview">
@@ -559,7 +560,7 @@ function BeatEditor({
   );
 }
 
-/** Swap a beat's "action:" lines for these, keeping everything else as typed. */
+/** Swap a beat's "action:" and "fight:" lines for these, keeping everything else as typed. */
 function withActions(
   md: string,
   actions: BeatAction[],
@@ -568,7 +569,7 @@ function withActions(
   const kept = md
     .replace(/\s+$/, "")
     .split("\n")
-    .filter((l) => !/^\s*action\s*:/i.test(l));
+    .filter((l) => !/^\s*(?:action|fight)\s*:/i.test(l));
   const lines = actions
     .map((a) => actionMarkdown(a, scenes))
     .filter((l): l is string => !!l);
@@ -586,10 +587,13 @@ function ActionsPicker({
   onChange: (a: BeatAction[]) => void;
 }) {
   const [pick, setPick] = useState("");
+  const { view } = useDm();
+  const monsters = monstersOf(view.state);
   const add = (v: string) => {
     if (!v) return;
-    const a: BeatAction =
-      v === "black"
+    const a: BeatAction = v.startsWith("fight:")
+      ? { type: "fight", monsters: [{ name: v.slice(6), count: 1 }] }
+      : v === "black"
         ? { type: "black" }
         : v === "bank"
           ? { type: "bank" }
@@ -642,6 +646,15 @@ function ActionsPicker({
           <option value="bank">
             Bank (purse on the TV, bank on your screen)
           </option>
+          {monsters.length ? (
+            <optgroup label="Start a fight (set how many in the text)">
+              {monsters.map((m) => (
+                <option key={m.id} value={`fight:${m.name}`}>
+                  Fight: {m.name}
+                </option>
+              ))}
+            </optgroup>
+          ) : null}
         </select>
       ) : null}
     </div>

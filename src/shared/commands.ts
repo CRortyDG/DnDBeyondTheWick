@@ -1,7 +1,18 @@
 import { z } from "zod";
 import { CATEGORY_IDS, KIND_IDS } from "./progress";
+import { RENOWN_MAX } from "./renown";
+import { DIE_SIDES, diceCount, MAX_DICE, MAX_OF_ONE, MAX_PLUS } from "./dice";
+import { fightDmCommands, fightPlayerCommands } from "./combatSchema";
+import { AREAS_MAX, DM_TEXT_MAX, FACT_REF_RE, LEAD_MAX, REF_RE, FACT_MAX, HINT_MAX, LINKS_MAX, NAME_MAX, RELATION_IDS, STAGE_IDS, SUMMARY_MAX, TITLE_MAX } from "./discovery";
 
 const id = z.string().min(1).max(64);
+/** How many of which dice: d4 to d100, at most 20 of one and 30 in all. */
+const diceAsk = z
+  .array(z.object({ sides: z.literal(DIE_SIDES), count: z.number().int().min(1).max(MAX_OF_ONE) }))
+  .min(1)
+  .max(DIE_SIDES.length)
+  .refine((d) => diceCount(d) <= MAX_DICE, `At most ${MAX_DICE} dice at once.`);
+const dicePlus = z.number().int().min(-MAX_PLUS).max(MAX_PLUS).default(0);
 const text = (max: number) => z.string().max(max);
 const cp = z.number().int().min(0).max(1_000_000_000);
 const hotkey = z.number().int().min(0).max(9).nullable();
@@ -49,6 +60,34 @@ const scenePatch = z
   })
   .partial();
 
+// Discovery entries.
+const relation = z.enum(RELATION_IDS);
+const stage = z.enum(STAGE_IDS);
+/** Someone's goodwill a storefront, item or job needs. */
+const trustNeed = z.object({ entryId: id, relation: z.enum(["friendly", "ally"]) });
+const entryFields = {
+  kind: z.string().regex(/^[a-z][a-z-]{1,23}$/),
+  slug: z.string().max(40),
+  name: text(NAME_MAX),
+  title: text(TITLE_MAX),
+  summary: text(SUMMARY_MAX),
+  nickname: text(NAME_MAX),
+  hint: text(HINT_MAX),
+  sceneId: id.nullable(),
+  pin: z.object({ sceneId: id, pinId: id }).nullable(),
+  shopId: id.nullable(),
+  templateId: id.nullable(),
+  silhouette: z.string().max(2048).nullable(),
+  areas: z.array(text(40)).max(AREAS_MAX),
+  links: z.array(id).max(LINKS_MAX),
+  relation: relation.nullable(),
+  start: stage,
+  dmNote: text(DM_TEXT_MAX),
+  secrets: text(DM_TEXT_MAX),
+};
+const factText = text(FACT_MAX);
+const updown = z.union([z.literal(1), z.literal(-1)]);
+
 const category = z.enum(CATEGORY_IDS);
 const effect = z.discriminatedUnion("type", [
   z.object({ type: z.literal("unlock"), itemId: id.optional(), shopId: id.optional() }),
@@ -56,6 +95,7 @@ const effect = z.discriminatedUnion("type", [
   z.object({ type: z.literal("income"), dice: z.string().regex(/^\s*(\d*d\d+([+-]\d+)?|\d+)\s*$/i), unitCp: cp }),
   z.object({ type: z.literal("credit"), limitCp: cp }),
 ]);
+const rank = z.number().int().min(0).max(RENOWN_MAX);
 const flyerText = z.object({ title: text(60).min(1), body: text(400), signedBy: text(60) });
 
 const itemFields = {
@@ -82,6 +122,20 @@ const itemFields = {
   tags: z.array(text(40)).max(10),
   keep: z.boolean(),
   effects: z.array(effect).max(6),
+  renown: rank,
+  trust: trustNeed.nullable(),
+};
+
+// The bounty board. dm: DM-ONLY notes, never sent to the TV or a phone.
+const jobFields = {
+  trust: trustNeed.nullable(),
+  title: text(80),
+  postedBy: text(80),
+  body: text(600),
+  reward: z.object({ kind: z.enum(["each", "total", "hidden"]), cp }),
+  renown: rank,
+  style: z.enum(["scrawl", "bill", "official", "sealed"]),
+  dm: z.object({ adventure: text(300), loot: text(1000), twists: text(1000), notes: text(2000) }).partial(),
 };
 const itemPatch = z.object(itemFields).partial();
 
@@ -91,6 +145,9 @@ const beatAction = z.discriminatedUnion("type", [
   z.object({ type: z.literal("black") }),
   z.object({ type: z.literal("stinger") }),
   z.object({ type: z.literal("bank") }),
+  z.object({ type: z.literal("fight"), monsters: z.array(z.object({ name: text(80).min(1), count: z.number().int().min(1).max(20) })).min(1).max(10) }),
+  z.object({ type: z.literal("reveal"), ref: z.string().regex(REF_RE), stage }),
+  z.object({ type: z.literal("fact"), ref: z.string().regex(FACT_REF_RE) }),
 ]);
 export const beatBody = z.object({
   title: text(160).min(1),
@@ -145,6 +202,22 @@ export const dmCommand = z.discriminatedUnion("type", [
   z.object({ type: z.literal("flyer.update"), flyerId: id, patch: flyerText.partial().extend({ up: z.boolean().optional() }) }),
   z.object({ type: z.literal("flyer.remove"), flyerId: id }),
 
+  /** The party's Renown. Raising it is announced on the TV and written in the Chronicle; lowering it is quiet. */
+  z.object({ type: z.literal("renown.set"), rank }),
+  /** secret: only the DM sees it (in the roll log); otherwise it plays on the TV. */
+  z.object({ type: z.literal("dice.roll"), dice: diceAsk, plus: dicePlus, secret: z.boolean().optional() }),
+  /** Empty the roll log (the DM's and the players' rolls). */
+  z.object({ type: z.literal("dice.clearLog") }),
+  /** A new job flyer (unpinned unless pin). followUpOf: the flyer it replaces, which is pulled. */
+  z.object({ type: z.literal("job.add"), job: z.object(jobFields).partial(), followUpOf: id.optional(), pin: z.boolean().optional() }),
+  /** status: back to open, or taken by hand. Done goes through job.done (it pays); expired through job.expire. */
+  z.object({ type: z.literal("job.update"), jobId: id, patch: z.object({ ...jobFields, status: z.enum(["open", "taken"]) }).partial() }),
+  z.object({ type: z.literal("job.pin"), jobId: id, pinned: z.boolean() }),
+  /** Mark it done and pay these amounts into purses, once. */
+  z.object({ type: z.literal("job.done"), jobId: id, payouts: z.array(z.object({ playerId: id, cp })).max(50) }),
+  z.object({ type: z.literal("job.expire"), jobId: id }),
+  z.object({ type: z.literal("job.remove"), jobId: id }),
+
   z.object({ type: z.literal("player.add"), name: text(32) }),
   z.object({ type: z.literal("player.update"), playerId: id, patch: z.object({ name: text(32), dndbUrl: text(300), away: z.boolean(), dropIn: z.boolean(), handle: text(40), character: text(40) }).partial() }),
   z.object({ type: z.literal("player.archive"), playerId: id, archived: z.boolean() }),
@@ -153,7 +226,7 @@ export const dmCommand = z.discriminatedUnion("type", [
   z.object({ type: z.literal("player.inspire"), playerId: id, on: z.boolean() }),
 
   z.object({ type: z.literal("shop.add"), name: text(80), subtitle: text(160) }),
-  z.object({ type: z.literal("shop.update"), shopId: id, patch: z.object({ name: text(80), subtitle: text(160), closed: z.boolean(), secretSales: z.boolean() }).partial() }),
+  z.object({ type: z.literal("shop.update"), shopId: id, patch: z.object({ name: text(80), subtitle: text(160), closed: z.boolean(), secretSales: z.boolean(), renown: rank, trust: trustNeed.nullable() }).partial() }),
   /** Who can see a shop. quiet: no "Now open" banner on the TV. */
   z.object({
     type: z.literal("shop.visibility"),
@@ -188,6 +261,42 @@ export const dmCommand = z.discriminatedUnion("type", [
   z.object({ type: z.literal("note.removeAuthor"), authorId: id }),
   /** A portrait's NPC: the players have met them (feeds the Chronicle's tag picker). */
   z.object({ type: z.literal("scene.known"), sceneId: id, known: z.boolean() }),
+
+  // Discovery. announce: play the reveal on the TV.
+  z.object({ type: z.literal("entry.add"), entry: z.object(entryFields).partial(), facts: z.array(factText).max(40).optional() }),
+  z.object({ type: z.literal("entry.update"), entryId: id, patch: z.object(entryFields).partial() }),
+  /** A person's feelings about one player (null: same as the party). */
+  z.object({ type: z.literal("entry.relationFor"), entryId: id, playerId: id, relation: relation.nullable() }),
+  z.object({ type: z.literal("entry.remove"), entryId: id }),
+  z.object({ type: z.literal("entry.move"), entryId: id, dir: updown }),
+  z.object({ type: z.literal("entry.stage"), entryId: id, stage, announce: z.boolean() }),
+  /** Play it on the TV again (visible entries only); factId: a revealed fact instead. */
+  z.object({ type: z.literal("entry.show"), entryId: id, factId: id.optional() }),
+  z.object({ type: z.literal("entry.factAdd"), entryId: id, text: factText }),
+  z.object({ type: z.literal("entry.factUpdate"), entryId: id, factId: id, text: factText.optional(), slug: z.string().max(40).optional() }),
+  z.object({ type: z.literal("entry.factRemove"), entryId: id, factId: id }),
+  z.object({ type: z.literal("entry.factMove"), entryId: id, factId: id, dir: updown }),
+  /** Revealing a fact makes the entry Known. tv: also show it on the TV. */
+  z.object({ type: z.literal("entry.factReveal"), entryId: id, factId: id, revealed: z.boolean(), tv: z.boolean().optional() }),
+
+  z.object({ type: z.literal("lead.add"), text: text(LEAD_MAX).min(1), entryId: id.optional(), placeId: id.optional(), jobId: id.optional(), shown: z.boolean().optional() }),
+  z.object({
+    type: z.literal("lead.update"),
+    leadId: id,
+    patch: z.object({ text: text(LEAD_MAX).min(1), entryId: id.nullable(), placeId: id.nullable(), jobId: id.nullable(), shown: z.boolean(), dmNote: text(DM_TEXT_MAX) }).partial(),
+  }),
+  z.object({ type: z.literal("lead.status"), leadId: id, status: z.enum(["open", "followed", "closed"]) }),
+  z.object({ type: z.literal("lead.remove"), leadId: id }),
+  z.object({ type: z.literal("lead.move"), leadId: id, dir: updown }),
+  /** Minutes: closes by itself that long from now. */
+  z.object({ type: z.literal("vote.open"), leadIds: z.array(id).min(2).max(3), minutes: z.number().int().min(1).max(10080).optional() }),
+  z.object({ type: z.literal("vote.close") }),
+  /** The DM's pick: breaks a tie, or overrides. */
+  z.object({ type: z.literal("vote.pick"), leadId: id }),
+  z.object({ type: z.literal("vote.clear") }),
+  z.object({ type: z.literal("live.leads"), on: z.boolean() }),
+  /** Show how much is left to find per area, as empty slots. */
+  z.object({ type: z.literal("discovery.totals"), on: z.boolean() }),
 
   z.object({ type: z.literal("episode.add"), title: text(160), beats: z.array(beatBody).max(200).optional() }),
   z.object({ type: z.literal("episode.update"), episodeId: id, title: text(160).min(1) }),
@@ -236,6 +345,9 @@ export const dmCommand = z.discriminatedUnion("type", [
 
   z.object({ type: z.literal("game.rename"), name: text(120).min(1) }),
   z.object({ type: z.literal("game.vtt"), url: text(300) }),
+
+  // Combat mode.
+  ...fightDmCommands,
 ]);
 
 /** Commands a player may send about themselves. */
@@ -249,10 +361,17 @@ export const playerCommand = z.discriminatedUnion("type", [
   z.object({ type: z.literal("me.cancelRental"), rentalId: id }),
   z.object({ type: z.literal("me.requestGive"), toPlayerId: id, amountCp: cp.min(1), note: text(120) }),
   z.object({ type: z.literal("me.cancelRequest"), requestId: id }),
+  /** "Take this job": asks the DM. */
+  z.object({ type: z.literal("me.takeJob"), jobId: id, note: text(120) }),
   // The Chronicle: players write notes and edit, move or delete their own.
+  z.object({ type: z.literal("me.vote"), leadId: id }),
   z.object({ type: z.literal("me.noteAdd"), text: noteText, tags: noteTags.optional(), chapterId: id.optional() }),
   z.object({ type: z.literal("me.noteUpdate"), noteId: id, patch: notePatch }),
   z.object({ type: z.literal("me.noteRemove"), noteId: id }),
+  /** Roll dice from the phone: on the TV for the table, or for the DM only. The DM sees every roll. */
+  z.object({ type: z.literal("me.diceRoll"), dice: diceAsk, plus: dicePlus, tv: z.boolean() }),
+  // Combat mode: initiative, my HP, death saves, end my turn.
+  ...fightPlayerCommands,
 ]);
 
 /** Commands the server issues itself; never accepted from a client. */
@@ -263,7 +382,7 @@ export type SystemCommand =
   | { type: "me.lockHashed"; keyHash: string }
   /** From /api/arrival: the server has already matched the link code to playerId. */
   | { type: "system.arrivalStep"; playerId: string; step: "open" | "finish" }
-  | { type: "system.arrivalClaim"; playerId: string; character: string; why: string };
+  | { type: "system.arrivalClaim"; playerId: string; character: string; why: string; pick?: string | null };
 
 export type DmCommand = z.infer<typeof dmCommand>;
 export type PlayerCommand = z.infer<typeof playerCommand>;

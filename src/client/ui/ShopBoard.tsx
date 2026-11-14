@@ -10,6 +10,10 @@ export interface ShopLike {
   name: string;
   subtitle: string;
   closed?: boolean;
+  /** Waiting on the party's Renown ("Known in town"). */
+  needs?: string;
+  /** Waiting on someone's goodwill ("Mags Wick’s friendship"). */
+  goodwill?: string;
 }
 
 /** Browse by what things do (the default), or by storefront. */
@@ -111,11 +115,11 @@ export function ShopBoard<T extends CardItem>({
           ),
         )}
       </div>
-      {!byCategory && shop.closed && !dm ? (
+      {!byCategory && (shop.closed || shop.needs || shop.goodwill) && !dm ? (
         <div className="shop-closed">
           <p className="shop-closed-name">{shop.name}</p>
           <p className="shop-closed-tag">{shop.subtitle}</p>
-          <p className="note">Not selling yet.</p>
+          <p className="note">{shop.closed ? "Not selling yet." : shop.needs ? `Opens when the party is ${shop.needs}.` : `Opens with ${shop.goodwill}.`}</p>
         </div>
       ) : (
         <div className="grid">

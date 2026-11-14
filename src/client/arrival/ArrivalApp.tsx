@@ -234,7 +234,7 @@ export function ArrivalApp({ code, game }: { code: string | null; game: string }
 
   return (
     <div className="seat-fade">
-      <SeatPage view={view} loading={loading} onClaim={(character, why) => post({ type: "claim", character, why })} onReplay={replay} soundOn={soundOn} onToggleSound={toggleSound} />
+      <SeatPage view={view} loading={loading} onClaim={(character, why, pick) => post({ type: "claim", character, why, pick })} onReplay={replay} soundOn={soundOn} onToggleSound={toggleSound} />
     </div>
   );
 }

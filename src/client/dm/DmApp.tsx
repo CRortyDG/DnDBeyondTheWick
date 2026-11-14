@@ -17,6 +17,8 @@ import { nextSessionNumber } from "@/shared/reducer";
 import { BankPanel } from "./BankPanel";
 import { ShopPanel } from "./ShopPanel";
 import { ScenesPanel } from "./ScenesPanel";
+import { DiscoveryPanel } from "./DiscoveryPanel";
+import { LeadsPanel } from "./LeadsPanel";
 import { PlayersPanel } from "./PlayersPanel";
 import { GamePanel } from "./GamePanel";
 import { EpisodesPanel } from "./EpisodesPanel";
@@ -28,15 +30,24 @@ import { EndSessionDialog } from "./Dues";
 import { duesFor } from "@/shared/progress";
 import { ArrivalPanel } from "./ArrivalPanel";
 import { ChroniclePanel } from "./ChroniclePanel";
+import { BoardPanel } from "./BoardPanel";
+import { FightScreen } from "./FightScreen";
+import { MonstersPanel } from "./MonstersPanel";
+import { FightOverlay } from "../ui/FightOverlay";
+import { DiceButton, DiceTray, PlayerRollCards } from "./DiceTray";
 
-type Tab = "bank" | "shop" | "scenes" | "players" | "arrival" | "episodes" | "chronicle" | "game";
+type Tab = "bank" | "shop" | "board" | "scenes" | "discovery" | "leads" | "players" | "arrival" | "episodes" | "monsters" | "chronicle" | "game";
 const TABS: [Tab, string, string][] = [
   ["bank", "Bank", "B"],
   ["shop", "Shop", ""],
+  ["board", "Board", ""],
   ["scenes", "Scenes", ""],
+  ["discovery", "Discovery", ""],
+  ["leads", "Leads", ""],
   ["players", "Players", ""],
   ["arrival", "Arrival", ""],
   ["episodes", "Episodes", ""],
+  ["monsters", "Monsters", ""],
   ["chronicle", "Chronicle", ""],
   ["game", "Game", ""],
 ];
@@ -94,6 +105,8 @@ function NoCampaign({ game }: { game: string }) {
 }
 
 /** Fetch DM-only art with the key header and keep it as a local blob URL. */
+const GATED_NAMES = ["merchant-sigil", "artum", "mags-wick", "chef"];
+
 function useGatedArt(ident: Ident, names: string[]) {
   const [urls, setUrls] = useState<Record<string, string>>({});
   const key = names.join(",");
@@ -148,11 +161,21 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
     [send, toast],
   );
 
-  const gated = useGatedArt(ident, ["merchant-sigil"]);
+  const gated = useGatedArt(ident, GATED_NAMES);
   const [editingMap, setEditingMap] = useState<string | null>(null);
   const [ending, setEnding] = useState(false);
   const closeMap = useCallback(() => setEditingMap(null), []);
-  const ctx: DmCtx = useMemo(() => ({ view, ident, run, toast, gated, call, openMap: setEditingMap }), [view, ident, run, toast, gated, call]);
+  const [diceOpen, setDiceOpen] = useState(false);
+  const toggleDice = useCallback(() => setDiceOpen((v) => !v), []);
+  // Rolls from before this page opened count as seen, so a reload doesn't pop old cards.
+  const [diceSeen, setDiceSeen] = useState(() => s.rolls?.at(-1)?.n ?? 0);
+  const seeDice = useCallback((n: number) => setDiceSeen((x) => Math.max(x, n)), []);
+  const [diceGone, setDiceGone] = useState<number[]>([]);
+  const dismissRoll = useCallback((n: number) => setDiceGone((g) => [...g.slice(-50), n]), []);
+  const ctx: DmCtx = useMemo(
+    () => ({ view, ident, run, toast, gated, call, openMap: setEditingMap, diceOpen, toggleDice, diceSeen, seeDice, diceGone, dismissRoll }),
+    [view, ident, run, toast, gated, call, diceOpen, toggleDice, diceSeen, seeDice, diceGone, dismissRoll],
+  );
 
   /** S: open the shop on the TV (at a shop the party can see), or close it. */
   const toggleShop = () => {
@@ -176,6 +199,41 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
     }
   });
   const [pickEpisode, setPickEpisode] = useState<string>("");
+
+  // Combat mode. The fight screen opens whenever a fight starts (from here, the
+  // Monsters tab or a run sheet beat), and on reload, unless you left it on this device.
+  const fightKey = `candlefair-fight-left:${ident.game}`;
+  const fightId = s.fight?.id;
+  const [fightOpen, setFightOpen] = useState(() => {
+    if (!fightId) return false;
+    try {
+      return sessionStorage.getItem(fightKey) !== fightId;
+    } catch {
+      return true;
+    }
+  });
+  const lastFight = useRef(fightId);
+  useEffect(() => {
+    if (fightId && fightId !== lastFight.current) {
+      setFightOpen(true);
+      window.scrollTo(0, 0);
+    }
+    lastFight.current = fightId;
+  }, [fightId]);
+  const leaveFight = useCallback(() => {
+    setFightOpen(false);
+    try {
+      if (fightId) sessionStorage.setItem(fightKey, fightId);
+    } catch {}
+  }, [fightKey, fightId]);
+  const openFight = useCallback(() => {
+    try {
+      sessionStorage.removeItem(fightKey);
+    } catch {}
+    setFightOpen(true);
+    window.scrollTo(0, 0);
+  }, [fightKey]);
+  const startFight = () => run({ type: "fight.start" }, "Roll initiative! The TV and phones are asking.");
   const leaveRun = useCallback(() => {
     setRunOpen(false);
     try {
@@ -256,19 +314,13 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
   const runningEp = session?.run ? episodes.find((e) => e.id === session.run!.episodeId) : undefined;
   const chosenEp = episodes.find((e) => e.id === pickEpisode) ?? episodes[0];
 
-  if (runOpen && session?.run) {
-    return (
-      <DmContext.Provider value={ctx}>
-        <RunGame onExit={leaveRun} />
-        <div className={`toast${toastMsg ? " show" : ""}`} role="status" aria-live="polite">
-          {toastMsg?.text}
-        </div>
-      </DmContext.Provider>
-    );
-  }
-
-  return (
-    <DmContext.Provider value={ctx}>
+  // The fight screen and run-game mode replace the console; the dice tray and toasts stay put across all three.
+  const screen =
+    fightOpen && s.fight ? (
+      <FightScreen onExit={leaveFight} />
+    ) : runOpen && session?.run ? (
+      <RunGame onExit={leaveRun} onFight={openFight} />
+    ) : (
       <div className="dm-root">
         <header className="dm-top">
           <div className="dm-brand">
@@ -291,6 +343,15 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
           ) : (
             <button className="btn primary" type="button" onClick={() => run({ type: "session.start" }, "Session started. The TV is back on the notice board.")}>
               Start session {nextSessionNumber(s)}
+            </button>
+          )}
+          {s.fight ? (
+            <button className="btn primary" type="button" onClick={openFight}>
+              Back to the fight
+            </button>
+          ) : (
+            <button className="btn" type="button" onClick={startFight} title="Roll initiative! on the TV and phones; add monsters on the fight screen">
+              Start fight
             </button>
           )}
           {runningEp ? (
@@ -318,6 +379,7 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
               <DiceIcon /> Launch VTT
             </a>
           ) : null}
+          <DiceButton />
           <button className="btn" type="button" onClick={openTv} title={absoluteHref(ident.game, "TV")}>
             <TvIcon /> Open TV window
           </button>
@@ -349,11 +411,18 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
               </span>
             </div>
             <div className="preview" aria-label={`Preview: ${live.label}`}>
-              <SceneView scene={previewScene} gated={gated} table={tvView.table} flyers={tvView.flyers} emptyHint="No image yet. Add one under Scenes." />
+              <SceneView scene={previewScene} gated={gated} table={tvView.table} board={tvView} emptyHint="No image yet. Add one under Scenes." />
               {s.live.shopOpen && liveShop ? (
                 <div className="preview-shop" aria-label={`Shop open on the TV: ${liveShop.name}`}>
                   <Stage w={1920} h={1080}>
                     <ShopBoard shops={tvView.shops} items={tvView.items} shopId={liveShop.id} size="tv" mode={s.live.shopCategory ? "category" : "shop"} category={s.live.shopCategory} />
+                  </Stage>
+                </div>
+              ) : null}
+              {tvView.fight ? (
+                <div className="preview-fight" aria-label="The fight on the TV">
+                  <Stage w={1920} h={1080}>
+                    <FightOverlay fight={tvView.fight} preview />
                   </Stage>
                 </div>
               ) : null}
@@ -431,10 +500,14 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
             <div role="tabpanel" id={`panel-${tab}`} aria-labelledby={`tab-${tab}`} className="panel">
               {tab === "bank" ? <BankPanel /> : null}
               {tab === "shop" ? <ShopPanel /> : null}
+              {tab === "board" ? <BoardPanel /> : null}
               {tab === "scenes" ? <ScenesPanel /> : null}
+              {tab === "discovery" ? <DiscoveryPanel /> : null}
+              {tab === "leads" ? <LeadsPanel /> : null}
               {tab === "players" ? <PlayersPanel /> : null}
               {tab === "arrival" ? <ArrivalPanel /> : null}
               {tab === "episodes" ? <EpisodesPanel onRun={startRun} /> : null}
+              {tab === "monsters" ? <MonstersPanel onFight={openFight} /> : null}
               {tab === "chronicle" ? <ChroniclePanel /> : null}
               {tab === "game" ? <GamePanel /> : null}
             </div>
@@ -442,10 +515,16 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
         </div>
 
         {editingMap ? <MapEditor sceneId={editingMap} onClose={closeMap} /> : null}
+      </div>
+    );
 
-        <div className={`toast${toastMsg ? " show" : ""}`} role="status" aria-live="polite">
-          {toastMsg?.text}
-        </div>
+  return (
+    <DmContext.Provider value={ctx}>
+      {screen}
+      <DiceTray />
+      <PlayerRollCards />
+      <div className={`toast${toastMsg ? " show" : ""}`} role="status" aria-live="polite">
+        {toastMsg?.text}
       </div>
     </DmContext.Provider>
   );

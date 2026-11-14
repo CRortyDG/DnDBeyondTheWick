@@ -752,6 +752,147 @@ body:has(.seat-page) {
   margin-top: 28px;
 }
 
+/* starting points for first-time players */
+.starter-open {
+  display: block;
+  width: 100%;
+  margin: 0 0 18px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  border: 1px dashed #8a6a3e;
+  background: rgba(255, 196, 107, 0.05);
+  color: #f1e4c9;
+  font-family: var(--serif);
+  text-align: left;
+  cursor: pointer;
+}
+.starter-open strong {
+  display: block;
+  font-weight: 400;
+  font-size: 19px;
+}
+.starter-open span {
+  display: block;
+  margin-top: 4px;
+  font-size: 17px;
+  color: #d4b98a;
+}
+.starter-chip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0 0 16px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: rgba(255, 196, 107, 0.08);
+  font-size: 18px;
+}
+.starter-chip small {
+  color: #b8a587;
+  font-size: 15px;
+}
+.seat-link.inline {
+  display: inline;
+  margin: 0;
+  min-height: 0;
+  padding: 0 2px;
+  font-family: var(--serif);
+}
+.starter-recipe {
+  margin: 14px auto 6px;
+  padding: 12px 14px;
+  max-width: 360px;
+  border-radius: 12px;
+  background: rgba(255, 196, 107, 0.07);
+  font-size: 18px;
+}
+.starter-recipe p {
+  margin: 2px 0;
+}
+.starter-recipe .small {
+  font-size: 16px;
+  color: #d9cdb8;
+  line-height: 1.4;
+}
+.starters h1 {
+  margin: 0;
+  text-align: center;
+  font-family: var(--serif-sc);
+  font-weight: 400;
+  font-size: clamp(28px, 8vw, 36px);
+  color: #f4dcae;
+  outline: none;
+}
+.starters .seat-note {
+  margin: 10px 0 16px;
+}
+.quiz {
+  margin: 8px 0 12px;
+  text-align: center;
+}
+.quiz-count {
+  margin: 0;
+  font-size: 15px;
+  color: #a8987f;
+}
+.quiz h2 {
+  margin: 6px 0 10px;
+}
+.starter-list {
+  list-style: none;
+  padding: 0;
+  margin: 18px 0 8px;
+  display: grid;
+  gap: 14px;
+}
+.starter-card {
+  padding: 16px;
+  border-radius: 14px;
+  border: 1px solid #4a3622;
+  background: #1c120a;
+  font-size: 18px;
+  line-height: 1.4;
+  scroll-margin: 80px;
+}
+.starter-card.suggested,
+.starter-card.current {
+  border-color: var(--warm);
+  box-shadow: 0 0 18px rgba(255, 196, 107, 0.25);
+}
+.starter-card h2 {
+  margin: 0 0 6px;
+  text-align: left;
+  font-style: normal;
+  font-family: var(--serif-sc);
+  color: #f4dcae;
+  font-size: 26px;
+}
+.starter-card p {
+  margin: 6px 0;
+  color: #e6dccb;
+}
+.starter-feel {
+  font-style: italic;
+}
+.starter-label {
+  color: #d4b98a;
+}
+.starter-dnd {
+  font-size: 15px;
+  color: #a8987f !important;
+}
+.starter-tag {
+  margin: 0 0 4px !important;
+  font-size: 14px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--warm) !important;
+}
+.starter-card .seat-btn {
+  margin-bottom: 0;
+}
+
 /* the round table (also used on the TV) */
 .rt-flame {
   transform-box: fill-box;

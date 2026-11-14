@@ -8,6 +8,7 @@ import { createMemoryStore, type Store } from "@/server/store";
 import type { DmCommand } from "@/shared/commands";
 import { projectPlayer, projectTv } from "@/shared/projection";
 import { apply, previousRecap } from "@/shared/reducer";
+import { upgrade } from "@/shared/migrate";
 import { episodeMarkdown, parseEpisode, sceneResolver } from "@/shared/runsheet";
 import { SEED_SCENES, seedGame } from "@/shared/seed";
 import type { GameState } from "@/shared/types";
@@ -27,7 +28,7 @@ describe("importing the seed episode", () => {
   it("finds 15 beats in order", () => {
     expect(p.title).toBe("Just Desserts");
     expect(p.beats).toHaveLength(16);
-    expect(p.beats[0].title).toBe("Locals at the Flickering Candle");
+    expect(p.beats[0].title).toBe("Off the Gull's Promise");
     expect(p.beats[14].title).toBe("The stinger");
   });
 
@@ -52,20 +53,20 @@ describe("importing the seed episode", () => {
     expect(p.beats.flatMap((b) => b.branches)).toHaveLength(1);
   });
 
-  it("maps actions to the existing scenes and leaves initiative off", () => {
+  it("maps actions to the existing scenes and sets up the pudding fight", () => {
     const acts = Object.fromEntries(p.beats.map((b) => [b.title, b.actions]));
-    expect(acts["Locals at the Flickering Candle"]).toEqual([{ type: "scene", sceneId: "s-board" }]);
-    expect(acts["Newcomers at the docks"]).toEqual([{ type: "scene", sceneId: "s-map" }]);
+    expect(acts["Off the Gull's Promise"]).toEqual([{ type: "scene", sceneId: "s-map" }]);
+    expect(acts["At the Flickering Candle"]).toEqual([{ type: "scene", sceneId: "s-board" }]);
     expect(acts["Artum bursts in"]).toEqual([{ type: "scene", sceneId: "s-artum" }]);
     expect(acts["Artum's toast and dessert"]).toEqual([{ type: "scene", sceneId: "s-chef" }]);
-    expect(acts["The pudding fight"]).toEqual([]);
+    expect(acts["The pudding fight"]).toEqual([{ type: "fight", monsters: [{ name: "Pudding Gremlin", count: 2 }] }]);
     expect(acts["Celebration and payday"]).toEqual([{ type: "bank" }]);
     expect(acts["The chef's confession"]).toEqual([{ type: "scene", sceneId: "s-chef" }]);
     expect(acts["The recipes won't burn"]).toEqual([{ type: "scene", sceneId: "s-symbol" }]);
     expect(acts["The stinger"]).toEqual([{ type: "black" }]);
     expect(acts["Roll the stinger"]).toEqual([{ type: "stinger" }]);
     expect(acts["Hang the fir garlands"]).toEqual([]);
-    expect(p.warnings).toEqual([expect.stringContaining("initiative")]);
+    expect(p.warnings).toEqual([]);
   });
 
   it("keeps read-aloud paragraphs and where they sit among the notes", () => {
@@ -120,11 +121,11 @@ describe("running an episode", () => {
   it("fires actions on Next", () => {
     let g = start();
     g = run(g, { type: "scene.show", sceneId: "s-mags" });
-    g = run(g, { type: "run.next" }); // beat 1: notice board
+    g = run(g, { type: "run.next" }); // beat 1: town map
     expect(runOf(g)).toMatchObject({ stage: "beat", beat: 0 });
-    expect(g.live.sceneId).toBe("s-board");
-    g = run(g, { type: "run.next" }); // beat 2: town map
     expect(g.live.sceneId).toBe("s-map");
+    g = run(g, { type: "run.next" }); // beat 2: notice board
+    expect(g.live.sceneId).toBe("s-board");
     g = run(g, { type: "run.next" }); // beat 3: Artum
     expect(g.live.sceneId).toBe("s-artum");
   });
@@ -187,6 +188,28 @@ describe("running an episode", () => {
     expect(sc?.id).toBe("s-stinger");
     expect(g2.live.sceneId).toBe("s-stinger");
     expect(g2.scenes.at(-1)?.kind).toBe("black");
+  });
+
+  it("adds the stinger to a game saved before it, once", () => {
+    const old = start();
+    old.scenes = old.scenes.filter((x) => x.kind !== "stinger");
+    const ep = old.episodes![0];
+    ep.beats = ep.beats.filter((b) => b.title !== "Roll the stinger");
+    expect(ep.beats).toHaveLength(15);
+    old.sessions[0].run = { ...old.sessions[0].run!, stage: "beat", beat: 14 };
+    const g = upgrade(JSON.parse(JSON.stringify(old)));
+    expect(g.scenes.find((x) => x.kind === "stinger")?.label).toBe("The stinger");
+    expect(g.scenes.at(-1)?.kind).toBe("black");
+    const beats = g.episodes![0].beats;
+    expect(beats.map((b) => b.title).slice(14)).toEqual(["The stinger", "Roll the stinger"]);
+    expect(beats[15].actions).toEqual([{ type: "stinger" }]);
+    expect(g.sessions[0].run?.beat).toBe(14);
+    // Deleting it afterwards sticks.
+    g.scenes = g.scenes.filter((x) => x.kind !== "stinger");
+    g.episodes![0].beats.splice(15, 1);
+    const again = upgrade(JSON.parse(JSON.stringify(g)));
+    expect(again.scenes.some((x) => x.kind === "stinger")).toBe(false);
+    expect(again.episodes![0].beats).toHaveLength(15);
   });
 
   it("fires one action again on request", () => {
@@ -334,7 +357,7 @@ describe("spoiler safety", () => {
       const text = fs.readFileSync(f, "utf8");
       expect(text, f).not.toContain("seed-episodes");
       expect(text, f).not.toMatch(/from ["'](@\/server|\.\.?\/(\.\.\/)*server)\//);
-      for (const line of ["Pudding Gremlin", "Where is everyone", "Just Desserts", "one more tiny lantern"]) expect(text, f).not.toContain(line);
+      for (const line of ["Pudding Gremlin", "Something in the pudding", "Create Gremlin", "Death Burst", "Where is everyone", "Just Desserts", "one more tiny lantern", "Mardon Rueh", "Robber Baron", "Spell Scroll of See Invisibility"]) expect(text, f).not.toContain(line);
     }
   });
 });

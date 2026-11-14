@@ -10,6 +10,13 @@ import { artSrc, SceneView } from "../ui/SceneView";
 import { ShopBoard } from "../ui/ShopBoard";
 import { Notice } from "../ui/Notice";
 import { BannerToast } from "../ui/BannerToast";
+import { RenownMoment } from "../ui/RenownMoment";
+import { DiscoveryMoment } from "../ui/DiscoveryMoment";
+import { ChosenMoment, LeadsBoard } from "../ui/LeadsBoard";
+import { RecapCard } from "../ui/RecapCard";
+import { useTvSound } from "../ui/tvSound";
+import { FightOverlay } from "../ui/FightOverlay";
+import { DiceRoll } from "../ui/DiceRoll";
 
 const FADE_MS = 600;
 
@@ -49,22 +56,24 @@ function TvScreen({ view, online }: { view: TvView; online: boolean }) {
   }, [togglePinned]);
 
   const shop = view.shops.find((s) => s.id === view.live.shopId) ?? view.shops[0];
+  // A running fight covers the shop and "Previously on…"; paused, the scene shows again.
+  const fighting = !!view.fight && view.fight.status !== "paused";
 
   return (
     <div className={`tv-root${idle ? " idle" : ""}`}>
       {layers.map((l) => (
         <div key={l.key} className={`tv-layer${l.entering ? " entering" : ""}`} aria-hidden={l.leaving}>
-          <SceneView scene={l.scene} table={view.table} flyers={view.flyers} />
+          <SceneView scene={l.scene} table={view.table} board={view} />
         </div>
       ))}
 
-      {view.live.shopOpen && shop ? (
+      {view.live.shopOpen && shop && !fighting ? (
         <div className="tv-shop" role="region" aria-label={view.live.shopCategory ? "The market, open on the TV" : `${shop.name}, open on the TV`}>
           <ShopBoard shops={view.shops} items={view.items} shopId={shop.id} size="tv" mode={view.live.shopCategory ? "category" : "shop"} category={view.live.shopCategory} />
         </div>
       ) : null}
 
-      {view.recap ? (
+      {view.recap && !fighting ? (
         <div className="tv-recap" role="region" aria-label="Previously on">
           <div className="tv-recap-sheet">
             <div className="tv-recap-kicker">Previously on&hellip;</div>
@@ -89,13 +98,25 @@ function TvScreen({ view, online }: { view: TvView; online: boolean }) {
         </div>
       ) : null}
 
-      <Purse players={view.purse} visible={view.live.purseVisible} size="tv" />
+      {view.live.leads && !fighting && !view.recap ? <LeadsBoard leads={view.leads} /> : null}
+
+      {view.fight ? <FightOverlay fight={view.fight} /> : null}
+
+      <Purse players={view.purse} visible={view.live.purseVisible && !fighting && !view.live.leads} size="tv" />
 
       <BannerToast banner={view.banner} className="tv-banner" />
 
+      <DiceRoll roll={view.diceRoll} />
+
+      <RenownMoment moment={view.renownMoment} />
+      <DiscoveryMoment moment={view.discovery} />
+      <ChosenMoment chosen={view.leads.chosen} />
+      <RecapCard card={view.recapCard} />
+
       {showOffline ? (
         <div className="tv-offline" role="status">
-          Reconnecting<span className="dots" aria-hidden="true" />
+          Reconnecting
+          <span className="dots" aria-hidden="true" />
         </div>
       ) : null}
 
@@ -104,6 +125,7 @@ function TvScreen({ view, online }: { view: TvView; online: boolean }) {
         {view.session ? <span className="tv-bar-session">{view.session.title}</span> : null}
         <span className="spacer" />
         <span className="tv-bar-hint">F fullscreen · H hide this bar · scenes are switched from the DM view</span>
+        <SoundToggle />
         <button type="button" className="btn" onClick={toggleFullscreen}>
           <FullscreenIcon /> Fullscreen
         </button>
@@ -112,6 +134,16 @@ function TvScreen({ view, online }: { view: TvView; online: boolean }) {
         </button>
       </nav>
     </div>
+  );
+}
+
+/** Sound for reveals (a chime). Off until someone turns it on, remembered on this device. */
+function SoundToggle() {
+  const [on, set] = useTvSound();
+  return (
+    <button type="button" className={`btn${on ? " on" : ""}`} aria-pressed={on} onClick={() => set(!on)}>
+      {on ? "Sound on" : "Sound off"}
+    </button>
   );
 }
 
