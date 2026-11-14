@@ -56,7 +56,7 @@ function fullPin(p: Pin) {
 }
 
 function Editor({ scene, onClose }: { scene: Scene; onClose: () => void }) {
-  const { run, ident, toast } = useDm();
+  const { run, ident, toast, openTable } = useDm();
   const pins = useMemo(() => [...(scene.map?.pins ?? [])].sort((a, b) => a.number - b.number), [scene.map]);
   const [editing, setEditing] = useState(true);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -289,6 +289,17 @@ function Editor({ scene, onClose }: { scene: Scene; onClose: () => void }) {
         <input ref={file} type="file" accept="image/*" hidden onChange={(e) => void onFile(e.target.files?.[0])} />
         <DotSize scene={scene} />
         <span className="spacer" />
+        <button
+          type="button"
+          className="btn"
+          onClick={() => {
+            close();
+            openTable(sceneId);
+          }}
+          title="Tokens, grid and fog, set up ahead of time"
+        >
+          Tokens &amp; fog
+        </button>
         <button type="button" className="btn" onClick={() => run({ type: "scene.show", sceneId }, "On the TV.")}>
           Show on TV
         </button>
