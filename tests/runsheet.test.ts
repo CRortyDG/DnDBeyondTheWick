@@ -28,7 +28,7 @@ describe("importing the seed episode", () => {
   it("finds 15 beats in order", () => {
     expect(p.title).toBe("Just Desserts");
     expect(p.beats).toHaveLength(16);
-    expect(p.beats[0].title).toBe("Locals at the Flickering Candle");
+    expect(p.beats[0].title).toBe("Off the Gull's Promise");
     expect(p.beats[14].title).toBe("The stinger");
   });
 
@@ -55,8 +55,8 @@ describe("importing the seed episode", () => {
 
   it("maps actions to the existing scenes and leaves initiative off", () => {
     const acts = Object.fromEntries(p.beats.map((b) => [b.title, b.actions]));
-    expect(acts["Locals at the Flickering Candle"]).toEqual([{ type: "scene", sceneId: "s-board" }]);
-    expect(acts["Newcomers at the docks"]).toEqual([{ type: "scene", sceneId: "s-map" }]);
+    expect(acts["Off the Gull's Promise"]).toEqual([{ type: "scene", sceneId: "s-map" }]);
+    expect(acts["At the Flickering Candle"]).toEqual([{ type: "scene", sceneId: "s-board" }]);
     expect(acts["Artum bursts in"]).toEqual([{ type: "scene", sceneId: "s-artum" }]);
     expect(acts["Artum's toast and dessert"]).toEqual([{ type: "scene", sceneId: "s-chef" }]);
     expect(acts["The pudding fight"]).toEqual([]);
@@ -121,11 +121,11 @@ describe("running an episode", () => {
   it("fires actions on Next", () => {
     let g = start();
     g = run(g, { type: "scene.show", sceneId: "s-mags" });
-    g = run(g, { type: "run.next" }); // beat 1: notice board
+    g = run(g, { type: "run.next" }); // beat 1: town map
     expect(runOf(g)).toMatchObject({ stage: "beat", beat: 0 });
-    expect(g.live.sceneId).toBe("s-board");
-    g = run(g, { type: "run.next" }); // beat 2: town map
     expect(g.live.sceneId).toBe("s-map");
+    g = run(g, { type: "run.next" }); // beat 2: notice board
+    expect(g.live.sceneId).toBe("s-board");
     g = run(g, { type: "run.next" }); // beat 3: Artum
     expect(g.live.sceneId).toBe("s-artum");
   });
