@@ -19,20 +19,19 @@ const SEED_SCENE_IDS: Record<string, string> = {
 
 export const JUST_DESSERTS_MD = String.raw`# Just Desserts
 
-## Locals at the Flickering Candle
-- Two or three minutes. Narrate it: the locals are at a table chatting about what they'll do "someday." No in-character back-and-forth needed.
-- Mags drops by and asks each local one question: "What would you do with a fortune, pet?" One answer each, then move on.
+## Off the Gull's Promise
+- Two or three minutes. Everyone arrives together on the Gull's Promise: strangers who noticed each other on the crossing but haven't really talked.
+- They step off the ship onto the cold docks. A quick word with the ship's captain. Throwaway, but the same captain returns later.
+- Optional line from the captain: "Last time we carried a peddler, she paid in coin I'd never seen before."
+- Ask each player one question: "Why did you get on that boat?" One answer each, then move on.
+action: scene town map
+
+## At the Flickering Candle
+- They head up to the Flickering Candle. It's empty except for Mags. Each sits at their own table and orders drinks they can't pay for.
+- Mags drops by each table with one question: "What would you do with a fortune, pet?" One answer each, then move on.
 - Mags has poured them all drinks. None of them can pay; she's quietly running a tab.
 - If anyone looks at the notice board, let them read it on the TV.
 action: scene notice board
-
-## Newcomers at the docks
-- Two or three minutes. They step off the ship onto the cold docks.
-- A quick word with the ship's captain. Throwaway, but the same captain returns later.
-- Optional line from the captain: "Last time we carried a peddler, she paid in coin I'd never seen before."
-- They head up to the Flickering Candle, sit at another table, order drinks they can't pay for.
-- If everyone picked the same origin, skip whichever scene has nobody in it.
-action: scene town map
 
 ## Artum bursts in
 > "Where is everyone?!"
