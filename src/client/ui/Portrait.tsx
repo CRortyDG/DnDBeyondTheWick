@@ -25,6 +25,8 @@ const SHAPES: Record<string, string> = {
   mystery: "M22 20h50c6 0 10 4 10 10v46c0 7-5 12-12 12H28c-6 0-10-4-10-10V28c0-4 2-8 4-8zm8 14v6h40v-6zm0 14v6h40v-6zm0 14v6h28v-6z",
   // A hanging banner.
   faction: "M24 10h52v72L50 70 24 82z",
+  // A key.
+  item: "M34 18a20 20 0 1 1 0 40 20 20 0 0 1 0-40zm0 12a8 8 0 1 0 0 16 8 8 0 0 0 0-16zM50 46l36 36-8 8-6-6-6 6-6-6 6-6-22-22z",
 };
 
 /**

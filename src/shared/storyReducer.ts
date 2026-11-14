@@ -188,6 +188,13 @@ export function applyStory(s: GameState, cmd: StoryCommand, h: StoryHelpers): st
     case "story.beatRemove": {
       const b = beat(cmd.beatId);
       st.beats = st.beats.filter((x) => x.id !== b.id);
+      // Out of every run sheet too.
+      for (const ep of s.episodes ?? [])
+        for (const rb of ep.beats) {
+          if (!rb.stories) continue;
+          rb.stories = rb.stories.filter((x) => x.storyBeatId !== b.id);
+          if (!rb.stories.length) delete rb.stories;
+        }
       for (const x of st.beats) {
         x.after = x.after.filter((id) => id !== b.id);
         if (x.variantOf === b.id) delete x.variantOf;
@@ -233,6 +240,10 @@ export function applyStory(s: GameState, cmd: StoryCommand, h: StoryHelpers): st
       if (cmd.cancelled !== undefined) {
         if (cmd.cancelled) d.cancelled = true;
         else delete d.cancelled;
+      }
+      if (cmd.episodeId !== undefined) {
+        if (cmd.episodeId) d.episodeId = ((s.episodes ?? []).find((e) => e.id === cmd.episodeId) ?? fail("That episode doesn't exist.")).id;
+        else delete d.episodeId;
       }
       return;
     }

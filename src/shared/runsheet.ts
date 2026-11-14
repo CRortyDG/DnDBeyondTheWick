@@ -5,6 +5,7 @@
 //   -        DM note (also *, •, – bullets from pasted docs)
 //   check:   <skill> DC <n> | <what> | fail: ... | success: ...
 //   if:      <when> → <then>   (-> and => work too)
+//   story:   sb-id — Title   (a story beat placed here; indented fact: lines under it reveal when you tick it)
 //   show:    <ref or name>   (person/mags, map/candlefair/3, prop/the-symbol, black...: see assets.ts)
 //   action:  scene <name> | black | bank | stinger   ("action: scene X" is the old spelling of "show: X")
 //   fight:   <monster> x<n>, <monster>   (sets up a fight from the monster templates)
@@ -14,7 +15,7 @@
 // Anything else becomes a note, so nothing pasted is silently lost.
 
 import { fightLineMarkdown, parseFightLine } from "./combat";
-import type { Beat, BeatAction, BeatCheck, Episode, Scene, Stage } from "./types";
+import type { Beat, BeatAction, BeatCheck, Episode, GameState, Scene, Stage, StoryBlock } from "./types";
 import { FACT_REF_RE, REF_RE } from "./discovery";
 import { actionRef, listAssets, resolveRef, SHOW_REF_RE, type AssetGame } from "./assets";
 
@@ -100,8 +101,25 @@ export function parseCheck(body: string): BeatCheck | null {
   return check;
 }
 
-export function parseEpisode(markdown: string, resolve: SceneResolver, fallbackTitle = "New episode"): ParsedEpisode {
+/** Turns "sb-lucky" or a story beat's title into its id. */
+export type StoryResolver = (text: string) => string | null;
+
+export function storyResolver(g: Partial<Pick<GameState, "story">>): StoryResolver {
+  const beats = g.story?.beats ?? [];
+  return (text) => {
+    const t = text.trim();
+    const id = t.split(/\s+/)[0];
+    const byId = beats.find((b) => b.id === id);
+    if (byId) return byId.id;
+    const title = sceneKey(t.replace(/^[^\s]+\s+[—–-]\s+/, ""));
+    return beats.find((b) => sceneKey(b.title) === title || sceneKey(b.title) === sceneKey(t))?.id ?? null;
+  };
+}
+
+export function parseEpisode(markdown: string, resolve: SceneResolver, fallbackTitle = "New episode", story?: StoryResolver): ParsedEpisode {
   const warnings: string[] = [];
+  // Indented fact:/reveal: lines right under a "story:" line are the story beat's own (shown, not fired).
+  let inStory = false;
   const beats: Omit<Beat, "id">[] = [];
   let title = "";
   let cur: Omit<Beat, "id"> | null = null;
@@ -123,6 +141,8 @@ export function parseEpisode(markdown: string, resolve: SceneResolver, fallbackT
 
   for (const raw of markdown.replace(/\r\n?/g, "\n").split("\n")) {
     const line = clean(raw).trim();
+    if (inStory && /^\s+/.test(raw) && /^(fact|reveal|rumor)\s*:/i.test(line)) continue;
+    inStory = false;
     const read = /^>\s?(.*)$/.exec(line);
     if (read) {
       if (!cur) {
@@ -160,7 +180,12 @@ export function parseEpisode(markdown: string, resolve: SceneResolver, fallbackT
     const where = `“${cur.title}”`;
 
     let v: string | null;
-    if ((v = prefixed(line, "check")) !== null) {
+    if ((v = prefixed(line, "story")) !== null) {
+      inStory = true;
+      const id = story?.(v) ?? null;
+      if (!id) warnings.push(`${where}: no story beat called “${v}”, so “story: ${v}” was left off.`);
+      else if (!(cur.stories ??= []).some((x) => x.storyBeatId === id)) cur.stories.push({ storyBeatId: id });
+    } else if ((v = prefixed(line, "check")) !== null) {
       const c = parseCheck(v);
       if (c) cur.checks.push(c);
       else {
@@ -250,7 +275,21 @@ export function checkMarkdown(c: BeatCheck): string {
   return `check: ${parts.join(" | ")}`;
 }
 
-export function beatMarkdown(b: Omit<Beat, "id">, g: AssetGame): string {
+/** "story: sb-lucky — Someone suddenly lucky", then the facts it reveals (indented: they reveal when you tick it). */
+export function storyMarkdown(block: StoryBlock, g: AssetGame & Partial<Pick<GameState, "story">>): string[] {
+  const sb = g.story?.beats.find((b) => b.id === block.storyBeatId);
+  if (!sb) return [`story: ${block.storyBeatId}`];
+  const out = [`story: ${sb.id} — ${sb.title}`];
+  for (const l of sb.links) {
+    if (l.kind !== "fact") continue;
+    const e = (g.entries ?? []).find((x) => x.id === l.entryId);
+    const f = e?.facts.find((x) => x.id === l.factId);
+    if (e && f) out.push(`  fact: ${e.kind}/${e.slug}/${f.slug}`);
+  }
+  return out;
+}
+
+export function beatMarkdown(b: Omit<Beat, "id">, g: AssetGame & Partial<Pick<GameState, "story">>): string {
   const out = [`## ${b.title}`];
   const read = () => (b.readAloud ?? []).map((p) => `> ${p}`).join("\n>\n");
   const at = Math.min(b.readAloudAt ?? 0, b.notes.length);
@@ -265,10 +304,11 @@ export function beatMarkdown(b: Omit<Beat, "id">, g: AssetGame): string {
     const m = actionMarkdown(a, g);
     if (m) out.push(m);
   }
+  for (const st of b.stories ?? []) out.push(...storyMarkdown(st, g));
   return out.join("\n");
 }
 
-export function episodeMarkdown(ep: Pick<Episode, "title" | "beats">, g: AssetGame): string {
+export function episodeMarkdown(ep: Pick<Episode, "title" | "beats">, g: AssetGame & Partial<Pick<GameState, "story">>): string {
   return [`# ${ep.title}`, ...ep.beats.map((b) => beatMarkdown(b, g))].join("\n\n") + "\n";
 }
 

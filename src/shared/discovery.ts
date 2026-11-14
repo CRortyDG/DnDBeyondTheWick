@@ -39,7 +39,12 @@ export const KINDS: { id: EntryKind; label: string; plural: string; found: strin
   { id: "monster", label: "Monster", plural: "Monsters", found: "Encountered" },
   { id: "mystery", label: "Mystery", plural: "Mysteries", found: "Found" },
   { id: "faction", label: "Faction", plural: "Factions", found: "Found" },
+  { id: "item", label: "Item", plural: "Items", found: "Found" },
 ];
+
+/** Made in a hurry from the storyboard or an @mention, to fill in later. DM-ONLY (it's in the DM note). */
+export const STUB_NOTE = "Stub: fill in.";
+export const isStub = (e: Pick<Entry, "dmNote">) => /^Stub\b/.test(e.dmNote.trim());
 
 export function kindInfo(kind: EntryKind) {
   return KINDS.find((k) => k.id === kind) ?? { id: kind, label: kind, plural: kind, found: "Found" };

@@ -45,7 +45,7 @@ type Sel = { kind: "beat"; id: string } | { kind: "thread"; id: string } | { kin
 const DRAG = "application/x-story-beat";
 
 export function Storyboard({ onClose, select }: { onClose: () => void; select?: string }) {
-  const { view, run } = useDm();
+  const { view, run, toast } = useDm();
   const g = view.state as unknown as GameState;
   const st = storyOf(g);
   const today = todayOf(Date.now());
@@ -217,7 +217,28 @@ export function Storyboard({ onClose, select }: { onClose: () => void; select?: 
                   {datesIn(c).map((d) => {
                     const ep = d.episodeId ? (g.episodes ?? []).find((e) => e.id === d.episodeId) : undefined;
                     return (
-                      <button key={d.id} type="button" className={`sess-marker${d.cancelled ? " cancelled" : ""}${d.date < today ? " past" : ""}`} onClick={() => setPick({ kind: "dates" })} title={d.cancelled ? "Cancelled" : ep ? ep.title : "Session"}>
+                      <button
+                        key={d.id}
+                        type="button"
+                        className={`sess-marker${d.cancelled ? " cancelled" : ""}${d.date < today ? " past" : ""}${over === `date|${d.id}` ? " over" : ""}`}
+                        onClick={() => setPick({ kind: "dates" })}
+                        title={d.cancelled ? "Cancelled" : ep ? `${ep.title}: drop a card here to place it in this episode` : "Session: pick its episode under Session dates, then drop cards here"}
+                        onDragOver={(e) => {
+                          if (!e.dataTransfer.types.includes(DRAG) || d.cancelled) return;
+                          e.preventDefault();
+                          if (over !== `date|${d.id}`) setOver(`date|${d.id}`);
+                        }}
+                        onDragLeave={() => setOver((o) => (o === `date|${d.id}` ? null : o))}
+                        onDrop={(e) => {
+                          const id = e.dataTransfer.getData(DRAG);
+                          setOver(null);
+                          if (!id) return;
+                          e.preventDefault();
+                          e.stopPropagation();
+                          if (d.episodeId) void run({ type: "episode.placeStory", episodeId: d.episodeId, storyBeatId: id }, `Placed in ${ep?.title ?? "the episode"}.`);
+                          else toast("Pick an episode for that date first (Session dates).");
+                        }}
+                      >
                         {dayLabel(d.date).replace(/, \d{4}$/, "")}
                         {ep ? <span className="sess-ep">{ep.title}</span> : null}
                       </button>
@@ -824,11 +845,17 @@ function DatesEditor({ g, onClose }: { g: GameState; onClose: () => void }) {
       </form>
       <ol className="date-list">
         {st.dates.map((d) => {
-          const ep = d.episodeId ? (g.episodes ?? []).find((e) => e.id === d.episodeId) : undefined;
           return (
             <li key={d.id} className={d.cancelled ? "cancelled" : ""}>
               <input className="fld" type="date" aria-label="Move to" value={d.date} onChange={(e) => e.target.value && void run({ type: "story.dateUpdate", dateId: d.id, date: e.target.value })} />
-              {ep ? <span className="note">{ep.title}</span> : null}
+              <select className="fld" aria-label="Episode on this date" value={d.episodeId ?? ""} onChange={(e) => void run({ type: "story.dateUpdate", dateId: d.id, episodeId: e.target.value || null })}>
+                <option value="">No episode</option>
+                {(g.episodes ?? []).map((x) => (
+                  <option key={x.id} value={x.id}>
+                    {x.title}
+                  </option>
+                ))}
+              </select>
               <label className="check">
                 <input type="checkbox" checked={!!d.cancelled} onChange={(e) => void run({ type: "story.dateUpdate", dateId: d.id, cancelled: e.target.checked })} />
                 Cancelled

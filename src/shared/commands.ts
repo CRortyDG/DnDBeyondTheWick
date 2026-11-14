@@ -163,6 +163,8 @@ export const beatBody = z.object({
   branches: z.array(z.object({ when: text(1000), then: text(2000) })).max(40),
   actions: z.array(beatAction).max(10),
   dismissed: z.array(showRef).max(40).optional(),
+  /** Story beats placed here ("story: sb-id"). Ticks are kept by the server. */
+  stories: z.array(z.object({ storyBeatId: id })).max(20).optional(),
 });
 
 /** Commands only the DM may send. */
@@ -173,6 +175,15 @@ export const dmCommand = z.discriminatedUnion("type", [
   z.object({ type: z.literal("entry.picture"), entryId: id, art: artSchema, alt: text(300).optional() }),
   z.object({ type: z.literal("episode.acceptSuggestions"), episodeId: id }),
   z.object({ type: z.literal("beat.dismiss"), episodeId: id, beatId: id, ref: showRef }),
+  // The episode builder: story beats in run sheets, and the prep checklist.
+  /** Into a run-sheet beat, or (no beatId) the "Story beats" beat at the end. */
+  z.object({ type: z.literal("episode.placeStory"), episodeId: id, storyBeatId: id, beatId: id.optional() }),
+  z.object({ type: z.literal("episode.unplaceStory"), episodeId: id, beatId: id, storyBeatId: id }),
+  /** An episode ended with this story beat unplayed: back to Planned, keep it here for next time, or drop it. */
+  z.object({ type: z.literal("episode.leftover"), episodeId: id, storyBeatId: id, choice: z.enum(["planned", "keep", "drop"]) }),
+  z.object({ type: z.literal("episode.prep"), episodeId: id, key: z.string().min(1).max(200), state: z.enum(["done", "dismissed"]).nullable() }),
+  /** Tick a story block in run-game mode: the story beat is Played in this session, its facts reveal on the TV. */
+  z.object({ type: z.literal("run.story"), episodeId: id, beatId: id, storyBeatId: id, done: z.boolean(), outcome: text(300).optional() }),
   z.object({ type: z.literal("scene.show"), sceneId: id }),
   z.object({ type: z.literal("scene.step"), dir: z.union([z.literal(1), z.literal(-1)]) }),
   z.object({ type: z.literal("scene.hotkey"), key: z.number().int().min(0).max(9) }),

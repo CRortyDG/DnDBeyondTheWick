@@ -293,7 +293,13 @@ const escape = (t: string) => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 /** The assets these words mention, in the order they come up. */
 export function mentions(g: AssetGame, text: string): string[] {
-  const hay = ` ${norm(text)} `;
+  // "@person/mags" in the text: written on purpose, so it comes first (hidden entries still never).
+  const explicit: string[] = [];
+  for (const m of text.matchAll(/(?<![\w@./])@([a-z][a-z-]{1,23}\/[a-z0-9][a-z0-9-]{0,39})/g)) {
+    const a = resolveRef(g, m[1]);
+    if (a && a.entry?.stage !== "hidden" && !explicit.includes(a.ref)) explicit.push(a.ref);
+  }
+  const hay = ` ${norm(text.replace(/(?<![\w@./])@[a-z][a-z-]{1,23}\/[a-z0-9-]+/g, " "))} `;
   type Hit = { at: number; len: number; ref: string; rank: number };
   const hits: Hit[] = [];
   for (const n of needles(g)) {
@@ -308,7 +314,7 @@ export function mentions(g: AssetGame, text: string): string[] {
     end = h.at + h.len;
     if (!refs.includes(h.ref)) refs.push(h.ref);
   }
-  return refs;
+  return [...explicit, ...refs.filter((r) => !explicit.includes(r))];
 }
 
 /** Everything a beat says, for mentions. */

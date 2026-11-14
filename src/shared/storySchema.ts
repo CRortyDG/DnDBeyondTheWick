@@ -60,7 +60,8 @@ export const storyDmCommands = [
   z.object({ type: z.literal("story.playOutcome"), beatId: id, index: z.number().int().min(0).max(200), outcome: text(OUTCOME_MAX) }),
 
   z.object({ type: z.literal("story.dateAdd"), date: day }),
-  z.object({ type: z.literal("story.dateUpdate"), dateId: id, date: day.optional(), cancelled: z.boolean().optional() }),
+  /** episodeId: the episode that sits on this date (null: none). */
+  z.object({ type: z.literal("story.dateUpdate"), dateId: id, date: day.optional(), cancelled: z.boolean().optional(), episodeId: id.nullable().optional() }),
   z.object({ type: z.literal("story.dateRemove"), dateId: id }),
   /** Every `every` days from start through December 2027. Dates already there are kept. */
   z.object({ type: z.literal("story.datesGenerate"), start: day, every: z.number().int().min(7).max(56).default(14) }),
