@@ -15,7 +15,7 @@ import { Jobs } from "./Jobs";
 import { Discovery, useDiscoverySeen } from "./Discovery";
 import { Dice } from "./Dice";
 import { FightCard } from "./FightCard";
-import { PhoneMap } from "./PhoneMap";
+import { Maps } from "./PhoneMap";
 import { askLabel, DecisionBanners, MyRequests, RequestSheet, SendGold, whyNot } from "./Requests";
 
 export function PlayerApp({ ident: initial }: { ident: Ident }) {
@@ -87,8 +87,9 @@ function PlayerScreen({ view, online, send, ident, setIdent }: { view: PlayerVie
   const [looking, setLooking] = useState<string | null>(null);
   // During a session the phone opens on the Chronicle, so a note is one tap away.
   const [screenPick, setScreen] = useState<"map" | "chronicle" | "discovery" | "purse" | "jobs" | "dice">(view.map ? "map" : view.session ? "chronicle" : "purse");
-  // The map tab only exists while a map is on the TV.
-  const screen = screenPick === "map" && !view.map ? (view.session ? "chronicle" : "purse") : screenPick;
+  // The map tab exists while a map is on the TV, or once the party knows a map.
+  const hasMaps = !!view.map || view.maps.length > 0;
+  const screen = screenPick === "map" && !hasMaps ? (view.session ? "chronicle" : "purse") : screenPick;
   const seen = useDiscoverySeen(view);
   const [mode, setMode] = useState<ShopMode>("category");
   const [category, setCategory] = useState<ItemCategory | undefined>(undefined);
@@ -150,9 +151,9 @@ function PlayerScreen({ view, online, send, ident, setIdent }: { view: PlayerVie
       {view.fight ? <FightCard view={view} send={send} /> : null}
       <BannerToast banner={view.banner} className="phone-banner" />
       <div className="tabs player-screens" role="tablist" aria-label="Your page">
-        {view.map ? (
+        {hasMaps ? (
           <button type="button" role="tab" aria-selected={screen === "map"} className={`btn tab${screen === "map" ? " on" : ""}`} onClick={() => setScreen("map")}>
-            Map
+            {view.maps.length ? "Maps" : "Map"}
           </button>
         ) : null}
         <button type="button" role="tab" aria-selected={screen === "chronicle"} className={`btn tab${screen === "chronicle" ? " on" : ""}`} onClick={() => setScreen("chronicle")}>
@@ -176,7 +177,7 @@ function PlayerScreen({ view, online, send, ident, setIdent }: { view: PlayerVie
           Reconnecting&hellip;
         </p>
       ) : null}
-      {screen === "map" && view.map ? <PhoneMap pm={view.map} meId={me.id} send={send} /> : null}
+      {screen === "map" && hasMaps ? <Maps view={view} send={send} /> : null}
       {screen === "chronicle" ? <Chronicle view={view.chronicle} gameName={view.game.name} send={send} /> : null}
       {screen === "jobs" ? <Jobs view={view} send={send} /> : null}
       {screen === "discovery" ? <Discovery view={view} send={send} seen={seen} /> : null}

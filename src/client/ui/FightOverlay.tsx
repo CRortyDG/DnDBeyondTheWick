@@ -367,7 +367,7 @@ function Moment({ fight }: { fight: FightView }) {
   );
 }
 
-/** On a map the strip is busy: "Something in the pudding A" reads "Something A", as on its token. */
+/** On a map the strip is busy: "Shadowy figure A" reads "Shadowy A", as on its token. */
 function chipName(name: string): string {
   return name.length > 14 && /\s[A-Z0-9]$/.test(name.trim()) ? shortName(name) : name;
 }

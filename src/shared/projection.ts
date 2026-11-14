@@ -66,11 +66,20 @@ export interface PhoneMap {
   map: PublicMap;
 }
 
+function phoneMapOf(game: GameState, sc: Scene): PhoneMap {
+  const pub = publicScene(game, sc);
+  return { sceneId: sc.id, label: sc.label, art: pub.art, ...(sc.alt ? { alt: sc.alt } : {}), map: pub.map! };
+}
+
 function phoneMap(game: GameState): PhoneMap | undefined {
   const sc = game.scenes.find((x) => x.id === game.live.sceneId);
   if (!sc || sc.kind !== "map" || !sc.map) return undefined;
-  const pub = publicScene(game, sc);
-  return { sceneId: sc.id, label: sc.label, art: pub.art, ...(sc.alt ? { alt: sc.alt } : {}), map: pub.map! };
+  return phoneMapOf(game, sc);
+}
+
+/** Maps the players can open any time: those shown on the TV before (or marked known by the DM). Never a reveal map that isn't live. */
+function knownMaps(game: GameState): PhoneMap[] {
+  return game.scenes.filter((sc) => sc.kind === "map" && sc.map && sc.known && sc.id !== game.live.sceneId && !sc.reveal).map((sc) => phoneMapOf(game, sc));
 }
 
 export interface PublicPlayer {
@@ -331,6 +340,8 @@ export interface PlayerView extends Common {
   };
   /** The map that's on the TV, as the room sees it (fog, tokens and all). Missing: no map on the TV. */
   map?: PhoneMap;
+  /** Other maps the party knows, to look at any time (same view as the TV would get). */
+  maps: PhoneMap[];
   /** Combat mode: the fight going on, as the room sees it, and my part in it. */
   fight: FightView | null;
   myFight: MyFight | null;
@@ -585,6 +596,7 @@ export function projectPlayer(game: GameState, version: number, playerId: string
     role: "player",
     ...(game.vttUrl ? { vttUrl: game.vttUrl } : {}),
     ...(phoneMap(game) ? { map: phoneMap(game) } : {}),
+    maps: knownMaps(game),
     live: { ...liveShop(game, { tv: false, playerId }), purseVisible: game.live.purseVisible },
     myOrders: game.orders
       .filter((o) => o.playerId === p.id)

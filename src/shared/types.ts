@@ -33,7 +33,8 @@ export interface Scene {
   dmNote?: string;
   /** Map scenes only: the numbered locations and the TV legend. */
   map?: MapData;
-  /** Portraits: the players have met this NPC (set when first shown on the TV, or by the DM). Feeds the Chronicle's tag picker. */
+  /** Portraits: the players have met this NPC (set when first shown on the TV, or by the DM). Feeds the Chronicle's tag picker.
+   *  Maps: players can open it on their phones (set when first shown on the TV, or by the DM). */
   known?: boolean;
 }
 

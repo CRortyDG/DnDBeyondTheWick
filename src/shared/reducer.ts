@@ -441,6 +441,8 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
     const shown = s.scenes.find((x) => x.id === id);
     // Once an NPC's portrait has been on the TV, the table has met them.
     if (shown?.kind === "portrait") meetPortrait(shown);
+    // Once a map has been on the TV, players can open it on their phones.
+    if (shown?.kind === "map") shown.known = true;
     s.live.sceneId = id;
     s.live.shopOpen = false;
     delete s.live.recapSessionId;
@@ -1791,7 +1793,7 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
       break;
     case "scene.known": {
       const sc = scene(cmd.sceneId);
-      if (sc.kind !== "portrait") fail("Only portraits are NPCs.");
+      if (sc.kind !== "portrait" && sc.kind !== "map") fail("Only portraits and maps can be known.");
       if (cmd.known) sc.known = true;
       else delete sc.known;
       // Their compendium entries follow, quietly.

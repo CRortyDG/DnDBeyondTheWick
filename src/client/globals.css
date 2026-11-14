@@ -6661,3 +6661,62 @@ input.fld.inline-input {
   opacity: 0.85;
 }
 .tm-prep { font-family: var(--font-sc); color: var(--muted); letter-spacing: 0.06em; }
+.phone-map-pick {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  margin-top: 10px;
+  padding-bottom: 2px;
+}
+.phone-map-pick .btn {
+  white-space: nowrap;
+}
+.phone-map-live {
+  color: var(--up);
+}
+.phone-pin-card {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  margin-top: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--gold);
+  border-radius: 8px;
+  background: rgba(18, 14, 11, 0.85);
+  --seal: 34px;
+}
+.phone-pin-card .seal {
+  position: relative;
+  flex: none;
+}
+.phone-pin-card p {
+  margin: 4px 0 0;
+}
+.phone-legend {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 4px;
+  --seal: 28px;
+}
+.phone-legend-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 4px 6px;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+.phone-legend-row.on {
+  border-color: var(--gold);
+}
+.phone-legend-row .seal {
+  position: relative;
+  flex: none;
+}

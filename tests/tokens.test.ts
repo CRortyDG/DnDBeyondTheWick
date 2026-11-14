@@ -5,6 +5,7 @@ import { projectPlayer, projectTv } from "@/shared/projection";
 import { apply, type Ctx } from "@/shared/reducer";
 import { seedGame } from "@/shared/seed";
 import { initials, snapToGrid } from "@/shared/tokens";
+import { fogLayout } from "@/shared/fog";
 import { hydrate } from "@/server/store";
 import type { GameState, MapToken } from "@/shared/types";
 
@@ -177,5 +178,55 @@ describe("the map on phones", () => {
     expect(() => run(g, [[{ type: "me.tokenMove", x: 0.5, y: 0.5 }, as("p1")]])).toThrow(/no map/);
     const g2 = run(g, [{ type: "scene.show", sceneId: MAP }]);
     expect(() => run(g2, [[{ type: "me.tokenMove", x: 0.5, y: 0.5 }, as("p1")]])).toThrow(/token/);
+  });
+});
+
+describe("known maps on phones", () => {
+  const known = (g: GameState) => projectPlayer(g, 1, "p1", []).maps;
+
+  it("a map shown on the TV stays on phones after it comes down", () => {
+    let g = game();
+    expect(known(g)).toEqual([]);
+    g = run(g, [{ type: "scene.show", sceneId: MAP }]);
+    // While it's on the TV it is the live map, not in the list twice.
+    expect(known(g)).toEqual([]);
+    g = run(g, [{ type: "scene.show", sceneId: "s-swordcoast" }]);
+    expect(known(g).map((m) => m.sceneId)).toEqual([MAP]);
+    expect(projectPlayer(g, 1, "p1", []).map?.sceneId).toBe("s-swordcoast");
+  });
+
+  it("the DM can share or unshare a map without showing it", () => {
+    let g = run(game(), [{ type: "scene.known", sceneId: "s-swordcoast", known: true }]);
+    expect(known(g).map((m) => m.sceneId)).toEqual(["s-swordcoast"]);
+    g = run(g, [{ type: "scene.known", sceneId: "s-swordcoast", known: false }]);
+    expect(known(g)).toEqual([]);
+  });
+
+  it("keeps hidden pins, hidden tokens and fogged parts off the phone", () => {
+    const g0 = game();
+    const sc = g0.scenes.find((s) => s.id === MAP)!;
+    sc.map!.pins[0] = { ...sc.map!.pins[0], discovered: false, name: CANARY, description: CANARY };
+    let g = run(g0, [
+      { type: "token.add", sceneId: MAP, kind: "monster", name: `${CANARY} ogre`, x: 0.4, y: 0.4, hidden: true },
+      { type: "scene.known", sceneId: MAP, known: true },
+    ]);
+    const m = known(g)[0];
+    expect(JSON.stringify(m)).not.toContain(CANARY);
+    // The phone sees exactly what the TV would.
+    expect(m.map).toEqual(tvMap(g));
+    // Fog on with nothing cleared: no picture, no pins, no monster tokens.
+    g = run(g, [
+      { type: "token.add", sceneId: MAP, kind: "monster", name: "Visible ogre", x: 0.6, y: 0.6 },
+      { type: "fog.setup", sceneId: MAP, layout: fogLayout(undefined, 1), tiles: { cols: 1, rows: 1, urls: ["/api/files/t/0123456789abcdef01234567.webp"], src: "x" } },
+    ]);
+    const fogged = known(g)[0];
+    expect(fogged.art?.url).toBeUndefined();
+    expect(fogged.map.pins).toEqual([]);
+    expect(fogged.map.tokens.some((t) => t.kind === "monster")).toBe(false);
+  });
+
+  it("only maps: portraits and handouts never show up here", () => {
+    const g = run(game(), [{ type: "scene.show", sceneId: "s-symbol" }, { type: "scene.show", sceneId: "s-extra" }]);
+    expect(known(g)).toEqual([]);
   });
 });
