@@ -3873,3 +3873,425 @@ input.fld.inline-input {
   font-size: 0.92em;
   opacity: 0.9;
 }
+
+/* ---------- the bounty board: job flyers, stamps, Renown ---------- */
+.job {
+  position: absolute;
+  width: 330px;
+  z-index: 10;
+  box-sizing: border-box;
+  color: #2b2118;
+  padding: 32px 22px 18px;
+  box-shadow: 0 4px 10px rgba(30, 18, 10, 0.55);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-family: var(--font-body);
+}
+.job::before {
+  content: "";
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  width: 14px;
+  height: 14px;
+  margin-left: -7px;
+  border-radius: 50%;
+  background: #3a4a5c;
+  z-index: 2;
+}
+.job-title {
+  font-family: var(--font-sc);
+  font-size: 28px;
+  line-height: 1.05;
+  text-align: center;
+}
+.job-body {
+  font-size: 17px;
+  line-height: 1.3;
+  display: -webkit-box;
+  -webkit-line-clamp: 11;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  white-space: pre-line;
+}
+.job-kicker {
+  font-family: var(--font-sc);
+  font-size: 14px;
+  letter-spacing: 3px;
+  text-align: center;
+  color: #5b4a3a;
+}
+.job-reward {
+  font-family: var(--font-sc);
+  font-size: 22px;
+  text-align: center;
+  color: #7a2a1f;
+}
+.job-by {
+  font-size: 15px;
+  font-style: italic;
+  text-align: right;
+}
+/* Scrawled note: handwriting on cheap paper. */
+.job-scrawl {
+  background: #f6f1e4;
+  font-family: var(--font-hand);
+}
+.job-scrawl::before {
+  background: #2e5a3a;
+}
+.job-scrawl .job-title {
+  font-family: var(--font-hand);
+  font-weight: 700;
+  font-size: 38px;
+  text-align: left;
+}
+.job-scrawl .job-body {
+  font-size: 25px;
+  line-height: 1.1;
+}
+.job-scrawl .job-reward,
+.job-scrawl .job-by {
+  font-family: var(--font-hand);
+  font-size: 26px;
+  font-style: normal;
+}
+/* Merchant's bill: printed, ruled, with the reward boxed. */
+.job-bill {
+  background: #efe3c8;
+  outline: 2px solid #2b2118;
+  outline-offset: -10px;
+  padding: 34px 26px 22px;
+}
+.job-bill::before {
+  background: #7a2a1f;
+}
+.job-bill .job-reward {
+  border-top: 1px solid #2b2118;
+  border-bottom: 1px solid #2b2118;
+  padding: 4px 0;
+}
+/* Official notice: a blue band and the council's wax seal. */
+.job-official {
+  background: #f3ecdc;
+  border-top: 8px solid #3a4a5c;
+  padding-bottom: 26px;
+}
+.job-seal {
+  position: absolute;
+  right: 18px;
+  bottom: -14px;
+  width: 54px;
+  height: 54px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 38% 35%, #c0473b, #7a2a1f 60%, #5c1d14);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.4);
+}
+.job-official .job-by {
+  padding-right: 64px;
+}
+/* Sealed envelope: no words, just the wax. */
+.job-sealed {
+  width: 300px;
+  height: 200px;
+  padding: 0;
+  background: #d9c7a0;
+  overflow: hidden;
+  justify-content: flex-end;
+}
+.job-sealed::before {
+  background: #2b2118;
+}
+.job-flap {
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 0;
+  border-left: 150px solid transparent;
+  border-right: 150px solid transparent;
+  border-top: 110px solid #cbb68a;
+  filter: drop-shadow(0 2px 1px rgba(60, 40, 20, 0.35));
+}
+.job-wax {
+  position: absolute;
+  left: 50%;
+  top: 110px;
+  width: 58px;
+  height: 58px;
+  margin: -29px 0 0 -29px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 38% 35%, #c0473b, #7a2a1f 60%, #5c1d14);
+  color: #e9c9a0;
+  font-size: 26px;
+  display: grid;
+  place-items: center;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.45);
+}
+.job-sealed .job-reward {
+  position: relative;
+  padding: 0 0 10px;
+}
+/* Rubber stamps over the paper. */
+.job-stamp {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%) rotate(-14deg);
+  z-index: 3;
+  padding: 6px 14px;
+  border: 4px solid currentColor;
+  border-radius: 6px;
+  font-family: var(--font-sc);
+  font-size: 44px;
+  letter-spacing: 4px;
+  text-transform: uppercase;
+  line-height: 1;
+  text-align: center;
+  white-space: nowrap;
+  opacity: 0.82;
+  mix-blend-mode: multiply;
+  background: rgba(255, 255, 255, 0.08);
+}
+.job-stamp small {
+  display: block;
+  font-size: 15px;
+  letter-spacing: 2px;
+  margin-top: 4px;
+}
+.stamp-taken {
+  color: #9b2318;
+}
+.stamp-done {
+  color: #2e5a3a;
+}
+/* "Experienced parties only" sits under the text, so the flyer stays readable. */
+.stamp-locked {
+  position: relative;
+  left: auto;
+  top: auto;
+  transform: rotate(-4deg);
+  align-self: center;
+  margin-top: 4px;
+  color: #3a4a5c;
+  font-size: 20px;
+  letter-spacing: 2px;
+  white-space: normal;
+  max-width: 260px;
+  opacity: 0.9;
+}
+.job-sealed .stamp-locked {
+  position: absolute;
+  top: auto;
+  bottom: 12px;
+  left: 50%;
+  transform: translateX(-50%) rotate(-4deg);
+  margin: 0;
+  background: rgba(233, 220, 192, 0.92);
+  mix-blend-mode: normal;
+}
+/* On a phone or in the DM's preview: in the flow, no tilt. */
+.job.job-page {
+  position: relative;
+  width: 100%;
+  max-width: 360px;
+  margin: 0 auto;
+}
+.job-sealed.job-page {
+  height: 200px;
+  max-width: 300px;
+}
+
+/* The party's Renown, on the board's frame. */
+.renown-plaque {
+  position: absolute;
+  left: 50%;
+  top: 12px;
+  transform: translateX(-50%);
+  z-index: 12;
+  display: flex;
+  gap: 12px;
+  align-items: baseline;
+  padding: 2px 22px 3px;
+  background: linear-gradient(#c99a3a, #a77a24);
+  color: #2b2118;
+  border: 2px solid #3a2416;
+  border-radius: 4px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.45);
+  white-space: nowrap;
+}
+.renown-plaque-kicker {
+  font-family: var(--font-sc);
+  font-size: 13px;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+}
+.renown-plaque-name {
+  font-family: var(--font-sc);
+  font-size: 22px;
+}
+
+/* The TV moment when Renown goes up. */
+.renown-moment {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  place-items: center;
+  background: radial-gradient(circle, rgba(20, 10, 4, 0.55), rgba(10, 5, 2, 0.85));
+  animation: renown-in 8s ease both;
+  pointer-events: none;
+}
+.renown-moment-card {
+  text-align: center;
+  color: #f4dcae;
+  padding: 4vh 8vw;
+  border-top: 2px solid #c99a3a;
+  border-bottom: 2px solid #c99a3a;
+}
+.renown-moment-kicker {
+  font-family: var(--font-sc);
+  font-size: 2.2vw;
+  letter-spacing: 0.6vw;
+  color: #c99a3a;
+  text-transform: uppercase;
+}
+.renown-moment-line {
+  font-family: var(--font-sc);
+  font-size: 6vw;
+  line-height: 1.05;
+  margin: 1.5vh 0;
+  text-shadow: 0 0 30px rgba(255, 180, 80, 0.45);
+}
+.renown-moment-rank {
+  font-family: var(--font-body);
+  font-size: 2.6vw;
+}
+.renown-moment-meaning {
+  font-family: var(--font-body);
+  font-style: italic;
+  font-size: 1.8vw;
+  opacity: 0.8;
+  margin-top: 0.6vh;
+}
+@keyframes renown-in {
+  0% {
+    opacity: 0;
+  }
+  8%,
+  88% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .renown-moment {
+    animation: none;
+  }
+}
+
+/* Renown on phones and in the DM view. */
+.renown-chip {
+  display: inline-flex;
+  gap: 6px;
+  align-items: baseline;
+  padding: 2px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--line, #c9b48a);
+  font-size: 14px;
+}
+.renown-chip b {
+  font-family: var(--font-sc);
+}
+.renown-ladder {
+  list-style: none;
+  margin: 8px 0;
+  padding: 0;
+  display: grid;
+  gap: 4px;
+}
+.renown-ladder li {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 4px 8px;
+  border-radius: 6px;
+}
+.renown-ladder li.on {
+  background: rgba(201, 154, 58, 0.22);
+  font-weight: 600;
+}
+.renown-ladder li.past {
+  opacity: 0.6;
+}
+.job-list {
+  display: grid;
+  gap: 22px;
+  margin: 12px 0;
+}
+.job-item {
+  display: grid;
+  gap: 8px;
+  justify-items: center;
+}
+.job-item .job-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+.board-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--line, #e2d6bd);
+}
+.board-row-main {
+  min-width: 0;
+  flex: 1;
+}
+.board-row-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.board-wide {
+  grid-column: 1 / -1;
+}
+.board-previews {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 18px;
+  align-items: start;
+  padding: 18px 6px;
+  background: #b98a55;
+  border-radius: 8px;
+}
+.board-previews .job.job-page {
+  font-size: 0.9em;
+}
+.board-preview {
+  display: grid;
+  gap: 6px;
+}
+.board-preview > .note {
+  text-align: center;
+  color: #2b2118;
+}
+.board-preview.on .job {
+  outline: 3px solid #c99a3a;
+}
+.payout-grid {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 6px 10px;
+  align-items: center;
+}
+.card-lock-why {
+  display: block;
+  font-style: italic;
+  opacity: 0.85;
+}

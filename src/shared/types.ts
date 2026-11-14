@@ -138,6 +138,8 @@ export interface Shop {
   closed?: boolean;
   /** Purchases here are secret (the Peddler): never on the TV or other players' screens. */
   secretSales?: boolean;
+  /** The party's Renown this storefront needs (see renown.ts). Below it: name and rank only, no goods. */
+  renown?: number;
 }
 
 /**
@@ -214,6 +216,8 @@ export interface Item {
   keep?: boolean;
   /** DM-ONLY */
   effects?: Effect[];
+  /** The party's Renown this needs (see renown.ts). Below it, a "sale" item shows as locked with the rank. */
+  renown?: number;
 }
 
 /** A rented room, safekeeping, the Back Room. */
@@ -285,6 +289,55 @@ export interface Flyer {
   signedBy: string;
   postedAt: number;
   up: boolean;
+  /** When it last went up on the board (orders the pins). Missing: postedAt. */
+  pinnedAt?: number;
+}
+
+// ---------- the bounty board ----------
+
+/** Paper on the notice board. A sealed envelope shows no text at all. */
+export type JobStyle = "scrawl" | "bill" | "official" | "sealed";
+export type JobStatus = "open" | "taken" | "done" | "expired";
+
+export interface JobReward {
+  /** each: per player; total: for the party; hidden: not shown. */
+  kind: "each" | "total" | "hidden";
+  cp: number;
+}
+
+/** A job flyer on the bounty board. */
+export interface Job {
+  id: string;
+  title: string;
+  postedBy: string;
+  body: string;
+  reward: JobReward;
+  /** The party's Renown needed to take it (0 = Strangers). */
+  renown: number;
+  style: JobStyle;
+  status: JobStatus;
+  /** On the TV's notice board (and so on phones). */
+  pinned: boolean;
+  pinnedAt?: number;
+  createdAt: number;
+  /** Who asked to take it. */
+  takenBy?: string[];
+  takenAt?: number;
+  doneAt?: number;
+  /** What was paid out in all. */
+  paidCp?: number;
+  /** The flyer this one follows up. */
+  followUpOf?: string;
+  /** DM-ONLY: never sent to the TV or a phone. */
+  dm: JobDmNotes;
+}
+
+/** DM-ONLY */
+export interface JobDmNotes {
+  adventure: string;
+  loot: string;
+  twists: string;
+  notes: string;
 }
 
 export interface FlyerText {
@@ -302,7 +355,7 @@ export type RequestStatus = "pending" | "approved" | "declined" | "cancelled";
  */
 export interface TradeRequest {
   id: string;
-  kind: "buy" | "give" | "contribute";
+  kind: "buy" | "give" | "contribute" | "job";
   playerId: string;
   playerName: string;
   at: number;
@@ -334,6 +387,9 @@ export interface TradeRequest {
   answer?: string;
   /** "Post on the notice board": the flyer as written (or as the DM edited it). */
   flyer?: FlyerText;
+  // job: "Take this job"
+  jobId?: string;
+  jobTitle?: string;
 }
 
 /** A special order: paid for, on its way. */
@@ -508,6 +564,12 @@ export interface GameState {
   awards: Award[];
   tasks: DmTask[];
   flyers: Flyer[];
+  /** The bounty board's job flyers. Missing on games made before it; read with jobsOf(). */
+  jobs?: Job[];
+  /** The party's Renown rank, 0 = Strangers. Missing: 0. */
+  renown?: number;
+  /** The last time Renown went up: the TV plays the moment when n changes. */
+  renownMoment?: { rank: number; n: number; at: number };
   /** The Arrival intro's settings. Missing on games made before it. */
   arrival?: ArrivalSettings;
   /** The Chronicle's notes, oldest first. Missing on games made before it; read with notesOf(). */
@@ -517,7 +579,7 @@ export interface GameState {
   seq: number;
 }
 
-export type LedgerKind = "grant" | "charge" | "purchase" | "payAll" | "transfer" | "rent" | "contribution" | "income";
+export type LedgerKind = "grant" | "charge" | "purchase" | "payAll" | "transfer" | "rent" | "contribution" | "income" | "bounty";
 
 export interface LedgerEntry {
   id: string;

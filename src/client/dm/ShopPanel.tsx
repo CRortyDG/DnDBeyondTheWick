@@ -6,6 +6,7 @@ import type { Item, ItemTier, Shop, ShopVisibility } from "@/shared/types";
 import { ShopBoard } from "../ui/ShopBoard";
 import { TvIcon } from "../ui/icons";
 import { useDm } from "./context";
+import { RENOWN, tierOf } from "@/shared/renown";
 import { Field } from "./Field";
 import { Check } from "./Check";
 import { ContributeBox, GrantBox, KindFields, RunningBox } from "./ItemExtras";
@@ -42,7 +43,7 @@ export function ShopPanel() {
   const buyers = s.players.filter((p) => !p.archived);
 
   const actions = (it: Item) => {
-    const buyable = it.tier === "sale" && it.stock !== 0 && !s.shops.find((x) => x.id === it.shopId)?.closed && !(it.kind === "project" && s.effectsOn[it.id]);
+    const buyable = tierOf(s, it) === "sale" && it.stock !== 0 && !s.shops.find((x) => x.id === it.shopId)?.closed && !(it.kind === "project" && s.effectsOn[it.id]);
     const cost = firstChargeCp(s, it);
     return (
       <>
@@ -167,6 +168,16 @@ export function ShopPanel() {
             <Check checked={!!shop.secretSales || shop.visibility === "some"} onChange={(v) => run({ type: "shop.update", shopId: shop.id, patch: { secretSales: v } })}>
               Secret sales: purchases here never show on the TV or other players&rsquo; phones{shop.visibility === "some" ? " (always, while it's for selected players)" : ""}
             </Check>
+            <label>
+              Needs Renown (until then: name and rank only, no goods)
+              <select className="fld" value={shop.renown ?? 0} onChange={(e) => run({ type: "shop.update", shopId: shop.id, patch: { renown: Number(e.target.value) } })}>
+                {RENOWN.map((r, i) => (
+                  <option key={r.name} value={i}>
+                    {i === 0 ? "No Renown needed" : r.name}
+                  </option>
+                ))}
+              </select>
+            </label>
             <button
               className="btn small danger"
               type="button"
@@ -257,6 +268,17 @@ function ItemEditor({ it, quiet }: { it: Item; quiet: boolean }) {
             ))}
           </select>
         </label>
+        <label>
+          Needs Renown
+          <select className="fld" value={it.renown ?? 0} onChange={(e) => patch({ renown: Number(e.target.value) })}>
+            {RENOWN.map((r, i) => (
+              <option key={r.name} value={i}>
+                {i === 0 ? "No Renown needed" : r.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        {it.renown && it.tier === "sale" ? <Field label="Line under the rank (optional)" value={it.reason} placeholder="e.g. Mags only rents it to people she trusts." onCommit={(v) => patch({ reason: v })} /> : null}
         <Field label="Name" value={it.name} onCommit={(v) => patch({ name: v })} />
         <Field
           label="Price"

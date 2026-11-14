@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { CATEGORY_IDS, KIND_IDS } from "./progress";
+import { RENOWN_MAX } from "./renown";
 
 const id = z.string().min(1).max(64);
 const text = (max: number) => z.string().max(max);
@@ -56,6 +57,7 @@ const effect = z.discriminatedUnion("type", [
   z.object({ type: z.literal("income"), dice: z.string().regex(/^\s*(\d*d\d+([+-]\d+)?|\d+)\s*$/i), unitCp: cp }),
   z.object({ type: z.literal("credit"), limitCp: cp }),
 ]);
+const rank = z.number().int().min(0).max(RENOWN_MAX);
 const flyerText = z.object({ title: text(60).min(1), body: text(400), signedBy: text(60) });
 
 const itemFields = {
@@ -82,6 +84,18 @@ const itemFields = {
   tags: z.array(text(40)).max(10),
   keep: z.boolean(),
   effects: z.array(effect).max(6),
+  renown: rank,
+};
+
+// The bounty board. dm: DM-ONLY notes, never sent to the TV or a phone.
+const jobFields = {
+  title: text(80),
+  postedBy: text(80),
+  body: text(600),
+  reward: z.object({ kind: z.enum(["each", "total", "hidden"]), cp }),
+  renown: rank,
+  style: z.enum(["scrawl", "bill", "official", "sealed"]),
+  dm: z.object({ adventure: text(300), loot: text(1000), twists: text(1000), notes: text(2000) }).partial(),
 };
 const itemPatch = z.object(itemFields).partial();
 
@@ -145,6 +159,18 @@ export const dmCommand = z.discriminatedUnion("type", [
   z.object({ type: z.literal("flyer.update"), flyerId: id, patch: flyerText.partial().extend({ up: z.boolean().optional() }) }),
   z.object({ type: z.literal("flyer.remove"), flyerId: id }),
 
+  /** The party's Renown. Raising it is announced on the TV and written in the Chronicle; lowering it is quiet. */
+  z.object({ type: z.literal("renown.set"), rank }),
+  /** A new job flyer (unpinned unless pin). followUpOf: the flyer it replaces, which is pulled. */
+  z.object({ type: z.literal("job.add"), job: z.object(jobFields).partial(), followUpOf: id.optional(), pin: z.boolean().optional() }),
+  /** status: back to open, or taken by hand. Done goes through job.done (it pays); expired through job.expire. */
+  z.object({ type: z.literal("job.update"), jobId: id, patch: z.object({ ...jobFields, status: z.enum(["open", "taken"]) }).partial() }),
+  z.object({ type: z.literal("job.pin"), jobId: id, pinned: z.boolean() }),
+  /** Mark it done and pay these amounts into purses, once. */
+  z.object({ type: z.literal("job.done"), jobId: id, payouts: z.array(z.object({ playerId: id, cp })).max(50) }),
+  z.object({ type: z.literal("job.expire"), jobId: id }),
+  z.object({ type: z.literal("job.remove"), jobId: id }),
+
   z.object({ type: z.literal("player.add"), name: text(32) }),
   z.object({ type: z.literal("player.update"), playerId: id, patch: z.object({ name: text(32), dndbUrl: text(300), away: z.boolean(), dropIn: z.boolean(), handle: text(40), character: text(40) }).partial() }),
   z.object({ type: z.literal("player.archive"), playerId: id, archived: z.boolean() }),
@@ -153,7 +179,7 @@ export const dmCommand = z.discriminatedUnion("type", [
   z.object({ type: z.literal("player.inspire"), playerId: id, on: z.boolean() }),
 
   z.object({ type: z.literal("shop.add"), name: text(80), subtitle: text(160) }),
-  z.object({ type: z.literal("shop.update"), shopId: id, patch: z.object({ name: text(80), subtitle: text(160), closed: z.boolean(), secretSales: z.boolean() }).partial() }),
+  z.object({ type: z.literal("shop.update"), shopId: id, patch: z.object({ name: text(80), subtitle: text(160), closed: z.boolean(), secretSales: z.boolean(), renown: rank }).partial() }),
   /** Who can see a shop. quiet: no "Now open" banner on the TV. */
   z.object({
     type: z.literal("shop.visibility"),
@@ -246,6 +272,8 @@ export const playerCommand = z.discriminatedUnion("type", [
   z.object({ type: z.literal("me.cancelRental"), rentalId: id }),
   z.object({ type: z.literal("me.requestGive"), toPlayerId: id, amountCp: cp.min(1), note: text(120) }),
   z.object({ type: z.literal("me.cancelRequest"), requestId: id }),
+  /** "Take this job": asks the DM. */
+  z.object({ type: z.literal("me.takeJob"), jobId: id, note: text(120) }),
   // The Chronicle: players write notes and edit, move or delete their own.
   z.object({ type: z.literal("me.noteAdd"), text: noteText, tags: noteTags.optional(), chapterId: id.optional() }),
   z.object({ type: z.literal("me.noteUpdate"), noteId: id, patch: notePatch }),

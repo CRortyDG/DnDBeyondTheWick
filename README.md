@@ -144,6 +144,14 @@ tests/                    vitest
 - **Closed shops** (the Peddler) show only their name and tagline until you untick Closed.
 - **Starter catalog:** DM view → Game → **Load the starter catalog** swaps in the latest one, with all shops hidden. Gold and history aren't touched.
 
+## Renown and the bounty board
+
+- **Renown** is one rank for the whole party: Strangers → Known in town → Trusted → Heroes of Candlefair → Famous on the Coast. Set it in DM view → **Board**. Raising it plays a moment on the TV ("Candlefair knows your names"), adds a line to the Chronicle, and opens anything that was waiting on it. Lowering it is quiet, and those things lock again.
+- **Renown locks:** any item or storefront can need a rank (Edit → *Needs Renown*). Until the party has it, players see it locked with the rank ("Needs Known in town") and your line underneath. Storefronts show their name and the rank, but no goods.
+- **Job flyers** live on the same notice board as player flyers, and the board holds 8 pins in all. Each has a title, who posted it, a few lines, a reward (per person, for the party, or hidden), the Renown it needs, and a paper: scrawled note, merchant's bill, official notice, or sealed envelope (no text at all). Your notes on it (adventure, loot, twists) never leave the DM view.
+- **Statuses:** Open → Taken → Done, or Pulled. Players tap **Take this job** on their phone (Jobs tab) and it comes to your Requests drawer. Jobs above the party's Renown stay readable, stamped "Experienced parties only", with no take button. **Done…** pays the reward to each player at the table by default (a party total is split evenly; type any amount you like); it goes through the ledger once, is written in the Chronicle, and the DONE flyer comes down after the next full session. **Pull and follow up…** replaces a flyer with a new one in the same spot.
+- New campaigns start with three job flyers, all unpinned. Older campaigns get them once.
+
 ## Buying from phones
 
 - **Players ask, you decide.** On their phone a player sees their gold, their *available* gold (gold minus anything waiting), and the shops you've opened to them. They tap an item, pick a quantity if it stacks, add an optional note ("for the bard"), and ask. They can cancel while it's waiting.

@@ -1,10 +1,11 @@
 "use client";
 
-import type { PublicFlyer, PublicMap } from "@/shared/projection";
+import type { PublicMap } from "@/shared/projection";
 import type { Art, SceneKind } from "@/shared/types";
 import { MapView } from "./MapView";
 import { ArtumNotice } from "../scenes/ArtumNotice";
-import { Flyers, NoticeBoard } from "../scenes/NoticeBoard";
+import { NoticeBoard } from "../scenes/NoticeBoard";
+import { Pinned, type BoardView } from "../scenes/Board";
 import { Stage } from "./Stage";
 import { TableScene } from "./TableScene";
 import { Stinger } from "../scenes/Stinger";
@@ -33,7 +34,7 @@ export function artSrc(art: Art | undefined, gated?: Record<string, string>): st
 }
 
 /** One scene, filling its parent. */
-export function SceneView({ scene, gated, emptyHint, table, flyers }: { scene: RenderableScene; gated?: Record<string, string>; emptyHint?: string; table?: TableView; flyers?: PublicFlyer[] }) {
+export function SceneView({ scene, gated, emptyHint, table, board }: { scene: RenderableScene; gated?: Record<string, string>; emptyHint?: string; table?: TableView; board?: BoardView }) {
   const src = artSrc(scene.art, gated);
 
   if (scene.kind === "black") return <div className="scene-fill scene-black" />;
@@ -51,12 +52,12 @@ export function SceneView({ scene, gated, emptyHint, table, flyers }: { scene: R
       <div className="scene-fill scene-backdrop">
         <Stage w={1920} h={1080}>
           {scene.art?.builtin === "candlefair-board" || !src ? (
-            <NoticeBoard flyers={flyers} />
+            <NoticeBoard board={board} />
           ) : (
             <>
               <img className="scene-img" src={src} alt={scene.alt ?? ""} />
               <div style={{ position: "absolute", inset: 0 }}>
-                <Flyers flyers={flyers ?? []} />
+                <Pinned board={board} />
               </div>
             </>
           )}

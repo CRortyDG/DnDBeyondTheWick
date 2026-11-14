@@ -12,8 +12,9 @@ import { shopVisibleTo } from "./projection";
 import { CHARACTER_MAX, STINGER_SCENE_ID, TABLE_SCENE_ID, WHY_MAX } from "./arrival";
 import { starterById } from "./starters";
 import { chapterSessionId, cleanTags, cleanText, defaultChapterId, NOTES_MAX, penName } from "./chronicle";
+import { BOARD_SLOTS, jobsOf, jobTitle, pinnedCount, rankName, RENOWN, renownMet, renownNeeded, renownOf, shopOpenNow, tierOf } from "./renown";
 import { DM_AUTHOR } from "./types";
-import type { Actor, Beat, BeatAction, Episode, FlyerText, GameState, Item, ItemTier, LedgerEntry, LedgerKind, MapData, Note, Pin, PinLink, Player, Scene, Session, SessionRun, Shop, TradeRequest } from "./types";
+import type { Actor, Beat, BeatAction, Episode, FlyerText, GameState, Item, ItemTier, Job, LedgerEntry, LedgerKind, MapData, Note, Pin, PinLink, Player, Scene, Session, SessionRun, Shop, TradeRequest } from "./types";
 import type { z } from "zod";
 
 export class CommandError extends Error {
@@ -40,6 +41,8 @@ export interface Result {
   ledger: LedgerEntry[];
   /** Created player id for system.join / player.add / knock.admit. */
   playerId?: string;
+  /** Created job flyer id. */
+  jobId?: string;
   /** Created episode / beat ids. */
   episodeId?: string;
   beatId?: string;
@@ -100,8 +103,9 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
   /** Banner when an item becomes more visible in a shop the whole party can see. */
   const announceItem = (it: Item, was: ItemTier) => {
     const sh = shop(it.shopId);
-    if (sh.visibility !== "all" || sh.closed || RANK[it.tier] <= RANK[was]) return;
-    if (it.tier === "rumored") announce(`A new rumor at ${sh.name}`);
+    const now = tierOf(s, it);
+    if (sh.visibility !== "all" || !shopOpenNow(s, sh) || RANK[now] <= RANK[was]) return;
+    if (now === "rumored") announce(`A new rumor at ${sh.name}`);
     else announce(`New at ${sh.name}: ${it.name}`);
   };
 
@@ -128,7 +132,7 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
       if (e.type !== "unlock") continue;
       const target = e.itemId ? s.items.find((x) => x.id === e.itemId) : undefined;
       if (target && target.tier !== "sale") {
-        const was = target.tier;
+        const was = tierOf(s, target);
         target.tier = "sale";
         announceItem(target, was);
       }
@@ -201,7 +205,11 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
       move(p, -chargeCp, `Ordered ${what} (arrives session ${arrivesAtSession})${haggled}`, "purchase", ledgerExtra);
     } else if (it.kind === "service") {
       move(p, -chargeCp, `${it.name}${question ? `: ${question}` : ""}${haggled}`, "purchase", ledgerExtra);
-      if (more.flyer) s.flyers.push({ id: nextId("fl"), playerId: p.id, ...cleanFlyer(more.flyer, p.name), postedAt: ctx.now, up: true });
+      if (more.flyer) {
+        const up = boardHasRoom();
+        s.flyers.push({ id: nextId("fl"), playerId: p.id, ...cleanFlyer(more.flyer, p.name), postedAt: ctx.now, up, ...(up ? { pinnedAt: ctx.now } : {}) });
+        if (!up) out.info = `The board is full (${BOARD_SLOTS} pinned), so the flyer is approved but not pinned yet. Pin it from the Board tab.`;
+      }
     } else {
       move(p, -chargeCp, `Bought ${what}${haggled}`, "purchase", ledgerExtra);
     }
@@ -210,6 +218,24 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
   };
 
   const request = (id: string): TradeRequest => s.requests.find((r) => r.id === id) ?? fail("That request doesn't exist.");
+
+  // ---------- the notice board ----------
+  const jobs = (s.jobs ??= []);
+  const job = (id: string): Job => jobs.find((j) => j.id === id) ?? fail("That job flyer doesn't exist.");
+  const boardHasRoom = () => pinnedCount(s) < BOARD_SLOTS;
+  const needRoom = () => {
+    if (!boardHasRoom()) fail(`The board is full (${BOARD_SLOTS} pinned). Take something down first.`);
+  };
+  /** A Chronicle line from the DM. Never blocks the command if the Chronicle is full. */
+  const chronicle = (text: string) => {
+    if ((s.notes ?? []).length >= NOTES_MAX) return;
+    addNote(DM_AUTHOR, "The DM", text, [], undefined);
+  };
+  /** Why an item can't be bought because of the party's Renown, or null. */
+  const renownLock = (it: Item): string | null => {
+    const need = renownNeeded(s, it);
+    return need !== null && it.tier === "sale" ? `${it.name} opens when the party is ${rankName(need)}.` : null;
+  };
 
   /** Keep every pending request and the latest 150 decided ones. */
   const pruneRequests = () => {
@@ -226,6 +252,26 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
   const approve = (r: TradeRequest, totalCp: number | undefined, override: boolean, more: { answer?: string; flyer?: FlyerText } = {}) => {
     if (r.status !== "pending") fail(`That request was already ${r.status}.`);
     const p = player(r.playerId);
+    if (r.kind === "job") {
+      const j = jobs.find((x) => x.id === r.jobId) ?? fail(`${r.jobTitle ?? "That job"} has come down. Decline it instead.`);
+      if (j.status !== "open") fail(`${jobTitle(j)} is already ${j.status}.`, "recheck");
+      if (!override && p.archived) fail(`${p.name} has left the table.`, "recheck");
+      j.status = "taken";
+      j.takenBy = [p.id];
+      j.takenAt = ctx.now;
+      if (j.pinned) announce(`${p.name} took the job: ${jobTitle(j)}`);
+      // Nobody else needs to ask for it now.
+      for (const o of s.requests) {
+        if (o.id !== r.id && o.status === "pending" && o.kind === "job" && o.jobId === j.id) {
+          o.status = "declined";
+          o.decidedAt = ctx.now;
+          o.reason = `${p.name} already took it.`;
+        }
+      }
+      r.status = "approved";
+      r.decidedAt = ctx.now;
+      return;
+    }
     if (r.kind === "contribute") {
       const it = s.items.find((x) => x.id === r.itemId) ?? fail(`${r.itemName ?? "That project"} is no longer in the shop. Decline it instead.`);
       const left = projectLeft(it, true);
@@ -260,7 +306,7 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
         if (item.stock !== null && item.stock - heldStock(s, item.id, r.id) < r.qty) {
           fail(item.stock === 0 ? `${item.name} is sold out now.` : `Only ${item.stock} ${item.name} left now.`, "recheck");
         }
-        if (item.tier !== "sale") fail(`${item.name} isn't for sale any more.`, "recheck");
+        if (tierOf(s, item) !== "sale") fail(renownLock(item) ?? `${item.name} isn't for sale any more.`, "recheck");
       }
       const flyer = more.flyer ?? r.flyer;
       if (flyer) r.flyer = cleanFlyer(flyer, p.name);
@@ -696,7 +742,8 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
       if (p.archived) fail(`${p.name} has left the table.`);
       const item = s.items.find((x) => x.id === cmd.itemId) ?? fail("That item isn't for sale.");
       const where = shop(item.shopId);
-      if (where.closed) fail(`${where.name} isn't open yet.`);
+      if (!shopOpenNow(s, where)) fail(`${where.name} isn't open yet.`);
+      if (renownLock(item)) fail(renownLock(item)!);
       if (item.tier === "locked") fail(`${item.name} is locked: ${item.reason || "not for sale yet"}.`);
       if (item.tier !== "sale") fail(`${item.name} isn't for sale.`);
       if (item.stock === 0) fail(`${item.name} is sold out.${item.restockNote ? " " + item.restockNote : ""}`);
@@ -782,12 +829,148 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
       const f = s.flyers.find((x) => x.id === cmd.flyerId) ?? fail("That flyer doesn't exist.");
       const { up, ...text } = cmd.patch;
       Object.assign(f, cleanFlyer({ ...f, ...text }, f.signedBy));
+      if (up && !f.up) {
+        needRoom();
+        f.pinnedAt = ctx.now;
+      }
       if (up !== undefined) f.up = up;
       break;
     }
     case "flyer.remove":
       s.flyers = s.flyers.filter((x) => x.id !== cmd.flyerId);
       break;
+
+    // ---------- Renown and the bounty board ----------
+    case "renown.set": {
+      const was = renownOf(s);
+      if (cmd.rank === was) break;
+      // What the room could see before, so the rank-up can say what opened.
+      const tiers = new Map(s.items.map((it) => [it.id, tierOf(s, it)]));
+      const shut = s.shops.filter((sh) => !shopOpenNow(s, sh)).map((sh) => sh.id);
+      s.renown = cmd.rank;
+      if (cmd.rank < was) break; // quiet: things just lock again
+      const r = RENOWN[cmd.rank];
+      announce(r.raised);
+      s.renownMoment = { rank: cmd.rank, n: ++s.seq, at: ctx.now };
+      chronicle(`Renown: the party is now ${r.name}. ${r.meaning}.`);
+      for (const id of shut) {
+        const sh = shop(id);
+        if (shopOpenNow(s, sh) && sh.visibility === "all" && !isSecretShop(sh)) announce(`Now open: ${sh.name}`);
+      }
+      // Name what opened up, or count it when it's a lot.
+      const opened = s.items.filter((it) => {
+        const sh = s.shops.find((x) => x.id === it.shopId);
+        return tiers.get(it.id) === "locked" && tierOf(s, it) === "sale" && sh?.visibility === "all" && shopOpenNow(s, sh) && !isSecretShop(sh);
+      });
+      if (opened.length > 3) announce(`${opened.length} new things in the shops`);
+      else if (opened.length) announce(`Now for sale: ${opened.map((it) => it.name).join(", ")}`);
+      break;
+    }
+    case "job.add": {
+      const old = cmd.followUpOf ? job(cmd.followUpOf) : undefined;
+      const j: Job = cleanJob({
+        id: nextId("j"),
+        title: "",
+        postedBy: "",
+        body: "",
+        reward: { kind: "each", cp: 0 },
+        renown: 0,
+        style: "scrawl",
+        status: "open",
+        pinned: false,
+        createdAt: ctx.now,
+        ...cmd.job,
+        dm: { adventure: "", loot: "", twists: "", notes: "", ...cmd.job.dm },
+      });
+      let pin = !!cmd.pin;
+      if (old) {
+        j.followUpOf = old.id;
+        // The follow-up takes the old flyer's place on the board.
+        if (old.status !== "done") {
+          pin ||= old.pinned;
+          old.status = "expired";
+          old.pinned = false;
+        }
+      }
+      if (pin) {
+        needRoom();
+        j.pinned = true;
+        j.pinnedAt = ctx.now;
+      }
+      jobs.push(j);
+      out.jobId = j.id;
+      break;
+    }
+    case "job.update": {
+      const j = job(cmd.jobId);
+      const { status, dm, ...rest } = cmd.patch;
+      Object.assign(j, rest);
+      if (dm) j.dm = { ...j.dm, ...dm };
+      if (status !== undefined && status !== j.status) {
+        if (j.status === "done") fail(`${jobTitle(j)} is done and paid. Add a new flyer instead.`);
+        j.status = status;
+        if (status === "open") {
+          delete j.takenBy;
+          delete j.takenAt;
+        } else j.takenAt ??= ctx.now;
+      }
+      cleanJob(j);
+      break;
+    }
+    case "job.pin": {
+      const j = job(cmd.jobId);
+      if (cmd.pinned && !j.pinned) {
+        if (j.status === "expired") fail(`${jobTitle(j)} was pulled. Set it back to open first.`);
+        needRoom();
+        j.pinnedAt = ctx.now;
+      }
+      j.pinned = cmd.pinned;
+      break;
+    }
+    case "job.done": {
+      const j = job(cmd.jobId);
+      if (j.status === "done") fail(`${jobTitle(j)} is already done and paid.`);
+      if (j.status === "expired") fail(`${jobTitle(j)} was pulled. Set it back to open first.`);
+      const pay = new Map<string, number>();
+      for (const x of cmd.payouts) pay.set(x.playerId, (pay.get(x.playerId) ?? 0) + x.cp);
+      const batchId = nextId("b");
+      let total = 0;
+      const paid: string[] = [];
+      for (const [pid, cp] of pay) {
+        const p = player(pid);
+        if (cp <= 0) continue;
+        move(p, cp, `Job done: ${jobTitle(j)}`, "bounty", { batchId });
+        total += cp;
+        paid.push(`${p.name} ${formatCp(cp)}`);
+      }
+      j.status = "done";
+      j.doneAt = ctx.now;
+      j.paidCp = total;
+      if (j.pinned) announce(`Job done: ${jobTitle(j)}`);
+      const amounts = new Set([...pay.values()].filter((cp) => cp > 0));
+      const how = !total ? "" : amounts.size === 1 && paid.length > 1 ? ` Paid ${formatCp([...amounts][0])} each.` : ` Paid ${paid.join(", ")}.`;
+      chronicle(`Job done: ${jobTitle(j)}.${how}`);
+      break;
+    }
+    case "job.expire": {
+      const j = job(cmd.jobId);
+      if (j.status === "done") fail(`${jobTitle(j)} is done. Take it down instead.`);
+      j.status = "expired";
+      j.pinned = false;
+      break;
+    }
+    case "job.remove": {
+      const j = job(cmd.jobId);
+      s.jobs = jobs.filter((x) => x.id !== j.id);
+      for (const r of s.requests) {
+        if (r.status === "pending" && r.kind === "job" && r.jobId === j.id) {
+          r.status = "declined";
+          r.decidedAt = ctx.now;
+          r.reason = "That job came down.";
+        }
+      }
+      break;
+    }
 
     // ---------- players ----------
     case "player.add": {
@@ -841,6 +1024,10 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
       if (cmd.patch.name !== undefined) sh.name = cmd.patch.name.trim() || sh.name;
       if (cmd.patch.subtitle !== undefined) sh.subtitle = cmd.patch.subtitle.trim();
       if (cmd.patch.secretSales !== undefined) sh.secretSales = cmd.patch.secretSales || undefined;
+      if (cmd.patch.renown !== undefined) {
+        if (cmd.patch.renown) sh.renown = cmd.patch.renown;
+        else delete sh.renown;
+      }
       if (cmd.patch.closed !== undefined) {
         const opening = sh.closed && !cmd.patch.closed;
         sh.closed = cmd.patch.closed || undefined;
@@ -891,13 +1078,13 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
     case "item.update": {
       const it = s.items.find((x) => x.id === cmd.itemId) ?? fail("That item doesn't exist.");
       if (cmd.patch.shopId) shop(cmd.patch.shopId);
-      const before = { tier: it.tier, stock: it.stock, name: it.name };
+      const before = { tier: tierOf(s, it), stock: it.stock, name: it.name };
       Object.assign(it, cmd.patch);
       if (cmd.patch.name !== undefined) it.name = cmd.patch.name.trim() || before.name;
       tidyItem(it);
       if (!cmd.quiet) {
         announceItem(it, before.tier);
-        if (before.stock === 0 && it.stock !== null && it.stock > 0 && it.tier === "sale" && shop(it.shopId).visibility === "all") {
+        if (before.stock === 0 && it.stock !== null && it.stock > 0 && tierOf(s, it) === "sale" && shop(it.shopId).visibility === "all") {
           announce(`Back in stock at ${shop(it.shopId).name}: ${it.name}`);
         }
       }
@@ -942,6 +1129,8 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
       const cur = s.sessions.find((x) => x.id === s.currentSessionId) ?? fail("No session is running.");
       cur.endedAt = ctx.now;
       s.currentSessionId = null;
+      // Done jobs stay up (stamped DONE) for one whole session, then come down.
+      for (const j of jobs) if (j.status === "done" && j.pinned && (j.doneAt ?? 0) < cur.startedAt) j.pinned = false;
       showScene(homeScene());
       break;
     }
@@ -1258,7 +1447,7 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
       let waiting = 0;
       for (const r of pending) {
         // Services (and flyers) need you to read and answer them.
-        if (r.kind === "buy" && s.items.find((x) => x.id === r.itemId)?.kind === "service") {
+        if (r.kind === "job" || (r.kind === "buy" && s.items.find((x) => x.id === r.itemId)?.kind === "service")) {
           waiting++;
           continue;
         }
@@ -1270,7 +1459,7 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
           stuck.push(`${r.playerName}: ${e.message}`);
         }
       }
-      const answer = waiting ? ` ${waiting} ${waiting === 1 ? "service needs" : "services need"} your answer.` : "";
+      const answer = waiting ? ` ${waiting} ${waiting === 1 ? "needs" : "need"} your answer (services and jobs).` : "";
       out.info = (stuck.length ? `Approved ${ok}. Still waiting on you: ${stuck.join(" ")}` : `Approved ${ok}.`) + answer;
       pruneRequests();
       break;
@@ -1288,7 +1477,8 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
       const item = s.items.find((x) => x.id === cmd.itemId) ?? fail(unseen);
       const where = s.shops.find((x) => x.id === item.shopId);
       if (!where || !shopVisibleTo(where, { tv: false, playerId: p.id }) || item.tier === "hidden" || item.tier === "rumored") fail(unseen);
-      if (where.closed) fail(`${where.name} isn't open yet.`);
+      if (!shopOpenNow(s, where)) fail(`${where.name} isn't open yet.`);
+      if (renownLock(item)) fail(renownLock(item)!);
       if (item.tier === "locked") fail(`${item.name} is locked: ${item.reason || "not for sale yet"}.`);
       if (item.kind === "earned") fail(`${item.name} can't be bought. It has to be earned.`);
       if (item.kind === "project") fail(`${item.name} is a project: put gold toward it instead.`);
@@ -1337,7 +1527,8 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
       const it = s.items.find((x) => x.id === cmd.itemId) ?? fail(unseen);
       const where = s.shops.find((x) => x.id === it.shopId);
       if (!where || !shopVisibleTo(where, { tv: false, playerId: p.id }) || it.tier === "hidden" || it.tier === "rumored") fail(unseen);
-      if (where.closed) fail(`${where.name} isn't open yet.`);
+      if (!shopOpenNow(s, where)) fail(`${where.name} isn't open yet.`);
+      if (renownLock(it)) fail(renownLock(it)!);
       if (it.tier === "locked") fail(`${it.name} is locked: ${it.reason || "not open yet"}.`);
       const pledged = s.requests.reduce((a, r) => (r.status === "pending" && r.kind === "contribute" && r.itemId === it.id ? a + r.totalCp : a), 0);
       const left = projectLeft(it) - pledged;
@@ -1403,6 +1594,31 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
       r.status = "cancelled";
       r.decidedAt = ctx.now;
       pruneRequests();
+      break;
+    }
+
+    case "me.takeJob": {
+      const p = me();
+      const j = jobs.find((x) => x.id === cmd.jobId && x.pinned && x.status !== "expired") ?? fail("That job isn't on the board.");
+      if (j.status !== "open") fail(`Someone already took ${jobTitle(j)}.`);
+      if (!renownMet(s, j.renown)) fail(`That job is for experienced parties only (${rankName(j.renown)}).`);
+      if (s.requests.some((r) => r.status === "pending" && r.kind === "job" && r.jobId === j.id && r.playerId === p.id)) fail("You've already asked for this job.");
+      if (s.requests.filter((r) => r.status === "pending" && r.playerId === p.id).length >= 20) fail("You have 20 requests waiting. Let the DM catch up.");
+      s.requests.push({
+        id: nextId("rq"),
+        kind: "job",
+        playerId: p.id,
+        playerName: p.name,
+        at: ctx.now,
+        status: "pending",
+        totalCp: 0,
+        note: cmd.note.trim(),
+        secret: false,
+        qty: 1,
+        unitCp: 0,
+        jobId: j.id,
+        jobTitle: jobTitle(j),
+      });
       break;
     }
 
@@ -1537,7 +1753,19 @@ function tidyItem(it: Item): Item {
   if (tags.length) it.tags = tags;
   else delete it.tags;
   if (!it.effects?.length) delete it.effects;
+  if (!it.renown) delete it.renown;
   return it;
+}
+
+/** Trim a job flyer. A sealed envelope carries no text. */
+function cleanJob(j: Job): Job {
+  j.title = j.title.trim().slice(0, 80);
+  j.postedBy = j.postedBy.trim().slice(0, 80);
+  j.body = j.body.trim().slice(0, 600);
+  if (j.style !== "sealed" && !j.title) j.title = "Help wanted";
+  if (j.reward.kind === "hidden") j.reward = { kind: "hidden", cp: 0 };
+  for (const k of ["adventure", "loot", "twists", "notes"] as const) j.dm[k] = (j.dm[k] ?? "").trim();
+  return j;
 }
 
 /** Trim a flyer, and sign it with the player's name if they left it blank. */

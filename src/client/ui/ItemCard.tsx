@@ -3,6 +3,7 @@ import { formatCp } from "@/shared/money";
 import { installmentCp } from "@/shared/progress";
 import type { ItemCategory, ItemKind } from "@/shared/types";
 import { LockIcon } from "./icons";
+import { rankName } from "@/shared/renown";
 
 /**
  * What a card needs. A player's or the TV's item (rumored ones arrive as
@@ -17,6 +18,10 @@ export interface CardItem {
   description: string;
   tier: "sale" | "locked" | "rumored" | "hidden";
   reason?: string;
+  /** Locked until the party has this Renown (what players and the TV get). */
+  needs?: string;
+  /** The DM's item: the Renown it needs, as a rank number. */
+  renown?: number;
   hint?: string;
   hidePrice?: boolean;
   stock: number | null;
@@ -78,9 +83,26 @@ export function ItemCard({ item, children, dm, where }: { item: CardItem; childr
       )}
       {item.description && (tier !== "rumored" || dm) ? <p className="card-desc">{item.description}</p> : null}
       {tier === "rumored" && item.hint ? <p className="card-hint">&ldquo;{item.hint}&rdquo;</p> : null}
-      {tier === "locked" ? (
+      {item.needs ? (
+        <p className="card-lock card-renown">
+          <LockIcon size={18} />{" "}
+          <span>
+            Needs <b>{item.needs}</b>
+            {item.reason ? <span className="card-lock-why">{item.reason}</span> : null}
+          </span>
+        </p>
+      ) : tier === "locked" ? (
         <p className="card-lock">
           <LockIcon size={18} /> <span>{item.reason || "Not for sale yet"}</span>
+        </p>
+      ) : null}
+      {dm && item.renown ? (
+        <p className="card-lock card-renown">
+          <LockIcon size={18} />{" "}
+          <span>
+            Needs Renown: <b>{rankName(item.renown)}</b>
+            {item.reason ? <span className="card-lock-why">{item.reason}</span> : null}
+          </span>
         </p>
       ) : null}
       {item.arrivesInSessions && tier !== "rumored" ? (
