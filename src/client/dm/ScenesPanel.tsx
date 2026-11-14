@@ -210,6 +210,12 @@ function SceneEditor({ scene }: { scene: Scene }) {
           </div>
         ) : null}
 
+        {scene.kind === "map" ? (
+          <Check checked={!!scene.known} onChange={(v) => run({ type: "scene.known", sceneId: scene.id, known: v })}>
+            Players can open it on their phones <span className="note">(ticks itself once shown on the TV; hidden pins, hidden tokens and fog still apply)</span>
+          </Check>
+        ) : null}
+
         {takesImage ? (
           <div className="inline">
             <button className="btn" type="button" disabled={busy} onClick={() => file.current?.click()}>
