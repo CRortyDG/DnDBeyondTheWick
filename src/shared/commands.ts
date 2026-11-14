@@ -3,7 +3,7 @@ import { CATEGORY_IDS, KIND_IDS } from "./progress";
 import { RENOWN_MAX } from "./renown";
 import { DIE_SIDES, diceCount, MAX_DICE, MAX_OF_ONE, MAX_PLUS } from "./dice";
 import { fightDmCommands, fightPlayerCommands } from "./combatSchema";
-import { FACT_MAX, MOOD_IDS, NPC_BLURB_MAX, NPC_DM_NOTE_MAX, NPC_NAME_MAX, NPC_TITLE_MAX } from "./people";
+import { AREAS_MAX, DM_TEXT_MAX, FACT_MAX, HINT_MAX, LINKS_MAX, NAME_MAX, RELATION_IDS, STAGE_IDS, SUMMARY_MAX, TITLE_MAX } from "./discovery";
 
 const id = z.string().min(1).max(64);
 const text = (max: number) => z.string().max(max);
@@ -53,14 +53,25 @@ const scenePatch = z
   })
   .partial();
 
-// The People compendium.
-const npcFields = {
-  name: text(NPC_NAME_MAX),
-  title: text(NPC_TITLE_MAX),
-  blurb: text(NPC_BLURB_MAX),
+// Discovery entries.
+const relation = z.enum(RELATION_IDS);
+const stage = z.enum(STAGE_IDS);
+const entryFields = {
+  kind: z.string().regex(/^[a-z][a-z-]{1,23}$/),
+  slug: z.string().max(40),
+  name: text(NAME_MAX),
+  title: text(TITLE_MAX),
+  summary: text(SUMMARY_MAX),
+  nickname: text(NAME_MAX),
+  hint: text(HINT_MAX),
   sceneId: id.nullable(),
-  mood: z.enum(MOOD_IDS).nullable(),
-  dmNote: text(NPC_DM_NOTE_MAX),
+  silhouette: z.string().max(2048).nullable(),
+  areas: z.array(text(40)).max(AREAS_MAX),
+  links: z.array(id).max(LINKS_MAX),
+  relation: relation.nullable(),
+  start: stage,
+  dmNote: text(DM_TEXT_MAX),
+  secrets: text(DM_TEXT_MAX),
 };
 const factText = text(FACT_MAX);
 const updown = z.union([z.literal(1), z.literal(-1)]);
@@ -237,20 +248,22 @@ export const dmCommand = z.discriminatedUnion("type", [
   /** A portrait's NPC: the players have met them (feeds the Chronicle's tag picker). */
   z.object({ type: z.literal("scene.known"), sceneId: id, known: z.boolean() }),
 
-  // The People compendium. Meeting someone with announce plays the "new face" moment on the TV.
-  z.object({ type: z.literal("npc.add"), npc: z.object(npcFields).partial(), facts: z.array(factText).max(40).optional() }),
-  z.object({ type: z.literal("npc.update"), npcId: id, patch: z.object(npcFields).partial() }),
-  z.object({ type: z.literal("npc.remove"), npcId: id }),
-  z.object({ type: z.literal("npc.move"), npcId: id, dir: updown }),
-  z.object({ type: z.literal("npc.meet"), npcId: id, met: z.boolean(), announce: z.boolean() }),
-  /** Play their moment on the TV again (met NPCs only); factId: a revealed fact instead. */
-  z.object({ type: z.literal("npc.show"), npcId: id, factId: id.optional() }),
-  z.object({ type: z.literal("npc.factAdd"), npcId: id, text: factText }),
-  z.object({ type: z.literal("npc.factUpdate"), npcId: id, factId: id, text: factText }),
-  z.object({ type: z.literal("npc.factRemove"), npcId: id, factId: id }),
-  z.object({ type: z.literal("npc.factMove"), npcId: id, factId: id, dir: updown }),
-  /** tv: also show it on the TV (only once they've met). */
-  z.object({ type: z.literal("npc.factReveal"), npcId: id, factId: id, revealed: z.boolean(), tv: z.boolean().optional() }),
+  // Discovery. announce: play the reveal on the TV.
+  z.object({ type: z.literal("entry.add"), entry: z.object(entryFields).partial(), facts: z.array(factText).max(40).optional() }),
+  z.object({ type: z.literal("entry.update"), entryId: id, patch: z.object(entryFields).partial() }),
+  /** A person's feelings about one player (null: same as the party). */
+  z.object({ type: z.literal("entry.relationFor"), entryId: id, playerId: id, relation: relation.nullable() }),
+  z.object({ type: z.literal("entry.remove"), entryId: id }),
+  z.object({ type: z.literal("entry.move"), entryId: id, dir: updown }),
+  z.object({ type: z.literal("entry.stage"), entryId: id, stage, announce: z.boolean() }),
+  /** Play it on the TV again (visible entries only); factId: a revealed fact instead. */
+  z.object({ type: z.literal("entry.show"), entryId: id, factId: id.optional() }),
+  z.object({ type: z.literal("entry.factAdd"), entryId: id, text: factText }),
+  z.object({ type: z.literal("entry.factUpdate"), entryId: id, factId: id, text: factText.optional(), slug: z.string().max(40).optional() }),
+  z.object({ type: z.literal("entry.factRemove"), entryId: id, factId: id }),
+  z.object({ type: z.literal("entry.factMove"), entryId: id, factId: id, dir: updown }),
+  /** Revealing a fact makes the entry Known. tv: also show it on the TV. */
+  z.object({ type: z.literal("entry.factReveal"), entryId: id, factId: id, revealed: z.boolean(), tv: z.boolean().optional() }),
 
   z.object({ type: z.literal("episode.add"), title: text(160), beats: z.array(beatBody).max(200).optional() }),
   z.object({ type: z.literal("episode.update"), episodeId: id, title: text(160).min(1) }),

@@ -1,0 +1,445 @@
+"use client";
+
+// The DM's Discovery tab: people, places, shops, monsters, mysteries and
+// factions, each hidden -> rumored -> found -> known. Write entries up ahead of
+// time; players see a rumor as a silhouette and a hint, a found entry with its
+// name and picture, and each fact once you reveal it. Your notes and secrets
+// never leave this screen.
+
+import { useRef, useState } from "react";
+import { entriesOf, entryTags, FACT_MAX, kindInfo, KINDS, RELATIONS, stageLabel, STAGES, SUMMARY_MAX, isFound } from "@/shared/discovery";
+import type { Entry, EntryKind, Relation, Stage } from "@/shared/types";
+import { DownIcon, UpIcon } from "../ui/icons";
+import { Portrait } from "../ui/Portrait";
+import { PersonNotes, notesAbout } from "../ui/PersonNotes";
+import { artSrc } from "../ui/SceneView";
+import { Field } from "./Field";
+import { useDm } from "./context";
+import { uploadImage } from "./upload";
+import { makeSilhouette } from "./silhouette";
+
+const TV_KEY = "candlefair-discovery-tv";
+
+function loadTv(): boolean {
+  try {
+    return localStorage.getItem(TV_KEY) !== "off";
+  } catch {
+    return true;
+  }
+}
+
+export function DiscoveryPanel() {
+  const { view, run } = useDm();
+  const s = view.state;
+  const all = entriesOf(s);
+  const [kind, setKind] = useState<EntryKind | "all">("all");
+  const [openId, setOpenId] = useState<string | null>(null);
+  const [newName, setNewName] = useState("");
+  const [newKind, setNewKind] = useState<EntryKind>("person");
+  const [tv, setTvState] = useState(loadTv);
+  const setTv = (v: boolean) => {
+    setTvState(v);
+    try {
+      localStorage.setItem(TV_KEY, v ? "on" : "off");
+    } catch {}
+  };
+  const list = all.filter((e) => kind === "all" || e.kind === kind);
+  const kinds = [...KINDS.map((k) => k.id), ...new Set(all.map((e) => e.kind).filter((k) => !KINDS.some((x) => x.id === k)))];
+
+  return (
+    <div className="people-panel">
+      <p className="note">
+        Players never get hidden entries, locked facts, real names behind nicknames, your notes or secrets. A rumor shows as a silhouette with its nickname (or &ldquo;???&rdquo;) and hint. Showing a person&rsquo;s portrait on the TV for the first time finds them.
+        Notes about an entry are Chronicle notes tagged with its name.
+      </p>
+      <div className="inline discovery-filters">
+        <div className="tabs" role="tablist" aria-label="Kind">
+          {(["all", ...kinds] as (EntryKind | "all")[]).map((k) => {
+            const count = k === "all" ? all.length : all.filter((e) => e.kind === k).length;
+            return (
+              <button key={k} type="button" role="tab" aria-selected={kind === k} className={`btn small tab${kind === k ? " on" : ""}`} onClick={() => setKind(k)}>
+                {k === "all" ? "All" : kindInfo(k).plural} <span className="note">{count}</span>
+              </button>
+            );
+          })}
+        </div>
+        <span className="spacer" />
+        <label className="check">
+          <input type="checkbox" checked={tv} onChange={(e) => setTv(e.target.checked)} />
+          Play stage changes on the TV
+        </label>
+      </div>
+      <ol className="scene-list people-list">
+        {list.map((e, i) => (
+          <EntryRow key={e.id} entry={e} tv={tv} first={i === 0} last={i === list.length - 1} open={openId === e.id} onToggle={() => setOpenId(openId === e.id ? null : e.id)} />
+        ))}
+      </ol>
+      <form
+        className="box form"
+        onSubmit={async (ev) => {
+          ev.preventDefault();
+          if (!newName.trim()) return;
+          const ok = await run({ type: "entry.add", entry: { name: newName, kind: newKind } }, "Added, hidden. Nobody sees it until you make it a rumor or reveal it.");
+          if (ok) setNewName("");
+        }}
+      >
+        <h3>Add something</h3>
+        <div className="inline">
+          <label>
+            Kind
+            <select className="fld" value={newKind} onChange={(e) => setNewKind(e.target.value)}>
+              {KINDS.map((k) => (
+                <option key={k.id} value={k.id}>
+                  {k.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="grow">
+            Name
+            <input className="fld" value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="e.g. Old Hannet the smith" />
+          </label>
+          <button className="btn primary" type="submit" disabled={!newName.trim()}>
+            Add
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
+function EntryRow({ entry: e, tv, first, last, open, onToggle }: { entry: Entry; tv: boolean; first: boolean; last: boolean; open: boolean; onToggle: () => void }) {
+  const { view, run, gated } = useDm();
+  const s = view.state;
+  const known = e.facts.filter((f) => f.revealedAt !== undefined).length;
+  const notes = notesAbout(view.chronicle, entryTags(s, e)).length;
+  const sc = e.sceneId ? s.scenes.find((x) => x.id === e.sceneId) : undefined;
+  return (
+    <li className={`scene-item person-item stage-${e.stage}`}>
+      <div className="scene-row">
+        <Portrait art={sc?.art} gated={gated} name={e.name} kind={e.kind} silhouette={e.silhouette} rumored={!sc?.art?.url && !(sc?.art?.builtin && gated[sc.art.builtin]) && e.stage === "rumored"} className="person-face small" />
+        <span className="scene-label">
+          {e.name}
+          {e.nickname ? <span className="note"> · &ldquo;{e.nickname}&rdquo;</span> : null}
+          {e.title ? <span className="note"> · {e.title}</span> : null}
+          <span className="tag">{kindInfo(e.kind).label}</span>
+          {e.facts.length ? (
+            <span className="tag">
+              {known}/{e.facts.length} facts
+            </span>
+          ) : null}
+          {notes ? <span className="tag">{notes === 1 ? "1 note" : `${notes} notes`}</span> : null}
+        </span>
+        <span className="spacer" />
+        <label className="stage-pick">
+          <span className="sr-only">Stage of {e.name}</span>
+          <select className={`fld stage-select stage-${e.stage}`} value={e.stage} onChange={(ev) => void run({ type: "entry.stage", entryId: e.id, stage: ev.target.value as Stage, announce: tv }, ev.target.value === "hidden" ? `${e.name} is hidden again.` : undefined)}>
+            {STAGES.map((st) => (
+              <option key={st} value={st}>
+                {stageLabel(e.kind, st)}
+              </option>
+            ))}
+          </select>
+        </label>
+        <button className="btn small icon" type="button" aria-label={`Move ${e.name} up`} disabled={first} onClick={() => run({ type: "entry.move", entryId: e.id, dir: -1 })}>
+          <UpIcon />
+        </button>
+        <button className="btn small icon" type="button" aria-label={`Move ${e.name} down`} disabled={last} onClick={() => run({ type: "entry.move", entryId: e.id, dir: 1 })}>
+          <DownIcon />
+        </button>
+        <button className="btn small" type="button" disabled={e.stage === "hidden"} onClick={() => run({ type: "entry.show", entryId: e.id }, "On the TV.")}>
+          Show on TV
+        </button>
+        <button className="btn small" type="button" aria-expanded={open} onClick={onToggle}>
+          {open ? "Done" : "Edit"}
+        </button>
+      </div>
+      {open ? <EntryEditor entry={e} tv={tv} /> : null}
+    </li>
+  );
+}
+
+type Patch = { name?: string; kind?: string; slug?: string; title?: string; summary?: string; nickname?: string; hint?: string; sceneId?: string | null; silhouette?: string | null; areas?: string[]; links?: string[]; relation?: Relation | null; start?: Stage; dmNote?: string; secrets?: string };
+
+function EntryEditor({ entry: e, tv }: { entry: Entry; tv: boolean }) {
+  const { view, run, call, ident, toast, gated } = useDm();
+  const s = view.state;
+  const patch = (p: Patch) => run({ type: "entry.update", entryId: e.id, patch: p });
+  const portraits = s.scenes.filter((x) => x.kind === "portrait");
+  const others = entriesOf(s).filter((x) => x.id !== e.id);
+  const [fact, setFact] = useState("");
+  const [busy, setBusy] = useState(false);
+  const file = useRef<HTMLInputElement>(null);
+  const tags = entryTags(s, e);
+  const foundChapter = e.foundIn ? s.sessions.find((x) => x.id === e.foundIn)?.number : undefined;
+  const sc = e.sceneId ? s.scenes.find((x) => x.id === e.sceneId) : undefined;
+  const portraitSrc = artSrc(sc?.art, gated);
+  const players = s.players.filter((p) => !p.archived);
+
+  const setSilhouette = async (blob: Blob) => {
+    setBusy(true);
+    try {
+      const url = await uploadImage(ident, new File([blob], "silhouette.png", { type: blob.type || "image/png" }));
+      await patch({ silhouette: url });
+      toast("Silhouette saved.");
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "That didn't work.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="person-editor">
+      <div className="inline">
+        <label>
+          Kind
+          <select className="fld" value={e.kind} onChange={(ev) => void patch({ kind: ev.target.value })}>
+            {KINDS.map((k) => (
+              <option key={k.id} value={k.id}>
+                {k.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <Field label="Real name" value={e.name} onCommit={(v) => (v.trim() ? patch({ name: v }) : false)} />
+        <Field label="Title" value={e.title} placeholder="Keeper of the Flickering Candle" onCommit={(v) => patch({ title: v })} />
+        <Field label="Run sheet name" value={e.slug} hint={`${e.kind}/${e.slug}`} onCommit={(v) => patch({ slug: v })} />
+      </div>
+      <Field label="Summary (players see this once found)" value={e.summary} multiline onCommit={(v) => patch({ summary: v.slice(0, SUMMARY_MAX) })} />
+
+      <h4>While it&rsquo;s a rumor</h4>
+      <div className="inline">
+        <Field label="Nickname (empty: ???)" value={e.nickname} placeholder="The man with the lantern" onCommit={(v) => patch({ nickname: v })} />
+        <Field label="Hint" value={e.hint} placeholder="Someone at the docks knows who he is" onCommit={(v) => patch({ hint: v })} />
+      </div>
+
+      <h4>Picture</h4>
+      <div className="inline">
+        <label>
+          Portrait
+          <select className="fld" value={e.sceneId ?? ""} onChange={(ev) => void patch({ sceneId: ev.target.value || null })}>
+            <option value="">No portrait</option>
+            {portraits.map((x) => (
+              <option key={x.id} value={x.id}>
+                {x.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <span className="silhouette-preview">
+          <Portrait name={e.name} kind={e.kind} silhouette={e.silhouette} rumored className="person-face" />
+          <span className="note">{e.silhouette ? "Silhouette" : "Generic silhouette"}</span>
+        </span>
+        <button className="btn small" type="button" disabled={!portraitSrc || busy} onClick={async () => portraitSrc && setSilhouette(await makeSilhouette(portraitSrc).catch((err) => (toast(err.message), Promise.reject(err))))}>
+          Make silhouette from portrait
+        </button>
+        <button className="btn small" type="button" disabled={busy} onClick={() => file.current?.click()}>
+          Upload a silhouette
+        </button>
+        {e.silhouette ? (
+          <button className="btn small" type="button" onClick={() => patch({ silhouette: null })}>
+            Use the generic one
+          </button>
+        ) : null}
+        <input ref={file} type="file" accept="image/*" hidden onChange={(ev) => ev.target.files?.[0] && void setSilhouette(ev.target.files[0])} />
+      </div>
+
+      <h4>Where and what it&rsquo;s tied to</h4>
+      <div className="inline">
+        <Field label="Areas (comma between)" value={e.areas.join(", ")} placeholder="Candlefair, The Docks" onCommit={(v) => patch({ areas: v.split(",").map((x) => x.trim()).filter(Boolean) })} />
+        <label>
+          Starts as (on a fresh start)
+          <select className="fld" value={e.start ?? "hidden"} onChange={(ev) => void patch({ start: ev.target.value as Stage })}>
+            {STAGES.map((st) => (
+              <option key={st} value={st}>
+                {stageLabel(e.kind, st)}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+      <div className="entry-links">
+        {e.links.map((id) => {
+          const o = others.find((x) => x.id === id);
+          return o ? (
+            <span key={id} className="chron-tag">
+              {o.name}{" "}
+              <button type="button" className="linkish" aria-label={`Untie ${o.name}`} onClick={() => patch({ links: e.links.filter((x) => x !== id) })}>
+                &times;
+              </button>
+            </span>
+          ) : null;
+        })}
+        <select className="fld" value="" aria-label="Tie to" onChange={(ev) => ev.target.value && void patch({ links: [...e.links, ev.target.value] })}>
+          <option value="">Tie to&hellip;</option>
+          {others
+            .filter((o) => !e.links.includes(o.id))
+            .map((o) => (
+              <option key={o.id} value={o.id}>
+                {kindInfo(o.kind).label}: {o.name}
+              </option>
+            ))}
+        </select>
+        <span className="note">Players see a tie only when they can see both ends.</span>
+      </div>
+
+      {e.kind === "person" ? (
+        <>
+          <h4>How they feel about the party</h4>
+          <div className="inline">
+            <label>
+              The party
+              <select className="fld" value={e.relation ?? "stranger"} onChange={(ev) => void patch({ relation: ev.target.value as Relation })}>
+                {RELATIONS.map((r) => (
+                  <option key={r.id} value={r.id}>
+                    {r.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            {players.map((p) => (
+              <label key={p.id}>
+                {p.character?.trim() || p.name}
+                <select className="fld" value={e.relationBy?.[p.id] ?? ""} onChange={(ev) => void run({ type: "entry.relationFor", entryId: e.id, playerId: p.id, relation: (ev.target.value || null) as Relation | null })}>
+                  <option value="">Same as the party</option>
+                  {RELATIONS.map((r) => (
+                    <option key={r.id} value={r.id}>
+                      {r.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ))}
+          </div>
+        </>
+      ) : null}
+
+      <h4>Key facts</h4>
+      <p className="note">Locked facts are only on your screen. Revealing one makes the entry Known: it shows on phones right away, and on the TV too if you pick that.</p>
+      {e.facts.length ? (
+        <ol className="person-fact-list">
+          {e.facts.map((f, i) => {
+            const shown = f.revealedAt !== undefined;
+            return (
+              <li key={f.id} className={shown ? "known" : "locked"}>
+                <span className={`tag${shown ? "" : " wax"}`}>{shown ? "known" : "locked"}</span>
+                <FactText entryId={e.id} factId={f.id} value={f.text} />
+                <span className="note fact-ref" title="For the run sheet">
+                  fact: {e.kind}/{e.slug}/{f.slug}
+                </span>
+                <span className="person-fact-actions">
+                  {shown ? (
+                    <>
+                      <button className="btn small" type="button" onClick={() => run({ type: "entry.show", entryId: e.id, factId: f.id }, "On the TV.")}>
+                        Show on TV
+                      </button>
+                      <button className="btn small" type="button" onClick={() => run({ type: "entry.factReveal", entryId: e.id, factId: f.id, revealed: false })}>
+                        Lock again
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <button className="btn small" type="button" onClick={() => run({ type: "entry.factReveal", entryId: e.id, factId: f.id, revealed: true }, isFound(e.stage) ? "Revealed on their phones." : `Revealed. ${e.name} is Known now.`)}>
+                        Reveal
+                      </button>
+                      <button className="btn small primary" type="button" onClick={() => run({ type: "entry.factReveal", entryId: e.id, factId: f.id, revealed: true, tv: true }, "Revealed, and on the TV.")}>
+                        Reveal on TV
+                      </button>
+                    </>
+                  )}
+                  <button className="btn small icon" type="button" aria-label="Move fact up" disabled={i === 0} onClick={() => run({ type: "entry.factMove", entryId: e.id, factId: f.id, dir: -1 })}>
+                    <UpIcon />
+                  </button>
+                  <button className="btn small icon" type="button" aria-label="Move fact down" disabled={i === e.facts.length - 1} onClick={() => run({ type: "entry.factMove", entryId: e.id, factId: f.id, dir: 1 })}>
+                    <DownIcon />
+                  </button>
+                  <button
+                    className="btn small danger"
+                    type="button"
+                    onClick={() => {
+                      if (confirm("Delete this fact?")) void run({ type: "entry.factRemove", entryId: e.id, factId: f.id });
+                    }}
+                  >
+                    Delete
+                  </button>
+                </span>
+              </li>
+            );
+          })}
+        </ol>
+      ) : (
+        <p className="note">No facts yet.</p>
+      )}
+      <form
+        className="inline"
+        onSubmit={async (ev) => {
+          ev.preventDefault();
+          if (fact.trim() && (await run({ type: "entry.factAdd", entryId: e.id, text: fact }))) setFact("");
+        }}
+      >
+        <label className="grow">
+          New fact (starts locked)
+          <input className="fld" value={fact} maxLength={FACT_MAX} onChange={(ev) => setFact(ev.target.value)} placeholder="Owes the baker money" />
+        </label>
+        <button className="btn" type="submit" disabled={!fact.trim()}>
+          Add fact
+        </button>
+      </form>
+
+      <div className="inline">
+        <Field label="DM notes (only you see this)" value={e.dmNote} multiline onCommit={(v) => patch({ dmNote: v })} />
+        <Field label="Secrets (only you see this)" value={e.secrets} multiline onCommit={(v) => patch({ secrets: v })} />
+      </div>
+
+      {isFound(e.stage) ? (
+        <>
+          <p className="note">
+            {stageLabel(e.kind, "found")}
+            {foundChapter ? ` in Chapter ${foundChapter}` : ""}
+            {e.foundAt ? `, ${new Date(e.foundAt).toLocaleDateString(undefined, { day: "numeric", month: "short" })}` : ""}.
+          </p>
+          <h4>Notes about {e.name}</h4>
+          <PersonNotes view={view.chronicle} tags={tags} name={e.name} send={async (c) => (await call(c as never)).error} />
+        </>
+      ) : (
+        <p className="note">{tv ? "Changing the stage plays it on the TV." : "Stage changes are quiet (TV is off above)."}</p>
+      )}
+
+      <button
+        className="btn small danger"
+        type="button"
+        onClick={() => {
+          if (confirm(`Delete ${e.name}? Notes about it stay in the Chronicle.`)) void run({ type: "entry.remove", entryId: e.id }, "Deleted.");
+        }}
+      >
+        Delete {e.name}
+      </button>
+    </div>
+  );
+}
+
+function FactText({ entryId, factId, value }: { entryId: string; factId: string; value: string }) {
+  const { run } = useDm();
+  const [v, setV] = useState(value);
+  const [editing, setEditing] = useState(false);
+  if (!editing && v !== value) setV(value);
+  return (
+    <input
+      className="fld person-fact-text"
+      aria-label="Fact"
+      value={v}
+      maxLength={FACT_MAX}
+      onFocus={() => setEditing(true)}
+      onChange={(ev) => setV(ev.target.value)}
+      onBlur={() => {
+        setEditing(false);
+        if (v.trim() && v.trim() !== value) void run({ type: "entry.factUpdate", entryId, factId, text: v });
+        else setV(value);
+      }}
+      onKeyDown={(ev) => {
+        if (ev.key === "Enter") ev.currentTarget.blur();
+      }}
+    />
+  );
+}

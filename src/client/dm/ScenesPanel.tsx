@@ -190,7 +190,7 @@ function SceneEditor({ scene }: { scene: Scene }) {
             <Field label="Name on the TV" value={scene.name ?? ""} onCommit={(v) => patch({ name: v })} />
             <Field label="Title under it" value={scene.title ?? ""} onCommit={(v) => patch({ title: v })} />
             <Check checked={!!scene.known} onChange={(v) => run({ type: "scene.known", sceneId: scene.id, known: v })}>
-              Players have met them <span className="note">(puts them in People on the phones; ticks itself once shown on the TV)</span>
+              Players have met them <span className="note">(finds them in Discovery; ticks itself once shown on the TV)</span>
             </Check>
           </div>
         ) : null}

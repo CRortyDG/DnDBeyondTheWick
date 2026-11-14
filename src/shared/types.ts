@@ -468,34 +468,74 @@ export interface Note {
   editedAt?: number;
 }
 
-// ---------- the People compendium (NPCs the party has met) ----------
+// ---------- Discovery: people, places, shops, monsters, mysteries ----------
 
-/** How an NPC feels about the party, shown to players when set. */
-export type NpcMood = "ally" | "friendly" | "neutral" | "wary" | "hostile";
+/** What an entry is. Plain text, so a new kind needs no schema change. */
+export type EntryKind = "person" | "place" | "shop" | "monster" | "mystery" | "faction" | (string & {});
 
-export interface NpcFact {
+/**
+ * - hidden: DM-ONLY, never sent or counted (unless an area shows totals)
+ * - rumored: a silhouette, the nickname or "???", and the hint
+ * - found: met / visited / open / encountered / found: name, image, summary
+ * - known: found, plus the facts the DM has revealed
+ */
+export type Stage = "hidden" | "rumored" | "found" | "known";
+
+/** How a person feels about the party. */
+export type Relation = "stranger" | "friendly" | "ally" | "hostile";
+
+export interface EntryFact {
   id: string;
+  /** For the run sheet: "fact: person/mags/owes-the-baker". */
+  slug: string;
   text: string;
   /** Players know it. Unrevealed facts are DM-ONLY. */
   revealedAt?: number;
+  /** The session it was learned in. */
+  learnedIn?: string | null;
 }
 
-export interface Npc {
+export interface Entry {
   id: string;
+  kind: EntryKind;
+  /** Unique per kind; run sheet refs are kind/slug ("person/fennick"). */
+  slug: string;
+  stage: Stage;
+  /** The stage a fresh start goes back to. Missing: hidden. */
+  start?: Stage;
+  /** The real name. DM-ONLY until the entry is found. */
   name: string;
-  /** "Keeper of the Flickering Candle". Players see it once met. */
+  /** "Keeper of the Flickering Candle". Players see it once found. */
   title: string;
-  /** A line or two about them. Players see it once met. */
-  blurb: string;
-  /** A portrait scene: its art is theirs, and showing it on the TV is meeting them. */
+  /** A line or two. Players see it once found. */
+  summary: string;
+  /** What players call it while it's a rumor ("The man with the lantern"). Empty: "???". */
+  nickname: string;
+  /** The one line players get while it's a rumor. */
+  hint: string;
+  /** A portrait scene: its art is theirs, and showing it on the TV finds them. */
   sceneId?: string;
-  /** Set when the party meets them. Until then the whole entry is DM-ONLY. */
-  met?: { at: number; sessionId: string | null };
-  mood?: NpcMood;
+  /** An uploaded silhouette for the rumor stage. Missing: the kind's generic one. */
+  silhouette?: string;
+  /** Areas it belongs to ("Candlefair", "The Docks"). */
+  areas: string[];
+  /** Other entries it's tied to. Players see a link only when both ends are visible to them. */
+  links: string[];
   /** Key facts, in the DM's order. */
-  facts: NpcFact[];
+  facts: EntryFact[];
+  /** People: how they feel about the party. Missing: stranger. */
+  relation?: Relation;
+  /** People: how they feel about one player, where it differs. */
+  relationBy?: Record<string, Relation>;
+  /** When its stage last changed. */
+  stagedAt?: number;
+  /** When it was found, and in which session. */
+  foundAt?: number;
+  foundIn?: string | null;
   /** DM-ONLY */
   dmNote: string;
+  /** DM-ONLY */
+  secrets: string;
 }
 
 // ---------- run-game (all DM-ONLY) ----------
@@ -631,10 +671,10 @@ export interface GameState {
   arrival?: ArrivalSettings;
   /** The Chronicle's notes, oldest first. Missing on games made before it; read with notesOf(). */
   notes?: Note[];
-  /** The People compendium, in the DM's order. Missing on games made before it; read with npcsOf(). */
-  npcs?: Npc[];
-  /** The last meeting or revealed fact the TV should play. n changes each time. */
-  npcMoment?: { npcId: string; n: number; factId?: string };
+  /** Discovery entries (people, places, ...), in the DM's order. Missing on games made before it; read with entriesOf(). */
+  entries?: Entry[];
+  /** The last reveal the TV should play. n changes each time. from: the stage it moved from. */
+  discovery?: { entryId: string; n: number; factId?: string; from?: Stage; at: number };
   /** DM-ONLY: monster templates for combat mode. Missing on games made before it; read with monstersOf(). */
   monsters?: MonsterTemplate[];
   /** The fight in progress, if any. Only fightView() projections of it ever leave the server for the TV or a phone. */

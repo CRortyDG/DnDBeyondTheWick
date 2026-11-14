@@ -11,7 +11,8 @@ import { ShopBoard } from "../ui/ShopBoard";
 import { Notice } from "../ui/Notice";
 import { BannerToast } from "../ui/BannerToast";
 import { RenownMoment } from "../ui/RenownMoment";
-import { NpcMoment } from "../ui/NpcMoment";
+import { DiscoveryMoment } from "../ui/DiscoveryMoment";
+import { useTvSound } from "../ui/tvSound";
 import { FightOverlay } from "../ui/FightOverlay";
 import { DiceRoll } from "../ui/DiceRoll";
 
@@ -104,7 +105,7 @@ function TvScreen({ view, online }: { view: TvView; online: boolean }) {
       <DiceRoll roll={view.diceRoll} />
 
       <RenownMoment moment={view.renownMoment} />
-      <NpcMoment moment={view.npcMoment} />
+      <DiscoveryMoment moment={view.discovery} />
 
       {showOffline ? (
         <div className="tv-offline" role="status">
@@ -118,6 +119,7 @@ function TvScreen({ view, online }: { view: TvView; online: boolean }) {
         {view.session ? <span className="tv-bar-session">{view.session.title}</span> : null}
         <span className="spacer" />
         <span className="tv-bar-hint">F fullscreen · H hide this bar · scenes are switched from the DM view</span>
+        <SoundToggle />
         <button type="button" className="btn" onClick={toggleFullscreen}>
           <FullscreenIcon /> Fullscreen
         </button>
@@ -126,6 +128,16 @@ function TvScreen({ view, online }: { view: TvView; online: boolean }) {
         </button>
       </nav>
     </div>
+  );
+}
+
+/** Sound for reveals (a chime). Off until someone turns it on, remembered on this device. */
+function SoundToggle() {
+  const [on, set] = useTvSound();
+  return (
+    <button type="button" className={`btn${on ? " on" : ""}`} aria-pressed={on} onClick={() => set(!on)}>
+      {on ? "Sound on" : "Sound off"}
+    </button>
   );
 }
 

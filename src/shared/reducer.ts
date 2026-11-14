@@ -14,10 +14,10 @@ import { starterById } from "./starters";
 import { chapterSessionId, cleanTags, cleanText, defaultChapterId, NOTES_MAX, penName } from "./chronicle";
 import { BOARD_SLOTS, jobsOf, jobTitle, pinnedCount, rankName, RENOWN, renownMet, renownNeeded, renownOf, shopOpenNow, tierOf } from "./renown";
 import { rollPool } from "./dice";
-import { FACTS_MAX, npcFromScene, npcsOf, NPCS_MAX, npcTags } from "./people";
+import { blankEntry, ENTRIES_MAX, entriesForScene, entriesOf, entryFromScene, entryScene, entryTags, factSlug, FACTS_MAX, isFound, slugify, uniqueSlug } from "./discovery";
 import { DM_AUTHOR } from "./types";
 import { applyFight, isFightCommand, startFightFromBeat, type FightHelpers } from "./combatReducer";
-import type { Actor, Beat, BeatAction, Episode, Npc, NpcFact, FlyerText, GameState, Item, ItemTier, Job, LedgerEntry, LedgerKind, MapData, Note, Pin, PinLink, Player, Scene, Session, SessionRun, Shop, TradeRequest } from "./types";
+import type { Actor, Beat, BeatAction, Entry, EntryFact, Episode, FlyerText, Stage, GameState, Item, ItemTier, Job, LedgerEntry, LedgerKind, MapData, Note, Pin, PinLink, Player, Scene, Session, SessionRun, Shop, TradeRequest } from "./types";
 import type { z } from "zod";
 
 export class CommandError extends Error {
@@ -46,8 +46,8 @@ export interface Result {
   playerId?: string;
   /** Created job flyer id. */
   jobId?: string;
-  /** Created NPC / fact id. */
-  npcId?: string;
+  /** Created discovery entry / fact id. */
+  entryId?: string;
   factId?: string;
   /** Created episode / beat ids. */
   episodeId?: string;
@@ -515,40 +515,67 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
     return last.run.beat;
   };
 
-  // ---------- the People compendium ----------
-  const npc = (id: string): Npc => npcsOf(s).find((x) => x.id === id) ?? fail("That person isn't in the compendium.");
-  const factOf = (n: Npc, id: string): NpcFact => n.facts.find((f) => f.id === id) ?? fail("That fact isn't there any more.");
-  const playMoment = (n: Npc, factId?: string) => {
-    s.npcMoment = { npcId: n.id, n: ++s.seq, ...(factId ? { factId } : {}) };
+  // ---------- Discovery ----------
+  const entry = (id: string): Entry => entriesOf(s).find((x) => x.id === id) ?? fail("That isn't in the compendium any more.");
+  const factOf = (e: Entry, id: string): EntryFact => e.facts.find((f) => f.id === id) ?? fail("That fact isn't there any more.");
+  const playMoment = (e: Entry, from?: Stage, factId?: string) => {
+    s.discovery = { entryId: e.id, n: ++s.seq, at: ctx.now, ...(from ? { from } : {}), ...(factId ? { factId } : {}) };
   };
-  /** The party meets them: in the compendium from now on, a line in the Chronicle, and (announce) the TV moment. */
-  const meet = (n: Npc, announce: boolean) => {
-    const sc = n.sceneId ? s.scenes.find((x) => x.id === n.sceneId && x.kind === "portrait") : undefined;
-    if (sc) sc.known = true;
-    if (n.met) return;
-    n.met = { at: ctx.now, sessionId: s.currentSessionId };
-    if (announce) playMoment(n);
-    if ((s.notes ?? []).length < NOTES_MAX) {
-      const who = n.title.trim() ? `${n.name}, ${n.title.trim().replace(/^[A-Z](?=[a-z])/, (c) => c.toLowerCase())}` : n.name;
-      addNote(DM_AUTHOR, "The DM", `The party met ${who}.`, npcTags(s, n), undefined);
+  const foundLine = (e: Entry) => {
+    const title = e.title.trim() ? `, ${e.title.trim().replace(/^[A-Z](?=[a-z])/, (c) => c.toLowerCase())}` : "";
+    switch (e.kind) {
+      case "person":
+        return `The party met ${e.name}${title}.`;
+      case "place":
+        return `The party visited ${e.name}.`;
+      case "shop":
+        return `Now open to the party: ${e.name}.`;
+      case "monster":
+        return `The party encountered ${e.name}.`;
+      default:
+        return `The party found ${e.name}.`;
     }
   };
-  /** A portrait on the TV for the first time: meet whoever it is, making their entry if they don't have one. */
+  /** Move an entry to a stage. Already there: nothing happens. Returns whether it moved. */
+  const setStage = (e: Entry, to: Stage, announce: boolean): boolean => {
+    const from = e.stage;
+    if (from === to) return false;
+    e.stage = to;
+    e.stagedAt = ctx.now;
+    const sc = entryScene(s, e);
+    if (isFound(to) && !isFound(from)) {
+      e.foundAt = ctx.now;
+      e.foundIn = s.currentSessionId;
+      if (sc) sc.known = true;
+      if ((s.notes ?? []).length < NOTES_MAX) addNote(DM_AUTHOR, "The DM", foundLine(e), entryTags(s, e), undefined);
+    } else if (!isFound(to) && isFound(from)) {
+      delete e.foundAt;
+      delete e.foundIn;
+      if (sc && !entriesForScene(s, sc.id).some((x) => isFound(x.stage))) delete sc.known;
+    }
+    if (to === "hidden") {
+      if (s.discovery?.entryId === e.id) delete s.discovery;
+    } else if (announce) playMoment(e, from);
+    return true;
+  };
+  /** A portrait on the TV for the first time: find whoever it is, making an entry if they don't have one. */
   const meetPortrait = (sc: Scene) => {
-    const linked = npcsOf(s).filter((n) => n.sceneId === sc.id);
-    if (!linked.length && !sc.known && npcsOf(s).length < NPCS_MAX) {
-      const n = npcFromScene(sc, nextId("npc"));
-      (s.npcs ??= []).push(n);
-      linked.push(n);
+    const linked = entriesForScene(s, sc.id);
+    if (!linked.length && !sc.known && entriesOf(s).length < ENTRIES_MAX) {
+      const list = (s.entries ??= []);
+      const e = entryFromScene(list, sc, nextId("e"));
+      list.push(e);
+      linked.push(e);
     }
     sc.known = true;
-    for (const n of linked) meet(n, true);
+    for (const e of linked) if (!isFound(e.stage)) setStage(e, "found", true);
   };
   const cleanLine = (t: string) => t.replace(/\s+/g, " ").trim();
   const checkPortrait = (sceneId: string | null | undefined) => {
     if (!sceneId) return;
     if (scene(sceneId).kind !== "portrait") fail("Pick a portrait scene.");
   };
+  const cleanAreas = (areas: string[]) => [...new Map(areas.map(cleanLine).filter(Boolean).map((a) => [a.toLowerCase(), a])).values()];
 
   // ---------- the Chronicle ----------
   const noteById = (noteId: string): Note => (s.notes ?? []).find((n) => n.id === noteId) ?? fail("That note isn't here any more.");
@@ -655,7 +682,7 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
         delete s.live.banner;
       }
       for (const sc of s.scenes) for (const p of sc.map?.pins ?? []) if (p.link?.kind === "scene" && p.link.sceneId === cmd.sceneId) delete p.link;
-      for (const n of npcsOf(s)) if (n.sceneId === cmd.sceneId) delete n.sceneId;
+      for (const e of entriesOf(s)) if (e.sceneId === cmd.sceneId) delete e.sceneId;
       break;
     }
     case "scene.move": {
@@ -1273,137 +1300,171 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
       if (sc.kind !== "portrait") fail("Only portraits are NPCs.");
       if (cmd.known) sc.known = true;
       else delete sc.known;
-      // Their compendium entry follows, quietly.
-      for (const n of npcsOf(s).filter((x) => x.sceneId === sc.id)) {
-        if (cmd.known) meet(n, false);
-        else delete n.met;
+      // Their compendium entries follow, quietly.
+      for (const e of entriesForScene(s, sc.id)) {
+        if (cmd.known && !isFound(e.stage)) setStage(e, "found", false);
+        if (!cmd.known && isFound(e.stage)) setStage(e, "hidden", false);
       }
       break;
     }
-    case "npc.add": {
-      const list = (s.npcs ??= []);
-      if (list.length >= NPCS_MAX) fail("The compendium is full.");
-      checkPortrait(cmd.npc.sceneId);
-      const sc = cmd.npc.sceneId ? scene(cmd.npc.sceneId) : undefined;
-      const name = cleanLine(cmd.npc.name ?? "") || (sc ? sc.name?.trim() || sc.label : "");
-      if (!name) fail("Give them a name.");
-      const n: Npc = {
-        id: nextId("npc"),
-        name,
-        title: cleanLine(cmd.npc.title ?? "") || (sc?.title ?? ""),
-        blurb: (cmd.npc.blurb ?? "").trim(),
-        facts: (cmd.facts ?? []).map((t) => cleanLine(t)).filter(Boolean).slice(0, FACTS_MAX).map((text) => ({ id: nextId("f"), text })),
-        dmNote: (cmd.npc.dmNote ?? "").trim(),
-      };
-      if (sc) n.sceneId = sc.id;
-      if (cmd.npc.mood) n.mood = cmd.npc.mood;
+    case "entry.add": {
+      const list = (s.entries ??= []);
+      if (list.length >= ENTRIES_MAX) fail("The compendium is full.");
+      const f = cmd.entry;
+      checkPortrait(f.sceneId);
+      const sc = f.sceneId ? scene(f.sceneId) : undefined;
+      const name = cleanLine(f.name ?? "") || (sc ? sc.name?.trim() || sc.label : "");
+      if (!name) fail("Give it a name.");
+      const kind = f.kind ?? "person";
+      const e = blankEntry(list, nextId("e"), kind, name, {
+        title: cleanLine(f.title ?? "") || (sc?.title ?? ""),
+        summary: (f.summary ?? "").trim(),
+        nickname: cleanLine(f.nickname ?? ""),
+        hint: cleanLine(f.hint ?? ""),
+        areas: cleanAreas(f.areas ?? []),
+        dmNote: (f.dmNote ?? "").trim(),
+        secrets: (f.secrets ?? "").trim(),
+      });
+      if (f.slug?.trim()) e.slug = uniqueSlug(list, kind, f.slug);
+      for (const t of (cmd.facts ?? []).map(cleanLine).filter(Boolean).slice(0, FACTS_MAX)) e.facts.push({ id: nextId("f"), slug: factSlug(e.facts, t), text: t });
+      if (sc) e.sceneId = sc.id;
+      if (f.relation) e.relation = f.relation;
+      if (f.start && f.start !== "hidden") e.start = f.start;
+      list.push(e);
       // A portrait the table has already seen: they've met.
-      if (sc?.known) n.met = { at: ctx.now, sessionId: s.currentSessionId };
-      list.push(n);
-      out.npcId = n.id;
+      if (sc?.known) setStage(e, "found", false);
+      out.entryId = e.id;
       break;
     }
-    case "npc.update": {
-      const n = npc(cmd.npcId);
+    case "entry.update": {
+      const e = entry(cmd.entryId);
       const p = cmd.patch;
       if (p.name !== undefined) {
         const name = cleanLine(p.name);
-        if (!name) fail("Give them a name.");
-        n.name = name;
+        if (!name) fail("Give it a name.");
+        e.name = name;
       }
-      if (p.title !== undefined) n.title = cleanLine(p.title);
-      if (p.blurb !== undefined) n.blurb = p.blurb.trim();
-      if (p.dmNote !== undefined) n.dmNote = p.dmNote.trim();
-      if (p.mood !== undefined) {
-        if (p.mood) n.mood = p.mood;
-        else delete n.mood;
+      if (p.kind !== undefined && p.kind !== e.kind) {
+        e.kind = p.kind;
+        e.slug = uniqueSlug(entriesOf(s), e.kind, e.slug, e.id);
+      }
+      if (p.slug !== undefined) e.slug = uniqueSlug(entriesOf(s), e.kind, p.slug.trim() || e.name, e.id);
+      if (p.title !== undefined) e.title = cleanLine(p.title);
+      if (p.summary !== undefined) e.summary = p.summary.trim();
+      if (p.nickname !== undefined) e.nickname = cleanLine(p.nickname);
+      if (p.hint !== undefined) e.hint = cleanLine(p.hint);
+      if (p.dmNote !== undefined) e.dmNote = p.dmNote.trim();
+      if (p.secrets !== undefined) e.secrets = p.secrets.trim();
+      if (p.areas !== undefined) e.areas = cleanAreas(p.areas);
+      if (p.links !== undefined) {
+        const ids = new Set(entriesOf(s).map((x) => x.id));
+        e.links = [...new Set(p.links)].filter((id) => id !== e.id && ids.has(id));
+      }
+      if (p.relation !== undefined) {
+        if (p.relation && p.relation !== "stranger") e.relation = p.relation;
+        else delete e.relation;
+      }
+      if (p.start !== undefined) {
+        if (p.start === "hidden") delete e.start;
+        else e.start = p.start;
+      }
+      if (p.silhouette !== undefined) {
+        if (p.silhouette) e.silhouette = p.silhouette;
+        else delete e.silhouette;
       }
       if (p.sceneId !== undefined) {
         checkPortrait(p.sceneId);
-        if (p.sceneId) n.sceneId = p.sceneId;
-        else delete n.sceneId;
+        if (p.sceneId) e.sceneId = p.sceneId;
+        else delete e.sceneId;
       }
       break;
     }
-    case "npc.remove": {
-      npc(cmd.npcId);
-      s.npcs = npcsOf(s).filter((x) => x.id !== cmd.npcId);
-      if (s.npcMoment?.npcId === cmd.npcId) delete s.npcMoment;
+    case "entry.relationFor": {
+      const e = entry(cmd.entryId);
+      if (e.kind !== "person") fail("Only people have feelings about the party.");
+      player(cmd.playerId);
+      const by = (e.relationBy ??= {});
+      if (cmd.relation && cmd.relation !== (e.relation ?? "stranger")) by[cmd.playerId] = cmd.relation;
+      else delete by[cmd.playerId];
+      if (!Object.keys(by).length) delete e.relationBy;
       break;
     }
-    case "npc.move": {
-      const list = npcsOf(s);
-      const i = list.findIndex((x) => x.id === cmd.npcId);
-      if (i < 0) fail("That person isn't in the compendium.");
+    case "entry.remove": {
+      entry(cmd.entryId);
+      s.entries = entriesOf(s).filter((x) => x.id !== cmd.entryId);
+      for (const e of s.entries) if (e.links.includes(cmd.entryId)) e.links = e.links.filter((x) => x !== cmd.entryId);
+      if (s.discovery?.entryId === cmd.entryId) delete s.discovery;
+      break;
+    }
+    case "entry.move": {
+      const list = entriesOf(s);
+      const i = list.findIndex((x) => x.id === cmd.entryId);
+      if (i < 0) fail("That isn't in the compendium any more.");
       const j = i + cmd.dir;
       if (j >= 0 && j < list.length) [list[i], list[j]] = [list[j], list[i]];
       break;
     }
-    case "npc.meet": {
-      const n = npc(cmd.npcId);
-      if (cmd.met) {
-        if (n.met) fail(`The party has already met ${n.name}.`);
-        meet(n, cmd.announce);
-      } else {
-        // Back to a stranger: the entry leaves the phones (its notes stay in the Chronicle).
-        delete n.met;
-        const sc = n.sceneId ? s.scenes.find((x) => x.id === n.sceneId) : undefined;
-        if (sc && !npcsOf(s).some((x) => x.sceneId === sc.id && x.met)) delete sc.known;
-        if (s.npcMoment?.npcId === n.id) delete s.npcMoment;
-      }
+    case "entry.stage":
+      setStage(entry(cmd.entryId), cmd.stage, cmd.announce);
+      break;
+    case "entry.show": {
+      const e = entry(cmd.entryId);
+      if (e.stage === "hidden") fail(`The party doesn't know of ${e.name} yet.`);
+      if (cmd.factId && factOf(e, cmd.factId).revealedAt === undefined) fail("Reveal that fact first.");
+      playMoment(e, undefined, cmd.factId);
       break;
     }
-    case "npc.show": {
-      const n = npc(cmd.npcId);
-      if (!n.met) fail(`The party hasn't met ${n.name} yet.`);
-      if (cmd.factId && factOf(n, cmd.factId).revealedAt === undefined) fail("Reveal that fact first.");
-      playMoment(n, cmd.factId);
-      break;
-    }
-    case "npc.factAdd": {
-      const n = npc(cmd.npcId);
+    case "entry.factAdd": {
+      const e = entry(cmd.entryId);
       const text = cleanLine(cmd.text);
       if (!text) fail("Write the fact first.");
-      if (n.facts.length >= FACTS_MAX) fail(`${n.name} has as many facts as fit.`);
-      const f: NpcFact = { id: nextId("f"), text };
-      n.facts.push(f);
+      if (e.facts.length >= FACTS_MAX) fail(`${e.name} has as many facts as fit.`);
+      const f: EntryFact = { id: nextId("f"), slug: factSlug(e.facts, text), text };
+      e.facts.push(f);
       out.factId = f.id;
       break;
     }
-    case "npc.factUpdate": {
-      const f = factOf(npc(cmd.npcId), cmd.factId);
-      const text = cleanLine(cmd.text);
-      if (!text) fail("A fact can't be empty. Delete it instead.");
-      f.text = text;
+    case "entry.factUpdate": {
+      const e = entry(cmd.entryId);
+      const f = factOf(e, cmd.factId);
+      if (cmd.text !== undefined) {
+        const text = cleanLine(cmd.text);
+        if (!text) fail("A fact can't be empty. Delete it instead.");
+        f.text = text;
+      }
+      if (cmd.slug !== undefined) f.slug = factSlug(e.facts, slugify(cmd.slug.trim() || f.text), f.id);
       break;
     }
-    case "npc.factRemove": {
-      const n = npc(cmd.npcId);
-      factOf(n, cmd.factId);
-      n.facts = n.facts.filter((f) => f.id !== cmd.factId);
-      if (s.npcMoment?.factId === cmd.factId) delete s.npcMoment;
+    case "entry.factRemove": {
+      const e = entry(cmd.entryId);
+      factOf(e, cmd.factId);
+      e.facts = e.facts.filter((f) => f.id !== cmd.factId);
+      if (s.discovery?.factId === cmd.factId) delete s.discovery;
       break;
     }
-    case "npc.factMove": {
-      const n = npc(cmd.npcId);
-      const i = n.facts.findIndex((f) => f.id === cmd.factId);
+    case "entry.factMove": {
+      const e = entry(cmd.entryId);
+      const i = e.facts.findIndex((f) => f.id === cmd.factId);
       if (i < 0) fail("That fact isn't there any more.");
       const j = i + cmd.dir;
-      if (j >= 0 && j < n.facts.length) [n.facts[i], n.facts[j]] = [n.facts[j], n.facts[i]];
+      if (j >= 0 && j < e.facts.length) [e.facts[i], e.facts[j]] = [e.facts[j], e.facts[i]];
       break;
     }
-    case "npc.factReveal": {
-      const n = npc(cmd.npcId);
-      const f = factOf(n, cmd.factId);
+    case "entry.factReveal": {
+      const e = entry(cmd.entryId);
+      const f = factOf(e, cmd.factId);
       if (cmd.revealed) {
-        f.revealedAt ??= ctx.now;
-        if (cmd.tv) {
-          if (!n.met) fail(`The party hasn't met ${n.name} yet. It'll show on their phones once they do.`);
-          playMoment(n, f.id);
+        if (f.revealedAt === undefined) {
+          f.revealedAt = ctx.now;
+          f.learnedIn = s.currentSessionId;
         }
+        const from = e.stage;
+        setStage(e, "known", false);
+        if (cmd.tv) playMoment(e, from, f.id);
       } else {
         delete f.revealedAt;
-        if (s.npcMoment?.factId === f.id) delete s.npcMoment;
+        delete f.learnedIn;
+        if (s.discovery?.factId === f.id) delete s.discovery;
       }
       break;
     }

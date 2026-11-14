@@ -164,12 +164,17 @@ tests/                    vitest
 - **One at a time:** untick *Players can ask for several at once* on gear like armor.
 - Phones get no push notifications; a banner appears on the page when you decide. Anyone who opens an unlocked name can ask to spend that player's gold, so players are nudged to lock their name; your approval is the safeguard either way.
 
-## People (the NPC compendium)
+## Discovery (people, places, shops, monsters, mysteries)
 
-- **DM view → People** holds everyone the party might meet: name, title, a short public blurb, a portrait (pick one of your portrait scenes), how they feel about the party, key facts and your own notes. Mags, Artum, the Chef, Bolla and the ship's captain come pre-written, with every fact locked.
-- **Meeting someone** unlocks them: the first time their portrait goes on the TV, or when you press **Introduce** (or **Add to phones quietly**). The TV plays a short "A new face" card and a line goes in the Chronicle. A new portrait scene gets its own entry the first time you show it.
-- **Facts** stay on your screen until you **Reveal** one; it shows on phones straight away, and **Reveal on TV** also puts it on the TV.
-- **Players** get a **People** tab with everyone they've met, what they know, and the table's notes. Notes are Chronicle notes tagged with the person's name, so hiding and starring work as usual. Unmet people, locked facts and your notes never leave your screen, and phones don't learn how many people are still to meet. The starter entries live in `src/server/` so their locked facts aren't in the browser code.
+One compendium for everything the party can find. Step 1 covers people; places, shops, monsters and mysteries use the same entries as later steps land.
+
+- **DM view → Discovery** lists every entry by kind. Each has a stage: **Hidden** (only you see it), **Rumored** (phones and TV see the nickname, or "???", a hint and a silhouette, nothing else), **Met/Found** and **Known**. Revealing any fact makes an entry Known. Changing a stage twice does nothing the second time.
+- **Seeded:** Captain Orsa Dell, Mags and Artum (met), Fennick and the baker (rumored), the merchant, the Chef and Bolla (hidden). Seed entries are added to existing games only if missing; "Start fresh" returns every entry to its starting stage. They live in `src/server/` so locked facts and DM notes never ship in the browser code.
+- **Pictures:** pick a portrait scene. Portraits are served from `/api/art/…` only once the entry is found, so phones can't guess their way to a face. Rumors show a silhouette: **Make silhouette from portrait** builds one in your browser, or upload one, or use the generic shape for the kind.
+- **The TV** plays a short reveal (silhouette, then the picture fills in) when an entry is found or a fact is revealed on the TV, with an optional chime (the speaker toggle on the TV, off by default). Untick "Play stage changes on the TV" to change stages quietly.
+- **Relationships:** how they feel about the party (Stranger, Friendly, Ally, Hostile), with an optional override per player shown as a badge on that player's phone.
+- **Ties** link entries together; players see a tie only when both ends are visible to them.
+- **Phones** get a **Discover** tab with a "new" badge for anything changed since they last looked, each entry's facts, and the table's notes (Chronicle notes tagged with the entry's name). Hidden entries, locked facts, real names behind nicknames, DM notes and secrets never leave your screen.
 
 ## Running a session (run-game mode)
 

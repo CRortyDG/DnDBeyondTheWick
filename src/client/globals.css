@@ -4394,26 +4394,6 @@ input.fld.inline-input {
   font-size: 12px;
   margin-left: 8px;
 }
-.mood {
-  font-weight: 600;
-}
-.mood-ally,
-.mood-friendly {
-  color: #4f8a4f;
-}
-.person-page .mood-ally,
-.person-page .mood-friendly {
-  color: var(--up);
-}
-.mood-wary {
-  color: #a8740f;
-}
-.mood-hostile {
-  color: var(--wax);
-}
-.person-page .mood-hostile {
-  color: var(--down);
-}
 .person-page {
   display: grid;
   gap: 12px;
@@ -4498,8 +4478,8 @@ input.fld.inline-input {
   gap: 4px;
 }
 
-/* The TV's "a new face" card: low on the screen, so a portrait behind it still shows. */
-.npc-moment {
+/* The TV's reveal card: low on the screen, so a portrait behind it still shows. */
+.disc-moment {
   position: fixed;
   left: 0;
   right: 0;
@@ -4508,12 +4488,12 @@ input.fld.inline-input {
   display: flex;
   justify-content: center;
   pointer-events: none;
-  animation: npc-in 8s ease both;
+  animation: disc-in 9s ease both;
 }
-.npc-moment.fact {
+.disc-moment.fact {
   animation-duration: 10s;
 }
-.npc-moment-card {
+.disc-card {
   display: flex;
   align-items: center;
   gap: calc(36 * var(--u));
@@ -4526,51 +4506,88 @@ input.fld.inline-input {
   box-shadow: 0 calc(10 * var(--u)) calc(50 * var(--u)) rgba(0, 0, 0, 0.7);
   color: #f4dcae;
 }
-.npc-moment-face {
-  width: calc(190 * var(--u));
-  height: calc(190 * var(--u));
-  border-width: calc(4 * var(--u));
-  font-size: calc(96 * var(--u));
+.disc-face-wrap {
+  position: relative;
 }
-.npc-moment-text {
+.disc-face {
+  width: calc(220 * var(--u));
+  height: calc(220 * var(--u));
+  border-width: calc(4 * var(--u));
+  font-size: calc(110 * var(--u));
+}
+.disc-face.small {
+  width: calc(150 * var(--u));
+  height: calc(150 * var(--u));
+  font-size: calc(70 * var(--u));
+}
+/* Found: the silhouette fills with colour. */
+.disc-moment.reveal .disc-face {
+  animation: disc-fill 2.2s ease-in both;
+}
+@keyframes disc-fill {
+  0%,
+  25% {
+    filter: brightness(0) drop-shadow(0 0 calc(18 * var(--u)) rgba(236, 198, 106, 0.6));
+  }
+  100% {
+    filter: none;
+  }
+}
+.disc-text {
   display: grid;
   gap: calc(6 * var(--u));
 }
-.npc-moment-kicker {
+.disc-kicker {
   font-family: var(--font-sc);
   font-size: calc(36 * var(--u));
   letter-spacing: calc(8 * var(--u));
   text-transform: uppercase;
   color: var(--gold);
 }
-.npc-moment-name {
+.disc-name {
   font-family: var(--font-sc);
   font-size: calc(96 * var(--u));
   line-height: 1;
   text-shadow: 0 0 calc(30 * var(--u)) rgba(255, 180, 80, 0.45);
 }
-.npc-moment-title {
+.disc-ghost {
+  opacity: 0;
+}
+.disc-title {
   font-family: var(--font-body);
   font-style: italic;
   font-size: calc(42 * var(--u));
+  animation: disc-late 2.6s ease both;
 }
-.npc-moment-fact {
+.disc-moment:not(.reveal) .disc-title {
+  animation: none;
+}
+@keyframes disc-late {
+  0%,
+  70% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+.disc-hint {
+  font-family: var(--font-body);
+  font-style: italic;
+  font-size: calc(44 * var(--u));
+  max-width: calc(1000 * var(--u));
+}
+.disc-fact {
   font-family: var(--font-body);
   font-size: calc(54 * var(--u));
   line-height: 1.2;
 }
-.npc-moment-foot {
-  font-family: var(--font-body);
-  font-size: calc(26 * var(--u));
-  opacity: 0.7;
-  margin-top: calc(6 * var(--u));
-}
-@keyframes npc-in {
+@keyframes disc-in {
   0% {
     opacity: 0;
     transform: translateY(calc(40 * var(--u)));
   }
-  7%,
+  6%,
   90% {
     opacity: 1;
     transform: none;
@@ -4580,9 +4597,97 @@ input.fld.inline-input {
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  .npc-moment {
+  .disc-moment,
+  .disc-moment.reveal .disc-face,
+  .disc-title {
     animation: none;
   }
+}
+
+/* Silhouettes and stages */
+.portrait-silhouette {
+  display: inline-grid;
+  place-items: center;
+  object-fit: contain;
+  object-position: center bottom;
+  background: radial-gradient(circle at 50% 40%, #6b5640, #3a2a1c);
+  border-style: dashed;
+  overflow: hidden;
+}
+.generic-silhouette {
+  width: 78%;
+  height: 78%;
+  margin-top: 18%;
+  fill: #1b130d;
+  opacity: 0.92;
+}
+.person-card.rumored {
+  cursor: default;
+  background: repeating-linear-gradient(135deg, var(--parchment-2) 0 12px, #d8c59c 12px 24px);
+}
+.person-card.rumored .person-name {
+  color: var(--ink-soft);
+}
+.entry-stage {
+  font-weight: 600;
+}
+.entry-stage-rumored {
+  color: #a8740f;
+}
+.person-page .entry-stage-found,
+.person-page .entry-stage-known {
+  color: var(--gold-bright);
+}
+.relation {
+  font-weight: 600;
+  border-radius: 999px;
+  padding: 0 8px;
+  border: 1px solid currentColor;
+}
+.relation-friendly,
+.relation-ally {
+  color: #4f8a4f;
+}
+.person-page .relation-friendly,
+.person-page .relation-ally {
+  color: var(--up);
+}
+.relation-hostile {
+  color: var(--wax);
+}
+.person-page .relation-hostile {
+  color: var(--down);
+}
+.entry-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+.person-page .entry-links .chron-tag {
+  background: var(--parchment-2);
+  color: var(--ink);
+}
+.discovery-filters .tabs {
+  flex-wrap: wrap;
+}
+.stage-select.stage-hidden {
+  opacity: 0.75;
+}
+.stage-select.stage-rumored {
+  border-style: dashed;
+}
+.person-item.stage-hidden .scene-label {
+  opacity: 0.7;
+}
+.silhouette-preview {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+}
+.fact-ref {
+  font-family: monospace;
+  font-size: 12px;
 }
 .person-editor {
   display: grid;

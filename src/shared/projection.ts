@@ -6,12 +6,12 @@ import type { DiceGroup } from "./dice";
 import { heldCp, heldStock } from "./requests";
 import { projectTable, type TableView } from "./arrival";
 import { notesOf, penName, projectChronicle, type ChronicleView } from "./chronicle";
-import { npcMomentView, publicPeople, type NpcMomentView, type PublicNpc } from "./people";
+import { discoveryView, PORTRAIT_ART, portraitArtAllowed, publicEntries, sceneSpoils, type DiscoveryView, type PublicEntry } from "./discovery";
 import { jobsOf, jobTitle, rankName, RENOWN, renownMet, renownNeeded, renownOf, shopOpenNow, tierOf } from "./renown";
 import { fightView, myFight, type FightView, type MyFight } from "./combat";
 import type { Art, Banner, FlyerText, GameState, Job, JobStyle, Item, ItemCategory, ItemKind, LedgerEntry, LegendStyle, LiveState, Player, RequestStatus, Scene, Shop } from "./types";
 
-export const GATED_ART = new Set(["merchant-sigil"]);
+export const GATED_ART = new Set(["merchant-sigil", ...PORTRAIT_ART]);
 
 export interface PublicScene {
   id: string;
@@ -222,8 +222,8 @@ export interface TvView extends Common {
   jobs: PublicJob[];
   /** The last rank-up: the TV plays the moment when n changes. */
   renownMoment?: { rank: number; name: string; n: number };
-  /** Someone new met, or a fact revealed: the TV plays it when n changes. */
-  npcMoment?: NpcMomentView;
+  /** A reveal (a rumor, someone found, a fact): the TV plays it when n changes. */
+  discovery?: DiscoveryView;
   /** The DM's last dice roll: the TV plays it when n changes. */
   diceRoll?: { n: number; groups: DiceGroup[]; plus: number; total: number };
   /** Every non-reveal scene (for instant switching), plus the live scene even if it's a reveal. */
@@ -275,8 +275,8 @@ export interface PlayerView extends Common {
   chronicle: ChronicleView;
   /** The bounty board: pinned jobs. */
   jobs: MyJob[];
-  /** The People compendium: only NPCs the party has met, only revealed facts. */
-  people: PublicNpc[];
+  /** Discovery: rumored, found and known entries only; revealed facts only. */
+  entries: PublicEntry[];
 }
 
 export type DmPlayer = Omit<Player, "keyHash"> & { hasKey: boolean };
@@ -440,9 +440,10 @@ export function projectTv(game: GameState, version: number): TvView {
     flyers: game.flyers.filter((f) => f.up).map((f) => ({ id: f.id, title: f.title, body: f.body, signedBy: f.signedBy, at: f.pinnedAt ?? f.postedAt })),
     jobs: pinnedJobs(game).map((j) => publicJob(game, j)),
     ...(game.renownMoment ? { renownMoment: { rank: game.renownMoment.rank, name: rankName(game.renownMoment.rank), n: game.renownMoment.n } } : {}),
-    ...(npcMomentView(game) ? { npcMoment: npcMomentView(game) } : {}),
+    ...(discoveryView(game) ? { discovery: discoveryView(game) } : {}),
     ...(game.diceRoll ? { diceRoll: { n: game.diceRoll.n, groups: game.diceRoll.groups, plus: game.diceRoll.plus, total: game.diceRoll.total } } : {}),
-    scenes: game.scenes.filter((sc) => !sc.reveal || sc.id === game.live.sceneId).map((sc) => publicScene(game, sc)),
+    // Reveal scenes, and portraits of people the party hasn't found, only while they're live.
+    scenes: game.scenes.filter((sc) => sc.id === game.live.sceneId || (!sc.reveal && !sceneSpoils(game, sc))).map((sc) => publicScene(game, sc)),
     recap: publicRecap(game),
     ...(game.scenes.find((sc) => sc.id === game.live.sceneId)?.kind === "table" ? { table: projectTable(game) } : {}),
     fight: publicFight(game),
@@ -453,7 +454,7 @@ export function projectTv(game: GameState, version: number): TvView {
 function publicFight(game: GameState): FightView | null {
   return fightView(game, Date.now(), (sceneId) => {
     const sc = game.scenes.find((x) => x.id === sceneId);
-    if (!sc || sc.reveal || sc.kind !== "portrait") return undefined;
+    if (!sc || sc.reveal || sc.kind !== "portrait" || sceneSpoils(game, sc)) return undefined;
     return artForPublic(game, sc);
   });
 }
@@ -531,7 +532,7 @@ export function projectPlayer(game: GameState, version: number, playerId: string
       if (by && pub.status !== "open") out.takenBy = by.name;
       return out;
     }),
-    people: publicPeople(game),
+    entries: publicEntries(game, p.id),
   };
 }
 
@@ -589,5 +590,7 @@ export function projectDm(game: GameState, version: number, ledger: LedgerEntry[
 /** Is a gated built-in allowed for a non-DM right now? */
 export function gatedArtIsLive(game: GameState, builtin: string): boolean {
   const live = game.scenes.find((sc) => sc.id === game.live.sceneId);
-  return !!live && live.art?.builtin === builtin;
+  if (live?.art?.builtin === builtin) return true;
+  // Built-in portraits: once the party has found whoever they show.
+  return PORTRAIT_ART.has(builtin) && portraitArtAllowed(game, builtin);
 }
