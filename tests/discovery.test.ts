@@ -474,7 +474,7 @@ describe("counters, goodwill locks and the session recap", () => {
     const mine = () => phone().jobs.find((x) => x.id === j.id)!;
     expect(mine().canTake).toBe(false);
     expect(mine().goodwill).toBe("Captain Orsa Dell’s friendship");
-    expect(fails(P1, { type: "me.takeJob", jobId: j.id })).toMatch(/friendship/);
+    expect(fails(P1, { type: "me.takeJob", jobId: j.id, note: "" })).toMatch(/friendship/);
     dm({ type: "entry.update", entryId: "e-orsa", patch: { relation: "friendly" } });
     expect(mine().canTake).toBe(true);
   });
