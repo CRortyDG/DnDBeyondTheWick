@@ -261,16 +261,17 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
       const j = jobs.find((x) => x.id === r.jobId) ?? fail(`${r.jobTitle ?? "That job"} has come down. Decline it instead.`);
       if (j.status !== "open") fail(`${jobTitle(j)} is already ${j.status}.`, "recheck");
       if (!override && p.archived) fail(`${p.name} has left the table.`, "recheck");
+      // A job belongs to the whole party, whoever tapped the button.
       j.status = "taken";
-      j.takenBy = [p.id];
+      delete j.takenBy;
       j.takenAt = ctx.now;
-      if (j.pinned) announce(`${p.name} took the job: ${jobTitle(j)}`);
+      if (j.pinned) announce(`The party took the job: ${jobTitle(j)}`);
       // Nobody else needs to ask for it now.
       for (const o of s.requests) {
         if (o.id !== r.id && o.status === "pending" && o.kind === "job" && o.jobId === j.id) {
           o.status = "declined";
           o.decidedAt = ctx.now;
-          o.reason = `${p.name} already took it.`;
+          o.reason = "The party already took it.";
         }
       }
       r.status = "approved";
@@ -1640,9 +1641,10 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
     case "me.takeJob": {
       const p = me();
       const j = jobs.find((x) => x.id === cmd.jobId && x.pinned && x.status !== "expired") ?? fail("That job isn't on the board.");
-      if (j.status !== "open") fail(`Someone already took ${jobTitle(j)}.`);
+      if (j.status !== "open") fail(`The party already took ${jobTitle(j)}.`);
       if (!renownMet(s, j.renown)) fail(`That job is for experienced parties only (${rankName(j.renown)}).`);
-      if (s.requests.some((r) => r.status === "pending" && r.kind === "job" && r.jobId === j.id && r.playerId === p.id)) fail("You've already asked for this job.");
+      // One ask per job for the whole table.
+      if (s.requests.some((r) => r.status === "pending" && r.kind === "job" && r.jobId === j.id)) fail("The party already asked the DM for this job.");
       if (s.requests.filter((r) => r.status === "pending" && r.playerId === p.id).length >= 20) fail("You have 20 requests waiting. Let the DM catch up.");
       s.requests.push({
         id: nextId("rq"),

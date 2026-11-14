@@ -1,7 +1,7 @@
 // The notice board's pinned layer: job flyers and player flyers share the same
 // pin slots, in different papers. Positions are on the 1920x1080 board.
 import { formatCp } from "@/shared/money";
-import type { PublicFlyer, PublicJob, PublicRenown } from "@/shared/projection";
+import type { JobWhen, PublicFlyer, PublicJob, PublicRenown } from "@/shared/projection";
 import type { JobStyle } from "@/shared/types";
 
 /** Where flyers get pinned: left, top, tilt. The earliest pinned get the first slots. */
@@ -73,6 +73,20 @@ export function rewardLine(r: PublicJob["reward"]): string | null {
   return `${formatCp(r.cp)} ${r.kind === "each" ? "each" : "for the party"}`;
 }
 
+/** "Chapter 4", or the day when no session had started yet. */
+export function whenLabel(w: JobWhen): string {
+  return w.chapter !== undefined ? `Chapter ${w.chapter}` : new Date(w.at).toLocaleDateString(undefined, { day: "numeric", month: "short" });
+}
+
+/** "Completed in Chapter 4" / "Taken by the party in Chapter 3". The party does jobs together, so no names. */
+export function jobStatusLine(j: Pick<PublicJob, "status" | "when">): string | null {
+  const w = j.when;
+  const on = w ? (w.chapter !== undefined ? ` in ${whenLabel(w)}` : ` on ${whenLabel(w)}`) : "";
+  if (j.status === "done") return `Completed${on}.`;
+  if (j.status === "taken") return `Taken by the party${on}.`;
+  return null;
+}
+
 /** One job flyer, in its paper. Stamped TAKEN, DONE, or "Experienced parties only". */
 export function JobCard({ job: j, style, page }: { job: PublicJob; style?: React.CSSProperties; page?: boolean }) {
   const reward = rewardLine(j.reward);
@@ -103,6 +117,7 @@ export function JobCard({ job: j, style, page }: { job: PublicJob; style?: React
         <div className={`job-stamp stamp-${j.status === "open" ? "locked" : j.status}`}>
           {stamp}
           {j.status === "open" && j.needs ? <small>{j.needs}</small> : null}
+          {j.status === "done" && j.when ? <small>{whenLabel(j.when)}</small> : null}
         </div>
       ) : null}
     </div>
