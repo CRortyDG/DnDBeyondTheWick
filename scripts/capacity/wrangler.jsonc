@@ -1,0 +1,15 @@
+// Measurement-only config for `wrangler dev`. Never deploy this.
+// Same bindings as the real wrangler.jsonc, but the room class is a metered
+// subclass of the real GameRoom (see worker.ts). No static assets: the
+// simulation only talks to /api/*.
+{
+  "name": "candlefair-capacity-local",
+  "main": "worker.ts",
+  "compatibility_date": "2026-11-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "durable_objects": { "bindings": [{ "name": "ROOMS", "class_name": "GameRoom" }] },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["GameRoom"] }],
+  "r2_buckets": [{ "binding": "FILES", "bucket_name": "candlefair-files-local" }],
+  "ratelimits": [{ "name": "CREATE_LIMIT", "namespace_id": "1001", "simple": { "limit": 5, "period": 60 } }],
+  "assets": { "directory": "./empty-assets", "binding": "ASSETS" }
+}
