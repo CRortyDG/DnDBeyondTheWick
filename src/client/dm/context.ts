@@ -17,6 +17,9 @@ export interface DmCtx {
   gated: Record<string, string>;
   /** Open the full-screen editor for a map scene. */
   openMap: (sceneId: string) => void;
+  /** The dice tray, which floats over the console, the fight screen and run-game mode. */
+  diceOpen: boolean;
+  toggleDice: () => void;
 }
 
 export const DmContext = createContext<DmCtx | null>(null);

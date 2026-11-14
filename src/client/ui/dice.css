@@ -1,0 +1,324 @@
+/* The dice tray. dice-roll-* = the roll on the TV (sized in TV units), dt-* = the DM's tray. */
+
+/* ================================================================ TV */
+
+.dice-roll {
+  position: fixed;
+  inset: 0;
+  /* Over the scene, the shop and the fight overlay; under the Renown moment. */
+  z-index: 55;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+  background: radial-gradient(ellipse at 50% 50%, rgba(13, 10, 8, 0.6), rgba(13, 10, 8, 0.85) 75%);
+  animation: dice-in 0.35s ease both;
+  font-family: var(--font-body);
+  color: var(--parchment);
+}
+.dice-roll.leaving {
+  animation: dice-out 0.6s ease both;
+}
+.dice-roll.preview {
+  position: absolute;
+}
+.dice-roll-card {
+  display: grid;
+  justify-items: center;
+  gap: calc(28 * var(--u));
+  max-width: calc(1760 * var(--u));
+  min-width: calc(900 * var(--u));
+  padding: calc(44 * var(--u)) calc(70 * var(--u)) calc(36 * var(--u));
+  /* A solid sheet, so busy scenes and the fight's "Roll initiative!" don't show through. */
+  background: rgba(13, 10, 8, 0.97);
+  border-top: calc(2 * var(--u)) solid var(--gold);
+  border-bottom: calc(2 * var(--u)) solid var(--gold);
+  box-shadow: 0 0 calc(80 * var(--u)) rgba(0, 0, 0, 0.7);
+}
+.dice-roll-kicker {
+  font-family: var(--font-num);
+  color: var(--gold-bright);
+  letter-spacing: 0.06em;
+  font-size: calc(52 * var(--u));
+  text-shadow: 0 2px calc(10 * var(--u)) rgba(0, 0, 0, 0.8);
+}
+.dice-roll-dice {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: calc(22 * var(--u));
+}
+.dice-roll-die {
+  width: var(--die);
+  height: var(--die);
+  display: block;
+  animation: die-tumble calc(1100ms + min(var(--i), 12) * 90ms) cubic-bezier(0.2, 0.7, 0.3, 1) both;
+  filter: drop-shadow(0 calc(14 * var(--u)) calc(18 * var(--u)) rgba(0, 0, 0, 0.6));
+}
+.dice-roll-die .die {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.dice-roll-die.landed .die {
+  animation: die-land 0.32s ease-out both;
+}
+.dice-roll-die.crit {
+  filter: drop-shadow(0 0 calc(28 * var(--u)) rgba(236, 198, 106, 0.95));
+}
+.dice-roll-die.fumble {
+  filter: drop-shadow(0 0 calc(22 * var(--u)) rgba(229, 138, 122, 0.7)) saturate(0.6);
+}
+.dice-roll-total {
+  min-height: calc(150 * var(--u));
+  display: flex;
+  align-items: baseline;
+  gap: calc(26 * var(--u));
+  opacity: 0;
+  transform: scale(0.8);
+  transition:
+    opacity 0.3s ease,
+    transform 0.35s cubic-bezier(0.2, 1.6, 0.4, 1);
+}
+.dice-roll-total.show {
+  opacity: 1;
+  transform: none;
+}
+.dice-roll-total-label {
+  font-family: var(--font-sc);
+  color: var(--muted);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  font-size: calc(40 * var(--u));
+}
+.dice-roll-total-num {
+  font-family: var(--font-num);
+  font-weight: 700;
+  font-size: calc(150 * var(--u));
+  line-height: 1;
+  color: var(--parchment-3);
+  text-shadow: 0 0 calc(30 * var(--u)) rgba(255, 180, 80, 0.4);
+}
+.dice-roll-total-num.small {
+  font-size: calc(80 * var(--u));
+  color: var(--muted);
+}
+.dice-roll-nat {
+  font-family: var(--font-sc);
+  font-size: calc(110 * var(--u));
+  line-height: 1;
+}
+.dice-roll-total.crit .dice-roll-nat {
+  color: var(--gold-bright);
+  text-shadow: 0 0 calc(40 * var(--u)) rgba(236, 198, 106, 0.7);
+}
+.dice-roll-total.fumble .dice-roll-nat {
+  color: var(--down);
+}
+
+@keyframes dice-in {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes dice-out {
+  to {
+    opacity: 0;
+  }
+}
+@keyframes die-tumble {
+  0% {
+    opacity: 0;
+    transform: translate(calc(var(--dx) * 60 * var(--u)), 55vh) rotate(var(--spin)) scale(0.55);
+  }
+  15% {
+    opacity: 1;
+  }
+  72% {
+    transform: translate(0, -7%) rotate(-12deg) scale(1.06);
+  }
+  88% {
+    transform: translate(0, 2%) rotate(5deg) scale(0.98);
+  }
+  100% {
+    transform: none;
+  }
+}
+@keyframes die-land {
+  0% {
+    transform: scale(1);
+  }
+  40% {
+    transform: scale(1.12);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .dice-roll,
+  .dice-roll-die,
+  .dice-roll-die.landed .die {
+    animation: none;
+  }
+  .dice-roll-total {
+    transition: none;
+  }
+}
+.dice-roll.still .dice-roll-die,
+.dice-roll.still .dice-roll-die.landed .die {
+  animation: none;
+}
+.dice-roll.still .dice-roll-total {
+  transition: none;
+}
+
+/* ================================================================ DM tray */
+
+.dt-panel {
+  position: fixed;
+  right: 16px;
+  top: 76px;
+  z-index: 70;
+  width: min(400px, calc(100vw - 32px));
+  max-height: calc(100vh - 92px);
+  overflow: auto;
+  display: grid;
+  gap: 12px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6);
+  border-color: var(--line);
+  animation: fade-in 0.2s ease both;
+}
+.dt-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.dt-head h2 {
+  margin: 0;
+  font-size: 20px;
+}
+.dt-head .spacer {
+  flex: 1;
+}
+.dt-dice {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+.dt-die {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+}
+.dt-add {
+  width: 100%;
+  min-height: 0;
+  padding: 6px 4px 4px;
+  flex-direction: column;
+  gap: 2px;
+}
+.dt-add .die {
+  width: 40px;
+  height: 40px;
+}
+.dt-add.on {
+  background: #3a2d22;
+  border-color: var(--gold);
+}
+.dt-name {
+  font-family: var(--font-num);
+  font-size: 15px;
+}
+.dt-count {
+  position: absolute;
+  top: -6px;
+  right: -4px;
+  min-width: 24px;
+  height: 24px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--wax);
+  border: 1px solid var(--gold);
+  font-family: var(--font-num);
+  font-size: 14px;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+}
+.dt-minus {
+  min-height: 28px;
+  min-width: 100%;
+  padding: 0 6px;
+  font-size: 14px;
+}
+.dt-plus {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.dt-plus .btn {
+  min-width: 44px;
+}
+.dt-plus-val {
+  min-width: 44px;
+  text-align: center;
+  font-family: var(--font-num);
+  font-size: 18px;
+}
+.dt-formula {
+  font-family: var(--font-num);
+  font-size: 18px;
+  min-height: 24px;
+  color: var(--gold-bright);
+}
+.dt-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.dt-actions .btn.primary {
+  flex: 1;
+}
+.dt-log {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+  border-top: 1px solid var(--wood);
+  padding-top: 10px;
+}
+.dt-log li {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  font-size: 15px;
+}
+.dt-log .dt-total {
+  font-family: var(--font-num);
+  font-size: 22px;
+  font-weight: 700;
+  min-width: 36px;
+  text-align: right;
+}
+.dt-log li:first-child .dt-total {
+  color: var(--gold-bright);
+}
+.dt-log .dt-rolls {
+  color: var(--muted);
+  font-family: var(--font-num);
+  overflow-wrap: anywhere;
+}
+.dt-tag {
+  font-size: 12px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  color: var(--muted);
+  white-space: nowrap;
+}
+.dt-tag.secret {
+  border-color: var(--slate);
+  color: #b9c7d8;
+}

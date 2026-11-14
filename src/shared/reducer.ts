@@ -13,6 +13,7 @@ import { CHARACTER_MAX, STINGER_SCENE_ID, TABLE_SCENE_ID, WHY_MAX } from "./arri
 import { starterById } from "./starters";
 import { chapterSessionId, cleanTags, cleanText, defaultChapterId, NOTES_MAX, penName } from "./chronicle";
 import { BOARD_SLOTS, jobsOf, jobTitle, pinnedCount, rankName, RENOWN, renownMet, renownNeeded, renownOf, shopOpenNow, tierOf } from "./renown";
+import { rollPool } from "./dice";
 import { DM_AUTHOR } from "./types";
 import { applyFight, isFightCommand, startFightFromBeat, type FightHelpers } from "./combatReducer";
 import type { Actor, Beat, BeatAction, Episode, FlyerText, GameState, Item, ItemTier, Job, LedgerEntry, LedgerKind, MapData, Note, Pin, PinLink, Player, Scene, Session, SessionRun, Shop, TradeRequest } from "./types";
@@ -863,6 +864,13 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
     case "flyer.remove":
       s.flyers = s.flyers.filter((x) => x.id !== cmd.flyerId);
       break;
+
+    // ---------- The dice tray ----------
+    case "dice.roll": {
+      const r = rollPool(cmd.dice, cmd.plus, rand);
+      s.diceRoll = { n: ++s.seq, at: ctx.now, ...r };
+      break;
+    }
 
     // ---------- Renown and the bounty board ----------
     case "renown.set": {

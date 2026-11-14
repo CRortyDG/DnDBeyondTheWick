@@ -12,6 +12,7 @@ import { BankPanel } from "./BankPanel";
 import { Inbox, isInboxOpen } from "./Inbox";
 import { Dues } from "./Dues";
 import { useDm } from "./context";
+import { DiceButton } from "./DiceTray";
 
 export function actionLabel(a: BeatAction, scenes: Scene[]): string {
   if (a.type === "black") return "TV → black screen";
@@ -137,6 +138,7 @@ export function RunGame({ onExit, onFight }: { onExit: () => void; onFight?: () 
         <button className="btn small" type="button" onClick={() => setBank(true)}>
           <span className="key">B</span> Bank
         </button>
+        <DiceButton small />
         <button className="btn small run-jump-toggle" type="button" aria-expanded={drawer} onClick={() => setDrawer((v) => !v)}>
           Beats
         </button>

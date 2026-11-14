@@ -330,6 +330,7 @@ export function freshStart(g: GameState): GameState {
   // Back to strangers, and every job flyer back in the drawer.
   s.renown = 0;
   delete s.renownMoment;
+  delete s.diceRoll;
   s.jobs = (s.jobs ?? []).map(({ takenBy, takenAt, doneAt, paidCp, pinnedAt, ...j }) => ({ ...j, status: "open" as const, pinned: false }));
   // The Chronicle starts again on an empty Chapter 1, and nobody has met anyone yet.
   s.notes = [];
