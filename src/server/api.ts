@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { MERCHANT_SIGIL_SVG } from "./art/merchant-sigil";
 import { isDmKey, KEY_HEADER, newDmKey, sha256 } from "./auth";
-import { actorOf, createGame, execute, hello, HttpError, identify, parseClientCommand, viewFor } from "./game";
+import { actorOf, createGame, execute, hello, HttpError, identify, MAX_STATE_CHARS, parseClientCommand, viewFor } from "./game";
 import type { Store } from "./store";
 import { CHARACTER_MAX, isToken, playerByToken, projectArrival, WHY_MAX } from "@/shared/arrival";
 import { STARTER_IDS } from "@/shared/starters";
@@ -30,11 +30,43 @@ export function json(data: unknown, status = 200) {
   return new Response(JSON.stringify(data), { status, headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" } });
 }
 
+/**
+ * Set on an answer that tells a guesser something: no game with that code, a
+ * wrong DM key or name lock, a dead Arrival link. The Worker counts these per
+ * address and shuts out an address that keeps guessing, then strips the header.
+ */
+export const MISS_HEADER = "x-candlefair-miss";
+const MISS_CODES = new Set(["no-game", "bad-key", "taken", "no-link"]);
+
+export function miss(res: Response): Response {
+  res.headers.set(MISS_HEADER, "1");
+  return res;
+}
+
+/** A request body bigger than this is refused before it is parsed. A backup import may be bigger. */
+const MAX_BODY = 64 * 1024;
+const MAX_IMPORT = 4 * 1024 * 1024;
+
+async function readJson(req: Request, max = MAX_BODY): Promise<unknown> {
+  const len = Number(req.headers.get("Content-Length") ?? 0);
+  if (len > max) throw new HttpError(413, "That request is too big.");
+  const text = await req.text().catch(() => "");
+  if (text.length > max) throw new HttpError(413, "That request is too big.");
+  try {
+    return JSON.parse(text);
+  } catch {
+    return null;
+  }
+}
+
 async function guard(fn: () => Promise<Response>): Promise<Response> {
   try {
     return await fn();
   } catch (e) {
-    if (e instanceof HttpError) return json({ error: e.message, code: e.code }, e.status);
+    if (e instanceof HttpError) {
+      const res = json({ error: e.message, code: e.code }, e.status);
+      return e.code && MISS_CODES.has(e.code) ? miss(res) : res;
+    }
     console.error(e);
     return json({ error: "Something went wrong on the server." }, 500);
   }
@@ -62,7 +94,10 @@ export async function handleApi(req: Request, store: Store): Promise<Response> {
     const { game, player, key } = params(req);
 
     // First contact on page load: identifies the caller, creating ?player= names as needed.
-    if (path === "/api/hello" && method === "POST") return json(await hello(game, player, key, store));
+    if (path === "/api/hello" && method === "POST") {
+      const r = await hello(game, player, key, store);
+      return r.status === "no-game" || r.status === "taken" || r.status === "invalid" ? miss(json(r)) : json(r);
+    }
 
     // The caller's filtered view. Read-only.
     if (path === "/api/view" && method === "GET") {
@@ -83,14 +118,17 @@ export async function handleApi(req: Request, store: Store): Promise<Response> {
       if (who.kind === "taken") throw new HttpError(403, "That name is taken.", "taken");
       if (who.kind === "unknown") throw new HttpError(404, "You're not at this table.", "unknown");
       const actor = actorOf(who);
-      let cmd = parseClientCommand(actor, await req.json().catch(() => null));
+      let cmd = parseClientCommand(actor, await readJson(req));
       if (cmd.type === "me.lock") cmd = { type: "me.lockHashed", keyHash: sha256(cmd.key) };
       const r = await execute(store, game, actor, cmd);
       return json({ ok: true, version: r.version, ...(r.info ? { info: r.info } : {}) });
     }
 
     // Cheap safety-net poll: just the version number.
-    if (path === "/api/version" && method === "GET") return json({ version: await store.version(game) });
+    if (path === "/api/version" && method === "GET") {
+      const version = await store.version(game);
+      return version === 0 ? miss(json({ version })) : json({ version });
+    }
 
     // The Arrival page: seats and this player's own progress. Nothing else in the game.
     if (path === "/api/arrival") {
@@ -98,8 +136,9 @@ export async function handleApi(req: Request, store: Store): Promise<Response> {
       const token = isToken(t) ? t : null;
       if (method === "GET") {
         const { state, version } = await store.read(game);
-        if (!state) return json({ version: 0, me: null, seats: [], locked: false });
-        return json(projectArrival(state, version, token));
+        if (!state) return miss(json({ version: 0, me: null, seats: [], locked: false }));
+        const view = projectArrival(state, version, token);
+        return token && !view.me ? miss(json(view)) : json(view);
       }
       if (method === "POST") {
         if (!token) throw new HttpError(403, "Use the link the DM sent you to claim a seat.", "no-link");
@@ -107,7 +146,7 @@ export async function handleApi(req: Request, store: Store): Promise<Response> {
         if (!state) throw new HttpError(404, "No game here yet.", "no-game");
         const p = playerByToken(state, token);
         if (!p) throw new HttpError(403, "That link doesn't work any more. Ask the DM for a new one.", "no-link");
-        const r = arrivalBody.safeParse(await req.json().catch(() => null));
+        const r = arrivalBody.safeParse(await readJson(req));
         if (!r.success) throw new HttpError(400, "That request didn't make sense.");
         const b = r.data;
         const cmd =
@@ -130,11 +169,12 @@ export async function handleApi(req: Request, store: Store): Promise<Response> {
     // DM only: restore a backup made by /api/export. Replaces the game.
     if (path === "/api/import" && method === "POST") {
       await requireDm(req, store, game);
-      const body = (await req.json().catch(() => null)) as { format?: string; state?: GameState; ledger?: LedgerEntry[] } | null;
+      const body = (await readJson(req, MAX_IMPORT)) as { format?: string; state?: GameState; ledger?: LedgerEntry[] } | null;
       if (body?.format !== "candlefair-backup" || ![1, 2].includes(Number(body.state?.schema)) || !Array.isArray(body.ledger)) {
         throw new HttpError(400, "That doesn't look like a Candlefair backup.");
       }
       const state = { ...upgrade(body.state), id: game };
+      if (JSON.stringify(state).length > MAX_STATE_CHARS) throw new HttpError(413, "That backup is too big to restore.");
       const v = await store.overwrite(game, state, body.ledger);
       await store.publish(game, v);
       return json({ ok: true, version: v });
@@ -144,7 +184,7 @@ export async function handleApi(req: Request, store: Store): Promise<Response> {
     // players, scenes, shops and items. mode "all": back to the original seed.
     if (path === "/api/reset" && method === "POST") {
       await requireDm(req, store, game);
-      const body = (await req.json().catch(() => ({}))) as { mode?: string };
+      const body = ((await readJson(req)) ?? {}) as { mode?: string };
       if (body.mode !== "play" && body.mode !== "all") throw new HttpError(400, "Choose what to reset.");
       const { state } = await store.read(game);
       if (!state) throw new HttpError(404, "No game here yet.", "no-game");
@@ -178,7 +218,7 @@ export async function handleApi(req: Request, store: Store): Promise<Response> {
 
     // Internal (only the Worker can reach these paths): create the campaign, check a DM key.
     if (path === "/internal/create" && method === "POST") {
-      const r = createBody.safeParse(await req.json().catch(() => null));
+      const r = createBody.safeParse(await readJson(req));
       if (!r.success) throw new HttpError(400, "That request didn't make sense.");
       const v = await createGame(store, game, r.data.dmKeyHash, r.data.name || undefined);
       return json({ ok: true, game, version: v });
