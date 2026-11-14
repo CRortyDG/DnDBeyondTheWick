@@ -212,7 +212,7 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
       move(p, -chargeCp, `${it.name}${question ? `: ${question}` : ""}${haggled}`, "purchase", ledgerExtra);
       if (more.flyer) {
         const up = boardHasRoom();
-        s.flyers.push({ id: nextId("fl"), playerId: p.id, ...cleanFlyer(more.flyer, p.name), postedAt: ctx.now, up, ...(up ? { pinnedAt: ctx.now } : {}) });
+        s.flyers.push({ id: nextId("fl"), playerId: p.id, ...cleanFlyer(more.flyer, penName(p)), postedAt: ctx.now, up, ...(up ? { pinnedAt: ctx.now } : {}) });
         if (!up) out.info = `The board is full (${BOARD_SLOTS} pinned), so the flyer is approved but not pinned yet. Pin it from the Board tab.`;
       }
     } else {
@@ -299,8 +299,8 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
       if (!override && to.archived) fail(`${to.name} has left the table.`, "recheck");
       const batchId = nextId("b");
       const note = r.note ? `: ${r.note}` : "";
-      move(p, -r.totalCp, `Sent ${formatCp(r.totalCp)} to ${to.name}${note}`, "transfer", { batchId, requestId: r.id });
-      move(to, r.totalCp, `From ${p.name}${note}`, "transfer", { batchId, requestId: r.id });
+      move(p, -r.totalCp, `Sent ${formatCp(r.totalCp)} to ${penName(to)}${note}`, "transfer", { batchId, requestId: r.id });
+      move(to, r.totalCp, `From ${penName(p)}${note}`, "transfer", { batchId, requestId: r.id });
       r.chargedCp = r.totalCp;
     } else {
       const item = s.items.find((x) => x.id === r.itemId) ?? fail(`${r.itemName ?? "That item"} is no longer in the shop. Decline it instead.`);
@@ -315,13 +315,13 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
         if (tierOf(s, item) !== "sale") fail(renownLock(item) ?? `${item.name} isn't for sale any more.`, "recheck");
       }
       const flyer = more.flyer ?? r.flyer;
-      if (flyer) r.flyer = cleanFlyer(flyer, p.name);
+      if (flyer) r.flyer = cleanFlyer(flyer, penName(p));
       fulfil(p, item, r.qty, charge, { requestId: r.id }, { question: r.question, flyer: r.flyer });
       r.chargedCp = charge;
       const answer = more.answer?.trim();
       if (answer) r.answer = answer;
       if (s.tvPurchases !== false && !r.secret && !isSecretShop(s.shops.find((x) => x.id === item.shopId)) && (item.kind === "purchase" || item.kind === "order")) {
-        announce(`${p.name} bought ${boughtPhrase(item.name, r.qty)}`);
+        announce(`${penName(p)} bought ${boughtPhrase(item.name, r.qty)}`);
       }
     }
     r.status = "approved";
@@ -413,7 +413,10 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
     const due = s.orders.filter((o) => !o.arrived && o.arrivesAtSession <= number);
     for (const o of due) o.arrived = true;
     const log: string[] = due.map((o) => `Arrived: ${o.itemName} for ${s.players.find((p) => p.id === o.playerId)?.name ?? "someone"}`);
-    if (due.length === 1) announce(`Arrived from Baldur\u2019s Gate: ${due[0].itemName} for ${s.players.find((p) => p.id === due[0].playerId)?.name ?? "someone"}`);
+    if (due.length === 1) {
+      const who = s.players.find((p) => p.id === due[0].playerId);
+      announce(`Arrived from Baldur\u2019s Gate: ${due[0].itemName} for ${who ? penName(who) : "someone"}`);
+    }
     else if (due.length > 1) announce(`${due.length} special orders have arrived from Baldur\u2019s Gate`);
     // Income: roll for each live income effect and pay the owners by share.
     for (const { item: it, effect } of liveEffects(s, "income")) {
@@ -1135,7 +1138,7 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
       const o = s.orders.find((x) => x.id === cmd.orderId) ?? fail("That order doesn't exist.");
       if (!o.arrived) {
         o.arrived = true;
-        announce(`Arrived from Baldur\u2019s Gate: ${o.itemName} for ${player(o.playerId).name}`);
+        announce(`Arrived from Baldur\u2019s Gate: ${o.itemName} for ${penName(player(o.playerId))}`);
       }
       break;
     }
@@ -1558,7 +1561,7 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
         qty: cmd.qty,
         unitCp,
         ...(question ? { question } : {}),
-        ...(item.flyer && cmd.flyer ? { flyer: cleanFlyer(cmd.flyer, p.name) } : {}),
+        ...(item.flyer && cmd.flyer ? { flyer: cleanFlyer(cmd.flyer, penName(p)) } : {}),
       });
       break;
     }
@@ -1672,7 +1675,7 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
       const r = rollPool(cmd.dice, cmd.plus, rand);
       const n = ++s.seq;
       const to: RollTo = cmd.tv ? "tv" : "dm";
-      if (cmd.tv) s.diceRoll = { n, at: ctx.now, ...r, name: p.name };
+      if (cmd.tv) s.diceRoll = { n, at: ctx.now, ...r, name: penName(p) };
       logRoll({ ...r, n, at: ctx.now, by: p.id, name: p.name, to });
       break;
     }
