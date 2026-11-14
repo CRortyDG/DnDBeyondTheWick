@@ -17,8 +17,10 @@ import { LOG_MAX, PLAYER_ROLL_GAP_MS, rollPool, type RollTo } from "./dice";
 import { leadsOf, leadVisible, tally, voteClosed } from "./leads";
 import { findRef, sessionRecap, stageRank, blankEntry, ENTRIES_MAX, LEADS_MAX, entriesForScene, entriesOf, entryFromScene, entryScene, entryTags, factSlug, FACTS_MAX, isFound, slugify, uniqueSlug } from "./discovery";
 import { DM_AUTHOR } from "./types";
-import { beatSuggestions, entryRef, freeQuickKey, liveRef, QUICK_KEYS, quickOf, RECENT_MAX, refForScene, renameRefs, resolveRef, sceneSlug, uniqueSceneSlug } from "./assets";
+import { boardNotes, cleanLook, cleanPlace, defaultWidth, NOTICES_MAX, placeFor, slugify as noteSlug, topZ } from "./board";
 import { applyFight, isFightCommand, startFightFromBeat, type FightHelpers } from "./combatReducer";
+import type { Notice, NotePlace } from "./types";
+import { beatSuggestions, entryRef, freeQuickKey, liveRef, QUICK_KEYS, quickOf, RECENT_MAX, refForScene, renameRefs, resolveRef, sceneSlug, uniqueSceneSlug } from "./assets";
 import { applyStory, isStoryCommand } from "./storyReducer";
 import { pendingPlacement, STORY_SECTION, syncStoryStatus } from "./episodeBuilder";
 import type { Actor, Beat, BeatAction, Entry, EntryFact, Episode, FlyerText, Stage, GameState, Item, ItemTier, Job, Lead, LedgerEntry, LedgerKind, MapData, Note, Pin, PinLink, Player, Scene, Session, SessionRun, Shop, StoryBlock, TradeRequest, Vote } from "./types";
@@ -50,6 +52,8 @@ export interface Result {
   playerId?: string;
   /** Created job flyer id. */
   jobId?: string;
+  /** Created board note id. */
+  noticeId?: string;
   /** Created discovery entry / fact id. */
   entryId?: string;
   factId?: string;
@@ -244,8 +248,9 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
       move(p, -chargeCp, `${it.name}${question ? `: ${question}` : ""}${haggled}`, "purchase", ledgerExtra);
       if (more.flyer) {
         const up = boardHasRoom();
-        s.flyers.push({ id: nextId("fl"), playerId: p.id, ...cleanFlyer(more.flyer, penName(p)), postedAt: ctx.now, up, ...(up ? { pinnedAt: ctx.now } : {}) });
-        if (!up) out.info = `The board is full (${BOARD_SLOTS} pinned), so the flyer is approved but not pinned yet. Pin it from the Board tab.`;
+        const text = cleanFlyer(more.flyer, penName(p));
+        s.flyers.push({ id: nextId("fl"), playerId: p.id, ...text, postedAt: ctx.now, up, ...(up ? { pinnedAt: ctx.now, place: placeFor(s, { ...text }) } : {}) });
+        if (!up) out.info = `The board is full (${BOARD_SLOTS} up), so the flyer is approved and waiting in the drawer. Put it up from the Board tab.`;
       }
     } else {
       move(p, -chargeCp, `Bought ${what}${haggled}`, "purchase", ledgerExtra);
@@ -261,8 +266,19 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
   const job = (id: string): Job => jobs.find((j) => j.id === id) ?? fail("That job flyer doesn't exist.");
   const boardHasRoom = () => pinnedCount(s) < BOARD_SLOTS;
   const needRoom = () => {
-    if (!boardHasRoom()) fail(`The board is full (${BOARD_SLOTS} pinned). Take something down first.`);
+    if (!boardHasRoom()) fail(`The board is full (${BOARD_SLOTS} up). Take something down first.`);
   };
+  const notices = (s.notices ??= []);
+  const notice = (id: string): Notice => notices.find((n) => n.id === id) ?? fail("That note isn't on the board any more.");
+  /** A short name no other note has. */
+  const freeSlug = (want: string, self?: string) => {
+    const taken = new Set(boardNotes(s).filter((n) => n.id !== self).map((n) => n.slug));
+    let slug = noteSlug(want);
+    for (let i = 2; taken.has(slug); i++) slug = `${noteSlug(want).slice(0, 36)}-${i}`;
+    return slug;
+  };
+  /** Where something goes up: its old spot, or the emptiest one, on top. */
+  const goingUp = (n: Parameters<typeof placeFor>[1], at?: NotePlace) => cleanPlace(at ?? (n.place ? { ...n.place, z: topZ(s) + 1 } : placeFor(s, n)));
   /** A Chronicle line from the DM. Never blocks the command if the Chronicle is full. */
   const chronicle = (text: string) => {
     if ((s.notes ?? []).length >= NOTES_MAX) return;
@@ -426,6 +442,7 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
     delete s.live.recapSessionId;
     delete s.live.focus;
     delete s.live.banner;
+    delete s.live.note;
     if (shown) noteShown(refForScene(s, shown));
   };
   /** "Recently shown" on the DM's console. */
@@ -492,6 +509,14 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
       return;
     }
     if (a.screen === "table") return showTable();
+    if (a.note) {
+      // Up close, over the notice board. A note in the drawer can be shown without hanging it.
+      const board = s.scenes.find((x) => x.kind === "notice") ?? fail("There's no notice board in this game.");
+      showScene(board.id);
+      s.live.note = { kind: a.note.kind, id: a.note.id };
+      noteShown(a.ref);
+      return;
+    }
     if (a.screen === "stinger") return showStinger();
     if (a.screen) return showScene((a.scene ?? fail(`There's no ${a.label.toLowerCase()} in this game.`)).id);
     if (a.pin && a.scene) return showPin(a.scene, a.pin);
@@ -1212,11 +1237,15 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
     }
     case "flyer.update": {
       const f = s.flyers.find((x) => x.id === cmd.flyerId) ?? fail("That flyer doesn't exist.");
-      const { up, ...text } = cmd.patch;
+      const { up, style, look, place, ...text } = cmd.patch;
       Object.assign(f, cleanFlyer({ ...f, ...text }, f.signedBy));
+      if (style) f.style = style;
+      if (look) f.look = cleanLook(look);
+      if (place) f.place = cleanPlace(place);
       if (up && !f.up) {
         needRoom();
         f.pinnedAt = ctx.now;
+        f.place = goingUp(f, place);
       }
       if (up !== undefined) f.up = up;
       break;
@@ -1274,6 +1303,7 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
         // The follow-up takes the old flyer's place on the board.
         if (old.status !== "done") {
           pin ||= old.pinned;
+          if (old.pinned && old.place && !j.place) j.place = { ...old.place };
           old.status = "expired";
           old.pinned = false;
         }
@@ -1282,6 +1312,7 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
         needRoom();
         j.pinned = true;
         j.pinnedAt = ctx.now;
+        j.place = goingUp(j, j.place);
       }
       jobs.push(j);
       out.jobId = j.id;
@@ -1289,9 +1320,11 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
     }
     case "job.update": {
       const j = job(cmd.jobId);
-      const { status, dm, ...rest } = cmd.patch;
+      const { status, dm, look, place, ...rest } = cmd.patch;
       Object.assign(j, rest);
       if (dm) j.dm = { ...j.dm, ...dm };
+      if (look) j.look = look;
+      if (place) j.place = cleanPlace(place);
       if (status !== undefined && status !== j.status) {
         if (j.status === "done") fail(`${jobTitle(j)} is done and paid. Add a new flyer instead.`);
         j.status = status;
@@ -1309,10 +1342,72 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
         if (j.status === "expired") fail(`${jobTitle(j)} was pulled. Set it back to open first.`);
         needRoom();
         j.pinnedAt = ctx.now;
-      }
+        j.place = goingUp(j, cmd.place);
+      } else if (cmd.place) j.place = cleanPlace(cmd.place);
       j.pinned = cmd.pinned;
       break;
     }
+
+    // ---------- plain notes on the notice board ----------
+    case "notice.add": {
+      if (notices.length >= NOTICES_MAX) fail(`That's ${NOTICES_MAX} notes. Throw some away first.`);
+      const { up, place, slug, look, ...rest } = cmd.notice;
+      const n: Notice = {
+        id: nextId("n"),
+        slug: "",
+        style: "cream",
+        title: "",
+        body: "",
+        sign: "",
+        dmNote: "",
+        ...rest,
+        look: cleanLook(look ?? {}),
+        up: up !== false,
+        place: { x: 0, y: 0, rot: 0, w: defaultWidth(rest.style ?? "cream"), z: 0 },
+        createdAt: ctx.now,
+      };
+      cleanNotice(n);
+      n.slug = freeSlug(slug || n.title || n.body.slice(0, 30));
+      if (n.up) {
+        needRoom();
+        n.place = goingUp({ ...n, place: undefined }, place);
+      } else if (place) n.place = cleanPlace(place);
+      notices.push(n);
+      out.noticeId = n.id;
+      break;
+    }
+    case "notice.update": {
+      const n = notice(cmd.noticeId);
+      const { up, place, slug, look, ...rest } = cmd.patch;
+      Object.assign(n, rest);
+      if (look) n.look = cleanLook(look);
+      cleanNotice(n);
+      if (slug !== undefined) {
+        const before = n.slug;
+        n.slug = freeSlug(slug || n.title, n.id);
+        if (before && before !== n.slug) renameRefs(s, `note/${before}`, `note/${n.slug}`);
+      }
+      if (up && !n.up) {
+        needRoom();
+        n.place = goingUp(n, place);
+      } else if (place) n.place = cleanPlace(place);
+      if (up !== undefined) n.up = up;
+      break;
+    }
+    case "notice.remove":
+      notice(cmd.noticeId);
+      s.notices = notices.filter((n) => n.id !== cmd.noticeId);
+      break;
+    case "board.place": {
+      const { kind, id } = cmd.note;
+      const it = kind === "notice" ? notice(id) : kind === "job" ? job(id) : (s.flyers.find((f) => f.id === id) ?? fail("That flyer doesn't exist."));
+      it.place = cleanPlace(cmd.place);
+      break;
+    }
+    case "board.plaque":
+      if (cmd.shown) delete s.plaqueHidden;
+      else s.plaqueHidden = true;
+      break;
     case "job.done": {
       const j = job(cmd.jobId);
       if (j.status === "done") fail(`${jobTitle(j)} is already done and paid.`);
@@ -2567,9 +2662,23 @@ function tidyItem(it: Item): Item {
   return it;
 }
 
+/** Trim a plain note. One with no words at all says so. */
+function cleanNotice(n: Notice): Notice {
+  n.title = n.title.trim().slice(0, 120);
+  n.body = n.body.trim().slice(0, 800);
+  n.sign = n.sign.trim().slice(0, 80);
+  n.dmNote = n.dmNote.trim();
+  if (!n.title && !n.body && n.style !== "sealed" && !n.look.image) n.title = "Notice";
+  return n;
+}
+
 /** Trim a job flyer. A sealed envelope carries no text. */
 function cleanJob(j: Job): Job {
   if (!j.trust) delete j.trust;
+  if (j.look) {
+    j.look = cleanLook(j.look);
+    if (!Object.keys(j.look).length) delete j.look;
+  }
   j.title = j.title.trim().slice(0, 80);
   j.postedBy = j.postedBy.trim().slice(0, 80);
   j.body = j.body.trim().slice(0, 600);

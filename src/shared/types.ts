@@ -317,12 +317,80 @@ export interface Flyer {
   up: boolean;
   /** When it last went up on the board (orders the pins). Missing: postedAt. */
   pinnedAt?: number;
+  /** The DM's choice of paper. Missing: handwriting on cream. */
+  style?: Paper;
+  look?: NoteLook;
+  /** Where it hangs. Missing: the next free spot when it goes up. */
+  place?: NotePlace;
+}
+
+// ---------- the notice board: everything on it is a note the DM places ----------
+
+/** Paper for any note. The first four are the job papers; a sealed envelope shows no text at all. */
+export type JobStyle = "scrawl" | "bill" | "official" | "sealed" | NoticePaper;
+export type NoticePaper = "cream" | "parchment" | "aged" | "white" | "ash" | "slate" | "ice" | "dark" | "red" | "handbill";
+export type Paper = JobStyle;
+export type PinColor = "red" | "blue" | "green" | "black" | "gold" | "cream" | "none";
+/** The title's typeface. hand: the whole note is handwritten. */
+export type NoteFont = "caps" | "poster" | "hand" | "plain";
+
+/** How a note looks beyond its paper. Every field is optional: the paper has defaults. */
+export interface NoteLook {
+  pin?: PinColor;
+  font?: NoteFont;
+  align?: "left" | "center";
+  /** A coloured band across the top, in the pin's colour. */
+  band?: boolean;
+  /** The small line above the title ("By order of the council"). */
+  kicker?: string;
+  /** Title size in board pixels (the board is 1920 wide). */
+  titleSize?: number;
+  /** The title (and kicker) in a colour instead of the paper's ink. */
+  ink?: "red" | "blue" | "gold";
+  /** A second line under the title ("after dark"). */
+  sub?: string;
+  /** "Wanted" lines, like Artum's handbill: a heading and a line each. */
+  list?: { head: string; text: string }[];
+  /** The word on the rule above the list. Missing: "Wanted". */
+  listLabel?: string;
+  /** Small print after the list ("Inquire at The Flickering Candle"). */
+  footer?: string;
+  /** Under the signature ("Planner of Winterfest"). */
+  signNote?: string;
+  /** An uploaded picture, at the top of the note. */
+  image?: string;
+}
+
+/** Where a note hangs on the 1920x1080 board: its top-left corner, tilt, width and stacking. */
+export interface NotePlace {
+  x: number;
+  y: number;
+  /** Degrees. */
+  rot: number;
+  w: number;
+  /** Higher sits on top. */
+  z: number;
+}
+
+/** A plain note on the board: the DM's to write, place, take down or throw away. */
+export interface Notice {
+  id: string;
+  /** For run sheets and the storyboard: @flyer/<slug>. */
+  slug: string;
+  style: Paper;
+  title: string;
+  body: string;
+  sign: string;
+  look: NoteLook;
+  /** On the board. false: in the drawer, which never leaves the DM's screen. */
+  up: boolean;
+  place: NotePlace;
+  createdAt: number;
+  /** DM-ONLY */
+  dmNote: string;
 }
 
 // ---------- the bounty board ----------
-
-/** Paper on the notice board. A sealed envelope shows no text at all. */
-export type JobStyle = "scrawl" | "bill" | "official" | "sealed";
 export type JobStatus = "open" | "taken" | "done" | "expired";
 
 export interface JobReward {
@@ -358,6 +426,9 @@ export interface Job {
   dm: JobDmNotes;
   /** Someone's goodwill it also needs before the party can take it. (null only in a patch: cleared.) */
   trust?: TrustNeed | null;
+  look?: NoteLook;
+  /** Where it hangs. Missing: the next free spot when it goes up. */
+  place?: NotePlace;
 }
 
 /** DM-ONLY */
@@ -701,6 +772,8 @@ export interface LiveState {
   shopCategory?: ItemCategory;
   /** The leads board is up on the TV, over the scene. */
   leads?: boolean;
+  /** One note from the notice board, up close over the board. Cleared by any scene change. */
+  note?: { kind: "notice" | "job" | "flyer"; id: string };
 }
 
 export interface GameState {
@@ -742,6 +815,10 @@ export interface GameState {
   flyers: Flyer[];
   /** The bounty board's job flyers. Missing on games made before it; read with jobsOf(). */
   jobs?: Job[];
+  /** Plain notes on the notice board. Missing on games made before free placement; read with noticesOf(). */
+  notices?: Notice[];
+  /** The Renown plaque on the board's frame. Missing: shown. */
+  plaqueHidden?: boolean;
   /** The party's Renown rank, 0 = Strangers. Missing: 0. */
   renown?: number;
   /** The last time Renown went up: the TV plays the moment when n changes. */

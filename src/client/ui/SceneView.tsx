@@ -5,7 +5,7 @@ import type { Art, SceneKind } from "@/shared/types";
 import { MapView } from "./MapView";
 import { ArtumNotice } from "../scenes/ArtumNotice";
 import { NoticeBoard } from "../scenes/NoticeBoard";
-import { Pinned, type BoardView } from "../scenes/Board";
+import { CloseUpNote, Pinned, type BoardView } from "../scenes/Board";
 import { Stage } from "./Stage";
 import { TableScene } from "./TableScene";
 import { Stinger } from "../scenes/Stinger";
@@ -57,6 +57,7 @@ export function SceneView({ scene, gated, emptyHint, table, board }: { scene: Re
               <div style={{ position: "absolute", inset: 0 }}>
                 <Pinned board={board} />
               </div>
+              {board?.closeUp ? <CloseUpNote closeUp={board.closeUp} /> : null}
             </>
           )}
         </Stage>

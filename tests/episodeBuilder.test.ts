@@ -159,6 +159,18 @@ describe("@mentions", () => {
     expect(mentionsIn(g, "Ask @mags, mail me at a@b.com, see @flyer/rolf").map((m) => m.mention?.ref)).toEqual(["person/mags", "flyer/rolf"]);
   });
 
+  it("reach plain board notes by their slug, and ask for one in the drawer to go up", () => {
+    const n = (g.notices ?? []).find((x) => x.up)!;
+    expect(resolveMention(g, `flyer/${n.slug}`)?.notice?.id).toBe(n.id);
+    expect(resolveMention(g, `note/${n.slug}`)?.notice?.id).toBe(n.id);
+    expect(findMentions(g, n.slug).some((m) => m.notice?.id === n.id)).toBe(true);
+    const b = ep().beats[0];
+    dm({ type: "beat.update", episodeId: ep().id, beatId: b.id, beat: { ...b, notes: [...b.notes, `See @flyer/${n.slug}.`] } });
+    expect(prepOf(g, ep()).some((p) => p.key === `pin:${n.id}`)).toBe(false);
+    dm({ type: "notice.update", noticeId: n.id, patch: { up: false } } as Command);
+    expect(prepOf(g, ep()).some((p) => p.key === `pin:${n.id}`)).toBe(true);
+  });
+
   it("“Create as new” makes a hidden stub the mention then finds", () => {
     dm({ type: "entry.add", entry: { kind: "person", name: "Bandit Leader", dmNote: STUB_NOTE } });
     const e = g.entries!.find((x) => x.name === "Bandit Leader")!;

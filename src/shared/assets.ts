@@ -7,14 +7,16 @@
 //   person/mags          a Discovery entry (any kind/slug)
 //   map/candlefair       a map; map/candlefair/3 zooms to pin 3
 //   prop/artums-notice   a handout, image or other picture
+//   note/tale-night      one note from the notice board, up close
 //   board, leads, table, stinger, black   built-in screens
 //
 // All DM-only: refs, the quick bar and suggestions never reach the TV or a phone.
 
 import { entriesOf, entryScene, findRef, kindInfo, slugify } from "./discovery";
+import { boardNotes, findBoardNote, noteRef, type BoardNote } from "./board";
 import type { Beat, BeatAction, Entry, GameState, Pin, Scene, SceneKind } from "./types";
 
-export type AssetGame = Pick<GameState, "scenes" | "entries"> & Partial<Pick<GameState, "quick" | "monsters">>;
+export type AssetGame = Pick<GameState, "scenes" | "entries"> & Partial<Pick<GameState, "quick" | "monsters" | "notices" | "jobs" | "flyers">>;
 
 /** The built-in screens, and the scene kind each one shows (leads is an overlay, not a scene). */
 export const SCREENS = ["board", "leads", "table", "stinger", "black"] as const;
@@ -42,6 +44,8 @@ export interface Asset {
   scene?: Scene;
   pin?: Pin;
   screen?: Screen;
+  /** A note from the notice board (shown up close over the board). */
+  note?: BoardNote;
 }
 
 // ---------------------------------------------------------------------------
@@ -99,6 +103,8 @@ export function refForScene(g: AssetGame, sc: Scene): string {
 export function liveRef(g: AssetGame & Pick<GameState, "live">): string | null {
   const sc = g.scenes.find((x) => x.id === g.live.sceneId);
   if (!sc) return null;
+  const close = g.live.note && boardNotes(g).find((n) => n.kind === g.live.note!.kind && n.id === g.live.note!.id);
+  if (close) return noteRef(close);
   const base = refForScene(g, sc);
   const pin = g.live.focus && sc.map?.pins.find((p) => p.id === g.live.focus!.pinId);
   return pin && base.startsWith("map/") ? `${base}/${pin.number}` : base;
@@ -129,6 +135,10 @@ export function resolveRef(g: AssetGame, ref: string | null | undefined): Asset 
     if (!pin) return null;
     return { ref: `map/${slug}/${pin.number}`, label: pinLabel(pin), group: "Pins", sub: `on ${scene.label}${pin.discovered ? "" : " · hidden"}`, scene, pin };
   }
+  if (head === "note" || head === "flyer") {
+    const note = rest === undefined ? findBoardNote(g, slug) : undefined;
+    return note ? noteAsset(note) : null;
+  }
   if (head === "prop") {
     const scene = g.scenes.find((x) => x.kind !== "map" && sceneSlug(x) === slug);
     return scene ? { ref: r, label: scene.label, group: "Props", sub: propSub(scene), scene } : null;
@@ -145,6 +155,11 @@ function pinLabel(p: Pin): string {
 function propSub(sc: Scene): string {
   const kind = sc.kind === "handout" ? "Handout" : sc.kind === "portrait" ? "Picture" : sc.kind === "notice" ? "Board" : "Image";
   return sc.reveal ? `${kind} · reveal` : kind;
+}
+
+function noteAsset(n: BoardNote): Asset {
+  const what = n.kind === "job" ? "Job flyer" : n.kind === "flyer" ? "Player flyer" : "Note";
+  return { ref: noteRef(n), label: n.title || what, group: "Notes", sub: `${what} · ${n.up ? "on the board" : "in the drawer"}`, note: n };
 }
 
 function entryAsset(g: AssetGame, e: Entry): Asset {
@@ -168,6 +183,7 @@ export function listAssets(g: AssetGame): Asset[] {
     }
   }
   for (const sc of g.scenes) if (isProp(g, sc)) out.push({ ref: refForScene(g, sc), label: sc.label, group: "Props", sub: propSub(sc), scene: sc });
+  for (const n of boardNotes(g)) out.push(noteAsset(n));
   for (const screen of SCREENS) out.push(resolveRef(g, screen)!);
   return out;
 }

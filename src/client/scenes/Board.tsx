@@ -1,52 +1,66 @@
-// The notice board's pinned layer: job flyers and player flyers share the same
-// pin slots, in different papers. Positions are on the 1920x1080 board.
+// The notice board's notes: plain notices, job flyers and player flyers, each
+// hanging where the DM put it. Positions are on the cork (see shared/board.ts).
+import { useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { isJobPaper, LEGACY_SLOTS, PAPERS, type NoteKind } from "@/shared/board";
 import { formatCp } from "@/shared/money";
-import type { JobWhen, PublicFlyer, PublicJob, PublicRenown } from "@/shared/projection";
-import type { JobStyle } from "@/shared/types";
-
-/** Where flyers get pinned: left, top, tilt. The earliest pinned get the first slots. */
-const SLOTS: [number, number, number][] = [
-  [1300, 290, -4],
-  [110, 290, 3],
-  [990, 600, -3],
-  [1580, 250, 4],
-  [1460, 640, 3],
-  [330, 760, -2],
-  [700, 520, 2],
-  [1620, 700, -4],
-];
-export const MAX_FLYERS = SLOTS.length;
+import type { CloseUp, JobWhen, PublicFlyer, PublicJob, PublicNotice, PublicRenown } from "@/shared/projection";
+import type { JobStyle, NoteLook, NotePlace, PinColor } from "@/shared/types";
 
 export interface BoardView {
   flyers: PublicFlyer[];
   jobs: PublicJob[];
+  notices?: PublicNotice[];
   renown?: PublicRenown;
+  plaqueHidden?: boolean;
+  closeUp?: CloseUp;
 }
 
-type Card = { kind: "flyer"; at: number; f: PublicFlyer } | { kind: "job"; at: number; j: PublicJob };
+/** What any note shows: its paper and words. */
+export interface NoteFaceData {
+  style: JobStyle;
+  title: string;
+  body: string;
+  sign: string;
+  look?: NoteLook;
+}
 
-/** Everything pinned, in the order it went up. */
+export type BoardCard = { kind: NoteKind; id: string; place: NotePlace; render: (page?: boolean) => ReactNode };
+
+const PIN_HEX: Record<Exclude<PinColor, "none">, string> = { red: "#7a2a1f", blue: "#3a4a5c", green: "#2e5a3a", black: "#2b2118", gold: "#c99a3a", cream: "#e9dcc0" };
+
+/** Every note that's up, bottom of the stack first. A note made before free placement falls back to its old slot. */
+export function boardCards(board: BoardView): BoardCard[] {
+  const cards: BoardCard[] = [];
+  const unplaced: { at: number; c: Omit<BoardCard, "place"> & { w: number } }[] = [];
+  const add = (c: Omit<BoardCard, "place">, place: NotePlace | undefined, at: number, w: number) => (place ? cards.push({ ...c, place }) : unplaced.push({ at, c: { ...c, w } }));
+  for (const n of board.notices ?? []) add({ kind: "notice", id: n.id, render: (page) => <NoteCard face={n} page={page} /> }, n.place, 0, 290);
+  for (const j of board.jobs) add({ kind: "job", id: j.id, render: (page) => <JobCard job={j} page={page} /> }, j.place, j.at, j.style === "sealed" ? 300 : 330);
+  board.flyers.forEach((f) => add({ kind: "flyer", id: f.id, render: (page) => <FlyerCard flyer={f} page={page} /> }, f.place, f.at, 290));
+  unplaced
+    .sort((a, b) => a.at - b.at)
+    .forEach(({ c: { w, ...c } }, i) => {
+      const [x, y, rot] = LEGACY_SLOTS[i % LEGACY_SLOTS.length];
+      cards.push({ ...c, place: { x, y, rot, w, z: 1000 + i } });
+    });
+  return cards.sort((a, b) => a.place.z - b.place.z);
+}
+
+/** Where a note hangs, as a style. */
+export function placeStyle(p: NotePlace): CSSProperties {
+  return { left: `${p.x}px`, top: `${p.y}px`, width: `${p.w}px`, transform: `rotate(${p.rot}deg)`, zIndex: 10 + Math.min(p.z, 500) };
+}
+
+/** Everything up on the board, where the DM hung it. */
 export function Pinned({ board }: { board?: BoardView }) {
   if (!board) return null;
-  const cards: Card[] = [...board.flyers.map((f): Card => ({ kind: "flyer", at: f.at, f })), ...board.jobs.map((j): Card => ({ kind: "job", at: j.at, j }))]
-    .sort((a, b) => a.at - b.at)
-    .slice(0, MAX_FLYERS);
   return (
     <>
-      {cards.map((c, i) => {
-        const [left, top, tilt] = SLOTS[i];
-        const style = { left: `${left}px`, top: `${top}px`, transform: `rotate(${tilt}deg)` };
-        if (c.kind === "job") return <JobCard key={c.j.id} job={c.j} style={style} />;
-        const f = c.f;
-        return (
-          <div key={f.id} className={`flyer${i % 2 ? " alt" : ""}`} style={style}>
-            <div className="flyer-title">{f.title}</div>
-            {f.body ? <div className="flyer-body">{f.body}</div> : null}
-            <div className="flyer-sign">{f.signedBy}</div>
-          </div>
-        );
-      })}
-      {board.renown ? <RenownPlaque renown={board.renown} /> : null}
+      {boardCards(board).map((c) => (
+        <div key={`${c.kind}-${c.id}`} className="pin-at" style={placeStyle(c.place)}>
+          {c.render()}
+        </div>
+      ))}
+      {board.renown && !board.plaqueHidden ? <RenownPlaque renown={board.renown} /> : null}
     </>
   );
 }
@@ -61,12 +75,7 @@ export function RenownPlaque({ renown }: { renown: PublicRenown }) {
   );
 }
 
-export const STYLE_LABELS: Record<JobStyle, string> = {
-  scrawl: "Scrawled note",
-  bill: "Merchant’s bill",
-  official: "Official notice",
-  sealed: "Sealed envelope",
-};
+export const STYLE_LABELS = Object.fromEntries(PAPERS.map((p) => [p.id, p.label])) as Record<JobStyle, string>;
 
 export function rewardLine(r: PublicJob["reward"]): string | null {
   if (!r) return null;
@@ -88,38 +97,142 @@ export function jobStatusLine(j: Pick<PublicJob, "status" | "when">): string | n
 }
 
 /** One job flyer, in its paper. Stamped TAKEN, DONE, or "Experienced parties only". */
-export function JobCard({ job: j, style, page }: { job: PublicJob; style?: React.CSSProperties; page?: boolean }) {
+export function JobCard({ job: j, style, page }: { job: PublicJob; style?: CSSProperties; page?: boolean }) {
   const reward = rewardLine(j.reward);
-  const stamp = j.status === "taken" ? "Taken" : j.status === "done" ? "Done" : j.needs ? "Experienced parties only" : j.goodwill ? "Not yet" : null;
+  const stampText = j.status === "taken" ? "Taken" : j.status === "done" ? "Done" : j.needs ? "Experienced parties only" : j.goodwill ? "Not yet" : null;
   const label = j.style === "sealed" ? "A sealed envelope" : j.title;
+  const stamp = stampText ? (
+    <div className={`job-stamp stamp-${j.status === "open" ? "locked" : j.status}`}>
+      {stampText}
+      {j.status === "open" && (j.needs || j.goodwill) ? <small>{j.needs ?? `Needs ${j.goodwill}`}</small> : null}
+      {j.status === "done" && j.when ? <small>{whenLabel(j.when)}</small> : null}
+    </div>
+  ) : null;
+  return <NoteCard face={{ style: j.style, title: j.title, body: j.body, sign: j.postedBy, look: j.look }} reward={reward} stamp={stamp} style={style} page={page} label={`${label}${stampText ? ` (${stampText})` : ""}`} />;
+}
+
+/** A player's flyer: handwriting on cheap paper, unless the DM picked another paper. */
+export function FlyerCard({ flyer: f, page }: { flyer: PublicFlyer; page?: boolean }) {
+  if (f.style) return <NoteCard face={{ style: f.style, title: f.title, body: f.body, sign: f.signedBy, look: { font: "hand", ...f.look } }} page={page} />;
   return (
-    <div className={`job job-${j.style}${page ? " job-page" : ""}`} style={style} role="figure" aria-label={`${label}${stamp ? ` (${stamp})` : ""}`}>
-      {j.style === "sealed" ? (
-        <>
-          <div className="job-flap" />
-          <div className="job-wax" aria-hidden="true">
-            ✦
+    <div className={`flyer${page ? " flyer-page" : ""}`} role="figure" aria-label={f.title}>
+      <div className="flyer-title">{f.title}</div>
+      {f.body ? <div className="flyer-body">{f.body}</div> : null}
+      <div className="flyer-sign">{f.signedBy}</div>
+    </div>
+  );
+}
+
+/**
+ * Any note, in any paper. The four job papers keep their bounty-board layout;
+ * the rest are the papers the printed notices used.
+ */
+export function NoteCard({ face, reward, stamp, style, page, label }: { face: NoteFaceData; reward?: string | null; stamp?: ReactNode; style?: CSSProperties; page?: boolean; label?: string }) {
+  const l = face.look ?? {};
+  const st = face.style;
+  const pin = l.pin && l.pin !== "none" ? PIN_HEX[l.pin] : undefined;
+  const titleStyle: CSSProperties | undefined = l.titleSize ? { fontSize: `${l.titleSize}px` } : undefined;
+  const ink = l.ink ? ` ink-${l.ink}` : "";
+  const cls = [l.font ? `font-${l.font}` : "", l.align ? `align-${l.align}` : "", l.band ? "band" : "", l.pin === "none" ? "pin-none" : pin ? "has-pin" : "", page ? "note-page" : ""].filter(Boolean).join(" ");
+  const css = { ...style, ...(pin ? ({ "--pin": pin } as CSSProperties) : {}) };
+  const aria = label ?? (face.title || face.body.slice(0, 60) || STYLE_LABELS[st]);
+  const list = l.list?.length ? (
+    <>
+      <div className="note-rule">
+        <span>{l.listLabel || "Wanted"}</span>
+      </div>
+      <div className="note-list">
+        {l.list.map((x, i) => (
+          <div key={i}>
+            {x.head ? <div className="note-list-head">{x.head}</div> : null}
+            {x.text ? <div className="note-list-text">{x.text}</div> : null}
           </div>
-          {reward ? <div className="job-reward">{reward}</div> : null}
-        </>
-      ) : (
-        <>
-          {j.style === "official" ? <div className="job-kicker">By order of the council</div> : null}
-          {j.style === "bill" ? <div className="job-kicker">Wanted · Reward</div> : null}
-          <div className="job-title">{j.title}</div>
-          {j.body ? <div className="job-body">{j.body}</div> : null}
-          {reward ? <div className="job-reward">{reward}</div> : null}
-          {j.postedBy ? <div className="job-by">{j.postedBy}</div> : null}
-          {j.style === "official" ? <div className="job-seal" aria-hidden="true" /> : null}
-        </>
-      )}
-      {stamp ? (
-        <div className={`job-stamp stamp-${j.status === "open" ? "locked" : j.status}`}>
-          {stamp}
-          {j.status === "open" && (j.needs || j.goodwill) ? <small>{j.needs ?? `Needs ${j.goodwill}`}</small> : null}
-          {j.status === "done" && j.when ? <small>{whenLabel(j.when)}</small> : null}
-        </div>
-      ) : null}
+        ))}
+      </div>
+    </>
+  ) : null;
+  const image = l.image ? <img className="note-img" src={l.image} alt="" draggable={false} /> : null;
+
+  if (isJobPaper(st)) {
+    const kicker = l.kicker ?? (st === "official" ? "By order of the council" : st === "bill" ? "Wanted · Reward" : "");
+    return (
+      <div className={`job job-${st}${page ? " job-page" : ""} ${cls}`} style={css} role="figure" aria-label={aria}>
+        {st === "sealed" ? (
+          <>
+            <div className="job-flap" />
+            <div className="job-wax" aria-hidden="true">
+              ✦
+            </div>
+            {reward ? <div className="job-reward">{reward}</div> : null}
+          </>
+        ) : (
+          <>
+            {image}
+            {kicker ? <div className={`job-kicker${ink}`}>{kicker}</div> : null}
+            {face.title ? (
+              <div className={`job-title${ink}`} style={titleStyle}>
+                {face.title}
+              </div>
+            ) : null}
+            {l.sub ? <div className="note-sub">{l.sub}</div> : null}
+            {face.body ? <div className="job-body">{face.body}</div> : null}
+            {list}
+            {reward ? <div className="job-reward">{reward}</div> : null}
+            {l.footer ? <div className="note-footer">{l.footer}</div> : null}
+            {face.sign ? <div className="job-by">{face.sign}</div> : null}
+            {l.signNote ? <div className="note-signnote">{l.signNote}</div> : null}
+            {st === "official" ? <div className="job-seal" aria-hidden="true" /> : null}
+          </>
+        )}
+        {stamp}
+      </div>
+    );
+  }
+
+  return (
+    <div className={`note-card paper-${st} ${cls}`} style={css} role="figure" aria-label={aria}>
+      <div className="note-inner">
+        {image}
+        {l.kicker ? <div className={`note-kicker${ink}`}>{l.kicker}</div> : null}
+        {face.title ? (
+          <div className={`note-title${ink}`} style={titleStyle}>
+            {face.title}
+          </div>
+        ) : null}
+        {l.sub ? <div className="note-sub">{l.sub}</div> : null}
+        {face.body ? <div className="note-body">{face.body}</div> : null}
+        {list}
+        {reward ? <div className="note-reward">{reward}</div> : null}
+        {l.footer ? <div className="note-footer">{l.footer}</div> : null}
+        {face.sign ? <div className="note-sign">{face.sign}</div> : null}
+        {l.signNote ? <div className="note-signnote">{l.signNote}</div> : null}
+      </div>
+      {stamp}
+    </div>
+  );
+}
+
+/** One note up close over a dimmed board: as big as fits, straightened. */
+export function CloseUpNote({ closeUp }: { closeUp: CloseUp }) {
+  const inner = useRef<HTMLDivElement>(null);
+  const [scale, setScale] = useState(0);
+  const card = closeUp.kind === "notice" ? closeUp.notice : closeUp.kind === "job" ? closeUp.job : closeUp.flyer;
+  const w = card.place?.w ?? (closeUp.kind === "job" ? (closeUp.job.style === "sealed" ? 300 : 330) : 290);
+  const id = `${closeUp.kind}-${card.id}`;
+  useLayoutEffect(() => {
+    const el = inner.current;
+    if (!el) return;
+    const fit = () => setScale(Math.min(2.6, 1700 / el.offsetWidth, 960 / Math.max(1, el.offsetHeight)));
+    fit();
+    const ro = new ResizeObserver(fit);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [id]);
+  return (
+    <div className="close-up" role="figure" aria-label="A note from the board, up close">
+      <div ref={inner} key={id} className="close-up-note" style={{ width: `${w}px`, transform: `scale(${scale})`, visibility: scale ? "visible" : "hidden" }}>
+        {closeUp.kind === "notice" ? <NoteCard face={closeUp.notice} page /> : closeUp.kind === "job" ? <JobCard job={closeUp.job} page /> : <FlyerCard flyer={closeUp.flyer} page />}
+      </div>
     </div>
   );
 }

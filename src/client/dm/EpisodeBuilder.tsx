@@ -316,7 +316,8 @@ export function MentionTextarea({ value, onChange, rows, label }: { value: strin
 function mentionSub(m: Mention): string {
   if (m.entry) return `${kindInfo(m.entry.kind).label}${m.entry.stage === "hidden" ? " · hidden" : ""}${isStub(m.entry) ? " · stub" : ""}`;
   if (m.job) return `Job flyer${m.job.pinned ? "" : " · not pinned"}`;
-  if (m.flyer) return "Player flyer";
+  if (m.flyer) return `Player flyer${m.flyer.up ? "" : " · not up"}`;
+  if (m.notice) return `Board note${m.notice.up ? "" : " · in the drawer"}`;
   return "Monster template";
 }
 
@@ -349,6 +350,7 @@ function MentionChip({ g, token }: { g: GameState; token: string }) {
           {m.entry?.summary ? <span className="mc-line">{m.entry.summary}</span> : null}
           {m.entry?.dmNote ? <span className="mc-line note">DM: {m.entry.dmNote}</span> : null}
           {m.job ? <span className="mc-line">{m.job.body}</span> : null}
+          {m.notice?.body ? <span className="mc-line">{m.notice.body}</span> : null}
           {m.template ? <span className="mc-line">AC {m.template.ac} · HP {m.template.hp}</span> : null}
         </span>
       ) : null}

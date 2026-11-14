@@ -5,11 +5,12 @@
 //   @person/mags   @place/the-docks   @monster/pudding-gremlin   @flyer/rolf
 //   @mags          (a short name works when only one thing has that slug)
 
+import { boardNotes, findBoardNote, type BoardNote } from "./board";
 import { entriesOf, entryScene, findRef, isStub, kindInfo, slugify } from "./discovery";
 import { dayLabel, storyOf } from "./story";
-import type { Beat, Entry, Episode, Flyer, GameState, Job, MonsterTemplate, Story, StoryBeat, StoryBlock } from "./types";
+import type { Beat, Entry, Episode, Flyer, GameState, Job, MonsterTemplate, Notice, Story, StoryBeat, StoryBlock } from "./types";
 
-type G = Pick<GameState, "entries" | "scenes" | "flyers" | "items" | "sessions"> & Partial<Pick<GameState, "jobs" | "monsters" | "story" | "episodes" | "leads">>;
+type G = Pick<GameState, "entries" | "scenes" | "flyers" | "items" | "sessions"> & Partial<Pick<GameState, "jobs" | "notices" | "monsters" | "story" | "episodes" | "leads">>;
 
 // ---------------------------------------------------------------------------
 // Placements and status
@@ -60,7 +61,7 @@ export const STORY_SECTION = "Story beats";
 /** "@person/mags", "@flyer/rolf", "@mags". Not inside an email address. */
 export const MENTION_RE = /(?<![\w@./])@([a-z][a-z-]{1,23}\/[a-z0-9][a-z0-9-]{0,39}|[a-z0-9][a-z0-9-]{1,39})(?![\w/-])/g;
 
-export type MentionKind = "entry" | "job" | "flyer" | "template";
+export type MentionKind = "entry" | "job" | "flyer" | "notice" | "template";
 
 export interface Mention {
   /** The full form: "person/mags", "flyer/rolf", "monster/pudding-gremlin". */
@@ -72,32 +73,23 @@ export interface Mention {
   entry?: Entry;
   job?: Job;
   flyer?: Flyer;
+  notice?: Notice;
   template?: MonsterTemplate;
 }
 
-const firstName = (t: string) => slugify(t.split(/[,(]/)[0].trim().split(/\s+/)[0] ?? "");
-
-/** A short name for every job and player flyer: the poster's first name, else the title. */
-export function flyerSlugs(g: Pick<GameState, "flyers"> & Partial<Pick<GameState, "jobs">>): Map<string, string> {
-  const out = new Map<string, string>();
-  const taken = new Set<string>();
-  const add = (id: string, wants: string[]) => {
-    for (const w of wants) {
-      if (w && w !== "x" && !taken.has(w)) {
-        taken.add(w);
-        out.set(id, w);
-        return;
-      }
-    }
-    const base = wants.find((w) => w && w !== "x") ?? "flyer";
-    let n = 2;
-    while (taken.has(`${base}-${n}`)) n++;
-    taken.add(`${base}-${n}`);
-    out.set(id, `${base}-${n}`);
-  };
-  for (const j of g.jobs ?? []) add(j.id, [firstName(j.postedBy), slugify(j.title)]);
-  for (const f of g.flyers) add(f.id, [firstName(f.signedBy), slugify(f.title)]);
-  return out;
+/** A note on the board as a mention. `slug` is what the DM typed ("rolf"), else the note's own slug. */
+function noteMention(g: G, n: BoardNote, slug = n.slug): Mention | null {
+  const ref = `flyer/${slug}`;
+  if (n.kind === "job") {
+    const job = (g.jobs ?? []).find((j) => j.id === n.id);
+    return job ? { ref, kind: "job", label: job.title, group: "Flyers", job } : null;
+  }
+  if (n.kind === "flyer") {
+    const flyer = g.flyers.find((f) => f.id === n.id);
+    return flyer ? { ref, kind: "flyer", label: flyer.title, group: "Flyers", flyer } : null;
+  }
+  const notice = (g.notices ?? []).find((x) => x.id === n.id);
+  return notice ? { ref, kind: "notice", label: notice.title || "Untitled note", group: "Flyers", notice } : null;
 }
 
 const templateSlug = (m: Pick<MonsterTemplate, "name">) => slugify(m.name);
@@ -109,14 +101,10 @@ function entryMention(e: Entry): Mention {
 /** What "@token" means, or null. */
 export function resolveMention(g: G, token: string): Mention | null {
   const t = token.trim().toLowerCase().replace(/^@/, "");
-  const slugs = flyerSlugs(g);
   const [head, slug] = t.includes("/") ? t.split("/") : [null, t];
-  if (head === "flyer") {
-    const id = [...slugs].find(([, s]) => s === slug)?.[0];
-    const job = (g.jobs ?? []).find((j) => j.id === id);
-    if (job) return { ref: `flyer/${slug}`, kind: "job", label: job.title, group: "Flyers", job };
-    const flyer = g.flyers.find((f) => f.id === id);
-    return flyer ? { ref: `flyer/${slug}`, kind: "flyer", label: flyer.title, group: "Flyers", flyer } : null;
+  if (head === "flyer" || head === "note") {
+    const n = findBoardNote(g, slug);
+    return n ? noteMention(g, n, slug) : null;
   }
   if (head) {
     const hit = findRef(g, `${head}/${slug}`);
@@ -132,10 +120,9 @@ export function resolveMention(g: G, token: string): Mention | null {
     ...entriesOf(g).filter((e) => e.slug === slug).map(entryMention),
     ...(g.monsters ?? []).filter((m) => templateSlug(m) === slug && !entriesOf(g).some((e) => e.kind === "monster" && e.slug === slug)).map((template): Mention => ({ ref: `monster/${slug}`, kind: "template", label: template.name, group: "Monsters", template })),
   ];
-  for (const s of slugs.values()) {
-    const m = s === slug ? resolveMention(g, `flyer/${s}`) : null;
-    if (m) all.push(m);
-  }
+  const note = findBoardNote(g, slug);
+  const m = note && noteMention(g, note, slug);
+  if (m) all.push(m);
   return all.length === 1 ? all[0] : null;
 }
 
@@ -157,12 +144,10 @@ export function mentionsIn(g: G, text: string): { token: string; mention: Mentio
 /** The finder for "@": what matches what the DM typed, best first. */
 export function findMentions(g: G, query: string, limit = 8): Mention[] {
   const q = query.toLowerCase().replace(/^@/, "");
-  const slugs = flyerSlugs(g);
   const all: Mention[] = [
     ...entriesOf(g).map(entryMention),
     ...(g.monsters ?? []).filter((m) => !entriesOf(g).some((e) => e.kind === "monster" && e.templateId === m.id)).map((template): Mention => ({ ref: `monster/${templateSlug(template)}`, kind: "template", label: template.name, group: "Monster templates", template })),
-    ...(g.jobs ?? []).map((job): Mention => ({ ref: `flyer/${slugs.get(job.id)}`, kind: "job", label: job.title, group: "Flyers", job })),
-    ...g.flyers.map((flyer): Mention => ({ ref: `flyer/${slugs.get(flyer.id)}`, kind: "flyer", label: flyer.title, group: "Flyers", flyer })),
+    ...boardNotes(g).flatMap((n) => noteMention(g, n) ?? []),
   ];
   if (!q) return all.slice(0, limit);
   const score = (m: Mention) => {
@@ -213,6 +198,7 @@ export interface CastItem {
   entry?: Entry;
   job?: Job;
   flyer?: Flyer;
+  notice?: Notice;
   template?: MonsterTemplate;
   /** A fight: line with no template of that name. */
   missingTemplate?: boolean;
@@ -233,6 +219,7 @@ export function castOf(g: G, ep: Episode): CastItem[] {
     if (m.entry) addEntry(m.entry, from);
     else if (m.job) add(`job:${m.job.id}`, { group: "Flyers", label: m.job.title, job: m.job }, from);
     else if (m.flyer) add(`flyer:${m.flyer.id}`, { group: "Flyers", label: m.flyer.title, flyer: m.flyer }, from);
+    else if (m.notice) add(`notice:${m.notice.id}`, { group: "Flyers", label: m.label, notice: m.notice }, from);
     else if (m.template) add(`template:${m.template.id}`, { group: "Monsters", label: m.template.name, template: m.template }, from);
   };
   for (const b of ep.beats) {
@@ -310,6 +297,8 @@ export function prepOf(g: G, ep: Episode): PrepItem[] {
     if (!out.some((x) => x.key === key)) out.push({ key, text });
   };
   const cast = castOf(g, ep);
+  const notes = boardNotes(g);
+  const isUp = (id: string) => notes.find((n) => n.id === id)?.up ?? false;
   for (const c of cast) {
     const e = c.entry;
     if (e) {
@@ -318,8 +307,9 @@ export function prepOf(g: G, ep: Episode): PrepItem[] {
       if (e.kind === "monster" && !(e.templateId && (g.monsters ?? []).some((m) => m.id === e.templateId))) push(`template:${e.id}`, `${e.name} is mentioned but has no monster template.`);
     }
     if (c.missingTemplate) push(`template:${c.key}`, `${c.label} is in a fight but has no monster template.`);
-    if (c.job && !c.job.pinned) push(`pin:${c.job.id}`, `${jobLabel(c.job)} isn't pinned.`);
-    if (c.flyer && !c.flyer.up) push(`pin:${c.flyer.id}`, `The flyer “${c.flyer.title}” isn't up on the board.`);
+    if (c.job && !isUp(c.job.id)) push(`pin:${c.job.id}`, `${jobLabel(c.job)} isn't pinned.`);
+    if (c.flyer && !isUp(c.flyer.id)) push(`pin:${c.flyer.id}`, `The flyer “${c.flyer.title}” isn't up on the board.`);
+    if (c.notice && !isUp(c.notice.id)) push(`pin:${c.notice.id}`, `The note “${c.label}” isn't up on the board.`);
   }
   for (const b of ep.beats) {
     for (const { token, mention } of mentionsIn(g, beatWords(b))) if (!mention) push(`unknown:${token}`, `“@${token}” in “${b.title}” doesn't match anything. Make it, or fix the name.`);

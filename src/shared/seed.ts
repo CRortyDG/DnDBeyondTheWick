@@ -1,6 +1,6 @@
 import { GP, SP } from "./money";
 import { FAMOUS, HEROES, KNOWN, TRUSTED } from "./renown";
-import type { GameState, Item, ItemCategory, Job, MapData, Pin, PinLink, Scene, Shop } from "./types";
+import type { GameState, Item, ItemCategory, Job, MapData, NoteLook, NotePlace, Notice, NoticePaper, Pin, PinLink, Scene, Shop } from "./types";
 
 export const DEFAULT_SEATS = 6;
 
@@ -160,14 +160,39 @@ const job = (id: string, j: Omit<Job, "id" | "status" | "pinned" | "createdAt" |
   dm: { adventure: "", loot: "", twists: "", notes: "", ...j.dm },
 });
 
+/** Artum's handbill: the big notice in the middle of the board, and the episode-one job. */
+export const ARTUM_LOOK: NoteLook = {
+  pin: "red",
+  font: "caps",
+  kicker: "Hear ye, good folk of Candlefair",
+  titleSize: 58,
+  listLabel: "Wanted",
+  list: [
+    { head: "Steady Climbers", text: "to hang fir garlands from the high ceilings. Ladders mostly sturdy." },
+    { head: "Careful Hands", text: "to find matching china in the scullery and wheel it to the hall unbroken" },
+    { head: "Calm Handlers", text: "to greet arriving guests and mind their carriage horses" },
+    { head: "Brave Tongues", text: "to taste the chef’s marvelous new desserts" },
+  ],
+  footer: "A seat at the banquet for a job well done.\nInquire: at The Flickering Candle. Ask Mags where to find me.",
+  signNote: "Planner of Winterfest",
+};
+export const ARTUM_PLACE: NotePlace = { x: 690, y: 70, rot: 1, w: 520, z: 20 };
+/** What the Artum job said before it took over the printed handbill (to tell an edited one apart). */
+export const OLD_ARTUM = {
+  postedBy: "Artum, Planner of Winterfest",
+  body: "The Opening Feast is nigh, and your humble planner is in well over his head. Wanted: steady climbers for the fir garlands, careful hands for the china, calm handlers for the guests and their horses, and brave tongues to taste the chef’s marvelous new desserts. A seat at the banquet for a job well done. Ask Mags where to find me.",
+};
+
 export const SEED_JOBS: Job[] = [
   job("j-artum", {
     title: "Winterfest Needs Hands!",
-    postedBy: "Artum, Planner of Winterfest",
-    body: "The Opening Feast is nigh, and your humble planner is in well over his head. Wanted: steady climbers for the fir garlands, careful hands for the china, calm handlers for the guests and their horses, and brave tongues to taste the chef’s marvelous new desserts. A seat at the banquet for a job well done. Ask Mags where to find me.",
+    postedBy: "Artum",
+    body: "The Opening Feast is nigh, and your humble planner is in well over his head.",
     reward: { kind: "each", cp: 25 * GP },
     renown: 0,
-    style: "bill",
+    style: "handbill",
+    look: ARTUM_LOOK,
+    place: ARTUM_PLACE,
     dm: {},
   }),
   job("j-ransom", {
@@ -198,6 +223,43 @@ export const SEED_JOBS: Job[] = [
     dm: {},
   }),
 ];
+
+// ---------- the notice board's starter notes (they used to be printed on the board itself) ----------
+
+const notice = (slug: string, style: NoticePaper, at: [x: number, y: number, w: number, rot: number, z: number], title: string, body: string, sign: string, look: NoteLook): Notice => ({
+  id: `n-${slug}`,
+  slug,
+  style,
+  title,
+  body,
+  sign,
+  look,
+  up: true,
+  place: { x: at[0], y: at[1], w: at[2], rot: at[3], z: at[4] },
+  createdAt: 0,
+  dmNote: "",
+});
+
+export const SEED_NOTICES: Notice[] = [
+  notice("owlbear-bounty", "parchment", [60, 50, 300, -3, 1], "Bounty", "seen on the east road. Five gold a head, paid in coin.", "Claim at The Sleeping Kraken", { pin: "red", font: "poster", titleSize: 54, ink: "red", sub: "Owlbear" }),
+  notice("salt-tax", "cream", [390, 40, 270, 2, 2], "By Order of the Council", "A new tax of one copper per measure of salt takes effect at the turning of the month.", "The Council of Candlefair", { pin: "blue", band: true, titleSize: 22, align: "left" }),
+  notice("lost-ham", "white", [420, 330, 250, -5, 3], "LOST: one ham", "Taken by a brown dog near the square. Dog may keep the bone. Reward for the rest.", "Hobb, butcher", { pin: "green", font: "hand", titleSize: 40 }),
+  notice("missing-caravan", "aged", [70, 470, 320, 2, 4], "Have You Seen This Caravan?", "Four wagons, eastern traders, green canvas. Three weeks overdue. Reward for any news of them.", "Ask at the harbormaster’s office", { pin: "red", titleSize: 30 }),
+  notice("ferry-closed", "cream", [420, 610, 260, 3, 5], "Ferry Closed", "until further notice. Don’t ask why.", "The Ferryman", { pin: "blue", font: "poster", titleSize: 36, sub: "after dark" }),
+  notice("boat-for-sale", "white", [90, 790, 280, -2, 6], "Boat for sale", "Good fishing boat. Barely sank. Best offer.", "Fennick, at the docks", { pin: "green", font: "hand", titleSize: 36 }),
+  notice("winterfest-feast", "red", [760, 790, 400, -2, 7], "Winterfest Opening Feast", "In the banquet hall, on the first night of Winterfest. Music, fir and firelight, and dessert by our own chef.", "", { pin: "cream", kicker: "All of Candlefair Welcome", titleSize: 40 }),
+  notice("tale-night", "dark", [1250, 50, 330, 2, 8], "Tale Night", "Every tenday by the hearth. Tell a true tale and your first drink is on the house. Best tale gets a candle on the shelf.", "Mags Wick, proprietor", { pin: "gold", kicker: "The Flickering Candle", titleSize: 40 }),
+  notice("hands-wanted-orlumbor", "slate", [1610, 60, 230, -3, 9], "Hands Wanted on Orlumbor", "The shipwrights need workers before the harbor freezes. Good coin, no questions.", "Boat leaves from the docks at first light", { pin: "blue", titleSize: 22 }),
+  notice("press-gangs", "cream", [1270, 440, 300, -2, 10], "Warning", "Press gangs have been seen near the docks after dark. Walk in pairs. Do not accept free drinks from sailors.", "The Watch", { pin: "red", band: true, titleSize: 26, ink: "red" }),
+  notice("from-the-temple", "ash", [1610, 430, 240, 3, 11], "From the Temple", "The graveyard is closed after sundown until the disturbances are explained. Please pray for the restless.", "", { pin: "black", titleSize: 22 }),
+  notice("winterfest-skating", "ice", [1250, 750, 310, 1, 12], "Winterfest Skating", "On the harbor, once the ice holds. Not before. We mean it this year.", "The Winterfest Committee", { pin: "blue", titleSize: 30 }),
+  notice("festival-bunting", "white", [1610, 780, 230, -5, 13], "", "Whoever took the festival bunting: put it back and nobody gets hurt.", "A.", { pin: "green", font: "hand" }),
+];
+
+/** The starter notes, stamped with when they were made. */
+export function seedNotices(now: number): Notice[] {
+  return structuredClone(SEED_NOTICES).map((n) => ({ ...n, createdAt: now }));
+}
 
 // ---------- maps ----------
 
@@ -305,9 +367,10 @@ export function seedGame(id: string, name = "Tales from the Flickering Candle", 
     banner: null,
     requests: [],
     ...emptyProgress(),
-    jobs: seedJobs(now),
+    jobs: seedJobs(now).map((j) => (j.id === "j-artum" ? { ...j, pinned: true, pinnedAt: now } : j)),
+    notices: seedNotices(now),
     renown: 0,
-    upgrades: ["jobs", "jobs-artum"],
+    upgrades: ["jobs", "jobs-artum", "board-notes"],
     seq: 100,
   };
 }
@@ -327,12 +390,12 @@ export function freshStart(g: GameState): GameState {
   s.banner = null;
   s.requests = [];
   Object.assign(s, emptyProgress());
-  // Back to strangers, and every job flyer back in the drawer.
+  // Back to strangers, and every job open again. The board stays as the DM laid it out.
   s.renown = 0;
   delete s.renownMoment;
   delete s.diceRoll;
   delete s.rolls;
-  s.jobs = (s.jobs ?? []).map(({ takenBy, takenAt, doneAt, paidCp, pinnedAt, ...j }) => ({ ...j, status: "open" as const, pinned: false }));
+  s.jobs = (s.jobs ?? []).map(({ takenBy, takenAt, doneAt, paidCp, ...j }) => ({ ...j, status: "open" as const }));
   // The Chronicle starts again on an empty Chapter 1, and nobody has met anyone yet.
   s.notes = [];
   for (const sc of s.scenes) delete sc.known;

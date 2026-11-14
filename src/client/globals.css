@@ -3874,6 +3874,293 @@ input.fld.inline-input {
   opacity: 0.9;
 }
 
+/* ---------- the notice board: frame, cork, and every paper a note can be on ---------- */
+.board-frame {
+  width: 1920px;
+  height: 1080px;
+  box-sizing: border-box;
+  background: #4a3020;
+  padding: 36px;
+  font-family: var(--font-body);
+  color: #2b2118;
+}
+.board-cork {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  background-color: #b98a55;
+  background-image: radial-gradient(#9c6f3e 1.5px, transparent 1.6px), radial-gradient(#c99a63 1.5px, transparent 1.6px);
+  background-size: 22px 22px, 31px 31px;
+  background-position: 0 0, 11px 15px;
+  border: 6px solid #3a2416;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+/* Where a note hangs; the paper inside fills its width. */
+.pin-at {
+  position: absolute;
+  transform-origin: 50% 40%;
+}
+.pin-at > .job,
+.pin-at > .flyer,
+.pin-at > .note-card {
+  position: relative;
+  left: auto;
+  top: auto;
+  width: 100%;
+  z-index: auto;
+}
+.note-card {
+  position: relative;
+  box-sizing: border-box;
+  background: #f3ecdc;
+  color: #2b2118;
+  padding: 26px 20px 20px;
+  box-shadow: 0 3px 7px rgba(30, 18, 10, 0.45);
+  text-align: center;
+  font-family: var(--font-body);
+}
+.note-card::before,
+.job.has-pin.has-pin::before {
+  background: var(--pin, #7a2a1f);
+}
+.note-card::before {
+  content: "";
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  width: 14px;
+  height: 14px;
+  margin-left: -7px;
+  border-radius: 50%;
+  z-index: 2;
+}
+.note-card.pin-none::before,
+.job.pin-none::before {
+  display: none;
+}
+.note-card.band {
+  border-top: 6px solid var(--pin, #3a4a5c);
+}
+.note-inner {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.note-img {
+  display: block;
+  width: 100%;
+  max-height: 420px;
+  object-fit: cover;
+  margin-bottom: 4px;
+}
+.note-kicker {
+  font-family: var(--font-sc);
+  font-size: 16px;
+  letter-spacing: 3px;
+}
+.note-title {
+  font-family: var(--font-sc);
+  font-size: 26px;
+  line-height: 1.05;
+}
+.note-sub {
+  font-family: var(--font-sc);
+  font-size: 22px;
+}
+.note-body {
+  font-size: 17px;
+  line-height: 1.35;
+  white-space: pre-line;
+}
+.note-reward {
+  font-family: var(--font-sc);
+  font-size: 20px;
+  color: #7a2a1f;
+}
+.note-footer {
+  font-size: 15px;
+  line-height: 1.4;
+  white-space: pre-line;
+}
+.note-sign {
+  font-size: 15px;
+  font-style: italic;
+}
+.note-signnote {
+  font-family: var(--font-sc);
+  font-size: 13px;
+  letter-spacing: 2px;
+  color: #5b4a3a;
+}
+.note-rule {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #7a2a1f;
+  font-family: var(--font-sc);
+  font-size: 17px;
+  letter-spacing: 3px;
+}
+.note-rule::before,
+.note-rule::after {
+  content: "";
+  flex: 1;
+  border-top: 1px solid currentColor;
+  opacity: 0.8;
+}
+.note-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px 18px;
+  text-align: left;
+}
+.note-list-head {
+  font-family: var(--font-sc);
+  font-size: 19px;
+  color: #7a2a1f;
+}
+.note-list-text {
+  font-size: 14px;
+  line-height: 1.3;
+}
+.align-left .note-body,
+.align-left .note-sign {
+  text-align: left;
+}
+.align-left .note-sign {
+  text-align: right;
+}
+.ink-red {
+  color: #7a2a1f;
+}
+.ink-blue {
+  color: #3a4a5c;
+}
+.ink-gold {
+  color: #c99a3a;
+}
+.font-poster .note-title,
+.font-poster.job .job-title {
+  font-family: var(--font-poster);
+  line-height: 1;
+}
+.font-plain .note-title,
+.font-plain.job .job-title {
+  font-family: var(--font-body);
+}
+.note-card.font-hand,
+.job.font-hand {
+  font-family: var(--font-hand);
+  text-align: left;
+}
+.font-hand .note-title,
+.font-hand.job .job-title {
+  font-family: var(--font-hand);
+  font-weight: 700;
+  font-size: 38px;
+  line-height: 1;
+  text-align: left;
+}
+.font-hand .note-body {
+  font-size: 24px;
+  line-height: 1.15;
+}
+.font-hand .note-sign {
+  font-style: normal;
+  font-size: 22px;
+  text-align: right;
+}
+/* The printed papers. */
+.paper-cream {
+  background: #f3ecdc;
+}
+.paper-parchment {
+  background: #e9dcc0;
+}
+.paper-aged {
+  background: #e4d6b8;
+}
+.paper-white {
+  background: #f6f1e4;
+}
+.paper-ash {
+  background: #ece7dc;
+}
+.paper-slate {
+  background: #dfe4e0;
+}
+.paper-ice {
+  background: #e6eef2;
+}
+.paper-dark {
+  background: #2b2118;
+  color: #efe3c8;
+}
+.paper-dark .note-kicker,
+.paper-dark .note-sign,
+.paper-dark .note-signnote {
+  color: #c99a3a;
+}
+.paper-red {
+  background: #7a2a1f;
+  color: #f3ecdc;
+}
+.paper-red .note-reward,
+.paper-red .note-list-head,
+.paper-red .note-rule,
+.paper-dark .note-reward,
+.paper-dark .note-list-head,
+.paper-dark .note-rule {
+  color: inherit;
+}
+.paper-handbill {
+  background: #efe3c8;
+  padding: 18px;
+  box-shadow: 0 2px 0 #3a2416, 0 3px 7px rgba(30, 18, 10, 0.4);
+}
+.paper-handbill::before {
+  top: 10px;
+  width: 18px;
+  height: 18px;
+  margin-left: -9px;
+}
+.paper-handbill > .note-inner {
+  border: 2px solid #2b2118;
+  padding: 26px 28px 22px;
+  gap: 10px;
+}
+.paper-handbill .note-kicker {
+  font-size: 14px;
+  color: #5b4a3a;
+}
+.paper-handbill .note-body {
+  font-style: italic;
+  color: #3a2d22;
+}
+.paper-handbill .note-sign {
+  font-size: 26px;
+  line-height: 1;
+}
+.paper-handbill .note-footer {
+  border-top: 1px solid #2b2118;
+  padding-top: 8px;
+}
+/* On a phone or in the DM's lists: in the flow, no tilt. */
+.note-card.note-page,
+.flyer.flyer-page {
+  position: relative;
+  width: 100%;
+  max-width: 360px;
+  margin: 0 auto;
+}
+.paper-handbill.note-page {
+  max-width: 520px;
+}
+.flyer.flyer-page {
+  max-height: none;
+}
+
 /* ---------- the bounty board: job flyers, stamps, Renown ---------- */
 .job {
   position: absolute;
@@ -4934,6 +5221,178 @@ input.fld.inline-input {
   font-size: calc(52 * var(--u));
 }
 
+/* ---------- the DM's notice board editor ---------- */
+.board-canvas {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  border-radius: 6px;
+  touch-action: none;
+  user-select: none;
+  margin: 10px 0;
+}
+.board-canvas-stage {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 1920px;
+  height: 1080px;
+  transform-origin: 0 0;
+}
+.board-edit-layer {
+  position: absolute;
+  inset: 0;
+}
+.pin-at.editable {
+  cursor: grab;
+}
+.pin-at.editable:active {
+  cursor: grabbing;
+}
+.pin-at.editable:hover {
+  outline: 3px dashed rgba(255, 240, 200, 0.7);
+  outline-offset: 4px;
+}
+.pin-at.editable.selected,
+.pin-at.editable:focus-visible {
+  outline: 4px solid #f2c14e;
+  outline-offset: 6px;
+}
+.select-frame {
+  pointer-events: none;
+  outline: 4px solid #f2c14e;
+  outline-offset: 6px;
+}
+.pin-at .handle {
+  pointer-events: auto;
+  position: absolute;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: #f2c14e;
+  border: 4px solid #2b2118;
+  box-sizing: border-box;
+  z-index: 50;
+  touch-action: none;
+}
+.pin-at .handle-rot {
+  top: -62px;
+  left: 50%;
+  margin-left: -17px;
+  cursor: alias;
+}
+.pin-at .handle-rot::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 30px;
+  height: 22px;
+  border-left: 4px solid #f2c14e;
+  margin-left: -2px;
+}
+.pin-at .handle-w {
+  right: -24px;
+  top: 50%;
+  margin-top: -30px;
+  height: 60px;
+  width: 22px;
+  border-radius: 8px;
+  cursor: ew-resize;
+}
+.board-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  padding: 8px 10px;
+  border: 1px solid var(--line, #5b4a3a);
+  border-radius: 6px;
+}
+.board-toolbar-title {
+  margin-right: 4px;
+}
+.board-drawer {
+  margin-top: 14px;
+}
+.board-drawer-list {
+  display: flex;
+  gap: 16px;
+  overflow-x: auto;
+  padding: 14px 8px;
+  background: #6b4a30;
+  border-radius: 6px;
+  align-items: flex-start;
+  min-height: 60px;
+}
+.board-drawer-item {
+  display: grid;
+  gap: 8px;
+  flex: none;
+  cursor: grab;
+}
+.board-drawer-item .board-row-actions {
+  background: rgba(255, 248, 235, 0.92);
+  padding: 4px;
+  border-radius: 6px;
+}
+.board-drawer-paper {
+  zoom: 0.6;
+  pointer-events: none;
+}
+.board-drawer-paper > * {
+  max-width: none !important;
+}
+.board-editor-split {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+@media (max-width: 900px) {
+  .board-editor-split {
+    grid-template-columns: 1fr;
+  }
+}
+.board-editor-preview {
+  position: sticky;
+  top: 10px;
+  background: #b98a55;
+  border-radius: 8px;
+  padding: 24px 12px;
+  overflow: hidden;
+  display: grid;
+  justify-items: center;
+}
+.board-editor-preview > div {
+  zoom: 0.75;
+}
+.board-editor-preview .job-page,
+.board-editor-preview .note-page,
+.board-editor-preview .flyer-page {
+  max-width: none;
+}
+.look-fields {
+  border: 1px solid var(--line, #e2d6bd);
+  border-radius: 6px;
+  padding: 8px 10px 10px;
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+.look-list {
+  display: grid;
+  gap: 6px;
+}
+.look-list-label {
+  width: 10em;
+  display: inline-block;
+}
+.check-inline {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+}
 /* ---------- assets: the quick bar, the finder, Show controls ---------- */
 
 .quick {
@@ -5592,6 +6051,33 @@ input.fld.inline-input {
   .story-body.with-side {
     grid-template-columns: 1fr;
     grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
+  }
+}
+
+/* One note up close on the TV, over the dimmed board. */
+.board-frame {
+  position: relative;
+}
+.close-up {
+  position: absolute;
+  inset: 0;
+  z-index: 600;
+  display: grid;
+  place-items: center;
+  background: rgba(20, 12, 6, 0.72);
+  animation: close-up-in 0.35s ease-out;
+}
+.close-up-note {
+  transform-origin: 50% 50%;
+}
+.close-up-note > .job-page,
+.close-up-note > .note-page,
+.close-up-note > .flyer-page {
+  max-width: none;
+}
+@keyframes close-up-in {
+  from {
+    opacity: 0;
   }
 }
 

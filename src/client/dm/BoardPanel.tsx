@@ -1,19 +1,19 @@
 "use client";
 
-// The DM's Board tab: the party's Renown, and the bounty board's job flyers
-// (with player flyers, which share the same eight pins).
+// The DM's Board tab: the notice board itself (every note placed by hand),
+// the party's Renown, and the bounty board's job flyers with their payouts.
 
 import { TrustSelect } from "./TrustSelect";
+import { BoardCanvas, LookFields, useScrollIn } from "./BoardCanvas";
 import { useMemo, useState } from "react";
 import { cpToGpInput, formatCp, parseAmount } from "@/shared/money";
 import { jobWhen, type PublicJob } from "@/shared/projection";
-import { BOARD_SLOTS, defaultPayout, jobsOf, jobTitle, payoutPlayers, pinnedCount, rankName, RENOWN, renownOf } from "@/shared/renown";
-import type { Job, JobReward, JobStatus, JobStyle, TrustNeed } from "@/shared/types";
+import { defaultPayout, jobsOf, jobTitle, payoutPlayers, rankName, RENOWN, renownOf } from "@/shared/renown";
+import type { Job, JobReward, JobStatus, JobStyle, NoteLook, TrustNeed } from "@/shared/types";
 import { JobCard, STYLE_LABELS, whenLabel } from "../scenes/Board";
 import { useDm } from "./context";
 
 const STATUS_LABELS: Record<JobStatus, string> = { open: "Open", taken: "Taken", done: "Done", expired: "Pulled" };
-const STYLES: JobStyle[] = ["scrawl", "bill", "official", "sealed"];
 
 export function BoardPanel() {
   const { view } = useDm();
@@ -27,22 +27,20 @@ export function BoardPanel() {
 
   return (
     <div className="panel-grid">
+      <BoardCanvas onEditJob={(id) => (setPaying(null), setEditing({ id }))} onNewJob={() => (setPaying(null), setEditing({ id: null }))} />
+      {editing ? <JobEditor key={`${editing.id ?? "new"}-${editing.followUpOf ?? ""}`} job={editJob} followUpOf={followOf} onClose={() => setEditing(null)} /> : null}
       <RenownBox />
       <PlayerFlyers />
       <section className="box board-wide">
         <div className="box-head">
-          <h3>The bounty board</h3>
-          <span className="note">
-            {pinnedCount(s)} of {BOARD_SLOTS} pinned
-          </span>
+          <h3>Job flyers</h3>
         </div>
-        <p className="note">Pinned flyers show on the TV&rsquo;s notice board and on phones. Jobs above the party&rsquo;s Renown stay readable, stamped &ldquo;Experienced parties only&rdquo;. Your notes (adventure, loot, twists) never leave this screen.</p>
+        <p className="note">Pinned jobs show on the TV&rsquo;s notice board and on phones. Jobs above the party&rsquo;s Renown stay readable, stamped &ldquo;Experienced parties only&rdquo;. Your notes (adventure, loot, twists) never leave this screen.</p>
         <div className="inline">
           <button type="button" className="btn primary" onClick={() => (setPaying(null), setEditing({ id: null }))}>
             New job flyer
           </button>
         </div>
-        {editing ? <JobEditor key={`${editing.id ?? "new"}-${editing.followUpOf ?? ""}`} job={editJob} followUpOf={followOf} onClose={() => setEditing(null)} /> : null}
         {payJob ? <PayoutForm key={payJob.id} job={payJob} onClose={() => setPaying(null)} /> : null}
         {(["open", "taken", "done", "expired"] as JobStatus[]).map((st) => {
           const list = jobs.filter((j) => j.status === st);
@@ -180,6 +178,7 @@ interface Draft {
   renown: number;
   trust: TrustNeed | null;
   style: JobStyle;
+  look: NoteLook;
   adventure: string;
   loot: string;
   twists: string;
@@ -196,6 +195,7 @@ function draftOf(j?: Job): Draft {
     renown: j?.renown ?? 0,
     trust: j?.trust ?? null,
     style: j?.style ?? "scrawl",
+    look: structuredClone(j?.look ?? {}),
     adventure: j?.dm.adventure ?? "",
     loot: j?.dm.loot ?? "",
     twists: j?.dm.twists ?? "",
@@ -206,6 +206,7 @@ function draftOf(j?: Job): Draft {
 /** Write or edit a job flyer, with a live preview in each paper. */
 function JobEditor({ job, followUpOf, onClose }: { job?: Job; followUpOf?: Job; onClose: () => void }) {
   const { view, call, toast } = useDm();
+  const scrollIn = useScrollIn();
   const rank = renownOf(view.state);
   const [d, setD] = useState<Draft>(() => {
     if (job) return draftOf(job);
@@ -218,6 +219,7 @@ function JobEditor({ job, followUpOf, onClose }: { job?: Job; followUpOf?: Job; 
 
   const preview = (style: JobStyle): PublicJob => ({
     id: `preview-${style}`,
+    look: d.look,
     style,
     status: "open",
     title: style === "sealed" ? "" : d.title.trim() || "Help wanted",
@@ -238,6 +240,7 @@ function JobEditor({ job, followUpOf, onClose }: { job?: Job; followUpOf?: Job; 
       renown: d.renown,
       trust: d.trust,
       style: d.style,
+      look: d.look,
       dm: { adventure: d.adventure, loot: d.loot, twists: d.twists, notes: d.notes },
     };
     const r = job ? await call({ type: "job.update", jobId: job.id, patch: body }) : await call({ type: "job.add", job: body, ...(followUpOf ? { followUpOf: followUpOf.id } : {}) });
@@ -247,7 +250,7 @@ function JobEditor({ job, followUpOf, onClose }: { job?: Job; followUpOf?: Job; 
   };
 
   return (
-    <div className="box board-editor" role="group" aria-label={job ? "Edit job flyer" : "New job flyer"}>
+    <div ref={scrollIn} className="box board-editor board-wide" role="group" aria-label={job ? "Edit job flyer" : "New job flyer"}>
       <h4>{job ? "Edit job flyer" : followUpOf ? `Follow-up to “${jobTitle(followUpOf)}”` : "New job flyer"}</h4>
       <div className="form">
         <label>
@@ -292,28 +295,13 @@ function JobEditor({ job, followUpOf, onClose }: { job?: Job; followUpOf?: Job; 
         {rewardCp === null ? <p className="note">That isn&rsquo;t an amount I can read.</p> : null}
       </div>
 
-      <p className="note">Paper (tap one):</p>
-      <div className="board-previews" role="radiogroup" aria-label="Paper style">
-        {STYLES.map((st) => (
-          <div
-            key={st}
-            role="radio"
-            tabIndex={0}
-            aria-checked={d.style === st}
-            aria-label={STYLE_LABELS[st]}
-            className={`board-preview${d.style === st ? " on" : ""}`}
-            onClick={() => set("style", st)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" || e.key === " ") {
-                e.preventDefault();
-                set("style", st);
-              }
-            }}
-          >
-            <JobCard job={preview(st)} page />
-            <span className="note">{STYLE_LABELS[st]}</span>
+      <div className="board-editor-split">
+        <LookFields style={d.style} setStyle={(v) => set("style", v)} look={d.look} setLook={(v) => set("look", v)} />
+        <div className="board-editor-preview">
+          <div style={{ width: `${job?.place?.w ?? (d.style === "handbill" ? 520 : d.style === "sealed" ? 300 : 330)}px` }}>
+            <JobCard job={preview(d.style)} page />
           </div>
-        ))}
+        </div>
       </div>
 
       <h4>Only you see these</h4>
