@@ -4229,6 +4229,8 @@ input.fld.inline-input {
   display: grid;
   gap: 22px;
   margin: 12px 0;
+  /* Flyers carry z-index 10 for the TV board; keep them in their own layer so they scroll under the phone's sticky header. */
+  isolation: isolate;
 }
 .job-item {
   display: grid;
