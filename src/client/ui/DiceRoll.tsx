@@ -106,9 +106,16 @@ export function DiceRollCard({ roll, still, leaving }: { roll: Roll; still?: boo
   const lone = n === 1 && !roll.plus;
 
   return (
-    <div className={`dice-roll${reduce ? " still" : ""}${leaving ? " leaving" : ""}`} role="status" aria-label={`Dice: ${describeResult(roll)}, total ${roll.total}`}>
+    <div
+      className={`dice-roll${reduce ? " still" : ""}${leaving ? " leaving" : ""}`}
+      role="status"
+      aria-label={`${roll.name ? `${roll.name} rolled` : "Dice"}: ${describeResult(roll)}, total ${roll.total}`}
+    >
       <div className="dice-roll-card">
-        <div className="dice-roll-kicker">{describeResult(roll)}</div>
+        <div className="dice-roll-kicker">
+          {roll.name ? <span className="dice-roll-who">{roll.name} rolls </span> : null}
+          {describeResult(roll)}
+        </div>
         {use3d ? (
           <div ref={place} className="dice-roll-place" style={{ width: `calc(${cols * size * 1.18} * var(--u))`, height: `calc(${Math.ceil(n / cols) * size * 1.18} * var(--u))` }} />
         ) : (

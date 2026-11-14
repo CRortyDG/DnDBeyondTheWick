@@ -12,6 +12,7 @@ import { Chronicle } from "../ui/Chronicle";
 import { BannerToast } from "../ui/BannerToast";
 import { InspirationIcon, LockIcon } from "../ui/icons";
 import { Jobs } from "./Jobs";
+import { Dice } from "./Dice";
 import { FightCard } from "./FightCard";
 import { askLabel, DecisionBanners, MyRequests, RequestSheet, SendGold, whyNot } from "./Requests";
 
@@ -83,7 +84,7 @@ function PlayerScreen({ view, online, send, ident, setIdent }: { view: PlayerVie
   const [purseOpen, setPurseOpen] = useState(false);
   const [looking, setLooking] = useState<string | null>(null);
   // During a session the phone opens on the Chronicle, so a note is one tap away.
-  const [screen, setScreen] = useState<"chronicle" | "purse" | "jobs">(view.session ? "chronicle" : "purse");
+  const [screen, setScreen] = useState<"chronicle" | "purse" | "jobs" | "dice">(view.session ? "chronicle" : "purse");
   const [mode, setMode] = useState<ShopMode>("category");
   const [category, setCategory] = useState<ItemCategory | undefined>(undefined);
   const me = view.me;
@@ -152,6 +153,9 @@ function PlayerScreen({ view, online, send, ident, setIdent }: { view: PlayerVie
         <button type="button" role="tab" aria-selected={screen === "jobs"} className={`btn tab${screen === "jobs" ? " on" : ""}`} onClick={() => setScreen("jobs")}>
           Jobs{view.jobs.some((j) => j.canTake && !j.asked) ? <span className="badge">{view.jobs.filter((j) => j.canTake && !j.asked).length}</span> : null}
         </button>
+        <button type="button" role="tab" aria-selected={screen === "dice"} className={`btn tab${screen === "dice" ? " on" : ""}`} onClick={() => setScreen("dice")}>
+          Dice
+        </button>
       </div>
       {!online ? (
         <p className="player-offline" role="status">
@@ -160,6 +164,7 @@ function PlayerScreen({ view, online, send, ident, setIdent }: { view: PlayerVie
       ) : null}
       {screen === "chronicle" ? <Chronicle view={view.chronicle} gameName={view.game.name} send={send} /> : null}
       {screen === "jobs" ? <Jobs view={view} send={send} /> : null}
+      {screen === "dice" ? <Dice view={view} send={send} /> : null}
       {screen === "purse" ? (
       <>
       {me.balanceCp < 0 && view.mine.credit.length ? (

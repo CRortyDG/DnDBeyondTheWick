@@ -190,9 +190,11 @@ For in-person fights: no grid, no tokens. The point is faster turns: everyone al
 **Dice** (in the DM header, the fight screen and run-game mode, or press `D`) opens a tray of d4, d6, d8, d10, d12, d20 and d100. Tap a die to add one (the badge counts them, `−` takes one away), set a modifier, then:
 
 - **Roll on the TV**: the server rolls, and 3D dice (three.js) tumble onto the TV over whatever is showing (fights included), land one by one with the rolled number facing the room, then the total. three.js loads only on the TV page, in its own chunk. With reduced motion on, the dice appear already landed; where WebGL isn't available, the TV falls back to flat dice. A lone d20 calls out a natural 20 or natural 1. It clears itself after a few seconds; phones don't see it.
-- **Roll secretly**: rolled on the DM's device only; nothing is sent anywhere.
+- **Roll secretly**: only the DM sees it, in the roll log; nothing goes to the TV or phones.
 
-The tray keeps your picks, so the same roll again is one tap, and lists the last few results with every die.
+The tray keeps your picks, so the same roll again is one tap.
+
+**Players roll too**, from the **Dice** tab on their phone: **Roll on the TV** plays it on the TV with their name, **Roll for the DM only** keeps it off the TV (a Stealth check, say). The DM sees every roll: a toast when it lands, and in the tray's log (the DM's and players' last 40 rolls, with every die, who rolled and where it went). **Clear history** empties the log. A phone only sees its own last five rolls, and can roll at most once every 1.5 seconds.
 
 ## Sessions and starting over
 

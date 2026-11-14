@@ -298,14 +298,29 @@
 .dt-actions .btn.primary {
   flex: 1;
 }
+.dt-history {
+  border-top: 1px solid var(--wood);
+  padding-top: 10px;
+  display: grid;
+  gap: 8px;
+}
+.dt-history-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
 .dt-log {
   list-style: none;
   margin: 0;
   padding: 0;
   display: grid;
   gap: 6px;
-  border-top: 1px solid var(--wood);
-  padding-top: 10px;
+  max-height: 260px;
+  overflow-y: auto;
+}
+.dt-who {
+  color: var(--gold-bright);
+  font-weight: normal;
 }
 .dt-log li {
   display: flex;

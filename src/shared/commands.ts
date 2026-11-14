@@ -5,6 +5,13 @@ import { DIE_SIDES, diceCount, MAX_DICE, MAX_OF_ONE, MAX_PLUS } from "./dice";
 import { fightDmCommands, fightPlayerCommands } from "./combatSchema";
 
 const id = z.string().min(1).max(64);
+/** How many of which dice: d4 to d100, at most 20 of one and 30 in all. */
+const diceAsk = z
+  .array(z.object({ sides: z.literal(DIE_SIDES), count: z.number().int().min(1).max(MAX_OF_ONE) }))
+  .min(1)
+  .max(DIE_SIDES.length)
+  .refine((d) => diceCount(d) <= MAX_DICE, `At most ${MAX_DICE} dice at once.`);
+const dicePlus = z.number().int().min(-MAX_PLUS).max(MAX_PLUS).default(0);
 const text = (max: number) => z.string().max(max);
 const cp = z.number().int().min(0).max(1_000_000_000);
 const hotkey = z.number().int().min(0).max(9).nullable();
@@ -164,15 +171,10 @@ export const dmCommand = z.discriminatedUnion("type", [
 
   /** The party's Renown. Raising it is announced on the TV and written in the Chronicle; lowering it is quiet. */
   z.object({ type: z.literal("renown.set"), rank }),
-  z.object({
-    type: z.literal("dice.roll"),
-    dice: z
-      .array(z.object({ sides: z.literal(DIE_SIDES), count: z.number().int().min(1).max(MAX_OF_ONE) }))
-      .min(1)
-      .max(DIE_SIDES.length)
-      .refine((d) => diceCount(d) <= MAX_DICE, `At most ${MAX_DICE} dice at once.`),
-    plus: z.number().int().min(-MAX_PLUS).max(MAX_PLUS).default(0),
-  }),
+  /** secret: only the DM sees it (in the roll log); otherwise it plays on the TV. */
+  z.object({ type: z.literal("dice.roll"), dice: diceAsk, plus: dicePlus, secret: z.boolean().optional() }),
+  /** Empty the roll log (the DM's and the players' rolls). */
+  z.object({ type: z.literal("dice.clearLog") }),
   /** A new job flyer (unpinned unless pin). followUpOf: the flyer it replaces, which is pulled. */
   z.object({ type: z.literal("job.add"), job: z.object(jobFields).partial(), followUpOf: id.optional(), pin: z.boolean().optional() }),
   /** status: back to open, or taken by hand. Done goes through job.done (it pays); expired through job.expire. */
@@ -293,6 +295,8 @@ export const playerCommand = z.discriminatedUnion("type", [
   z.object({ type: z.literal("me.noteAdd"), text: noteText, tags: noteTags.optional(), chapterId: id.optional() }),
   z.object({ type: z.literal("me.noteUpdate"), noteId: id, patch: notePatch }),
   z.object({ type: z.literal("me.noteRemove"), noteId: id }),
+  /** Roll dice from the phone: on the TV for the table, or for the DM only. The DM sees every roll. */
+  z.object({ type: z.literal("me.diceRoll"), dice: diceAsk, plus: dicePlus, tv: z.boolean() }),
   // Combat mode: initiative, my HP, death saves, end my turn.
   ...fightPlayerCommands,
 ]);

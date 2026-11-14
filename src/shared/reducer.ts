@@ -13,7 +13,7 @@ import { CHARACTER_MAX, STINGER_SCENE_ID, TABLE_SCENE_ID, WHY_MAX } from "./arri
 import { starterById } from "./starters";
 import { chapterSessionId, cleanTags, cleanText, defaultChapterId, NOTES_MAX, penName } from "./chronicle";
 import { BOARD_SLOTS, jobsOf, jobTitle, pinnedCount, rankName, RENOWN, renownMet, renownNeeded, renownOf, shopOpenNow, tierOf } from "./renown";
-import { rollPool } from "./dice";
+import { LOG_MAX, PLAYER_ROLL_GAP_MS, rollPool, type RollTo } from "./dice";
 import { DM_AUTHOR } from "./types";
 import { applyFight, isFightCommand, startFightFromBeat, type FightHelpers } from "./combatReducer";
 import type { Actor, Beat, BeatAction, Episode, FlyerText, GameState, Item, ItemTier, Job, LedgerEntry, LedgerKind, MapData, Note, Pin, PinLink, Player, Scene, Session, SessionRun, Shop, TradeRequest } from "./types";
@@ -89,6 +89,9 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
     if (sh && sh.visibility === "all" && !isSecretShop(sh)) announce(text);
   };
   const rand = ctx.rand ?? Math.random;
+  const logRoll = (e: NonNullable<GameState["rolls"]>[number]) => {
+    s.rolls = [...(s.rolls ?? []), e].slice(-LOG_MAX);
+  };
   const item = (id: string): Item => s.items.find((x) => x.id === id) ?? fail("That item doesn't exist.");
   /** The session a payment made now covers: the running one, or the next one between sessions. */
   const coversSession = () => s.sessions.find((x) => x.id === s.currentSessionId)?.number ?? nextSessionNumber(s);
@@ -868,9 +871,14 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
     // ---------- The dice tray ----------
     case "dice.roll": {
       const r = rollPool(cmd.dice, cmd.plus, rand);
-      s.diceRoll = { n: ++s.seq, at: ctx.now, ...r };
+      const n = ++s.seq;
+      if (!cmd.secret) s.diceRoll = { n, at: ctx.now, ...r };
+      logRoll({ ...r, n, at: ctx.now, by: null, name: "DM", to: cmd.secret ? "secret" : "tv" });
       break;
     }
+    case "dice.clearLog":
+      delete s.rolls;
+      break;
 
     // ---------- Renown and the bounty board ----------
     case "renown.set": {
@@ -1655,6 +1663,17 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
     }
 
     // ---------- players acting on themselves ----------
+    case "me.diceRoll": {
+      const p = me();
+      const last = (s.rolls ?? []).findLast((x) => x.by === p.id);
+      if (last && ctx.now - last.at < PLAYER_ROLL_GAP_MS) fail("One roll at a time. Try again in a moment.");
+      const r = rollPool(cmd.dice, cmd.plus, rand);
+      const n = ++s.seq;
+      const to: RollTo = cmd.tv ? "tv" : "dm";
+      if (cmd.tv) s.diceRoll = { n, at: ctx.now, ...r, name: p.name };
+      logRoll({ ...r, n, at: ctx.now, by: p.id, name: p.name, to });
+      break;
+    }
     case "me.update": {
       const p = player(ctx.actor.role === "player" ? ctx.actor.playerId : "");
       if (cmd.patch.name !== undefined) p.name = cmd.patch.name.trim() || p.name;

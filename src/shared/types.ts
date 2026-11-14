@@ -1,7 +1,7 @@
 // The whole campaign ("game") lives in one JSON document, plus an append-only ledger.
 // Anything marked DM-ONLY must never reach the TV or a player: see projection.ts.
 
-import type { DiceGroup } from "./dice";
+import type { DiceGroup, RollEntry } from "./dice";
 
 export type SceneKind = "notice" | "portrait" | "handout" | "image" | "black" | "map" | "table" | "stinger";
 
@@ -595,8 +595,10 @@ export interface GameState {
   renown?: number;
   /** The last time Renown went up: the TV plays the moment when n changes. */
   renownMoment?: { rank: number; n: number; at: number };
-  /** The DM's last dice roll on the TV: the TV plays it when n changes. Secret rolls never get here. */
-  diceRoll?: { n: number; at: number; groups: DiceGroup[]; plus: number; total: number };
+  /** The last dice roll on the TV (the DM's or a player's): the TV plays it when n changes. Secret and DM-only rolls never get here. */
+  diceRoll?: { n: number; at: number; groups: DiceGroup[]; plus: number; total: number; /** Set when a player rolled. */ name?: string };
+  /** DM-ONLY: every roll, the DM's and the players', newest last (capped). Players see only their own. */
+  rolls?: RollEntry[];
   /** The Arrival intro's settings. Missing on games made before it. */
   arrival?: ArrivalSettings;
   /** The Chronicle's notes, oldest first. Missing on games made before it; read with notesOf(). */

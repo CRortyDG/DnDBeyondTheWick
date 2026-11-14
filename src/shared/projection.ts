@@ -2,7 +2,7 @@
 // an explicit allow-list, so a new DM-only field can't leak by accident.
 
 import { creditLines, discountPct, firstChargeCp, priceOf, raisedCp, stakeTotals } from "./progress";
-import type { DiceGroup } from "./dice";
+import type { DiceGroup, RollTo } from "./dice";
 import { heldCp, heldStock } from "./requests";
 import { projectTable, type TableView } from "./arrival";
 import { notesOf, penName, projectChronicle, type ChronicleView } from "./chronicle";
@@ -221,8 +221,8 @@ export interface TvView extends Common {
   jobs: PublicJob[];
   /** The last rank-up: the TV plays the moment when n changes. */
   renownMoment?: { rank: number; name: string; n: number };
-  /** The DM's last dice roll: the TV plays it when n changes. */
-  diceRoll?: { n: number; groups: DiceGroup[]; plus: number; total: number };
+  /** The last roll on the TV: the TV plays it when n changes. name: the player who rolled (none: the DM). */
+  diceRoll?: { n: number; groups: DiceGroup[]; plus: number; total: number; name?: string };
   /** Every non-reveal scene (for instant switching), plus the live scene even if it's a reveal. */
   scenes: PublicScene[];
   /** "Previously on…": only while the DM is showing it. The only session text the TV ever gets. */
@@ -272,6 +272,8 @@ export interface PlayerView extends Common {
   chronicle: ChronicleView;
   /** The bounty board: pinned jobs. */
   jobs: MyJob[];
+  /** My own last few dice rolls, newest first. Never anyone else's. */
+  myRolls: { n: number; at: number; groups: DiceGroup[]; plus: number; total: number; to: RollTo }[];
 }
 
 export type DmPlayer = Omit<Player, "keyHash"> & { hasKey: boolean };
@@ -435,7 +437,9 @@ export function projectTv(game: GameState, version: number): TvView {
     flyers: game.flyers.filter((f) => f.up).map((f) => ({ id: f.id, title: f.title, body: f.body, signedBy: f.signedBy, at: f.pinnedAt ?? f.postedAt })),
     jobs: pinnedJobs(game).map((j) => publicJob(game, j)),
     ...(game.renownMoment ? { renownMoment: { rank: game.renownMoment.rank, name: rankName(game.renownMoment.rank), n: game.renownMoment.n } } : {}),
-    ...(game.diceRoll ? { diceRoll: { n: game.diceRoll.n, groups: game.diceRoll.groups, plus: game.diceRoll.plus, total: game.diceRoll.total } } : {}),
+    ...(game.diceRoll
+      ? { diceRoll: { n: game.diceRoll.n, groups: game.diceRoll.groups, plus: game.diceRoll.plus, total: game.diceRoll.total, ...(game.diceRoll.name ? { name: game.diceRoll.name } : {}) } }
+      : {}),
     scenes: game.scenes.filter((sc) => !sc.reveal || sc.id === game.live.sceneId).map((sc) => publicScene(game, sc)),
     recap: publicRecap(game),
     ...(game.scenes.find((sc) => sc.id === game.live.sceneId)?.kind === "table" ? { table: projectTable(game) } : {}),
@@ -492,6 +496,11 @@ export function projectPlayer(game: GameState, version: number, playerId: string
     },
     fight: publicFight(game),
     myFight: myFight(game, p.id),
+    myRolls: (game.rolls ?? [])
+      .filter((r) => r.by === p.id)
+      .slice(-5)
+      .reverse()
+      .map((r) => ({ n: r.n, at: r.at, groups: r.groups, plus: r.plus, total: r.total, to: r.to })),
     myRequests: game.requests
       .filter((r) => r.playerId === p.id)
       .slice(-50)
