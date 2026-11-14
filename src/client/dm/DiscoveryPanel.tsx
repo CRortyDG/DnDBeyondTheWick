@@ -17,6 +17,8 @@ import { Field } from "./Field";
 import { useDm } from "./context";
 import { uploadImage } from "./upload";
 import { makeSilhouette } from "./silhouette";
+import { ShowControls } from "./QuickBar";
+import { entryRef } from "@/shared/assets";
 
 const TV_KEY = "candlefair-discovery-tv";
 
@@ -49,7 +51,8 @@ export function DiscoveryPanel() {
   return (
     <div className="people-panel">
       <p className="note">
-        Players never get hidden entries, locked facts, real names behind nicknames, your notes or secrets. A rumor shows as a silhouette with its nickname (or &ldquo;???&rdquo;) and hint. Showing a person&rsquo;s portrait on the TV for the first time finds them.
+        Players never get hidden entries, locked facts, real names behind nicknames, your notes or secrets. A rumor shows as a silhouette with its nickname (or &ldquo;???&rdquo;) and hint.
+        <b> Show</b> puts it on the TV (a person&rsquo;s picture, a place&rsquo;s spot on its map, a shop&rsquo;s storefront) and finds it if the party hadn&rsquo;t yet; <b>Announce</b> plays its card.
         Notes about an entry are Chronicle notes tagged with its name.
       </p>
       <div className="inline discovery-filters">
@@ -151,8 +154,9 @@ function EntryRow({ entry: e, tv, first, last, open, onToggle }: { entry: Entry;
         <button className="btn small icon" type="button" aria-label={`Move ${e.name} down`} disabled={last} onClick={() => run({ type: "entry.move", entryId: e.id, dir: 1 })}>
           <DownIcon />
         </button>
-        <button className="btn small" type="button" disabled={e.stage === "hidden"} onClick={() => run({ type: "entry.show", entryId: e.id }, "On the TV.")}>
-          Show on TV
+        <ShowControls refName={entryRef(e)} label={e.name} title={isFound(e.stage) ? undefined : "Shows it and finds it"} />
+        <button className="btn small" type="button" disabled={e.stage === "hidden"} title="Play its card on the TV (New face, Rumor, a new fact)" onClick={() => run({ type: "entry.show", entryId: e.id }, "On the TV.")}>
+          Announce
         </button>
         <button className="btn small" type="button" aria-expanded={open} onClick={onToggle}>
           {open ? "Done" : "Edit"}
@@ -169,7 +173,6 @@ function EntryEditor({ entry: e, tv }: { entry: Entry; tv: boolean }) {
   const { view, run, call, ident, toast, gated } = useDm();
   const s = view.state;
   const patch = (p: Patch) => run({ type: "entry.update", entryId: e.id, patch: p });
-  const portraits = s.scenes.filter((x) => x.kind === "portrait");
   const others = entriesOf(s).filter((x) => x.id !== e.id);
   const [fact, setFact] = useState("");
   const [busy, setBusy] = useState(false);
@@ -178,6 +181,19 @@ function EntryEditor({ entry: e, tv }: { entry: Entry; tv: boolean }) {
   const foundChapter = e.foundIn ? s.sessions.find((x) => x.id === e.foundIn)?.number : undefined;
   const sc = e.sceneId ? s.scenes.find((x) => x.id === e.sceneId) : undefined;
   const portraitSrc = artSrc(sc?.art, gated);
+  const picFile = useRef<HTMLInputElement>(null);
+  const setPicture = async (f: File | undefined) => {
+    if (!f) return;
+    setBusy(true);
+    try {
+      const url = await uploadImage(ident, f);
+      if (await run({ type: "entry.picture", entryId: e.id, art: { url } })) toast("Picture saved.");
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "That didn't work.");
+    } finally {
+      setBusy(false);
+    }
+  };
   const players = s.players.filter((p) => !p.archived);
 
   const setSilhouette = async (blob: Blob) => {
@@ -220,17 +236,19 @@ function EntryEditor({ entry: e, tv }: { entry: Entry; tv: boolean }) {
 
       <h4>Picture</h4>
       <div className="inline">
-        <label>
-          Portrait
-          <select className="fld" value={e.sceneId ?? ""} onChange={(ev) => void patch({ sceneId: ev.target.value || null })}>
-            <option value="">No portrait</option>
-            {portraits.map((x) => (
-              <option key={x.id} value={x.id}>
-                {x.label}
-              </option>
-            ))}
-          </select>
-        </label>
+        <span className="silhouette-preview">
+          <Portrait art={sc?.art} gated={gated} name={e.name} kind={e.kind} className="person-face" />
+          <span className="note">{portraitSrc ? "Picture" : "No picture yet"}</span>
+        </span>
+        <button className="btn small" type="button" disabled={busy} onClick={() => picFile.current?.click()}>
+          {portraitSrc ? "Replace picture" : "Upload a picture"}
+        </button>
+        {sc?.art?.url ? (
+          <button className="btn small" type="button" onClick={() => run({ type: "entry.picture", entryId: e.id, art: {} })}>
+            Remove picture
+          </button>
+        ) : null}
+        <input ref={picFile} type="file" accept="image/*" hidden onChange={(ev) => void setPicture(ev.target.files?.[0])} />
         <span className="silhouette-preview">
           <Portrait name={e.name} kind={e.kind} silhouette={e.silhouette} rumored className="person-face" />
           <span className="note">{e.silhouette ? "Silhouette" : "Generic silhouette"}</span>

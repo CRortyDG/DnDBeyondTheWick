@@ -4934,6 +4934,189 @@ input.fld.inline-input {
   font-size: calc(52 * var(--u));
 }
 
+/* ---------- assets: the quick bar, the finder, Show controls ---------- */
+
+.quick {
+  display: grid;
+  gap: 8px;
+}
+.quick-bar {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 8px;
+}
+.quick-slot-wrap {
+  position: relative;
+  display: flex;
+}
+.quick-slot {
+  justify-content: flex-start;
+  text-align: left;
+  width: 100%;
+  gap: 8px;
+  padding-right: 30px;
+  min-width: 0;
+}
+.quick-slot.empty {
+  border-style: dashed;
+  opacity: 0.75;
+  padding-right: 14px;
+}
+.quick-text {
+  display: grid;
+  min-width: 0;
+}
+.quick-label,
+.quick-sub {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.quick-sub {
+  font-size: 13px;
+  color: var(--muted);
+}
+.quick-slot.on .quick-sub {
+  color: var(--parchment-2);
+}
+.quick-x {
+  position: absolute;
+  top: 2px;
+  right: 0;
+  width: 28px;
+  height: 28px;
+  font-size: 16px;
+  opacity: 0.55;
+}
+.quick-x:hover,
+.quick-x:focus-visible {
+  opacity: 1;
+}
+.quick-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+}
+.quick-row .note {
+  margin: 0;
+}
+.quick-recent {
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: inline-block;
+}
+.quick-key-select {
+  width: auto;
+  max-width: 8.5em;
+}
+.ref-code {
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  font-size: 13px;
+  margin-left: 8px;
+}
+.assets-section h3 {
+  margin: 12px 0 6px;
+}
+
+.finder-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  background: rgba(13, 10, 8, 0.6);
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 10vh 16px 16px;
+}
+.finder {
+  width: min(640px, 100%);
+  background: var(--wood);
+  border: 1px solid var(--gold);
+  border-radius: 10px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
+  padding: 12px;
+  display: grid;
+  gap: 8px;
+}
+.finder-input {
+  font-size: 20px;
+  width: 100%;
+}
+.finder-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 55vh;
+  overflow-y: auto;
+}
+.finder-list li {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0 12px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.finder-list li.on {
+  background: var(--wax);
+}
+.finder-list li .note {
+  grid-column: 1;
+  margin: 0;
+  font-size: 14px;
+}
+.finder-list li.on .note {
+  color: var(--parchment-2);
+}
+.finder-label {
+  font-size: 18px;
+}
+.finder-ref {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  align-self: center;
+  font-size: 13px;
+  color: var(--muted);
+}
+.finder-list li.on .finder-ref {
+  color: var(--parchment-2);
+}
+
+.beat-action-chip.suggested {
+  border-style: dashed;
+  opacity: 0.9;
+}
+.beat-action-chip.suggested .linkish {
+  text-decoration: none;
+}
+.beat-also {
+  width: 100%;
+  font-size: 14px;
+}
+.run-onbeat {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+}
+.run-onbeat .note {
+  margin: 0;
+  color: var(--ink-soft);
+}
+.run-onbeat .btn.small {
+  min-height: 36px;
+  padding: 4px 12px;
+}
+
+@media (max-width: 560px) {
+  .finder-ref {
+    display: none;
+  }
+  .quick-bar {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
 /* ---------- the storyboard (DM only) ---------- */
 
 .story-overlay {

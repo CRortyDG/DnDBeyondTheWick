@@ -1,3 +1,4 @@
+import { quickOf } from "@/shared/assets";
 // Map scenes: numbered pins, their positions, and spoiler safety.
 import { beforeEach, describe, expect, it } from "vitest";
 import type { Command } from "@/shared/commands";
@@ -241,12 +242,12 @@ describe("adding the maps to an existing game", () => {
     const cf = g.scenes.find((s) => s.id === "s-map")!;
     expect(cf.kind).toBe("map");
     expect(cf.label).toBe("Candlefair map");
-    expect(cf.hotkey).toBe(6);
+    expect(quickOf(g)[6]).toBe("map/candlefair");
     expect(cf.art?.url).toBe("https://example.com/candlefair.jpg");
     expect(cf.map!.pins).toHaveLength(8);
     const sword = g.scenes.filter((s) => s.label === "Sword Coast map");
     expect(sword).toHaveLength(1);
-    expect(sword[0].hotkey).toBe(9);
+    expect(quickOf(g)[9]).toBe("map/sword-coast");
     expect(sword[0].map!.pins[0].link).toEqual({ kind: "scene", sceneId: "s-map" });
   });
 });

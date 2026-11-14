@@ -9,10 +9,11 @@ import {
   beatMarkdown,
   episodeMarkdown,
   parseEpisode,
-  sceneResolver,
+  assetResolver,
   type ParsedEpisode,
 } from "@/shared/runsheet";
-import type { Beat, BeatAction, Episode, Scene } from "@/shared/types";
+import type { Beat, BeatAction, Episode } from "@/shared/types";
+import { beatSuggestions, listAssets, resolveRef, type AssetGame } from "@/shared/assets";
 import { DownIcon, UpIcon } from "../ui/icons";
 import { useDm } from "./context";
 import { monstersOf } from "@/shared/combat";
@@ -25,7 +26,7 @@ const FORMAT_HELP = `## The toll bridge
 - Notes are bullet lines.
 check: Charisma (Persuasion) DC 12 | talk the toll down | fail: the price doubles
 if: they pay → the troll waves them through
-action: black`;
+show: black`;
 
 export function EpisodesPanel({
   onRun,
@@ -130,7 +131,7 @@ function ImportBox({
   const [md, setMd] = useState("");
   const [into, setInto] = useState<"new" | "replace">("new");
   const parsed: ParsedEpisode | null = md.trim()
-    ? parseEpisode(md, sceneResolver(view.state.scenes))
+    ? parseEpisode(md, assetResolver(view.state))
     : null;
   return (
     <div className="import-box">
@@ -147,8 +148,8 @@ function ImportBox({
       <p className="note">
         Lines: <code>&gt;</code> read-aloud · <code>-</code> note ·{" "}
         <code>check:</code> skill DC n | what | fail: … | success: … ·{" "}
-        <code>if:</code> … → … · <code>action:</code> scene &lt;name&gt;, black
-        or bank · <code>fight:</code> Goblin x2, Orc (monsters from the Monsters tab). A <code># Title</code> line names the episode.
+        <code>if:</code> … → … · <code>show:</code> a name or ref (person/mags, map/candlefair/3, prop/the-symbol, black, stinger) ·{" "}
+        <code>action:</code> bank · <code>reveal:</code> person/fennick · <code>fight:</code> Goblin x2, Orc (monsters from the Monsters tab). A <code># Title</code> line names the episode.
       </p>
       {parsed ? (
         <div className="import-preview">
@@ -239,7 +240,8 @@ function EpisodeEditor({
   const [exporting, setExporting] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [dragId, setDragId] = useState<string | null>(null);
-  const md = exporting ? episodeMarkdown(ep, s.scenes) : "";
+  const md = exporting ? episodeMarkdown(ep, s) : "";
+  const pending = ep.beats.filter((b) => beatSuggestions(s, b).suggested).length;
 
   return (
     <section className="box">
@@ -274,6 +276,11 @@ function EpisodeEditor({
         >
           Export Markdown
         </button>
+        {pending ? (
+          <button className="btn" type="button" title="Each beat with no TV action shows the first thing it mentions" onClick={() => run({ type: "episode.acceptSuggestions", episodeId: ep.id })}>
+            Accept all suggestions ({pending})
+          </button>
+        ) : null}
         {confirmDelete === ep.id ? (
           <button
             className="btn danger"
@@ -367,7 +374,7 @@ function EpisodeEditor({
                   b.checks.length
                     ? `${b.checks.length} check${b.checks.length === 1 ? "" : "s"}`
                     : "",
-                  ...b.actions.map((a) => actionLabel(a, s.scenes)),
+                  ...b.actions.map((a) => actionLabel(a, s)),
                 ]
                   .filter(Boolean)
                   .join(" · ")}
@@ -442,7 +449,8 @@ function EpisodeEditor({
             ) : (
               <ActionsPicker
                 actions={b.actions}
-                scenes={s.scenes}
+                beat={b}
+                onDismiss={(ref) => run({ type: "beat.dismiss", episodeId: ep.id, beatId: b.id, ref })}
                 onChange={(actions) => {
                   const { id: _id, ...body } = b;
                   void run({
@@ -489,10 +497,12 @@ function BeatEditor({
 }) {
   const { view, run } = useDm();
   const [md, setMd] = useState(() =>
-    beat ? beatMarkdown(beat, view.state.scenes) : NEW_BEAT,
+    beat ? beatMarkdown(beat, view.state) : NEW_BEAT,
   );
-  const parsed = parseEpisode(md, sceneResolver(view.state.scenes), "");
-  const one = parsed.beats.length === 1 ? parsed.beats[0] : null;
+  const parsed = parseEpisode(md, assetResolver(view.state), "");
+  const parsedOne = parsed.beats.length === 1 ? parsed.beats[0] : null;
+  // Suggestions you said no to aren't in the Markdown; keep them.
+  const one = parsedOne && beat?.dismissed?.length ? { ...parsedOne, dismissed: beat.dismissed } : parsedOne;
   return (
     <div className="beat-editor">
       <textarea
@@ -505,9 +515,9 @@ function BeatEditor({
       {one ? (
         <ActionsPicker
           actions={one.actions}
-          scenes={view.state.scenes}
+          beat={one}
           onChange={(actions) =>
-            setMd(withActions(md, actions, view.state.scenes))
+            setMd(withActions(md, actions, view.state))
           }
         />
       ) : null}
@@ -560,46 +570,50 @@ function BeatEditor({
   );
 }
 
-/** Swap a beat's "action:" and "fight:" lines for these, keeping everything else as typed. */
+/** Swap a beat's action lines (show, action, fight, reveal, rumor, fact) for these, keeping everything else as typed. */
 function withActions(
   md: string,
   actions: BeatAction[],
-  scenes: Scene[],
+  g: AssetGame,
 ): string {
   const kept = md
     .replace(/\s+$/, "")
     .split("\n")
-    .filter((l) => !/^\s*(?:action|fight)\s*:/i.test(l));
+    .filter((l) => !/^\s*(?:action|fight|show|reveal|rumor|fact)\s*:/i.test(l));
   const lines = actions
-    .map((a) => actionMarkdown(a, scenes))
+    .map((a) => actionMarkdown(a, g))
     .filter((l): l is string => !!l);
   return [...kept, ...lines].join("\n") + "\n";
 }
 
-/** What landing on this beat does to the TV: pick a scene, the black screen or the bank. */
+/** What landing on this beat does to the TV: show something, the bank, a fight. Plus what its words suggest. */
 function ActionsPicker({
   actions,
-  scenes,
+  beat,
   onChange,
+  onDismiss,
 }: {
   actions: BeatAction[];
-  scenes: Scene[];
+  beat?: Pick<Beat, "title" | "readAloud" | "notes" | "checks" | "branches" | "actions" | "dismissed">;
   onChange: (a: BeatAction[]) => void;
+  /** No: don't suggest this again (saved beats only). */
+  onDismiss?: (ref: string) => void;
 }) {
   const [pick, setPick] = useState("");
   const { view } = useDm();
-  const monsters = monstersOf(view.state);
+  const g = view.state;
+  const monsters = monstersOf(g);
+  const assets = listAssets(g);
+  const groups = [...new Set(assets.map((a) => a.group))];
+  const sugg = beat ? beatSuggestions(g, { ...beat, actions }) : null;
+  const suggested = sugg?.suggested ? resolveRef(g, sugg.suggested) : null;
   const add = (v: string) => {
     if (!v) return;
     const a: BeatAction = v.startsWith("fight:")
       ? { type: "fight", monsters: [{ name: v.slice(6), count: 1 }] }
-      : v === "black"
-        ? { type: "black" }
-        : v === "bank"
-          ? { type: "bank" }
-          : v === "stinger"
-            ? { type: "stinger" }
-          : { type: "scene", sceneId: v.slice(6) };
+      : v === "bank"
+        ? { type: "bank" }
+        : { type: "show", ref: v.slice(5) };
     onChange([...actions, a]);
     setPick("");
   };
@@ -610,20 +624,42 @@ function ActionsPicker({
       aria-label="TV actions when you land on this beat"
     >
       <span className="note">On landing:</span>
-      {actions.length ? null : <span className="note">nothing on the TV</span>}
+      {actions.length || suggested ? null : <span className="note">nothing on the TV</span>}
       {actions.map((a, i) => (
         <span key={i} className="beat-action-chip">
-          {actionLabel(a, scenes)}
+          {actionLabel(a, g)}
           <button
             type="button"
             className="chip-x"
-            aria-label={`Remove ${actionLabel(a, scenes)}`}
+            aria-label={`Remove ${actionLabel(a, g)}`}
             onClick={() => onChange(actions.filter((_, j) => j !== i))}
           >
             ×
           </button>
         </span>
       ))}
+      {suggested && actions.length < 10 ? (
+        <span className="beat-action-chip suggested">
+          <button
+            type="button"
+            className="linkish"
+            title={`Add “show: ${suggested.ref}”: the beat mentions it`}
+            onClick={() => onChange([...actions, { type: "show", ref: suggested.ref }])}
+          >
+            Suggested: {suggested.label} ✓
+          </button>
+          {onDismiss ? (
+            <button
+              type="button"
+              className="chip-x"
+              aria-label={`Don't suggest ${suggested.label} here`}
+              onClick={() => onDismiss(suggested.ref)}
+            >
+              ×
+            </button>
+          ) : null}
+        </span>
+      ) : null}
       {actions.length < 10 ? (
         <select
           className="fld small-select"
@@ -632,17 +668,17 @@ function ActionsPicker({
           onChange={(e) => add(e.target.value)}
         >
           <option value="">+ Add a TV action…</option>
-          <optgroup label="Show a scene">
-            {scenes
-              .filter((sc) => sc.kind !== "black" && sc.kind !== "stinger")
-              .map((sc) => (
-                <option key={sc.id} value={`scene:${sc.id}`}>
-                  {sc.label}
-                </option>
-              ))}
-          </optgroup>
-          <option value="black">Black screen</option>
-          <option value="stinger">Play the stinger (animated)</option>
+          {groups.map((grp) => (
+            <optgroup key={grp} label={`Show: ${grp.toLowerCase()}`}>
+              {assets
+                .filter((a) => a.group === grp)
+                .map((a) => (
+                  <option key={a.ref} value={`show:${a.ref}`}>
+                    {a.label}
+                  </option>
+                ))}
+            </optgroup>
+          ))}
           <option value="bank">
             Bank (purse on the TV, bank on your screen)
           </option>
@@ -656,6 +692,11 @@ function ActionsPicker({
             </optgroup>
           ) : null}
         </select>
+      ) : null}
+      {sugg?.also.length ? (
+        <span className="note beat-also">
+          Also mentioned (Shift+number while it runs): {sugg.also.map((r) => resolveRef(g, r)?.label ?? r).join(", ")}
+        </span>
       ) : null}
     </div>
   );
