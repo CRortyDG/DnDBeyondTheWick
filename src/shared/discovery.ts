@@ -24,6 +24,8 @@ export const FACT_MAX = 600;
 export const DM_TEXT_MAX = 4000;
 export const AREAS_MAX = 8;
 export const LINKS_MAX = 20;
+export const LEAD_MAX = 300;
+export const LEADS_MAX = 100;
 
 export const STAGES: Stage[] = ["hidden", "rumored", "found", "known"];
 export const STAGE_IDS = STAGES as [Stage, ...Stage[]];

@@ -1,6 +1,7 @@
 // Spoiler safety lives here. Each role gets a view built field-by-field from
 // an explicit allow-list, so a new DM-only field can't leak by accident.
 
+import { leadsView, type LeadsView } from "./leads";
 import { creditLines, discountPct, firstChargeCp, priceOf, raisedCp, stakeTotals } from "./progress";
 import type { DiceGroup } from "./dice";
 import { heldCp, heldStock } from "./requests";
@@ -215,7 +216,9 @@ interface Common {
 
 export interface TvView extends Common {
   role: "tv";
-  live: Pick<LiveState, "sceneId" | "shopOpen" | "shopId" | "purseVisible" | "shopCategory">;
+  live: Pick<LiveState, "sceneId" | "shopOpen" | "shopId" | "purseVisible" | "shopCategory" | "leads">;
+  /** Leads the party can see, the vote, and "You chose". */
+  leads: LeadsView;
   /** Approved player flyers, while they're up. */
   flyers: PublicFlyer[];
   /** Pinned job flyers. */
@@ -277,6 +280,8 @@ export interface PlayerView extends Common {
   jobs: MyJob[];
   /** Discovery: rumored, found and known entries only; revealed facts only. */
   entries: PublicEntry[];
+  /** Leads the party can see, the vote (with this player's ballot), and "You chose". */
+  leads: LeadsView;
 }
 
 export type DmPlayer = Omit<Player, "keyHash"> & { hasKey: boolean };
@@ -439,7 +444,8 @@ export function projectTv(game: GameState, version: number): TvView {
   return {
     ...common(game, version, { tv: true }),
     role: "tv",
-    live: { sceneId: game.live.sceneId, ...liveShop(game, { tv: true }), purseVisible: game.live.purseVisible, ...(game.live.shopCategory ? { shopCategory: game.live.shopCategory } : {}) },
+    live: { sceneId: game.live.sceneId, ...liveShop(game, { tv: true }), purseVisible: game.live.purseVisible, ...(game.live.shopCategory ? { shopCategory: game.live.shopCategory } : {}), ...(game.live.leads ? { leads: true } : {}) },
+    leads: leadsView(game, Date.now()),
     flyers: game.flyers.filter((f) => f.up).map((f) => ({ id: f.id, title: f.title, body: f.body, signedBy: f.signedBy, at: f.pinnedAt ?? f.postedAt })),
     jobs: pinnedJobs(game).map((j) => publicJob(game, j)),
     ...(game.renownMoment ? { renownMoment: { rank: game.renownMoment.rank, name: rankName(game.renownMoment.rank), n: game.renownMoment.n } } : {}),
@@ -536,6 +542,7 @@ export function projectPlayer(game: GameState, version: number, playerId: string
       return out;
     }),
     entries: publicEntries(game, p.id),
+    leads: leadsView(game, Date.now(), p.id),
   };
 }
 

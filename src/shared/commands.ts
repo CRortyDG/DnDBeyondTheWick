@@ -3,7 +3,7 @@ import { CATEGORY_IDS, KIND_IDS } from "./progress";
 import { RENOWN_MAX } from "./renown";
 import { DIE_SIDES, diceCount, MAX_DICE, MAX_OF_ONE, MAX_PLUS } from "./dice";
 import { fightDmCommands, fightPlayerCommands } from "./combatSchema";
-import { AREAS_MAX, DM_TEXT_MAX, FACT_MAX, HINT_MAX, LINKS_MAX, NAME_MAX, RELATION_IDS, STAGE_IDS, SUMMARY_MAX, TITLE_MAX } from "./discovery";
+import { AREAS_MAX, DM_TEXT_MAX, LEAD_MAX, FACT_MAX, HINT_MAX, LINKS_MAX, NAME_MAX, RELATION_IDS, STAGE_IDS, SUMMARY_MAX, TITLE_MAX } from "./discovery";
 
 const id = z.string().min(1).max(64);
 const text = (max: number) => z.string().max(max);
@@ -268,6 +268,23 @@ export const dmCommand = z.discriminatedUnion("type", [
   /** Revealing a fact makes the entry Known. tv: also show it on the TV. */
   z.object({ type: z.literal("entry.factReveal"), entryId: id, factId: id, revealed: z.boolean(), tv: z.boolean().optional() }),
 
+  z.object({ type: z.literal("lead.add"), text: text(LEAD_MAX).min(1), entryId: id.optional(), placeId: id.optional(), jobId: id.optional(), shown: z.boolean().optional() }),
+  z.object({
+    type: z.literal("lead.update"),
+    leadId: id,
+    patch: z.object({ text: text(LEAD_MAX).min(1), entryId: id.nullable(), placeId: id.nullable(), jobId: id.nullable(), shown: z.boolean(), dmNote: text(DM_TEXT_MAX) }).partial(),
+  }),
+  z.object({ type: z.literal("lead.status"), leadId: id, status: z.enum(["open", "followed", "closed"]) }),
+  z.object({ type: z.literal("lead.remove"), leadId: id }),
+  z.object({ type: z.literal("lead.move"), leadId: id, dir: updown }),
+  /** Minutes: closes by itself that long from now. */
+  z.object({ type: z.literal("vote.open"), leadIds: z.array(id).min(2).max(3), minutes: z.number().int().min(1).max(10080).optional() }),
+  z.object({ type: z.literal("vote.close") }),
+  /** The DM's pick: breaks a tie, or overrides. */
+  z.object({ type: z.literal("vote.pick"), leadId: id }),
+  z.object({ type: z.literal("vote.clear") }),
+  z.object({ type: z.literal("live.leads"), on: z.boolean() }),
+
   z.object({ type: z.literal("episode.add"), title: text(160), beats: z.array(beatBody).max(200).optional() }),
   z.object({ type: z.literal("episode.update"), episodeId: id, title: text(160).min(1) }),
   z.object({ type: z.literal("episode.replaceBeats"), episodeId: id, beats: z.array(beatBody).max(200) }),
@@ -334,6 +351,7 @@ export const playerCommand = z.discriminatedUnion("type", [
   /** "Take this job": asks the DM. */
   z.object({ type: z.literal("me.takeJob"), jobId: id, note: text(120) }),
   // The Chronicle: players write notes and edit, move or delete their own.
+  z.object({ type: z.literal("me.vote"), leadId: id }),
   z.object({ type: z.literal("me.noteAdd"), text: noteText, tags: noteTags.optional(), chapterId: id.optional() }),
   z.object({ type: z.literal("me.noteUpdate"), noteId: id, patch: notePatch }),
   z.object({ type: z.literal("me.noteRemove"), noteId: id }),

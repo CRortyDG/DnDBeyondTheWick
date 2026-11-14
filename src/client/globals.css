@@ -4700,3 +4700,181 @@ input.fld.inline-input {
 .people-list .scene-label {
   min-width: 0;
 }
+
+/* ---------- leads and votes ---------- */
+.lead-group h3 {
+  margin: 12px 0 4px;
+  font-size: 1rem;
+  color: var(--gold);
+}
+.lead-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+.lead {
+  display: grid;
+  gap: 2px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: var(--parchment);
+  color: var(--ink);
+}
+.lead-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  color: var(--ink-soft);
+}
+.lead-status-followed {
+  font-weight: 600;
+  color: #2f6b3a;
+}
+.lead.lead-closed {
+  opacity: 0.6;
+}
+.lead-closed summary {
+  margin-top: 10px;
+  cursor: pointer;
+}
+.vote-card {
+  border: 2px solid var(--gold);
+  border-radius: 10px;
+  padding: 12px;
+  margin-bottom: 12px;
+}
+.vote-card h3 {
+  margin: 0 0 4px;
+}
+.vote-options {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+.vote-option {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 2px 10px;
+  text-align: left;
+  align-items: center;
+}
+.vote-option .vote-count {
+  font-size: 1.4rem;
+  font-weight: 700;
+  grid-row: span 2;
+}
+.vote-option .vote-who,
+.vote-option .badge {
+  grid-column: 1;
+  justify-self: start;
+}
+.vote-option.mine {
+  border-color: var(--gold-bright);
+  box-shadow: 0 0 0 2px var(--gold-bright) inset;
+}
+.vote-option.won {
+  background: #2f4a2c;
+}
+.vote-box .vote-options li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  align-items: center;
+}
+.vote-box .vote-options li.won strong {
+  color: var(--gold-bright);
+}
+.lead-item.lead-closed {
+  opacity: 0.65;
+}
+.tv-leads {
+  position: absolute;
+  inset: 0;
+  z-index: 12;
+  display: grid;
+  place-items: center;
+  background: rgba(13, 10, 8, 0.72);
+  animation: fade-in 0.6s ease both;
+}
+.tv-leads-sheet {
+  width: calc(1500 * var(--u));
+  max-height: calc(960 * var(--u));
+  overflow: hidden;
+  background: var(--parchment);
+  color: var(--ink);
+  border-radius: calc(4 * var(--u));
+  padding: calc(50 * var(--u)) calc(70 * var(--u));
+  box-shadow: 0 calc(24 * var(--u)) calc(70 * var(--u)) rgba(0, 0, 0, 0.6);
+  font-size: calc(34 * var(--u));
+}
+.tv-leads-groups {
+  columns: 2;
+  column-gap: calc(60 * var(--u));
+}
+.tv-leads-group {
+  break-inside: avoid;
+  margin-bottom: calc(24 * var(--u));
+}
+.tv-leads-group h3 {
+  font-family: var(--font-sc);
+  color: var(--wax, #8a2b1f);
+  margin: 0 0 calc(8 * var(--u));
+  font-size: calc(40 * var(--u));
+}
+.tv-leads-group ul {
+  margin: 0;
+  padding-left: calc(30 * var(--u));
+}
+.tv-lead-status {
+  font-style: italic;
+  color: #2f6b3a;
+}
+.tv-vote {
+  margin-bottom: calc(30 * var(--u));
+}
+.tv-vote-options {
+  list-style: none;
+  padding: 0;
+  margin: calc(12 * var(--u)) 0 0;
+  display: grid;
+  gap: calc(12 * var(--u));
+}
+.tv-vote-options li {
+  display: flex;
+  gap: calc(24 * var(--u));
+  align-items: center;
+  padding: calc(10 * var(--u)) calc(20 * var(--u));
+  border: calc(2 * var(--u)) solid rgba(0, 0, 0, 0.15);
+  border-radius: calc(10 * var(--u));
+  transition: background 0.4s;
+}
+.tv-vote-options li.won {
+  background: rgba(214, 164, 60, 0.35);
+  border-color: var(--gold);
+}
+.tv-vote-count {
+  font-family: var(--font-sc);
+  font-size: calc(64 * var(--u));
+  min-width: calc(70 * var(--u));
+  text-align: center;
+}
+.tv-vote-text {
+  display: grid;
+}
+.tv-vote-place {
+  display: inline;
+  font-style: italic;
+  color: var(--ink-soft);
+}
+.tv-vote-who {
+  font-size: calc(26 * var(--u));
+  color: var(--ink-soft);
+}
+.disc-moment.chosen .disc-name {
+  font-size: calc(72 * var(--u));
+}

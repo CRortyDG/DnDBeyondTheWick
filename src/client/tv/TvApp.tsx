@@ -12,6 +12,7 @@ import { Notice } from "../ui/Notice";
 import { BannerToast } from "../ui/BannerToast";
 import { RenownMoment } from "../ui/RenownMoment";
 import { DiscoveryMoment } from "../ui/DiscoveryMoment";
+import { ChosenMoment, LeadsBoard } from "../ui/LeadsBoard";
 import { useTvSound } from "../ui/tvSound";
 import { FightOverlay } from "../ui/FightOverlay";
 import { DiceRoll } from "../ui/DiceRoll";
@@ -96,9 +97,11 @@ function TvScreen({ view, online }: { view: TvView; online: boolean }) {
         </div>
       ) : null}
 
+      {view.live.leads && !fighting && !view.recap ? <LeadsBoard leads={view.leads} /> : null}
+
       {view.fight ? <FightOverlay fight={view.fight} /> : null}
 
-      <Purse players={view.purse} visible={view.live.purseVisible && !fighting} size="tv" />
+      <Purse players={view.purse} visible={view.live.purseVisible && !fighting && !view.live.leads} size="tv" />
 
       <BannerToast banner={view.banner} className="tv-banner" />
 
@@ -106,6 +109,7 @@ function TvScreen({ view, online }: { view: TvView; online: boolean }) {
 
       <RenownMoment moment={view.renownMoment} />
       <DiscoveryMoment moment={view.discovery} />
+      <ChosenMoment chosen={view.leads.chosen} />
 
       {showOffline ? (
         <div className="tv-offline" role="status">

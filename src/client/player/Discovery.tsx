@@ -9,6 +9,7 @@ import type { PlayerView } from "@/shared/projection";
 import { kindInfo, KINDS, relationLabel, stageLabel, type PublicEntry } from "@/shared/discovery";
 import { PersonNotes, notesAbout } from "../ui/PersonNotes";
 import { Portrait } from "../ui/Portrait";
+import { Leads } from "./Leads";
 
 type Send = (c: object) => Promise<string | null>;
 
@@ -68,14 +69,18 @@ export function Discovery({ view, send, seen }: { view: PlayerView; send: Send; 
 
   if (!sections.length) {
     return (
-      <section className="box">
-        <h2>Discoveries</h2>
-        <p className="note">Nothing yet. The people, places and secrets of Candlefair turn up here as you find them.</p>
-      </section>
+      <>
+        <Leads leads={view.leads} send={send} />
+        <section className="box">
+          <h2>Discoveries</h2>
+          <p className="note">Nothing yet. The people, places and secrets of Candlefair turn up here as you find them.</p>
+        </section>
+      </>
     );
   }
   return (
     <>
+      <Leads leads={view.leads} send={send} />
       {sections.map(({ k, list }) => {
         const info = kindInfo(k);
         const found = list.filter((e) => e.stage !== "rumored").length;

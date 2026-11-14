@@ -349,6 +349,11 @@ export function freshStart(g: GameState): GameState {
     const pin = e.pin && s.scenes.find((x) => x.id === e.pin!.sceneId)?.map?.pins.find((p) => p.id === e.pin!.pinId);
     if (pin) pin.discovered = e.stage !== "hidden";
   }
+  // Leads open again; no vote, no "You chose".
+  s.leads = (s.leads ?? []).map((l) => ({ ...l, status: "open" as const }));
+  delete s.vote;
+  delete s.chosen;
+  delete s.live.leads;
   const home = s.scenes.find((x) => x.kind === "notice" && !x.reveal) ?? s.scenes.find((x) => !x.reveal) ?? s.scenes[0];
   if (home) s.live.sceneId = home.id;
   s.live.shopOpen = false;

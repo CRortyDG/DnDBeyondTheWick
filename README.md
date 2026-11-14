@@ -179,6 +179,12 @@ One compendium for everything the party can find: people, places, shops, monster
 - **Ties** link entries together; players see a tie only when both ends are visible to them.
 - **Phones** get a **Discover** tab with a "new" badge for anything changed since they last looked, each entry's facts, and the table's notes (Chronicle notes tagged with the entry's name). Hidden entries, locked facts, real names behind nicknames, DM notes and secrets never leave your screen.
 
+## Leads and votes
+
+- **DM view → Leads:** threads the party can pull on. Each can be about an entry, point to a place, and be tied to a job flyer. Leads go Open → Followed → Closed. New leads start as drafts; tick **Shown** when the party learns of one. Players never see a draft, your note, or a lead about something still hidden. A rumored place or person reads as its hint.
+- **Phones** list leads in the Discover tab, grouped by place. **Leads board on the TV** puts the same list over the scene.
+- **Votes:** tick two or three shown leads and open a vote, with an optional time limit. Each player gets one vote and can change it until the vote closes, and everyone sees the count live. The vote closes when you press **Close now**, or by itself at its time (on the next thing anyone does). A tie waits for you to break it, and you can always pick a different lead. The chosen lead becomes Followed, and the TV shows "You chose: …" at the start of the next session.
+
 ## Running a session (run-game mode)
 
 - **DM view → Run game** starts (or resumes) a session for an episode and opens the presenter view: the current beat big, the next one underneath, every beat in a side list (a drawer on phones).

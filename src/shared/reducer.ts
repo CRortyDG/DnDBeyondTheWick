@@ -14,10 +14,11 @@ import { starterById } from "./starters";
 import { chapterSessionId, cleanTags, cleanText, defaultChapterId, NOTES_MAX, penName } from "./chronicle";
 import { BOARD_SLOTS, jobsOf, jobTitle, pinnedCount, rankName, RENOWN, renownMet, renownNeeded, renownOf, shopOpenNow, tierOf } from "./renown";
 import { rollPool } from "./dice";
-import { blankEntry, ENTRIES_MAX, entriesForScene, entriesOf, entryFromScene, entryScene, entryTags, factSlug, FACTS_MAX, isFound, slugify, uniqueSlug } from "./discovery";
+import { leadsOf, leadVisible, tally, voteClosed } from "./leads";
+import { blankEntry, ENTRIES_MAX, LEADS_MAX, entriesForScene, entriesOf, entryFromScene, entryScene, entryTags, factSlug, FACTS_MAX, isFound, slugify, uniqueSlug } from "./discovery";
 import { DM_AUTHOR } from "./types";
 import { applyFight, isFightCommand, startFightFromBeat, type FightHelpers } from "./combatReducer";
-import type { Actor, Beat, BeatAction, Entry, EntryFact, Episode, FlyerText, Stage, GameState, Item, ItemTier, Job, LedgerEntry, LedgerKind, MapData, Note, Pin, PinLink, Player, Scene, Session, SessionRun, Shop, TradeRequest } from "./types";
+import type { Actor, Beat, BeatAction, Entry, EntryFact, Episode, FlyerText, Stage, GameState, Item, ItemTier, Job, Lead, LedgerEntry, LedgerKind, MapData, Note, Pin, PinLink, Player, Scene, Session, SessionRun, Shop, TradeRequest, Vote } from "./types";
 import type { z } from "zod";
 
 export class CommandError extends Error {
@@ -49,6 +50,7 @@ export interface Result {
   /** Created discovery entry / fact id. */
   entryId?: string;
   factId?: string;
+  leadId?: string;
   /** Created episode / beat ids. */
   episodeId?: string;
   beatId?: string;
@@ -672,6 +674,27 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
     if (s.live.banner?.pinId === pinId) delete s.live.banner;
   };
 
+  // ---------- leads and votes ----------
+  const lead = (id: string): Lead => leadsOf(s).find((l) => l.id === id) ?? fail("That lead isn't there any more.");
+  const checkEntry = (id: string | null | undefined, kind?: string) => {
+    if (!id) return;
+    const e = entriesOf(s).find((x) => x.id === id) ?? fail("That isn't in the compendium.");
+    if (kind && e.kind !== kind) fail("Pick a place.");
+  };
+  /** Close the vote: one winner is followed; a tie waits for the DM. */
+  const closeVote = (v: Vote, at: number) => {
+    if (v.closedAt !== undefined) return;
+    v.closedAt = at;
+    const t = tally(v);
+    if (t.winnerId) {
+      v.winnerId = t.winnerId;
+      const l = leadsOf(s).find((x) => x.id === t.winnerId);
+      if (l && l.status === "open") l.status = "followed";
+    } else v.tied = t.tied;
+  };
+  // A vote whose time is up closes on the next thing anyone does.
+  if (s.vote && s.vote.closedAt === undefined && s.vote.closesAt !== undefined && ctx.now >= s.vote.closesAt) closeVote(s.vote, s.vote.closesAt);
+
   if (isFightCommand(cmd)) {
     const wasOver = s.fight?.status === "over";
     applyFight(s, cmd, fightHelpers);
@@ -1275,6 +1298,12 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
     case "session.start": {
       if (s.currentSessionId) fail("A session is already running. End it first.");
       startSession(cmd.title);
+      // "You chose: …" for the lead the party voted to follow, once.
+      const v = s.vote;
+      if (v?.winnerId && !v.played) {
+        v.played = true;
+        s.chosen = { leadId: v.winnerId, n: ++s.seq, at: ctx.now };
+      }
       break;
     }
     case "session.end": {
@@ -1537,6 +1566,105 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
       }
       break;
     }
+    case "lead.add": {
+      const list = (s.leads ??= []);
+      if (list.length >= LEADS_MAX) fail("That's a lot of leads. Close some first.");
+      checkEntry(cmd.entryId);
+      checkEntry(cmd.placeId, "place");
+      if (cmd.jobId) (s.jobs ?? []).find((j) => j.id === cmd.jobId) ?? fail("That flyer isn't there any more.");
+      const l: Lead = { id: nextId("l"), text: cleanLine(cmd.text), shown: cmd.shown ?? true, status: "open", createdAt: ctx.now, dmNote: "" };
+      if (!l.text) fail("Write the lead.");
+      if (cmd.entryId) l.entryId = cmd.entryId;
+      if (cmd.placeId) l.placeId = cmd.placeId;
+      if (cmd.jobId) l.jobId = cmd.jobId;
+      list.push(l);
+      out.leadId = l.id;
+      break;
+    }
+    case "lead.update": {
+      const l = lead(cmd.leadId);
+      const p = cmd.patch;
+      if (p.text !== undefined) l.text = cleanLine(p.text) || l.text;
+      if (p.shown !== undefined) l.shown = p.shown;
+      if (p.dmNote !== undefined) l.dmNote = p.dmNote.trim();
+      if (p.entryId !== undefined) {
+        checkEntry(p.entryId);
+        if (p.entryId) l.entryId = p.entryId;
+        else delete l.entryId;
+      }
+      if (p.placeId !== undefined) {
+        checkEntry(p.placeId, "place");
+        if (p.placeId) l.placeId = p.placeId;
+        else delete l.placeId;
+      }
+      if (p.jobId !== undefined) {
+        if (p.jobId) l.jobId = ((s.jobs ?? []).find((j) => j.id === p.jobId) ?? fail("That flyer isn't there any more.")).id;
+        else delete l.jobId;
+      }
+      break;
+    }
+    case "lead.status":
+      lead(cmd.leadId).status = cmd.status;
+      break;
+    case "lead.remove": {
+      lead(cmd.leadId);
+      if (s.vote && s.vote.closedAt === undefined && s.vote.leadIds.includes(cmd.leadId)) fail("It's in the vote. Clear the vote first.");
+      s.leads = leadsOf(s).filter((l) => l.id !== cmd.leadId);
+      if (s.chosen?.leadId === cmd.leadId) delete s.chosen;
+      break;
+    }
+    case "lead.move": {
+      const list = leadsOf(s);
+      const i = list.findIndex((x) => x.id === cmd.leadId);
+      if (i < 0) fail("That lead isn't there any more.");
+      const j = i + cmd.dir;
+      if (j >= 0 && j < list.length) [list[i], list[j]] = [list[j], list[i]];
+      break;
+    }
+    case "vote.open": {
+      if (s.vote && s.vote.closedAt === undefined) fail("A vote is already open. Close it first.");
+      const ids = [...new Set(cmd.leadIds)];
+      if (ids.length < 2) fail("Pick two or three leads.");
+      for (const id of ids) {
+        const l = lead(id);
+        if (!leadVisible(s, l)) fail(`Show "${l.text}" to the party first.`);
+        if (l.status === "closed") fail(`"${l.text}" is closed.`);
+      }
+      s.vote = { id: nextId("v"), leadIds: ids, openedAt: ctx.now, ballots: {}, ...(cmd.minutes ? { closesAt: ctx.now + cmd.minutes * 60_000 } : {}) };
+      break;
+    }
+    case "vote.close": {
+      const v = s.vote ?? fail("There's no vote.");
+      closeVote(v, ctx.now);
+      break;
+    }
+    case "vote.pick": {
+      const v = s.vote ?? fail("There's no vote.");
+      if (!v.leadIds.includes(cmd.leadId)) fail("That lead isn't in the vote.");
+      closeVote(v, ctx.now);
+      const was = v.winnerId && leadsOf(s).find((l) => l.id === v.winnerId);
+      if (was && was.id !== cmd.leadId && was.status === "followed") was.status = "open";
+      v.winnerId = cmd.leadId;
+      delete v.tied;
+      const l = lead(cmd.leadId);
+      if (l.status === "open") l.status = "followed";
+      break;
+    }
+    case "vote.clear":
+      delete s.vote;
+      break;
+    case "live.leads":
+      s.live.leads = cmd.on || undefined;
+      break;
+    case "me.vote": {
+      const p = me();
+      const v = s.vote ?? fail("There's no vote right now.");
+      if (voteClosed(v, ctx.now)) fail("The vote has closed.");
+      if (!v.leadIds.includes(cmd.leadId)) fail("That isn't one of the choices.");
+      v.ballots[p.id] = cmd.leadId;
+      break;
+    }
+
     case "me.noteAdd": {
       const p = me();
       addNote(p.id, penName(p), cmd.text, cmd.tags, cmd.chapterId);

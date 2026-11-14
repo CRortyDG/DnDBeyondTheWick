@@ -544,6 +544,45 @@ export interface Entry {
   secrets: string;
 }
 
+// ---------- leads and votes ----------
+
+export type LeadStatus = "open" | "followed" | "closed";
+
+export interface Lead {
+  id: string;
+  /** "Who's buying all the lantern oil?" */
+  text: string;
+  /** Players see it. Unshown leads are the DM's drafts. */
+  shown: boolean;
+  status: LeadStatus;
+  /** What it's about (any entry). Players see the lead only once that entry isn't hidden. */
+  entryId?: string;
+  /** Where it points (a place entry). The TV and phones group leads by it. */
+  placeId?: string;
+  /** Its job flyer, shown once the flyer is on the board. */
+  jobId?: string;
+  createdAt: number;
+  /** DM-ONLY */
+  dmNote: string;
+}
+
+export interface Vote {
+  id: string;
+  /** 2 or 3 leads. */
+  leadIds: string[];
+  openedAt: number;
+  /** Closes by itself at this time (checked on the next command). */
+  closesAt?: number;
+  /** One per player, by player id. Changeable until it closes. */
+  ballots: Record<string, string>;
+  closedAt?: number;
+  winnerId?: string;
+  /** A tie, for the DM to break. */
+  tied?: string[];
+  /** The "You chose" card has played at a session start. */
+  played?: boolean;
+}
+
 // ---------- run-game (all DM-ONLY) ----------
 
 export type BeatAction =
@@ -626,6 +665,8 @@ export interface LiveState {
   banner?: { pinId: string; n: number };
   /** The TV shop shows this category instead of a storefront. */
   shopCategory?: ItemCategory;
+  /** The leads board is up on the TV, over the scene. */
+  leads?: boolean;
 }
 
 export interface GameState {
@@ -681,6 +722,12 @@ export interface GameState {
   entries?: Entry[];
   /** The last reveal the TV should play. n changes each time. from: the stage it moved from. */
   discovery?: { entryId: string; n: number; factId?: string; from?: Stage; at: number };
+  /** Threads the party can pull on. */
+  leads?: Lead[];
+  /** The party's vote on what to follow next. One at a time. */
+  vote?: Vote;
+  /** "You chose: …" on the TV at the start of a session. n changes each time. */
+  chosen?: { leadId: string; n: number; at: number };
   /** DM-ONLY: monster templates for combat mode. Missing on games made before it; read with monstersOf(). */
   monsters?: MonsterTemplate[];
   /** The fight in progress, if any. Only fightView() projections of it ever leave the server for the TV or a phone. */
