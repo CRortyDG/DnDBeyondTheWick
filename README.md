@@ -94,10 +94,10 @@ In the DM view, **Open TV window** pops the TV page out. Drag it onto the TV and
 
 | Where | Keys |
 | --- | --- |
-| DM view | `0`–`9` scenes · `←` `→` step (while the shop is open: flip shops) · `S` shop on the TV · `P` purse · `B` bank · `T` The Table (Arrival) · `I` requests from phones · `L` map legend · `Esc` closes the requests drawer, then the shop, then zooms a map back out |
+| DM view | `D` dice · `0`–`9` scenes · `←` `→` step (while the shop is open: flip shops) · `S` shop on the TV · `P` purse · `B` bank · `T` The Table (Arrival) · `I` requests from phones · `L` map legend · `Esc` closes the requests drawer, then the shop, then zooms a map back out |
 | Map editor | click the map to drop a pin · drag to move · `←` `↑` `→` `↓` nudge (Shift: bigger steps) · `Delete` removes · `Ctrl+Z` undo · `Esc` deselects, then closes |
-| Fight screen | `Space` next turn · `Shift+Space` previous · digits type an amount · `Enter` damages the picked rows · `Shift+Enter` heals them · `Esc` clears the amount, then the picks |
-| Run-game mode | `Space` or `→` next beat · `Shift+Space` or `←` back · `0`–`9` `S` `P` `T` as above · `B` opens the bank on top · `I` requests · `Esc` closes whatever is on top |
+| Fight screen | `D` dice · `Space` next turn · `Shift+Space` previous · digits type an amount · `Enter` damages the picked rows · `Shift+Enter` heals them · `Esc` clears the amount, then the picks |
+| Run-game mode | `D` dice · `Space` or `→` next beat · `Shift+Space` or `←` back · `0`–`9` `S` `P` `T` as above · `B` opens the bank on top · `I` requests · `Esc` closes whatever is on top |
 | TV | `F` fullscreen · `H` hide the control bar |
 
 ## How it's built
@@ -184,6 +184,15 @@ For in-person fights: no grid, no tokens. The point is faster turns: everyone al
 - **End fight** shows "The fight is over" on the TV (rounds and who went down). Then the loot step pays coins into purses through the ledger (evenly or by player), notes any items, writes an editable Chronicle line, keeps a summary under Monsters → Past fights, and puts the TV back on the scene from before.
 - **Monsters tab:** templates with AC, HP (`21` or `6d6`, rolled per monster), initiative bonus, speed, attacks, abilities (recharge, uses per day, on-death reminder), resistances, immunities, notes, a DM note (shown when a fight with it starts) and an optional portrait. The Pudding Gremlin is seeded on the server, like the seed run sheet, so its stat block never ships to the TV or phones.
 - Everything lives in the campaign's room, so a refresh on any screen comes back to the same turn. Player HP stays with the player between fights.
+
+## Dice
+
+**Dice** (in the DM header, the fight screen and run-game mode, or press `D`) opens a tray of d4, d6, d8, d10, d12, d20 and d100. Tap a die to add one (the badge counts them, `−` takes one away), set a modifier, then:
+
+- **Roll on the TV**: the server rolls, and the dice tumble onto the TV over whatever is showing (fights included), land one by one, then the total. A lone d20 calls out a natural 20 or natural 1. It clears itself after a few seconds; phones don't see it.
+- **Roll secretly**: rolled on the DM's device only; nothing is sent anywhere.
+
+The tray keeps your picks, so the same roll again is one tap, and lists the last few results with every die.
 
 ## Sessions and starting over
 

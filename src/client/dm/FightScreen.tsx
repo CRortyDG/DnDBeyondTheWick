@@ -14,6 +14,7 @@ import { formatCp, parseAmount } from "@/shared/money";
 import type { DmCommand } from "@/shared/commands";
 import type { Combatant, Fight, FightReminder, MonsterTemplate, Player } from "@/shared/types";
 import { useDm } from "./context";
+import { DiceButton } from "./DiceTray";
 import "../ui/fight.css";
 
 type DmPlayer = Player & { hasKey: boolean };
@@ -132,6 +133,7 @@ function FightConsole({ f, onExit, run, toast }: { f: Fight; onExit: () => void;
           </div>
         </div>
         <span className="spacer" />
+        <DiceButton small />
         <span className="run-tv" title="What the TV shows">
           TV: {f.status === "paused" ? `${live?.label ?? "the scene"} · Fight paused` : f.status === "setup" ? "Roll initiative!" : f.status === "over" ? "The fight is over" : "turn order"}
         </span>
