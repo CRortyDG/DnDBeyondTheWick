@@ -58,6 +58,8 @@ function TvScreen({ view, online }: { view: TvView; online: boolean }) {
   const shop = view.shops.find((s) => s.id === view.live.shopId) ?? view.shops[0];
   // A running fight covers the shop and "Previously on…"; paused, the scene shows again.
   const fighting = !!view.fight && view.fight.status !== "paused";
+  const liveScene = view.scenes.find((x) => x.id === view.live.sceneId);
+  const fightOnMap = liveScene?.kind === "map" && !!liveScene.map?.tokens.length;
 
   return (
     <div className={`tv-root${idle ? " idle" : ""}`}>
@@ -100,7 +102,7 @@ function TvScreen({ view, online }: { view: TvView; online: boolean }) {
 
       {view.live.leads && !fighting && !view.recap ? <LeadsBoard leads={view.leads} /> : null}
 
-      {view.fight ? <FightOverlay fight={view.fight} /> : null}
+      {view.fight ? <FightOverlay fight={view.fight} onMap={fightOnMap} /> : null}
 
       <Purse players={view.purse} visible={view.live.purseVisible && !fighting && !view.live.leads} size="tv" />
 

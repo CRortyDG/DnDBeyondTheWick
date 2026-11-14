@@ -10,7 +10,8 @@ import { HEALTH_LABEL, type FightView, type PublicCombatant } from "@/shared/com
 import { artSrc } from "./SceneView";
 import "./fight.css";
 
-export function FightOverlay({ fight, preview = false }: { fight: FightView; preview?: boolean }) {
+/** onMap: the fight is on a map with tokens, so the map stays bright and the "now" panel shrinks to a corner card. */
+export function FightOverlay({ fight, preview = false, onMap = false }: { fight: FightView; preview?: boolean; onMap?: boolean }) {
   if (fight.status === "paused") {
     return (
       <div className="fv-paused" role="status">
@@ -19,9 +20,9 @@ export function FightOverlay({ fight, preview = false }: { fight: FightView; pre
     );
   }
   return (
-    <div className={`fv-root${preview ? " preview" : ""}`} role="region" aria-label="The fight">
+    <div className={`fv-root${preview ? " preview" : ""}${onMap && fight.status === "running" ? " on-map" : ""}`} role="region" aria-label="The fight">
       {fight.status === "setup" ? <RollInitiative fight={fight} /> : null}
-      {fight.status === "running" ? <Turns fight={fight} /> : null}
+      {fight.status === "running" ? <Turns fight={fight} onMap={onMap} /> : null}
       {fight.status === "over" ? <Over fight={fight} /> : null}
       {!preview ? <Moment fight={fight} /> : null}
     </div>
@@ -60,9 +61,10 @@ function RollInitiative({ fight }: { fight: FightView }) {
   );
 }
 
-function Turns({ fight }: { fight: FightView }) {
+function Turns({ fight, onMap }: { fight: FightView; onMap: boolean }) {
   const now = fight.order.find((c) => c.id === fight.currentId) ?? null;
   const next = fight.order.find((c) => c.id === fight.nextId) ?? null;
+  if (onMap) return <MapTurns fight={fight} now={now} next={next} />;
   return (
     <>
       <ol className="fv-strip" aria-label="Turn order">
@@ -122,6 +124,50 @@ function Turns({ fight }: { fight: FightView }) {
           </section>
         ) : null}
       </div>
+      {fight.timer ? <Hourglass timer={fight.timer} turnKey={`${fight.round}:${fight.currentId}`} /> : null}
+      <DownSaves fight={fight} />
+    </>
+  );
+}
+
+/** On a map: the strip and round stay, and whose turn it is sits in a corner card, so the map (and the glowing token) stays in view. */
+function MapTurns({ fight, now, next }: { fight: FightView; now: PublicCombatant | null; next: PublicCombatant | null }) {
+  return (
+    <>
+      <ol className="fv-strip" aria-label="Turn order">
+        {fight.order.map((c) => (
+          <li key={c.id} className={`fv-chip${c.id === fight.currentId ? " cur" : ""}${c.id === fight.nextId ? " next" : ""}${c.down ? " down" : ""}`}>
+            <Badge c={c} size="sm" />
+            <span className="fv-chip-name">{c.name}</span>
+            <Health c={c} small />
+          </li>
+        ))}
+      </ol>
+      <div className="fv-round" aria-label={`Round ${fight.round}`}>
+        <span>Round</span>
+        <b>{fight.round}</b>
+      </div>
+      <section key={fight.currentId ?? "none"} className={`fv-mapnow${now?.down ? " down" : ""}`} aria-live="polite" aria-label="Whose turn">
+        <div className="fv-kicker">Now</div>
+        {now ? (
+          <div className="fv-mapnow-row">
+            <Badge c={now} size="md" />
+            <div>
+              <div className="fv-mapnow-name">{now.name}</div>
+              <Health c={now} />
+              {now.conditions.length ? <div className="fv-mapnow-conds">{now.conditions.map((k) => k.name + (k.level ? ` ${k.level}` : "")).join(" · ")}</div> : null}
+              {now.down && now.deathSaves ? <Saves c={now} /> : null}
+            </div>
+          </div>
+        ) : (
+          <div className="fv-mapnow-name">…</div>
+        )}
+        {next ? (
+          <div className="fv-mapnow-next">
+            Up next: <b>{next.name}</b>
+          </div>
+        ) : null}
+      </section>
       {fight.timer ? <Hourglass timer={fight.timer} turnKey={`${fight.round}:${fight.currentId}`} /> : null}
       <DownSaves fight={fight} />
     </>

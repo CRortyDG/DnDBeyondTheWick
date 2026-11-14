@@ -1,6 +1,7 @@
 // Spoiler safety lives here. Each role gets a view built field-by-field from
 // an explicit allow-list, so a new DM-only field can't leak by accident.
 
+import { publicGrid, publicTokens, type PublicGrid, type PublicToken } from "./tokens";
 import { leadsView, type LeadsView } from "./leads";
 import { areaCounts, type AreaCount } from "./discovery";
 import { townOf } from "./presets";
@@ -45,6 +46,9 @@ export interface PublicMap {
   legend: { on: boolean; style: LegendStyle };
   /** Dot size, 1 = standard. */
   sealScale: number;
+  /** Tokens the room may see (never hidden ones or hidden foes). */
+  tokens: PublicToken[];
+  grid?: PublicGrid;
   /** Only on the live map. */
   focus?: { pinId: string; n: number };
   banner?: { n: number; name: string };
@@ -392,7 +396,10 @@ export function publicMap(game: GameState, sc: Scene): PublicMap {
     }),
     legend: { on: m.legendOn, style: m.legendStyle },
     sealScale: m.sealScale ?? 1,
+    tokens: publicTokens(game, m),
   };
+  const grid = publicGrid(m);
+  if (grid) out.grid = grid;
   if (focus) out.focus = { pinId: focus.pinId, n: focus.n };
   const b = isLive ? game.live.banner : undefined;
   const bannerPin = b && shown.find((p) => p.id === b.pinId);

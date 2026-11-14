@@ -20,7 +20,7 @@ export function describeLink(link: PinLink, s: Pick<GameState, "shops" | "scenes
 
 /** Under the DM's preview while a map is on the TV: tap a location to zoom the TV to it, reveal or hide it. */
 export function LiveMapControls({ scene }: { scene: Scene }) {
-  const { view, run, openMap } = useDm();
+  const { view, run, openMap, openTable } = useDm();
   const s = view.state;
   const m = scene.map!;
   const pins = [...m.pins].sort((a, b) => a.number - b.number);
@@ -48,6 +48,9 @@ export function LiveMapControls({ scene }: { scene: Scene }) {
         ) : null}
         <DotSize scene={scene} />
         <span className="spacer" />
+        <button type="button" className="btn small primary" onClick={() => openTable(scene.id)} title="Tokens, the grid and turns">
+          Table map
+        </button>
         <button type="button" className="btn small" onClick={() => openMap(scene.id)}>
           Edit map
         </button>

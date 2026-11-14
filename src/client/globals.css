@@ -6367,3 +6367,200 @@ input.fld.inline-input {
   padding: 8px 0;
   border-top: 1px solid color-mix(in srgb, var(--line) 35%, transparent);
 }
+
+/* ================================================================ map tokens and grid */
+
+.map-grid {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(to right, rgba(20, 14, 10, 0.45) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(20, 14, 10, 0.45) 1px, transparent 1px);
+  mix-blend-mode: multiply;
+}
+.tok {
+  --tok: 40px;
+  --ring: #3f6fb5;
+  position: absolute;
+  z-index: 4;
+  transform: translate(-50%, -50%);
+  transition:
+    left 0.45s cubic-bezier(0.3, 0.7, 0.3, 1),
+    top 0.45s cubic-bezier(0.3, 0.7, 0.3, 1),
+    width 0.3s,
+    height 0.3s;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: none;
+}
+.tok-blue { --ring: #3f6fb5; }
+.tok-green { --ring: #3f8f55; }
+.tok-gold { --ring: #c99a3a; }
+.tok-purple { --ring: #7b4fa8; }
+.tok-teal { --ring: #2f8f8f; }
+.tok-orange { --ring: #c8692c; }
+.tok-red { --ring: #a3322a; }
+.tok-grey { --ring: #77706a; }
+.tok-disc {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  background: radial-gradient(circle at 35% 30%, color-mix(in srgb, var(--ring) 55%, #fff 12%), color-mix(in srgb, var(--ring) 70%, #000 30%));
+  border: max(2px, calc(var(--tok) * 0.09)) solid var(--ring);
+  box-shadow:
+    0 0 0 max(1px, calc(var(--tok) * 0.03)) rgba(10, 7, 5, 0.85),
+    0 calc(var(--tok) * 0.06) calc(var(--tok) * 0.18) rgba(0, 0, 0, 0.6);
+}
+.tok-disc img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.tok-label {
+  color: #fbf4e2;
+  font-family: var(--font-num);
+  font-weight: 700;
+  font-size: calc(var(--tok) * 0.4);
+  line-height: 1;
+  letter-spacing: 0.02em;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7);
+}
+.tok-name {
+  position: absolute;
+  left: 50%;
+  top: 100%;
+  transform: translate(-50%, 2px);
+  white-space: nowrap;
+  padding: 0 0.45em;
+  border-radius: 999px;
+  background: rgba(13, 10, 8, 0.82);
+  color: var(--parchment);
+  font-family: var(--font-body);
+  font-size: max(10px, calc(var(--tok) * 0.26));
+  line-height: 1.35;
+  pointer-events: none;
+}
+.tok.down .tok-disc {
+  filter: grayscale(0.9) brightness(0.6);
+}
+.tok-x {
+  position: absolute;
+  inset: 18%;
+  pointer-events: none;
+  background:
+    linear-gradient(45deg, transparent 44%, #e58a7a 44%, #e58a7a 56%, transparent 56%),
+    linear-gradient(-45deg, transparent 44%, #e58a7a 44%, #e58a7a 56%, transparent 56%);
+}
+.tok.current {
+  z-index: 6;
+}
+.tok.current::before {
+  content: "";
+  position: absolute;
+  inset: calc(var(--tok) * -0.22);
+  border-radius: 50%;
+  border: max(2px, calc(var(--tok) * 0.08)) solid var(--gold-bright);
+  box-shadow: 0 0 calc(var(--tok) * 0.4) rgba(236, 198, 106, 0.8);
+  animation: tok-pulse 1.6s ease-in-out infinite;
+}
+@keyframes tok-pulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.1); opacity: 0.65; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tok { transition: none; }
+  .tok.current::before { animation: none; }
+}
+
+/* ---- the DM's table map */
+.table-map {
+  z-index: 62;
+}
+.tm-live {
+  font-family: var(--font-sc);
+  color: var(--up);
+  letter-spacing: 0.08em;
+}
+.tm-turn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 10px;
+  border: 1px solid var(--gold);
+  border-radius: 8px;
+  background: rgba(201, 154, 58, 0.1);
+}
+.tm-grid {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 18px;
+  margin: 8px 0;
+  padding: 10px 14px;
+}
+.tm-measuring,
+.tm-measuring .map-box {
+  cursor: crosshair;
+}
+.tm-measure {
+  position: absolute;
+  z-index: 8;
+  border: 2px dashed var(--gold-bright);
+  background: rgba(236, 198, 106, 0.15);
+  pointer-events: none;
+}
+.tm-grid-dm-only .map-grid {
+  opacity: 0.45;
+  background-image:
+    linear-gradient(to right, rgba(236, 198, 106, 0.6) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(236, 198, 106, 0.6) 1px, transparent 1px);
+  mix-blend-mode: normal;
+}
+.tm-pin {
+  pointer-events: none;
+  opacity: 0.85;
+}
+.tm-tok {
+  cursor: grab;
+  transition: none;
+}
+.tm-tok.dragging {
+  cursor: grabbing;
+  z-index: 9;
+}
+.tm-tok.selected .tok-disc {
+  outline: 3px solid var(--parchment);
+  outline-offset: 3px;
+}
+.tm-tok:focus-visible .tok-disc {
+  outline: 3px solid var(--gold-bright);
+  outline-offset: 3px;
+}
+.tok-hidden {
+  opacity: 0.45;
+}
+.tok-hidden .tok-disc {
+  border-style: dashed;
+}
+.tm-colors {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.tm-swatch {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 2px solid rgba(0, 0, 0, 0.6);
+  background: var(--ring);
+  cursor: pointer;
+}
+.tm-swatch.on {
+  outline: 3px solid var(--parchment);
+  outline-offset: 2px;
+}
+.table-map .map-canvas { height: calc(100vh - 150px); }

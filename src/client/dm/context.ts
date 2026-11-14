@@ -17,6 +17,8 @@ export interface DmCtx {
   gated: Record<string, string>;
   /** Open the full-screen editor for a map scene. */
   openMap: (sceneId: string) => void;
+  /** Open the table map (tokens, grid, turns) for a map scene. */
+  openTable: (sceneId: string) => void;
   /** The dice tray, which floats over the console, the fight screen and run-game mode. */
   diceOpen: boolean;
   toggleDice: () => void;

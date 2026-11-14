@@ -99,6 +99,8 @@ export function presetSetup(g: GameState): GameState {
   const now = s.createdAt ?? 0;
   s.players = placeholders(now);
   for (const sh of s.shops) sh.playerIds = [];
+  // Party and fight tokens belonged to these players and this fight; NPC and monster tokens stay.
+  for (const sc of s.scenes) if (sc.map?.tokens) sc.map.tokens = sc.map.tokens.filter((t) => !t.playerId && !t.combatantId);
   delete s.fight;
   delete s.fights;
   delete s.recent;

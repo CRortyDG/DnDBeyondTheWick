@@ -3,6 +3,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from "react";
 import { fitBox, zoomToward, type Box } from "@/shared/mapGeometry";
 import type { PublicMap } from "@/shared/projection";
+import { GridLines, Token } from "./Tokens";
 
 const ZOOM = 2;
 const BANNER_MS = 5000;
@@ -80,6 +81,10 @@ export function MapView({ src, alt, map, emptyHint }: { src?: string; alt?: stri
         style={{ left: box.left, top: box.top, width: box.width, height: box.height, transform: `translate(${zoom.tx}px, ${zoom.ty}px) scale(${zoom.scale})` }}
       >
         {src ? <img className="map-img" src={src} alt={alt ?? ""} onLoad={onLoad} draggable={false} /> : <div className="map-empty">{emptyHint ? <span>{emptyHint}</span> : null}</div>}
+        {map.grid?.lines ? <GridLines grid={map.grid} width={box.width} height={box.height} /> : null}
+        {map.tokens.map((t) => (
+          <Token key={t.id} t={t} x={t.x} y={t.y} boxWidth={box.width} className="tok-tv" />
+        ))}
         {map.pins.map((p) => {
           const focused = focusPin?.id === p.id;
           return (

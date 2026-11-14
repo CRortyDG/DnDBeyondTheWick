@@ -6,6 +6,8 @@ import { DIE_SIDES, diceCount, MAX_DICE, MAX_OF_ONE, MAX_PLUS } from "./dice";
 import { fightDmCommands, fightPlayerCommands } from "./combatSchema";
 import { SHOW_REF_RE } from "./assets";
 import { storyDmCommands } from "./storySchema";
+import type { TokenColor } from "./types";
+import { GRID_CELL_MAX, GRID_CELL_MIN, TOKEN_COLORS, TOKEN_SIZES } from "./tokens";
 import { AREAS_MAX, DM_TEXT_MAX, FACT_REF_RE, LEAD_MAX, REF_RE, FACT_MAX, HINT_MAX, LINKS_MAX, NAME_MAX, RELATION_IDS, STAGE_IDS, SUMMARY_MAX, TITLE_MAX } from "./discovery";
 
 const id = z.string().min(1).max(64);
@@ -48,6 +50,27 @@ const pinFields = {
 const pinPatch = z.object({ ...pinFields, link: pinLink.nullable() }).partial();
 /** A whole pin, for undoing a delete. */
 const fullPin = z.object({ id: pinId, number: z.number().int().min(1).max(999), discovered: z.boolean(), ...pinFields, link: pinLink.optional() });
+
+const tokenColor = z.enum(TOKEN_COLORS as [TokenColor, ...TokenColor[]]);
+const tokenPatch = z
+  .object({
+    label: text(3),
+    name: text(60),
+    color: tokenColor,
+    size: z.number().refine((n) => (TOKEN_SIZES as readonly number[]).includes(n), "Pick a token size."),
+    hidden: z.boolean(),
+    locked: z.boolean(),
+    art: artSchema,
+  })
+  .partial();
+const gridSchema = z.object({
+  snap: z.boolean(),
+  lines: z.boolean(),
+  cell: z.number().min(GRID_CELL_MIN).max(GRID_CELL_MAX),
+  ox: frac,
+  oy: frac,
+  aspect: z.number().min(0.05).max(20),
+});
 
 const scenePatch = z
   .object({
@@ -236,6 +259,15 @@ export const dmCommand = z.discriminatedUnion("type", [
   z.object({ type: z.literal("map.legend"), sceneId: id, on: z.boolean().optional(), style: z.enum(["numbers", "names"]).optional() }),
   /** How big the dots are on this map. */
   z.object({ type: z.literal("map.sealScale"), sceneId: id, scale: z.number().min(SEAL_SCALE_MIN).max(SEAL_SCALE_MAX) }),
+  // Tokens and the grid (see tokens.ts).
+  z.object({ type: z.literal("token.add"), sceneId: id, kind: z.enum(["monster", "npc"]), name: text(60), x: frac, y: frac, color: tokenColor.optional(), hidden: z.boolean().optional() }),
+  /** A token for every player at the table who hasn't one on this map yet, near (x, y). */
+  z.object({ type: z.literal("token.party"), sceneId: id, x: frac, y: frac }),
+  z.object({ type: z.literal("token.move"), sceneId: id, tokenId: id, x: frac, y: frac }),
+  z.object({ type: z.literal("token.update"), sceneId: id, tokenId: id, patch: tokenPatch }),
+  z.object({ type: z.literal("token.remove"), sceneId: id, tokenId: id }),
+  /** null: no grid. */
+  z.object({ type: z.literal("map.grid"), sceneId: id, grid: gridSchema.nullable() }),
   /** Zoom the TV toward a pin on the live map, or back out with null. */
   z.object({ type: z.literal("live.focus"), pinId: id.nullable() }),
   /** Add the Candlefair and Sword Coast maps to a game created before maps existed. */

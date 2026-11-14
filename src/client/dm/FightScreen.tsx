@@ -133,6 +133,7 @@ function FightConsole({ f, onExit, run, toast }: { f: Fight; onExit: () => void;
           </div>
         </div>
         <span className="spacer" />
+        <FightMapButton />
         <DiceButton small />
         <span className="run-tv" title="What the TV shows">
           TV: {f.status === "paused" ? `${live?.label ?? "the scene"} · Fight paused` : f.status === "setup" ? "Roll initiative!" : f.status === "over" ? "The fight is over" : "turn order"}
@@ -915,3 +916,38 @@ function CommitInput({ value, onCommit, numeric, multiline, placeholder, label }
   );
 }
 
+
+/** Run the fight on a map: open the table map for the map on the TV, or put one up. */
+function FightMapButton() {
+  const { view, run, openTable } = useDm();
+  const s = view.state;
+  const live = s.scenes.find((x) => x.id === s.live.sceneId);
+  const maps = s.scenes.filter((x) => x.kind === "map");
+  if (live?.kind === "map")
+    return (
+      <button className="btn small primary" type="button" onClick={() => openTable(live.id)} title="Tokens on the map that's on the TV">
+        Map
+      </button>
+    );
+  if (!maps.length) return null;
+  return (
+    <label className="inline-label">
+      <span className="sr-only">Fight on a map</span>
+      <select
+        className="fld small"
+        value=""
+        onChange={async (e) => {
+          const id = e.target.value;
+          if (id && (await run({ type: "scene.show", sceneId: id }))) openTable(id);
+        }}
+      >
+        <option value="">Fight on a map…</option>
+        {maps.map((m) => (
+          <option key={m.id} value={m.id}>
+            {m.label}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
