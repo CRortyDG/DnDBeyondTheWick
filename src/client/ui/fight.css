@@ -1365,3 +1365,33 @@ html.fc-myturn body {
 @media (prefers-reduced-motion: reduce) {
   .fv-mapnow { animation: none; }
 }
+
+/* The map card's contents stay inside it: the hit point bar fills the card, long names wrap. */
+.fv-mapnow,
+.fv-mapnow * {
+  min-width: 0;
+}
+.fv-mapnow-row {
+  grid-template-columns: auto minmax(0, 1fr);
+}
+.fv-mapnow .fv-hpbar {
+  width: 100%;
+}
+.fv-mapnow .fv-health {
+  display: inline-block;
+  font-size: calc(26 * var(--u));
+}
+.fv-mapnow-name,
+.fv-mapnow-next {
+  overflow-wrap: anywhere;
+}
+.fv-mapnow-name {
+  font-size: calc(48 * var(--u));
+}
+/* Turn-order names never cut a word in half. */
+.fv-chip-name {
+  overflow-wrap: anywhere;
+}
+.fv-root.on-map .fv-chip-name {
+  font-size: calc(21 * var(--u));
+}

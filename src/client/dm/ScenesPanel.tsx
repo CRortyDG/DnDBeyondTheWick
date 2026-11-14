@@ -24,7 +24,7 @@ const PORTRAIT: [SceneKind, string] = ["portrait", "Picture card (name and title
 
 /** Maps & props: the pictures the TV shows that aren't someone's (people's pictures live with them in Discovery). */
 export function ScenesPanel() {
-  const { view, run, openMap } = useDm();
+  const { view, run, openMap, openTable } = useDm();
   const s = view.state;
   const hasSeedMaps = s.scenes.some((x) => x.kind === "map" && x.label === "Candlefair map") && s.scenes.some((x) => x.kind === "map" && x.label === "Sword Coast map");
   const [openId, setOpenId] = useState<string | null>(null);
@@ -70,9 +70,14 @@ export function ScenesPanel() {
                       </button>
                       <ShowControls refName={ref} label={sc.label} />
                       {sc.kind === "map" ? (
-                        <button className="btn small" type="button" onClick={() => openMap(sc.id)}>
-                          Pins
-                        </button>
+                        <>
+                          <button className="btn small" type="button" onClick={() => openMap(sc.id)}>
+                            Pins
+                          </button>
+                          <button className="btn small" type="button" onClick={() => openTable(sc.id)} title="Tokens, grid and fog. Set them up ahead of time; nothing shows until you put the map on the TV.">
+                            Tokens &amp; fog
+                          </button>
+                        </>
                       ) : null}
                       <button className="btn small" type="button" aria-expanded={openId === sc.id} onClick={() => setOpenId(openId === sc.id ? null : sc.id)}>
                         {openId === sc.id ? "Done" : "Edit"}
@@ -132,7 +137,7 @@ export function ScenesPanel() {
 }
 
 function SceneEditor({ scene }: { scene: Scene }) {
-  const { view, run, ident, toast, gated, openMap } = useDm();
+  const { view, run, ident, toast, gated, openMap, openTable } = useDm();
   const [busy, setBusy] = useState(false);
   const file = useRef<HTMLInputElement>(null);
   const patch = (p: Partial<Scene>) => run({ type: "scene.update", sceneId: scene.id, patch: p });
@@ -167,6 +172,9 @@ function SceneEditor({ scene }: { scene: Scene }) {
             <p className="note">{scene.map?.pins.length ?? 0} locations.</p>
             <button className="btn primary" type="button" onClick={() => openMap(scene.id)}>
               Open the map editor
+            </button>
+            <button className="btn" type="button" onClick={() => openTable(scene.id)}>
+              Tokens, grid &amp; fog
             </button>
           </div>
         ) : (

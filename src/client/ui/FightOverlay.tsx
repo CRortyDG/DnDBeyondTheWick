@@ -8,6 +8,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { HEALTH_LABEL, type FightView, type PublicCombatant } from "@/shared/combat";
 import { artSrc } from "./SceneView";
+import { shortName } from "./Tokens";
 import "./fight.css";
 
 /** onMap: the fight is on a map with tokens, so the map stays bright and the "now" panel shrinks to a corner card. */
@@ -138,7 +139,9 @@ function MapTurns({ fight, now, next }: { fight: FightView; now: PublicCombatant
         {fight.order.map((c) => (
           <li key={c.id} className={`fv-chip${c.id === fight.currentId ? " cur" : ""}${c.id === fight.nextId ? " next" : ""}${c.down ? " down" : ""}`}>
             <Badge c={c} size="sm" />
-            <span className="fv-chip-name">{c.name}</span>
+            <span className="fv-chip-name" title={c.name}>
+              {chipName(c.name)}
+            </span>
             <Health c={c} small />
           </li>
         ))}
@@ -362,4 +365,9 @@ function Moment({ fight }: { fight: FightView }) {
       {show.kind === "crit" && show.name ? <div className="fv-moment-sub">on {show.name}</div> : null}
     </div>
   );
+}
+
+/** On a map the strip is busy: "Something in the pudding A" reads "Something A", as on its token. */
+function chipName(name: string): string {
+  return name.length > 14 && /\s[A-Z0-9]$/.test(name.trim()) ? shortName(name) : name;
 }

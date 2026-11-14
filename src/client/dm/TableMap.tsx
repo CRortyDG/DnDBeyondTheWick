@@ -310,9 +310,12 @@ function Table({ scene, onClose }: { scene: Scene; onClose: () => void }) {
         {isLive ? (
           <span className="tm-live">On the TV</span>
         ) : (
-          <button type="button" className="btn" onClick={() => run({ type: "scene.show", sceneId }, "On the TV.")}>
-            Show on TV
-          </button>
+          <>
+            <span className="tm-prep" title="Players see nothing of this map until you show it">Not on the TV · setting up</span>
+            <button type="button" className="btn" onClick={() => run({ type: "scene.show", sceneId }, "On the TV.")}>
+              Show on TV
+            </button>
+          </>
         )}
         <button type="button" className="btn" onClick={() => void addParty()} title="A token for everyone at the table who hasn't one here">
           Add party

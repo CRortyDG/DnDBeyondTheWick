@@ -6660,3 +6660,4 @@ input.fld.inline-input {
 .phone-map .tok:not(.tok-mine):not(.current) .tok-name {
   opacity: 0.85;
 }
+.tm-prep { font-family: var(--font-sc); color: var(--muted); letter-spacing: 0.06em; }
