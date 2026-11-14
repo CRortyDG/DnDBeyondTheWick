@@ -1,0 +1,75 @@
+{
+  "game": "ssmk3tn",
+  "mode": "warm (room stays in memory)",
+  "hours": 4,
+  "preloadedLedgerRows": 0,
+  "commands": {
+    "session.start": 1,
+    "money.payAll": 1,
+    "shop.visibility": 1,
+    "scene.show": 64,
+    "me.requestBuy": 20,
+    "request.approve": 20,
+    "money.adjust": 40,
+    "me.noteAdd": 20,
+    "scene.update": 4,
+    "pin.discover": 8,
+    "session.end": 1
+  },
+  "worker": {
+    "requests": 392,
+    "byPath": {
+      "/api/command": 180,
+      "ws-upgrade": 60,
+      "/api/view": 120,
+      "/api/upload": 4,
+      "/api/files/ssmk3tn/21d9149504567fe874f38289.png": 7,
+      "/api/files/ssmk3tn/3e7da5441dbcbb016a7b7ff2.png": 7,
+      "/api/files/ssmk3tn/54c19633d958a517db8fe24c.png": 7,
+      "/api/files/ssmk3tn/e3bf5f4f825f24c8f0bf3513.png": 7
+    }
+  },
+  "durableObject": {
+    "httpAndUpgradeRequests": 364,
+    "byPath": {
+      "/api/command": 180,
+      "ws-upgrade": 60,
+      "/api/view": 120,
+      "/internal/dm-check": 4
+    },
+    "wsMessagesThatReachedRoom": 60,
+    "billedRequests": 367,
+    "eventWallMsTotal": 2148,
+    "eventWallMsAvg": 5.07,
+    "eventWallMsMax": 17,
+    "rowsRead": 240,
+    "rowsWritten": 305,
+    "coldLoads": 0,
+    "databaseBytes": 81920,
+    "stateJsonBytes": 48146,
+    "ledgerRows": 65
+  },
+  "r2": {
+    "classA_puts": 4,
+    "classB_gets": 28,
+    "storedBytes": 3276800
+  },
+  "websocket": {
+    "pingsSentSample": 560,
+    "pingsRealClientWouldSend": 4032,
+    "messagesPushedToScreens": 1845,
+    "bytesPushedToScreens": 17182449
+  },
+  "reconnectStorm": {
+    "ms": 76,
+    "workerRequests": 14,
+    "doRequests": {
+      "ws-upgrade": 7,
+      "/api/view": 7
+    },
+    "wsMessagesIn": 7,
+    "rowsRead": 0,
+    "rowsWritten": 0,
+    "coldLoads": 0
+  }
+}

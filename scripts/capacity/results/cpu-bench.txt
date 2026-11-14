@@ -1,0 +1,7 @@
+CPU per event inside the room (Node, this machine). Durable Objects allow 30 s per event; the 10 ms Worker limit doesn't apply here.
+
+New campaign (seed)                     37 KB doc       0 ledger  command   1.88 ms  push x7   3.80 ms  view   1.09 ms
+One night in (typical, from sim)        45 KB doc      65 ledger  command   1.65 ms  push x7   5.07 ms  view   1.39 ms
+~20 nights in                          193 KB doc    1300 ledger  command   4.97 ms  push x7  27.58 ms  view   5.37 ms
+~100 nights in                         818 KB doc    6500 ledger  command  22.71 ms  push x7 120.13 ms  view  22.73 ms
+Notes at the 5,000 cap                1989 KB doc    6500 ledger  command  59.24 ms  push x7 251.98 ms  view  54.57 ms
