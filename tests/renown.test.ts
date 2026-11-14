@@ -8,6 +8,7 @@ import { apply, CommandError, type Ctx } from "@/shared/reducer";
 import { BOARD_SLOTS, defaultPayout, FAMOUS, HEROES, KNOWN, payoutPlayers, TRUSTED } from "@/shared/renown";
 import { SEED_ITEMS, SEED_JOBS, seedGame } from "@/shared/seed";
 import type { Actor, GameState, LedgerEntry } from "@/shared/types";
+import { hydrate } from "@/server/store";
 
 const DM: Actor = { role: "dm" };
 const P = (n: number): Actor => ({ role: "player", playerId: `p${n}` });
@@ -238,6 +239,8 @@ describe("the bounty board", () => {
   });
 
   it("never sends a flyer's DM-only fields to any player or the TV", () => {
+    g = hydrate(g)!; // the server fills in the starter jobs' notes
+    expect(job("j-ransom").dm.twists).toContain("Mardon Rueh");
     for (const j of SEED_JOBS) pin(j.id);
     dm({ type: "renown.set", rank: FAMOUS });
     dm({ type: "job.update", jobId: "j-envelope", patch: { title: "SECRET-TITLE", postedBy: "SECRET-PATRON", body: "SECRET-BODY", dm: { notes: "SECRET-NOTES" } } });
@@ -256,8 +259,34 @@ describe("the bounty board", () => {
     delete old.renown;
     old.upgrades = ["stinger"];
     const up = upgrade(old);
-    expect(up.jobs!.map((j) => j.id)).toEqual(SEED_JOBS.map((j) => j.id));
+    expect(up.jobs!.map((j) => j.id).sort()).toEqual(SEED_JOBS.map((j) => j.id).sort());
     up.jobs = [];
     expect(upgrade(up).jobs).toEqual([]);
+  });
+
+  it("fills in the starter jobs' DM notes on the server, once", () => {
+    const h = hydrate(structuredClone(g))!;
+    expect(h.jobs!.find((j) => j.id === "j-artum")!.dm.adventure).toMatch(/Just Desserts/);
+    h.jobs!.find((j) => j.id === "j-ransom")!.dm.loot = "";
+    expect(hydrate(h)!.jobs!.find((j) => j.id === "j-ransom")!.dm.loot).toBe("");
+  });
+
+  it("gives games that already had the board Artum's flyer, once", () => {
+    const old = structuredClone(g);
+    old.jobs = old.jobs!.filter((j) => j.id !== "j-artum");
+    old.upgrades = ["stinger", "jobs"];
+    const up = upgrade(old);
+    expect(up.jobs!.filter((j) => j.id === "j-artum")).toHaveLength(1);
+    expect(up.jobs!.find((j) => j.id === "j-artum")).toMatchObject({ pinned: false, reward: { kind: "each", cp: 25 * GP }, renown: 0 });
+  });
+
+  it("lets the party take Artum's job and pays 25 gp each", () => {
+    pin("j-artum");
+    expect(projectPlayer(g, 1, "p1", []).jobs[0]).toMatchObject({ title: "Winterfest Needs Hands!", canTake: true, reward: { kind: "each", cp: 25 * GP } });
+    as(P(1), { type: "me.takeJob", jobId: "j-artum", note: "" });
+    dm({ type: "request.approve", requestId: lastPending().id });
+    dm({ type: "session.start" });
+    dm({ type: "job.done", jobId: "j-artum", payouts: defaultPayout(job("j-artum"), payoutPlayers(g)) });
+    expect(["p1", "p2", "p3", "p4"].map(bal)).toEqual([25 * GP, 25 * GP, 25 * GP, 25 * GP]);
   });
 });

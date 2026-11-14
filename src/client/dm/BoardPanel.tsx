@@ -315,7 +315,7 @@ function JobEditor({ job, followUpOf, onClose }: { job?: Job; followUpOf?: Job; 
       <div className="form">
         <label>
           Adventure it runs
-          <input className="fld" value={d.adventure} maxLength={300} onChange={(e) => set("adventure", e.target.value)} placeholder="“Robber Baron” (Adventures in Faerûn)" />
+          <input className="fld" value={d.adventure} maxLength={300} onChange={(e) => set("adventure", e.target.value)} placeholder="e.g. a published adventure and chapter" />
         </label>
         <label>
           Expected loot
