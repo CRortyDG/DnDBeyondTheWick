@@ -12,11 +12,65 @@ const TAG: Record<RollEntry["to"], string> = { tv: "on TV", dm: "to you", secret
 
 /** The header button (and the D key) that opens the tray, on the console, the fight screen and run-game mode. */
 export function DiceButton({ small }: { small?: boolean }) {
-  const { diceOpen, toggleDice } = useDm();
+  const { view, diceOpen, toggleDice, diceSeen } = useDm();
+  // Players' rolls the DM hasn't looked at yet.
+  const unseen = (view.state.rolls ?? []).filter((r) => r.by && r.n > diceSeen).length;
   return (
-    <button type="button" className={`btn${small ? " small" : ""}${diceOpen ? " on" : ""}`} aria-expanded={diceOpen} onClick={toggleDice} title="Roll dice on the TV, or secretly (D)">
+    <button
+      type="button"
+      className={`btn${small ? " small" : ""}${diceOpen ? " on" : ""}`}
+      aria-expanded={diceOpen}
+      onClick={toggleDice}
+      title="Roll dice on the TV, or secretly (D)"
+      aria-label={unseen ? `Dice: ${unseen} new ${unseen === 1 ? "roll" : "rolls"} from players` : undefined}
+    >
       <DiceIcon /> Dice
+      {unseen ? <span className="badge">{unseen}</span> : null}
     </button>
+  );
+}
+
+/**
+ * A player rolled "for the DM only": a card that stays until the DM dismisses it
+ * (or opens the dice tray), so it can't be missed the way a toast can.
+ */
+export function PlayerRollCards() {
+  const { view, diceOpen, diceSeen, seeDice } = useDm();
+  const [gone, setGone] = useState<number[]>([]);
+  if (diceOpen) return null;
+  const waiting = (view.state.rolls ?? []).filter((r) => r.by && r.to === "dm" && r.n > diceSeen && !gone.includes(r.n)).reverse();
+  if (!waiting.length) return null;
+  const shown = waiting.slice(0, 3);
+  return (
+    <div className="dt-cards" role="region" aria-label="Rolls for you">
+      {shown.map((r) => (
+        <div key={r.n} className="dt-card" role="status">
+          <div className="dt-card-head">
+            <b>{r.name}</b> rolled, just for you
+          </div>
+          <div className="dt-card-body">
+            <span className="dt-card-total">{r.total}</span>
+            <span>
+              {describeResult(r)}
+              <span className="dt-rolls">
+                {" "}
+                ({r.groups.flatMap((g) => g.rolls).join(", ")}
+                {r.plus ? `, ${r.plus > 0 ? "+" : "−"}${Math.abs(r.plus)}` : ""})
+              </span>
+            </span>
+          </div>
+          <button type="button" className="btn small" onClick={() => setGone((g) => [...g, r.n])}>
+            Got it
+          </button>
+        </div>
+      ))}
+      {waiting.length > shown.length ? <p className="note dt-cards-more">{waiting.length - shown.length} more in Dice</p> : null}
+      {waiting.length > 1 ? (
+        <button type="button" className="btn small dt-cards-all" onClick={() => seeDice(waiting[0].n)}>
+          Dismiss all
+        </button>
+      ) : null}
+    </div>
   );
 }
 
@@ -27,21 +81,25 @@ export function DiceButton({ small }: { small?: boolean }) {
  * (from their phones), and Clear empties it.
  */
 export function DiceTray() {
-  const { view, run, toast, diceOpen: open, toggleDice } = useDm();
+  const { view, run, toast, diceOpen: open, toggleDice, seeDice } = useDm();
   const setOpen = (v: boolean) => v !== open && toggleDice();
   const picks = useDicePicks(toast);
   const [busy, setBusy] = useState(false);
   const panel = useRef<HTMLDivElement>(null);
   const log = [...(view.state.rolls ?? [])].reverse();
 
-  // A player rolled from their phone: say so, even with the tray closed.
+  // A player rolled on the TV: a toast (the TV shows it too). "For the DM only" rolls get a card instead.
   const newest = view.state.rolls?.at(-1);
   const seen = useRef(newest?.n);
   useEffect(() => {
     if (!newest || newest.n === seen.current) return;
     seen.current = newest.n;
-    if (newest.by) toast(`${newest.name} rolled ${newest.total} (${describeResult(newest)})${newest.to === "dm" ? ", just for you" : " on the TV"}.`);
-  }, [newest, toast]);
+    if (newest.by && newest.to === "tv" && !open) toast(`${newest.name} rolled ${newest.total} (${describeResult(newest)}) on the TV.`);
+  }, [newest, toast, open]);
+  // With the tray open, everything in the log counts as seen.
+  useEffect(() => {
+    if (open && newest) seeDice(newest.n);
+  }, [open, newest, seeDice]);
 
   const roll = async (secret: boolean) => {
     if (!picks.total || busy) return;
