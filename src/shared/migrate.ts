@@ -112,9 +112,19 @@ function withStinger(g: GameState): GameState {
   return out;
 }
 
-/** The bounty board arrived later: once per game, add the starter job flyers (unpinned). */
+/** Starter job flyers, by the upgrade that brought them. Each set is added once per game (unpinned), so a delete sticks. */
+const JOB_UPGRADES: [tag: string, ids: string[]][] = [
+  ["jobs", ["j-ransom", "j-sheep", "j-envelope"]],
+  ["jobs-artum", ["j-artum"]],
+];
+
 function withJobs(g: GameState): GameState {
-  if (g.upgrades?.includes("jobs")) return g;
-  const have = new Set((g.jobs ?? []).map((j) => j.id));
-  return { ...g, jobs: [...(g.jobs ?? []), ...seedJobs(g.createdAt ?? 0).filter((j) => !have.has(j.id))], upgrades: [...(g.upgrades ?? []), "jobs"] };
+  let out = g;
+  for (const [tag, ids] of JOB_UPGRADES) {
+    if (out.upgrades?.includes(tag)) continue;
+    const have = new Set((out.jobs ?? []).map((j) => j.id));
+    const add = seedJobs(out.createdAt ?? 0).filter((j) => ids.includes(j.id) && !have.has(j.id));
+    out = { ...out, jobs: [...(out.jobs ?? []), ...add], upgrades: [...(out.upgrades ?? []), tag] };
+  }
+  return out;
 }

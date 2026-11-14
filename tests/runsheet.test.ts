@@ -357,7 +357,7 @@ describe("spoiler safety", () => {
       const text = fs.readFileSync(f, "utf8");
       expect(text, f).not.toContain("seed-episodes");
       expect(text, f).not.toMatch(/from ["'](@\/server|\.\.?\/(\.\.\/)*server)\//);
-      for (const line of ["Pudding Gremlin", "Where is everyone", "Just Desserts", "one more tiny lantern"]) expect(text, f).not.toContain(line);
+      for (const line of ["Pudding Gremlin", "Where is everyone", "Just Desserts", "one more tiny lantern", "Mardon Rueh", "Robber Baron", "Spell Scroll of See Invisibility"]) expect(text, f).not.toContain(line);
     }
   });
 });

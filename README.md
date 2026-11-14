@@ -150,7 +150,7 @@ tests/                    vitest
 - **Renown locks:** any item or storefront can need a rank (Edit → *Needs Renown*). Until the party has it, players see it locked with the rank ("Needs Known in town") and your line underneath. Storefronts show their name and the rank, but no goods.
 - **Job flyers** live on the same notice board as player flyers, and the board holds 8 pins in all. Each has a title, who posted it, a few lines, a reward (per person, for the party, or hidden), the Renown it needs, and a paper: scrawled note, merchant's bill, official notice, or sealed envelope (no text at all). Your notes on it (adventure, loot, twists) never leave the DM view.
 - **Statuses:** Open → Taken → Done, or Pulled. Players tap **Take this job** on their phone (Jobs tab) and it comes to your Requests drawer. Jobs above the party's Renown stay readable, stamped "Experienced parties only", with no take button. **Done…** pays the reward to each player at the table by default (a party total is split evenly; type any amount you like); it goes through the ledger once, is written in the Chronicle, and the DONE flyer comes down after the next full session. **Pull and follow up…** replaces a flyer with a new one in the same spot.
-- New campaigns start with three job flyers, all unpinned. Older campaigns get them once.
+- New campaigns start with four job flyers (Artum’s Winterfest job among them), all unpinned. Older campaigns get them once.
 
 ## Buying from phones
 

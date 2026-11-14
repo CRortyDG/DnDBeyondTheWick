@@ -149,6 +149,7 @@ export const SEED_ITEMS: Item[] = [
 ];
 
 // ---------- the bounty board (every job starts unpinned: the DM decides when it goes up) ----------
+// Their DM-only notes are filled in on the server (src/server/seed-jobs.ts), so spoilers never ship to browsers.
 
 const job = (id: string, j: Omit<Job, "id" | "status" | "pinned" | "createdAt" | "dm"> & { dm: Partial<Job["dm"]> }): Job => ({
   id,
@@ -160,6 +161,15 @@ const job = (id: string, j: Omit<Job, "id" | "status" | "pinned" | "createdAt" |
 });
 
 export const SEED_JOBS: Job[] = [
+  job("j-artum", {
+    title: "Winterfest Needs Hands!",
+    postedBy: "Artum, Planner of Winterfest",
+    body: "The Opening Feast is nigh, and your humble planner is in well over his head. Wanted: steady climbers for the fir garlands, careful hands for the china, calm handlers for the guests and their horses, and brave tongues to taste the chef’s marvelous new desserts. A seat at the banquet for a job well done. Ask Mags where to find me.",
+    reward: { kind: "each", cp: 25 * GP },
+    renown: 0,
+    style: "bill",
+    dm: {},
+  }),
   job("j-ransom", {
     title: "My brother is being held for ransom",
     postedBy: "Rolf Twyrtho, trader",
@@ -167,11 +177,7 @@ export const SEED_JOBS: Job[] = [
     reward: { kind: "each", cp: 50 * GP },
     renown: 0,
     style: "bill",
-    dm: {
-      adventure: "“Robber Baron” (Adventures in Faerûn, Sword Coast)",
-      loot: "Roughly 500 gp in coins and gems in the hideout, plus a Potion of Climbing and a Spell Scroll of See Invisibility.",
-      twists: "The leader, Mardon Rueh, may offer to hire the party against the Eomane family, which leads to “Blood Night” (chapter 6).",
-    },
+    dm: {},
   }),
   job("j-sheep", {
     title: "Wanted: whatever’s taking sheep on the Trollbark road",
@@ -180,7 +186,7 @@ export const SEED_JOBS: Job[] = [
     reward: { kind: "total", cp: 500 * GP },
     renown: KNOWN,
     style: "official",
-    dm: { notes: "Placeholder: attach a real adventure later." },
+    dm: {},
   }),
   job("j-envelope", {
     title: "",
@@ -189,7 +195,7 @@ export const SEED_JOBS: Job[] = [
     reward: { kind: "hidden", cp: 0 },
     renown: TRUSTED,
     style: "sealed",
-    dm: { notes: "Placeholder for a Baldur’s Gate patron job." },
+    dm: {},
   }),
 ];
 
@@ -301,7 +307,7 @@ export function seedGame(id: string, name = "Tales from the Flickering Candle", 
     ...emptyProgress(),
     jobs: seedJobs(now),
     renown: 0,
-    upgrades: ["jobs"],
+    upgrades: ["jobs", "jobs-artum"],
     seq: 100,
   };
 }
