@@ -12,6 +12,7 @@ import { Notice } from "../ui/Notice";
 import { BannerToast } from "../ui/BannerToast";
 import { RenownMoment } from "../ui/RenownMoment";
 import { FightOverlay } from "../ui/FightOverlay";
+import { DiceRoll } from "../ui/DiceRoll";
 
 const FADE_MS = 600;
 
@@ -99,11 +100,14 @@ function TvScreen({ view, online }: { view: TvView; online: boolean }) {
 
       <BannerToast banner={view.banner} className="tv-banner" />
 
+      <DiceRoll roll={view.diceRoll} />
+
       <RenownMoment moment={view.renownMoment} />
 
       {showOffline ? (
         <div className="tv-offline" role="status">
-          Reconnecting<span className="dots" aria-hidden="true" />
+          Reconnecting
+          <span className="dots" aria-hidden="true" />
         </div>
       ) : null}
 

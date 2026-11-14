@@ -32,6 +32,7 @@ import { BoardPanel } from "./BoardPanel";
 import { FightScreen } from "./FightScreen";
 import { MonstersPanel } from "./MonstersPanel";
 import { FightOverlay } from "../ui/FightOverlay";
+import { DiceButton, DiceTray } from "./DiceTray";
 
 type Tab = "bank" | "shop" | "board" | "scenes" | "players" | "arrival" | "episodes" | "monsters" | "chronicle" | "game";
 const TABS: [Tab, string, string][] = [
@@ -158,7 +159,9 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
   const [editingMap, setEditingMap] = useState<string | null>(null);
   const [ending, setEnding] = useState(false);
   const closeMap = useCallback(() => setEditingMap(null), []);
-  const ctx: DmCtx = useMemo(() => ({ view, ident, run, toast, gated, call, openMap: setEditingMap }), [view, ident, run, toast, gated, call]);
+  const [diceOpen, setDiceOpen] = useState(false);
+  const toggleDice = useCallback(() => setDiceOpen((v) => !v), []);
+  const ctx: DmCtx = useMemo(() => ({ view, ident, run, toast, gated, call, openMap: setEditingMap, diceOpen, toggleDice }), [view, ident, run, toast, gated, call, diceOpen, toggleDice]);
 
   /** S: open the shop on the TV (at a shop the party can see), or close it. */
   const toggleShop = () => {
@@ -297,30 +300,13 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
   const runningEp = session?.run ? episodes.find((e) => e.id === session.run!.episodeId) : undefined;
   const chosenEp = episodes.find((e) => e.id === pickEpisode) ?? episodes[0];
 
-  if (fightOpen && s.fight) {
-    return (
-      <DmContext.Provider value={ctx}>
-        <FightScreen onExit={leaveFight} />
-        <div className={`toast${toastMsg ? " show" : ""}`} role="status" aria-live="polite">
-          {toastMsg?.text}
-        </div>
-      </DmContext.Provider>
-    );
-  }
-
-  if (runOpen && session?.run) {
-    return (
-      <DmContext.Provider value={ctx}>
-        <RunGame onExit={leaveRun} onFight={openFight} />
-        <div className={`toast${toastMsg ? " show" : ""}`} role="status" aria-live="polite">
-          {toastMsg?.text}
-        </div>
-      </DmContext.Provider>
-    );
-  }
-
-  return (
-    <DmContext.Provider value={ctx}>
+  // The fight screen and run-game mode replace the console; the dice tray and toasts stay put across all three.
+  const screen =
+    fightOpen && s.fight ? (
+      <FightScreen onExit={leaveFight} />
+    ) : runOpen && session?.run ? (
+      <RunGame onExit={leaveRun} onFight={openFight} />
+    ) : (
       <div className="dm-root">
         <header className="dm-top">
           <div className="dm-brand">
@@ -379,6 +365,7 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
               <DiceIcon /> Launch VTT
             </a>
           ) : null}
+          <DiceButton />
           <button className="btn" type="button" onClick={openTv} title={absoluteHref(ident.game, "TV")}>
             <TvIcon /> Open TV window
           </button>
@@ -512,10 +499,15 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
         </div>
 
         {editingMap ? <MapEditor sceneId={editingMap} onClose={closeMap} /> : null}
+      </div>
+    );
 
-        <div className={`toast${toastMsg ? " show" : ""}`} role="status" aria-live="polite">
-          {toastMsg?.text}
-        </div>
+  return (
+    <DmContext.Provider value={ctx}>
+      {screen}
+      <DiceTray />
+      <div className={`toast${toastMsg ? " show" : ""}`} role="status" aria-live="polite">
+        {toastMsg?.text}
       </div>
     </DmContext.Provider>
   );

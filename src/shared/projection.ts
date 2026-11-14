@@ -2,6 +2,7 @@
 // an explicit allow-list, so a new DM-only field can't leak by accident.
 
 import { creditLines, discountPct, firstChargeCp, priceOf, raisedCp, stakeTotals } from "./progress";
+import type { DiceGroup } from "./dice";
 import { heldCp, heldStock } from "./requests";
 import { projectTable, type TableView } from "./arrival";
 import { notesOf, penName, projectChronicle, type ChronicleView } from "./chronicle";
@@ -220,6 +221,8 @@ export interface TvView extends Common {
   jobs: PublicJob[];
   /** The last rank-up: the TV plays the moment when n changes. */
   renownMoment?: { rank: number; name: string; n: number };
+  /** The DM's last dice roll: the TV plays it when n changes. */
+  diceRoll?: { n: number; groups: DiceGroup[]; plus: number; total: number };
   /** Every non-reveal scene (for instant switching), plus the live scene even if it's a reveal. */
   scenes: PublicScene[];
   /** "Previously on…": only while the DM is showing it. The only session text the TV ever gets. */
@@ -432,6 +435,7 @@ export function projectTv(game: GameState, version: number): TvView {
     flyers: game.flyers.filter((f) => f.up).map((f) => ({ id: f.id, title: f.title, body: f.body, signedBy: f.signedBy, at: f.pinnedAt ?? f.postedAt })),
     jobs: pinnedJobs(game).map((j) => publicJob(game, j)),
     ...(game.renownMoment ? { renownMoment: { rank: game.renownMoment.rank, name: rankName(game.renownMoment.rank), n: game.renownMoment.n } } : {}),
+    ...(game.diceRoll ? { diceRoll: { n: game.diceRoll.n, groups: game.diceRoll.groups, plus: game.diceRoll.plus, total: game.diceRoll.total } } : {}),
     scenes: game.scenes.filter((sc) => !sc.reveal || sc.id === game.live.sceneId).map((sc) => publicScene(game, sc)),
     recap: publicRecap(game),
     ...(game.scenes.find((sc) => sc.id === game.live.sceneId)?.kind === "table" ? { table: projectTable(game) } : {}),
