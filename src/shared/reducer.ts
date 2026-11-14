@@ -19,6 +19,7 @@ import { findRef, sessionRecap, stageRank, blankEntry, ENTRIES_MAX, LEADS_MAX, e
 import { DM_AUTHOR } from "./types";
 import { beatSuggestions, entryRef, freeQuickKey, liveRef, QUICK_KEYS, quickOf, RECENT_MAX, refForScene, renameRefs, resolveRef, sceneSlug, uniqueSceneSlug } from "./assets";
 import { applyFight, isFightCommand, startFightFromBeat, type FightHelpers } from "./combatReducer";
+import { applyStory, isStoryCommand } from "./storyReducer";
 import type { Actor, Beat, BeatAction, Entry, EntryFact, Episode, FlyerText, Stage, GameState, Item, ItemTier, Job, Lead, LedgerEntry, LedgerKind, MapData, Note, Pin, PinLink, Player, Scene, Session, SessionRun, Shop, TradeRequest, Vote } from "./types";
 import type { z } from "zod";
 
@@ -52,6 +53,8 @@ export interface Result {
   entryId?: string;
   factId?: string;
   leadId?: string;
+  /** Created story thread / story beat / session date id. */
+  storyId?: string;
   /** Created episode / beat ids. */
   episodeId?: string;
   beatId?: string;
@@ -853,6 +856,12 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
     applyFight(s, cmd, fightHelpers);
     if (cmd.type === "fight.end" && !wasOver) noteMonsters(true);
     else if (cmd.type === "fight.patch") noteMonsters(false);
+    return out;
+  }
+
+  if (isStoryCommand(cmd)) {
+    const made = applyStory(s, cmd, { now: ctx.now, nextId, fail });
+    if (made) out.storyId = made;
     return out;
   }
 

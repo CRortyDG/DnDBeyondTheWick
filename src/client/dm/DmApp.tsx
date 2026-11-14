@@ -32,13 +32,15 @@ import { ArrivalPanel } from "./ArrivalPanel";
 import { ChroniclePanel } from "./ChroniclePanel";
 import { BoardPanel } from "./BoardPanel";
 import { FightScreen } from "./FightScreen";
+import { Storyboard } from "./Storyboard";
+import { StoryPanel } from "./StoryPanel";
 import { MonstersPanel } from "./MonstersPanel";
 import { FightOverlay } from "../ui/FightOverlay";
 import { DiceButton, DiceTray, PlayerRollCards } from "./DiceTray";
 import { Finder, QuickBar, quickKey, typing } from "./QuickBar";
 import { quickOf } from "@/shared/assets";
 
-type Tab = "bank" | "shop" | "board" | "scenes" | "discovery" | "leads" | "players" | "arrival" | "episodes" | "monsters" | "chronicle" | "game";
+type Tab = "bank" | "shop" | "board" | "scenes" | "discovery" | "leads" | "players" | "arrival" | "story" | "episodes" | "monsters" | "chronicle" | "game";
 const TABS: [Tab, string, string][] = [
   ["bank", "Bank", "B"],
   ["shop", "Shop", ""],
@@ -48,6 +50,7 @@ const TABS: [Tab, string, string][] = [
   ["leads", "Leads", ""],
   ["players", "Players", ""],
   ["arrival", "Arrival", ""],
+  ["story", "Story", ""],
   ["episodes", "Episodes", ""],
   ["monsters", "Monsters", ""],
   ["chronicle", "Chronicle", ""],
@@ -167,6 +170,9 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
   const [editingMap, setEditingMap] = useState<string | null>(null);
   /** The finder: open (optionally to pin onto one key) or closed. */
   const [finder, setFinder] = useState<{ pinTo?: number } | null>(null);
+  /** The storyboard, full-screen; the string is a beat to open (or "" for none). */
+  const [storyOpen, setStoryOpen] = useState<string | null>(null);
+  const closeStory = useCallback(() => setStoryOpen(null), []);
   const [ending, setEnding] = useState(false);
   const closeMap = useCallback(() => setEditingMap(null), []);
   const [diceOpen, setDiceOpen] = useState(false);
@@ -264,7 +270,7 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
 
   // Keyboard: 0-9 the quick bar, / the finder, arrows step through the bar, S shop on TV, P purse, B bank, T The Table, L map legend, Esc closes the shop (or zooms the map back out).
   useEffect(() => {
-    if (runOpen || finder) return; // run-game mode has its own keys; the finder has the keyboard while it's open
+    if (runOpen || finder || storyOpen !== null) return; // run-game mode and the storyboard have their own keys; the finder has the keyboard while it's open
     const onKey = (e: KeyboardEvent) => {
       if (typing(e)) return;
       if (e.metaKey || e.ctrlKey || e.altKey) return;
@@ -298,7 +304,7 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [s, s.scenes, s.shops, s.live.shopOpen, s.live.shopId, s.live.purseVisible, s.live.sceneId, s.live.focus, run, runOpen, fightOpen, finder]);
+  }, [s, s.scenes, s.shops, s.live.shopOpen, s.live.shopId, s.live.purseVisible, s.live.sceneId, s.live.focus, run, runOpen, fightOpen, finder, storyOpen]);
 
   const live = s.scenes.find((x) => x.id === s.live.sceneId) ?? s.scenes[0];
   const purse = s.players.filter((p) => !p.archived && !p.away).map((p) => ({ id: p.id, name: p.name, balanceCp: p.balanceCp, inspired: !!p.inspired }));
@@ -493,6 +499,7 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
               {tab === "leads" ? <LeadsPanel /> : null}
               {tab === "players" ? <PlayersPanel /> : null}
               {tab === "arrival" ? <ArrivalPanel /> : null}
+              {tab === "story" ? <StoryPanel onOpen={(id) => setStoryOpen(id ?? "")} /> : null}
               {tab === "episodes" ? <EpisodesPanel onRun={startRun} /> : null}
               {tab === "monsters" ? <MonstersPanel onFight={openFight} /> : null}
               {tab === "chronicle" ? <ChroniclePanel /> : null}
@@ -503,6 +510,7 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
 
         {editingMap ? <MapEditor sceneId={editingMap} onClose={closeMap} /> : null}
         {finder ? <Finder pinTo={finder.pinTo} onClose={() => setFinder(null)} /> : null}
+        {storyOpen !== null ? <Storyboard onClose={closeStory} select={storyOpen || undefined} /> : null}
       </div>
     );
 

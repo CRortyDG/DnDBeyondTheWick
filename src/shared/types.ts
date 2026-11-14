@@ -769,6 +769,8 @@ export interface GameState {
   recent?: string[];
   /** One-time content upgrades already applied to this game (see migrate.ts), so a later delete sticks. */
   upgrades?: string[];
+  /** DM-ONLY: the storyboard (threads, story beats, planned session dates). Never copied into a TV or player view. Read with storyOf(). */
+  story?: Story;
   seq: number;
 }
 
@@ -976,4 +978,92 @@ export interface FightSummary {
   lootCp: number;
   items: string;
   noteId?: string;
+}
+
+// ---------- the storyboard (all DM-ONLY) ----------
+
+export type StoryBeatType = "clue" | "reveal" | "choice" | "consequence" | "background" | "spotlight";
+export type StoryStatus = "planned" | "placed" | "played" | "dropped";
+export type StoryThreadKind = "main" | "side" | "place" | "backstory";
+
+/** When a beat should happen: "YYYY-MM" months, both ends included. */
+export interface StoryRange {
+  from: string;
+  to: string;
+}
+
+/** What a story beat is tied to. Entries and facts by id, so renaming a slug never breaks a link. */
+export type StoryLink =
+  | { kind: "entry"; id: string }
+  | { kind: "fact"; entryId: string; factId: string }
+  | { kind: "job"; id: string }
+  | { kind: "flyer"; id: string }
+  | { kind: "lead"; id: string }
+  | { kind: "item"; id: string }
+  | { kind: "monster"; id: string };
+
+export interface StoryThread {
+  id: string;
+  /** Backstory lanes leave it empty and read "Backstory: {character}". */
+  name: string;
+  /** "#7a2a1f" */
+  color: string;
+  description: string;
+  goal: string;
+  kind: StoryThreadKind;
+  /** Backstory lanes: whose. */
+  playerId?: string;
+}
+
+export interface StoryPlay {
+  at: number;
+  /** The session it was played in (null: marked by hand between sessions). */
+  sessionId: string | null;
+  episodeId?: string;
+  outcome: string;
+}
+
+export interface StoryBeat {
+  id: string;
+  threadId: string;
+  title: string;
+  summary: string;
+  dmNotes: string;
+  type: StoryBeatType;
+  /** Missing: floating (no window yet). "anytime": any time at all. */
+  window?: StoryRange | "anytime";
+  /** "YYYY-MM-DD": warn if it isn't placed (or played) by then. */
+  by?: string;
+  links: StoryLink[];
+  /** Beats that must be played first. */
+  after: string[];
+  status: StoryStatus;
+  /** Can be played again and again ("The candle never needs new wax"): stays Planned after a play. */
+  repeat?: boolean;
+  /** Each time it was played, oldest first. */
+  plays: StoryPlay[];
+  /** A reworded copy of this beat. */
+  variantOf?: string;
+  createdAt: number;
+}
+
+/** A planned game night. Episodes sit on their dates. */
+export interface StoryDate {
+  id: string;
+  /** "YYYY-MM-DD" */
+  date: string;
+  cancelled?: boolean;
+  episodeId?: string;
+  /** The real session it became. */
+  sessionId?: string;
+}
+
+export interface Story {
+  threads: StoryThread[];
+  beats: StoryBeat[];
+  dates: StoryDate[];
+  /** Board view: columns by month or by season. */
+  zoom: "month" | "season";
+  /** Festival labels along the top. */
+  festivals: boolean;
 }
