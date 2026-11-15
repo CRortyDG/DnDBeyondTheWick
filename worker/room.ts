@@ -1,7 +1,7 @@
 import { DurableObject } from "cloudflare:workers";
 import { handleApi, miss } from "@/server/api";
 import { isDmKey, KEY_HEADER } from "@/server/auth";
-import { actorOf, HttpError, identify, projectFor } from "@/server/game";
+import { actorOf, HttpError, identify, identifyPractice, projectFor } from "@/server/game";
 import { hydrate, SNAPSHOTS_KEPT, type SnapshotData, type SnapshotInfo, type Store } from "@/server/store";
 import { isToken, projectArrival } from "@/shared/arrival";
 import type { GameState, LedgerEntry } from "@/shared/types";
@@ -12,6 +12,9 @@ import { addUsage, USAGE_FIELDS, utcDay, ZERO_USAGE, type UsageCounts, type Usag
 
 /** A campaign idle this long is deleted, with its images. */
 const IDLE_DELETE_MS = 180 * 24 * 60 * 60 * 1000;
+/** A practice copy nobody has touched this long is deleted (never any images: those are the live campaign's). */
+const PRACTICE_IDLE_MS = 7 * 24 * 60 * 60 * 1000;
+const PRACTICE_CHECK_MS = 24 * 60 * 60 * 1000;
 const CHECK_EVERY_MS = 30 * 24 * 60 * 60 * 1000;
 
 /** Open screens one room will hold. A table needs about ten; this stops one code being flooded with sockets. */
@@ -58,6 +61,8 @@ export class GameRoom extends DurableObject<Env> implements Store {
   private hasSchema: boolean;
 
   readonly presets: PresetStore;
+  /** This is a practice room ("practice:<code>"): it holds a copy, answers only the DM key, and owns no images. */
+  practiceMode: boolean;
 
   /** Usage since the last save (see the usage section below). Lost if the room sleeps first: the counts run a little low, never high. */
   private meter: UsageCounts = { ...ZERO_USAGE };
@@ -85,6 +90,7 @@ export class GameRoom extends DurableObject<Env> implements Store {
       },
     });
     this.hasSchema = this.sql.exec("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'doc'").toArray().length > 0;
+    this.practiceMode = this.hasSchema && this.sql.exec("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'practice_base'").toArray().length > 0;
     // Keep-alive pings from the browser are answered without waking the room.
     ctx.setWebSocketAutoResponse(new WebSocketRequestResponsePair("ping", "pong"));
   }
@@ -178,6 +184,50 @@ export class GameRoom extends DurableObject<Env> implements Store {
     if ((await this.ctx.storage.getAlarm()) === null) await this.ctx.storage.setAlarm(Date.now() + CHECK_EVERY_MS);
   }
 
+  // ---------------------------------------------------------------- practice copies
+  //
+  // A practice room is this same class under another name. beginPractice turns it
+  // into one; endPractice deletes everything in it.
+
+  async beginPractice(game: string, state: GameState, ledger: LedgerEntry[], dmKeyHash: string, base: GameState) {
+    if (this.hasSchema && !this.practiceMode) throw new Error("A live campaign can't become a practice copy.");
+    this.ensureSchema();
+    this.sql.exec("CREATE TABLE IF NOT EXISTS practice_base (n INTEGER PRIMARY KEY, body TEXT NOT NULL)");
+    const json = JSON.stringify(base);
+    const PIECE = 900_000;
+    this.ctx.storage.transactionSync(() => {
+      this.sql.exec("DELETE FROM practice_base");
+      for (let i = 0, n = 0; i < json.length; i += PIECE, n++) this.sql.exec("INSERT INTO practice_base (n, body) VALUES (?, ?)", n, json.slice(i, i + PIECE));
+    });
+    this.practiceMode = true;
+    const next: Doc = { ...this.load(), game, dmKeyHash };
+    this.save(game, next);
+    this.doc = next;
+    const v = await this.overwrite(game, state, ledger);
+    await this.ctx.storage.setAlarm(Date.now() + PRACTICE_CHECK_MS);
+    return v;
+  }
+  async practiceBase(_game: string): Promise<GameState | null> {
+    if (!this.practiceMode) return null;
+    const parts = this.sql.exec<{ body: string }>("SELECT body FROM practice_base ORDER BY n").toArray();
+    return parts.length ? (JSON.parse(parts.map((p) => p.body).join("")) as GameState) : null;
+  }
+  async endPractice(_game: string) {
+    if (!this.practiceMode) return;
+    for (const ws of this.ctx.getWebSockets()) {
+      try {
+        ws.send(JSON.stringify({ t: "error", status: 404, code: "no-game", error: "Practice has ended.", version: 0 }));
+        ws.close(4000, "Practice ended");
+      } catch {}
+    }
+    await this.ctx.storage.deleteAlarm();
+    await this.ctx.storage.deleteAll();
+    this.hasSchema = false;
+    this.practiceMode = false;
+    this.doc = null;
+    this.ledgerCache = null;
+  }
+
   // ---------------------------------------------------------------- safety snapshots
   //
   // The whole game and ledger, before a reset or restore and at each session's end.
@@ -239,6 +289,9 @@ export class GameRoom extends DurableObject<Env> implements Store {
 
   private async handle(req: Request): Promise<Response> {
     const url = new URL(req.url);
+    // A practice room answers only practice requests, and a live room never does.
+    if ((url.searchParams.get("practice") === "1") !== this.practiceMode && !url.pathname.startsWith("/internal/")) return miss(new Response(JSON.stringify({ error: "No game here yet.", code: "no-game" }), { status: 404, headers: { "Content-Type": "application/json" } }));
+    if (this.practiceMode && url.pathname.startsWith("/internal/")) return new Response("Not found", { status: 404 });
     if (url.pathname === "/internal/upload-reserve" && req.method === "POST") return this.reserveUpload(req, url);
     if (url.pathname === "/api/live") {
       if (req.headers.get("Upgrade") !== "websocket") return new Response("Expected a WebSocket", { status: 426 });
@@ -247,6 +300,7 @@ export class GameRoom extends DurableObject<Env> implements Store {
       const [client, server] = [pair[0], pair[1]];
       this.ctx.acceptWebSocket(server);
       const t = url.searchParams.get("t");
+      if (this.practiceMode && url.searchParams.has("arrival")) return new Response("Not in practice", { status: 404 });
       const att: Attachment = url.searchParams.has("arrival")
         ? { mode: "arrival", token: isToken(t) ? t : null }
         : { mode: "pending", player: url.searchParams.get("player") ?? "" };
@@ -342,7 +396,7 @@ export class GameRoom extends DurableObject<Env> implements Store {
     }
     try {
       if (!state) throw new HttpError(404, "No game here yet.", "no-game");
-      const who = identify(state, att.player, att.key, this.load().dmKeyHash);
+      const who = (this.practiceMode ? identifyPractice : identify)(state, att.player, att.key, this.load().dmKeyHash);
       if (who.kind === "invalid") throw new HttpError(401, "That DM key isn't right.", "bad-key");
       if (who.kind === "taken") throw new HttpError(403, "That name is taken.", "taken");
       if (who.kind === "unknown") throw new HttpError(404, "You're not at this table.", "unknown");
@@ -447,6 +501,12 @@ export class GameRoom extends DurableObject<Env> implements Store {
     if (!this.hasSchema) return;
     this.count({ events: 1, roomRequests: 1 });
     this.flushUsage(true);
+    if (this.practiceMode) {
+      const t = this.sql.exec<{ touched_at: number }>("SELECT touched_at FROM doc WHERE id = 1").toArray()[0];
+      if (!t || (Date.now() - t.touched_at > PRACTICE_IDLE_MS && this.ctx.getWebSockets().length === 0)) await this.endPractice("");
+      else await this.ctx.storage.setAlarm(Date.now() + PRACTICE_CHECK_MS);
+      return;
+    }
     const row = this.sql.exec<{ touched_at: number; game: string | null }>("SELECT touched_at, game FROM doc WHERE id = 1").toArray()[0];
     if (row && Date.now() - row.touched_at > IDLE_DELETE_MS && this.ctx.getWebSockets().length === 0) {
       if (row.game) {

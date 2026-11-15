@@ -188,6 +188,14 @@ export interface Player {
   renownPoints?: number;
   /** Their character's level, 1-20. Missing: not set yet. */
   level?: number;
+  /** DM-ONLY, practice copies only: a stand-in for rehearsing (see practice.ts). Never in a live game. */
+  standIn?: StandIn;
+}
+
+/** Numbers a practice stand-in uses that real players don't store. */
+export interface StandIn {
+  ac?: number;
+  initBonus?: number;
 }
 
 /** A player's hit points, as they (or the DM) typed them. */
@@ -895,6 +903,14 @@ export interface Episode {
   beats: Beat[];
   /** DM-ONLY: prep checklist items ticked off or dismissed, by item key. */
   prep?: Record<string, "done" | "dismissed">;
+  /** DM-ONLY: the DM's own prep checklist items (practice notes land here), keyed "note:<id>" in prep. */
+  prepNotes?: PrepNote[];
+}
+
+export interface PrepNote {
+  id: string;
+  text: string;
+  at: number;
 }
 
 export interface SessionRun {
@@ -1039,7 +1055,34 @@ export interface GameState {
   parties?: Party[];
   /** Shared world: the party at the table now (whose session runs, whose fog the maps show). */
   partyId?: string;
+  /** DM-ONLY: set only in a practice copy (see practice.ts). A live game never has it. */
+  practice?: PracticeInfo;
   seq: number;
+}
+
+/** One timed stretch of a rehearsal: a run-sheet beat or a fight. */
+export interface PracticeSegment {
+  /** "beat:<id>", "fight:<id>", "start", "end". */
+  key: string;
+  label: string;
+  ms: number;
+}
+
+/** DM-ONLY: what a practice copy knows about the rehearsal. */
+export interface PracticeInfo {
+  startedAt: number;
+  /** The episode being rehearsed, if any. */
+  episodeId?: string;
+  /** Practice notes, one per line. They go to the episode's prep checklist at the end. */
+  notes: string;
+  /** Real session estimate = practice time x this. */
+  factor: number;
+  /** Time away from the screen (tab hidden for a while), not counted. */
+  awayMs: number;
+  /** Time per beat and fight, in the order first reached. */
+  segments: PracticeSegment[];
+  /** What's being timed right now. */
+  open: { key: string; label: string; since: number } | null;
 }
 
 // ---------- the shared world (several parties in one campaign) ----------

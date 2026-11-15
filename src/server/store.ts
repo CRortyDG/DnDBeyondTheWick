@@ -40,6 +40,16 @@ export interface Store {
   loadSnapshot?(game: string, id: number): Promise<SnapshotData | null>;
   /** What this campaign has used of its host (Cloudflare only). Missing: not counted here. */
   usage?(game: string): Promise<UsageReport>;
+
+  // Practice mode (see practice.ts). A practice room is its own store, reachable only with the DM key.
+  /** True in a practice room. Read synchronously, before anything else. */
+  practiceMode?: boolean;
+  /** Make this store the practice copy: game, ledger, the DM key hash, and the live game as it was (to compare at the end). */
+  beginPractice?(game: string, state: GameState, ledger: LedgerEntry[], dmKeyHash: string, base: GameState): Promise<number>;
+  /** The live game as it was when practice began. */
+  practiceBase?(game: string): Promise<GameState | null>;
+  /** Delete the practice copy and hang up its screens. */
+  endPractice?(game: string): Promise<void>;
 }
 
 /** How many safety snapshots a campaign keeps. */
@@ -76,6 +86,27 @@ export class MemoryStore implements Store {
   private games = new Map<string, MemoryGame>();
   readonly published: { game: string; version: number }[] = [];
   presets?: PresetStore;
+  practiceMode?: boolean;
+  private bases = new Map<string, string>();
+
+  constructor(opts: { practice?: boolean } = {}) {
+    if (opts.practice) this.practiceMode = true;
+  }
+
+  async beginPractice(game: string, state: GameState, ledger: LedgerEntry[], dmKeyHash: string, base: GameState) {
+    if (!this.practiceMode) throw new Error("Not a practice store");
+    this.load(game).dmKeyHash = dmKeyHash;
+    this.bases.set(game, JSON.stringify(base));
+    return this.overwrite(game, state, ledger);
+  }
+  async practiceBase(game: string) {
+    const b = this.bases.get(game);
+    return b ? (JSON.parse(b) as GameState) : null;
+  }
+  async endPractice(game: string) {
+    this.games.delete(game);
+    this.bases.delete(game);
+  }
 
   private load(game: string): MemoryGame {
     let g = this.games.get(game);

@@ -7,6 +7,8 @@ export interface Ident {
   /** Raw ?player= value ("DM", "TV", "Sam"), or null on the landing page. */
   player: string | null;
   key: string | null;
+  /** A practice screen (?practice=1): it talks to the campaign's practice copy, with the DM key, whatever ?player= says. */
+  practice?: boolean;
 }
 
 function keySlot(game: string, player: string) {
@@ -46,6 +48,11 @@ export function readIdent(): Ident {
   const hash = new URLSearchParams(url.hash.replace(/^#/, ""));
   const urlKey = url.searchParams.get("key") || hash.get("key");
   let key: string | null = null;
+  // Practice screens (the DM's practice console, its TV and stand-in phones) all use the DM key saved on this device.
+  if (player && url.searchParams.get("practice") === "1") {
+    if (urlKey) safeSet(keySlot(game, "dm"), urlKey);
+    return { game, player, key: urlKey ?? safeGet(keySlot(game, "dm")), practice: true };
+  }
   if (player) {
     if (urlKey) {
       safeSet(keySlot(game, player), urlKey);
@@ -89,7 +96,12 @@ export function signInLink(ident: Ident): string | null {
 }
 
 export function rememberKey(ident: Ident, key: string | null) {
-  if (ident.player) safeSet(keySlot(ident.game, ident.player), key);
+  if (ident.player) safeSet(keySlot(ident.game, ident.practice ? "dm" : ident.player), key);
+}
+
+/** A practice screen of this campaign: the DM console ("DM"), the TV ("TV") or a stand-in's phone (their handle). */
+export function practiceHref(game: string, player: string) {
+  return hrefFor(game, player, { practice: "1" });
 }
 
 export function hrefFor(game: string, player?: string | null, extra: Record<string, string> = {}) {
@@ -108,6 +120,7 @@ export function absoluteHref(game: string, player?: string | null, extra: Record
 function apiUrl(path: string, ident: Ident) {
   const q = new URLSearchParams({ game: ident.game });
   if (ident.player) q.set("player", ident.player);
+  if (ident.practice) q.set("practice", "1");
   return `${path}?${q}`;
 }
 

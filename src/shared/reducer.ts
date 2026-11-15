@@ -22,6 +22,7 @@ import { boardNotes, cleanLook, cleanPlace, defaultWidth, NOTICES_MAX, placeFor,
 import { decodeBits, emptyBits, encodeBits, fullBits } from "./fog";
 import { addPartyTokens, freeSpot, snapToGrid, syncFightTokens, tokensOf, TOKENS_MAX } from "./tokens";
 import { levelLine } from "./levels";
+import { applyPractice, isPracticeCommand, trackPractice } from "./practice";
 import { applyFight, isFightCommand, startFightFromBeat, type FightHelpers } from "./combatReducer";
 import type { Notice, NotePlace } from "./types";
 import { beatSuggestions, entryRef, freeQuickKey, liveRef, QUICK_KEYS, quickOf, RECENT_MAX, refForScene, renameRefs, resolveRef, sceneSlug, uniqueSceneSlug } from "./assets";
@@ -94,6 +95,13 @@ export function isDmCommand(type: string): boolean {
  * and whatever the table learned goes into the memories of those present.
  */
 export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
+  const out = applyWorld(input, cmd, ctx);
+  // A rehearsal times each beat and fight as it goes.
+  if (out.state.practice) trackPractice(out.state, ctx.now);
+  return out;
+}
+
+function applyWorld(input: GameState, cmd: Command, ctx: Ctx): Result {
   if (!input.world) return applyOne(input, cmd, ctx);
   let base = input;
   if (ctx.actor.role === "player" && cmd.type.startsWith("me.")) {
@@ -1120,6 +1128,11 @@ function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
     syncFightTokens(s, nextId);
     if (cmd.type === "fight.end" && !wasOver) noteMonsters(true);
     else if (cmd.type === "fight.patch") noteMonsters(false);
+    return out;
+  }
+
+  if (isPracticeCommand(cmd)) {
+    applyPractice(s, cmd, { now: ctx.now, rand, nextId, fail });
     return out;
   }
 
@@ -2681,6 +2694,19 @@ function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
       // Keep the record small.
       const keys = Object.keys(prep);
       if (keys.length > 300) for (const k of keys.slice(0, keys.length - 300)) delete prep[k];
+      break;
+    }
+    case "episode.prepNote": {
+      const ep = episode(cmd.episodeId);
+      const notes = (ep.prepNotes ??= []);
+      if (cmd.noteId) {
+        ep.prepNotes = notes.filter((n) => n.id !== cmd.noteId);
+        if (ep.prep) delete ep.prep[`note:${cmd.noteId}`];
+      } else if (cmd.text) {
+        if (notes.length >= 100) fail("This checklist is full. Tick off or remove a few first.");
+        notes.push({ id: nextId("pn"), text: cmd.text, at: ctx.now });
+      } else fail("Write the item first.");
+      if (!ep.prepNotes?.length) delete ep.prepNotes;
       break;
     }
     case "run.story": {

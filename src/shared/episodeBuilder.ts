@@ -333,6 +333,8 @@ export function prepOf(g: G, ep: Episode): PrepItem[] {
       if (/\bTBD\b/.test(`${sb.summary} ${sb.dmNotes}`)) push(`tbd:${sb.id}`, `“${sb.title}” still has a TBD. Decide it before the session.`);
     }
   }
+  // The DM's own items (practice notes land here).
+  for (const n of ep.prepNotes ?? []) push(`note:${n.id}`, n.text);
   return out;
 }
 

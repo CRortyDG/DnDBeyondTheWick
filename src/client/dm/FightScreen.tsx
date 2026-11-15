@@ -323,6 +323,11 @@ function FightConsole({ f, onExit, run, toast }: { f: Fight; onExit: () => void;
               <button className="btn run-nav" type="button" onClick={() => run({ type: "fight.rollInit" })} disabled={!f.order.some((c) => c.kind === "monster" && c.init === null)}>
                 Roll monsters&rsquo; initiative
               </button>
+              {s.practice ? (
+                <button className="btn run-nav" type="button" onClick={() => run({ type: "practice.rollStandIns" })} disabled={!f.order.some((c) => c.kind === "player" && c.init === null)}>
+                  Roll all stand-in initiatives
+                </button>
+              ) : null}
               <button className="btn primary run-nav" type="button" onClick={(e) => e.detail < 2 && void begin()} disabled={!f.order.length}>
                 Begin ›
               </button>

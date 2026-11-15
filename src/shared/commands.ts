@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { practiceDmCommands } from "./practice";
 import { CATEGORY_IDS, KIND_IDS } from "./progress";
 import { RENOWN_MAX, RENOWN_POINTS_MAX } from "./renown";
 import { FONT_IDS, LIST_MAX, NOTE_W_MAX, NOTE_W_MIN, PAPER_IDS, PIN_IDS, TITLE_SIZE_MAX, TITLE_SIZE_MIN } from "./board";
@@ -277,6 +278,8 @@ export const dmCommand = z.discriminatedUnion("type", [
   /** An episode ended with this story beat unplayed: back to Planned, keep it here for next time, or drop it. */
   z.object({ type: z.literal("episode.leftover"), episodeId: id, storyBeatId: id, choice: z.enum(["planned", "keep", "drop"]) }),
   z.object({ type: z.literal("episode.prep"), episodeId: id, key: z.string().min(1).max(200), state: z.enum(["done", "dismissed"]).nullable() }),
+  /** The DM's own prep checklist item: add one (text), or remove one (noteId). */
+  z.object({ type: z.literal("episode.prepNote"), episodeId: id, text: z.string().trim().min(1).max(300).optional(), noteId: id.optional() }),
   /** Tick a story block in run-game mode: the story beat is Played in this session, its facts reveal on the TV. */
   z.object({ type: z.literal("run.story"), episodeId: id, beatId: id, storyBeatId: id, done: z.boolean(), outcome: text(300).optional() }),
   z.object({ type: z.literal("scene.show"), sceneId: id }),
@@ -563,6 +566,9 @@ export const dmCommand = z.discriminatedUnion("type", [
 
   // The storyboard (DM-only planning).
   ...storyDmCommands,
+
+  // Practice mode (practice copies only).
+  ...practiceDmCommands,
 ]);
 
 /** Commands a player may send about themselves. */

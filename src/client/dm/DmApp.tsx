@@ -2,7 +2,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement } from "react";
 import type { DmCommand } from "@/shared/commands";
 import type { DmView } from "@/shared/projection";
-import { api, absoluteHref, authHeaders, hrefFor, rememberKey, type Ident } from "../api";
+import { api, absoluteHref, authHeaders, hrefFor, practiceHref, rememberKey, type Ident } from "../api";
+import { PracticeBar, PracticeButton } from "./Practice";
 import { useGame, type CallResult } from "../useGame";
 import { Notice } from "../ui/Notice";
 import { Purse } from "../ui/Purse";
@@ -124,7 +125,7 @@ export function DmApp({ ident: initial }: { ident: Ident }) {
   if (g.phase === "invalid") {
     return <KeyPrompt game={ident.game} onKey={(key) => (rememberKey(ident, key), setIdent({ ...ident, key }))} wrong={!!ident.key} />;
   }
-  if (g.phase === "no-game") return <NoCampaign game={ident.game} />;
+  if (g.phase === "no-game") return ident.practice ? <PracticeOver game={ident.game} /> : <NoCampaign game={ident.game} />;
   if (!g.view || g.view.role !== "dm") {
     if (g.phase === "error") return <Notice title="Can't reach the server">{g.error ?? "Trying again"}...</Notice>;
     return <div className="dm-root" aria-busy="true" />;
@@ -155,6 +156,17 @@ function KeyPrompt({ game, onKey, wrong }: { game: string; onKey: (k: string) =>
           Game: <b>{game}</b>. The key is saved on this device only.
         </p>
       </form>
+    </Notice>
+  );
+}
+
+function PracticeOver({ game }: { game: string }) {
+  return (
+    <Notice title="No practice going">
+      <p>This practice copy has ended (or never started). The live game is as you left it.</p>
+      <a className="btn primary" href={hrefFor(game, "DM")}>
+        Back to the live game
+      </a>
     </Notice>
   );
 }
@@ -408,7 +420,8 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
   const liveShop = s.shops.find((x) => x.id === s.live.shopId);
 
   const openTv = () => {
-    window.open(hrefFor(ident.game, "TV"), "candlefair-tv", "popup,width=1280,height=720");
+    if (s.practice) window.open(practiceHref(ident.game, "TV"), `candlefair-practice-tv-${ident.game}`, "popup,width=1280,height=720");
+    else window.open(hrefFor(ident.game, "TV"), "candlefair-tv", "popup,width=1280,height=720");
   };
 
   const episodes = s.episodes ?? [];
@@ -469,6 +482,7 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
             <PanelRightIcon />
           </button>
           <span className="dm-top-sep" aria-hidden="true" />
+          {s.practice ? null : <PracticeButton episodeId={(runningEp ?? chosenEp)?.id} episodeTitle={(runningEp ?? chosenEp)?.title} />}
           {session ? (
             <button className="btn" type="button" onClick={() => setEnding(true)}>
               End session
@@ -658,6 +672,7 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
 
   return (
     <DmContext.Provider value={ctx}>
+      {s.practice ? <PracticeBar practice={s.practice} /> : null}
       {screen}
       {tableMap ? <TableMap sceneId={tableMap} onClose={closeTable} /> : null}
       <DiceTray />
