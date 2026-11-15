@@ -29,8 +29,8 @@ function Line({ text, shown }: { text: string; shown: number }) {
   );
 }
 
-function lineBodies(panel: Panel, step: number, character?: string) {
-  return (panel.steps[step]?.lines ?? []).map((l) => fill(l, character));
+function lineBodies(panel: Panel, step: number, captain?: string) {
+  return (panel.steps[step]?.lines ?? []).map((l) => fill(l, undefined, captain));
 }
 
 export function Intro({
@@ -41,7 +41,9 @@ export function Intro({
   onCue,
   soundOn,
   onToggleSound,
+  captain,
 }: {
+  captain?: string;
   start: Pos;
   reduced: boolean;
   onPos: (p: Pos) => void;
@@ -53,8 +55,8 @@ export function Intro({
   const [pos, setPos] = useState<Pos>(start);
   const panel = PANELS[pos.panel];
   const step = panel.steps[pos.step];
-  const lines = lineBodies(panel, pos.step).map((l) => (/^\*(.*)\*$/.exec(l)?.[1] ?? l));
-  const raw = lineBodies(panel, pos.step);
+  const lines = lineBodies(panel, pos.step, captain).map((l) => (/^\*(.*)\*$/.exec(l)?.[1] ?? l));
+  const raw = lineBodies(panel, pos.step, captain);
   const total = lines.reduce((n, l) => n + l.length, 0);
 
   // How much of this step's text is showing, in characters (all lines together).

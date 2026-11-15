@@ -132,7 +132,7 @@ describe("the generic link", () => {
 
   it("gets no seats and no player data", async () => {
     const r = await phone("GET", null);
-    expect(r.body).toEqual({ version: expect.any(Number), me: null, seats: [], locked: false });
+    expect(r.body).toEqual({ version: expect.any(Number), look: { title: "The Flickering Candle", captain: "Orsa Dell", intro: true }, me: null, seats: [], locked: false });
   });
 });
 

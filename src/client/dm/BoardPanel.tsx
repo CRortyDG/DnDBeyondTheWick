@@ -8,7 +8,7 @@ import { BoardCanvas, LookFields, useScrollIn } from "./BoardCanvas";
 import { useMemo, useState } from "react";
 import { cpToGpInput, formatCp, parseAmount } from "@/shared/money";
 import { jobWhen, type PublicJob } from "@/shared/projection";
-import { defaultPayout, jobsOf, jobTitle, payoutPlayers, rankName, RENOWN, renownOf } from "@/shared/renown";
+import { defaultPayout, jobsOf, jobTitle, payoutPlayers, rankName, ranksOf, renownOf } from "@/shared/renown";
 import type { Job, JobReward, JobStatus, JobStyle, NoteLook, TrustNeed } from "@/shared/types";
 import { JobCard, STYLE_LABELS, whenLabel } from "../scenes/Board";
 import { useDm } from "./context";
@@ -47,7 +47,7 @@ export function BoardPanel() {
           </button>
         }
         stats={[
-          { label: "Renown", value: rankName(renownOf(s)), tone: "gold" },
+          { label: "Renown", value: rankName(renownOf(s), s), tone: "gold" },
           { label: "Open jobs", value: n("open") },
           { label: "Taken", value: n("taken"), tone: n("taken") ? "warn" : "muted" },
           { label: "Done", value: n("done"), tone: "muted" },
@@ -87,13 +87,14 @@ export function BoardPanel() {
 function RenownBox() {
   const { view, run } = useDm();
   const rank = renownOf(view.state);
-  const next = RENOWN[rank + 1];
+  const ranks = ranksOf(view.state);
+  const next = ranks[rank + 1];
   return (
     <section className="box">
       <h3>Renown</h3>
       <p className="note">One rank for the whole party. Raising it plays a moment on the TV, writes it in the Chronicle, and opens anything that was waiting on it. Lowering it is quiet, and those things lock again.</p>
       <ol className="renown-ladder">
-        {RENOWN.map((r, i) => (
+        {ranks.map((r, i) => (
           <li key={r.name} className={i === rank ? "on" : i < rank ? "past" : undefined}>
             <span>
               <b>{r.name}</b> <span className="note">· {r.meaning}</span>
@@ -111,7 +112,7 @@ function RenownBox() {
         <label>
           Set to
           <select className="fld" value={rank} onChange={(e) => run({ type: "renown.set", rank: Number(e.target.value) })}>
-            {RENOWN.map((r, i) => (
+            {ranks.map((r, i) => (
               <option key={r.name} value={i}>
                 {r.name}
               </option>
@@ -119,7 +120,55 @@ function RenownBox() {
           </select>
         </label>
       </div>
+      <RankWords />
     </section>
+  );
+}
+
+const RANK_FIELDS = [
+  { k: "name", label: "Rank", max: 40 },
+  { k: "meaning", label: "What it means", max: 120 },
+  { k: "pay", label: "Jobs pay", max: 40 },
+  { k: "raised", label: "TV line when reached", max: 80 },
+] as const;
+
+/** Reword the five ranks for this campaign. A blank box keeps the default text. */
+function RankWords() {
+  const { view, run } = useDm();
+  const s = view.state;
+  const defaults = ranksOf({ town: s.town });
+  const [d, setD] = useState(() => defaults.map((_, i) => ({ ...(s.renownRanks?.[i] ?? {}) }) as Record<string, string | undefined>));
+  const save = () => run({ type: "game.renownRanks", ranks: d }, "Renown ranks saved.");
+  return (
+    <details className="rank-words">
+      <summary>Reword the ranks for this campaign</summary>
+      <p className="note">Leave a box empty to keep the text shown in grey. Every campaign has five ranks.</p>
+      {defaults.map((r, i) => (
+        <fieldset key={i} className="rank-words-row">
+          <legend>Rank {i + 1}</legend>
+          {RANK_FIELDS.map((f) => (
+            <label key={f.k}>
+              {f.label}
+              <input
+                className="fld"
+                maxLength={f.max}
+                placeholder={r[f.k]}
+                value={d[i][f.k] ?? ""}
+                onChange={(e) => setD((all) => all.map((x, j) => (j === i ? { ...x, [f.k]: e.target.value } : x)))}
+              />
+            </label>
+          ))}
+        </fieldset>
+      ))}
+      <div className="inline">
+        <button type="button" className="btn primary" onClick={save}>
+          Save ranks
+        </button>
+        <button type="button" className="btn" onClick={() => setD(defaults.map(() => ({})))}>
+          Clear all
+        </button>
+      </div>
+    </details>
   );
 }
 
@@ -136,7 +185,7 @@ function JobRow({ job: j, onEdit, onFollowUp, onPay }: { job: Job; onEdit: () =>
           <b>{name}</b> {j.pinned ? <span className="tag">pinned</span> : null}
         </div>
         <div className="note">
-          {STYLE_LABELS[j.style]} · {reward} · needs {rankName(j.renown)}
+          {STYLE_LABELS[j.style]} · {reward} · needs {rankName(j.renown, s)}
           {when ? ` · ${j.status === "done" ? "done" : "taken"} ${when.chapter !== undefined ? "in" : "on"} ${whenLabel(when)}` : ""}
           {j.status === "done" && j.paidCp !== undefined ? ` · paid ${formatCp(j.paidCp)}` : ""}
         </div>
@@ -229,6 +278,7 @@ function draftOf(j?: Job): Draft {
 /** Write or edit a job flyer, with a live preview in each paper. */
 function JobEditor({ job, followUpOf, onClose }: { job?: Job; followUpOf?: Job; onClose: () => void }) {
   const { view, call, toast } = useDm();
+  const ranks = ranksOf(view.state);
   const scrollIn = useScrollIn();
   const rank = renownOf(view.state);
   const [d, setD] = useState<Draft>(() => {
@@ -249,7 +299,7 @@ function JobEditor({ job, followUpOf, onClose }: { job?: Job; followUpOf?: Job; 
     postedBy: style === "sealed" ? "" : d.postedBy,
     body: style === "sealed" ? "" : d.body,
     reward: d.rewardKind === "hidden" || !rewardCp ? null : { kind: d.rewardKind, cp: rewardCp },
-    ...(d.renown > rank ? { needs: rankName(d.renown) } : {}),
+    ...(d.renown > rank ? { needs: rankName(d.renown, view.state) } : {}),
     at: 0,
   });
 
@@ -306,7 +356,7 @@ function JobEditor({ job, followUpOf, onClose }: { job?: Job; followUpOf?: Job; 
           <label>
             Needs Renown
             <select className="fld" value={d.renown} onChange={(e) => set("renown", Number(e.target.value))}>
-              {RENOWN.map((r, i) => (
+              {ranks.map((r, i) => (
                 <option key={r.name} value={i}>
                   {r.name}
                 </option>

@@ -12,7 +12,7 @@ import { shopVisibleTo } from "./projection";
 import { CHARACTER_MAX, STINGER_SCENE_ID, TABLE_SCENE_ID, WHY_MAX } from "./arrival";
 import { starterById } from "./starters";
 import { chapterSessionId, cleanTags, cleanText, defaultChapterId, NOTES_MAX, penName } from "./chronicle";
-import { BOARD_SLOTS, jobsOf, jobTitle, pinnedCount, rankName, RENOWN, renownMet, renownNeeded, renownOf, shopOpenNow, tierOf, trustMet, trustText } from "./renown";
+import { BOARD_SLOTS, jobsOf, jobTitle, pinnedCount, rankName, ranksOf, renownMet, renownNeeded, renownOf, shopOpenNow, tierOf, trustMet, trustText } from "./renown";
 import { LOG_MAX, PLAYER_ROLL_GAP_MS, rollPool, type RollTo } from "./dice";
 import { leadsOf, leadVisible, tally, voteClosed } from "./leads";
 import { findRef, sessionRecap, stageRank, blankEntry, ENTRIES_MAX, LEADS_MAX, entriesForScene, entriesOf, entryFromScene, entryScene, entryTags, factSlug, FACTS_MAX, isFound, shopEntry, slugify, syncShopEntries, uniqueSlug } from "./discovery";
@@ -291,7 +291,7 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
   /** Why an item can't be bought because of the party's Renown, or null. */
   const renownLock = (it: Item): string | null => {
     const need = renownNeeded(s, it);
-    if (need !== null && it.tier === "sale") return `${it.name} opens when the party is ${rankName(need)}.`;
+    if (need !== null && it.tier === "sale") return `${it.name} opens when the party is ${rankName(need, s)}.`;
     const trust = it.tier === "sale" ? trustText(s, it.trust) : null;
     return trust ? `${it.name} needs ${trust}.` : null;
   };
@@ -1387,7 +1387,7 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
       const before = gateSnapshot();
       s.renown = cmd.rank;
       if (cmd.rank < was) break; // quiet: things just lock again
-      const r = RENOWN[cmd.rank];
+      const r = ranksOf(s)[cmd.rank];
       announce(r.raised);
       s.renownMoment = { rank: cmd.rank, n: ++s.seq, at: ctx.now };
       chronicle(`Renown: the party is now ${r.name}. ${r.meaning}.`);
@@ -2444,6 +2444,13 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
         else delete a.template;
       }
       if (cmd.seatsLocked !== undefined) a.seatsLocked = cmd.seatsLocked;
+      for (const k of ["title", "captain"] as const) {
+        const v = cmd[k]?.replace(/\s+/g, " ").trim();
+        if (v === undefined) continue;
+        if (v) a[k] = v;
+        else delete a[k];
+      }
+      if (cmd.intro !== undefined) a.intro = cmd.intro;
       // Locking the seats closes the door too: new names knock instead of walking in.
       if (cmd.seatsLocked) s.doorClosed = true;
       break;
@@ -2454,6 +2461,17 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
 
     case "game.rename":
       s.name = cmd.name.trim();
+      break;
+    case "game.renownRanks":
+      s.renownRanks = cmd.ranks.map((r) => {
+        const o: NonNullable<GameState["renownRanks"]>[number] = {};
+        for (const k of ["name", "meaning", "pay", "raised"] as const) {
+          const v = (r[k] ?? "").replace(/\s+/g, " ").trim();
+          if (v) o[k] = v;
+        }
+        return o;
+      });
+      if (s.renownRanks.every((o) => !Object.keys(o).length)) delete s.renownRanks;
       break;
     case "game.town":
       s.town = cmd.town.replace(/\s+/g, " ").trim();
@@ -2642,7 +2660,7 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
       const p = me();
       const j = jobs.find((x) => x.id === cmd.jobId && x.pinned && x.status !== "expired") ?? fail("That job isn't on the board.");
       if (j.status !== "open") fail(`The party already took ${jobTitle(j)}.`);
-      if (!renownMet(s, j.renown)) fail(`That job is for experienced parties only (${rankName(j.renown)}).`);
+      if (!renownMet(s, j.renown)) fail(`That job is for experienced parties only (${rankName(j.renown, s)}).`);
       if (!trustMet(s, j.trust)) fail(`That job needs ${trustText(s, j.trust)}.`);
       // One ask per job for the whole table.
       if (s.requests.some((r) => r.status === "pending" && r.kind === "job" && r.jobId === j.id)) fail("The party already asked the DM for this job.");

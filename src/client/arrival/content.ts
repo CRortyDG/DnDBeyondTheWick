@@ -98,9 +98,9 @@ export const SOUND_FILES: Partial<Record<"ship" | "wind" | "hearth" | "door", st
   // door: "/arrival/sounds/door.mp3",
 };
 
-export function fill(text: string, character?: string): string {
+export function fill(text: string, character?: string, captain?: string): string {
   return text
     .replace(/\{SHIP\}/g, NAMES.SHIP)
-    .replace(/\{CAPTAIN\}/g, NAMES.CAPTAIN)
+    .replace(/\{CAPTAIN\}/g, captain?.trim() || NAMES.CAPTAIN)
     .replace(/\{CHARACTER\}/g, character?.trim() || "stranger");
 }

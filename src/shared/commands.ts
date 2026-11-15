@@ -460,13 +460,17 @@ export const dmCommand = z.discriminatedUnion("type", [
   z.object({ type: z.literal("arrival.copied"), playerId: id }),
   /** Back to new: the intro plays again, the seat is unclaimed, the character name and line are cleared. The link stays the same. */
   z.object({ type: z.literal("arrival.reset"), playerId: id }),
-  z.object({ type: z.literal("arrival.settings"), template: text(300).optional(), seatsLocked: z.boolean().optional() }),
+  z.object({ type: z.literal("arrival.settings"), template: text(300).optional(), seatsLocked: z.boolean().optional(), title: text(60).optional(), captain: text(40).optional(), intro: z.boolean().optional() }),
   /** Show The Table on the TV, adding the scene first if this game doesn't have it. */
   z.object({ type: z.literal("arrival.showTable") }),
 
   z.object({ type: z.literal("game.rename"), name: text(120).min(1) }),
   z.object({ type: z.literal("game.vtt"), url: text(300) }),
   z.object({ type: z.literal("game.town"), town: text(60) }),
+  z.object({
+    type: z.literal("game.renownRanks"),
+    ranks: z.array(z.object({ name: text(40).optional(), meaning: text(120).optional(), pay: text(40).optional(), raised: text(80).optional() })).max(RENOWN_MAX + 1),
+  }),
 
   // Combat mode.
   ...fightDmCommands,

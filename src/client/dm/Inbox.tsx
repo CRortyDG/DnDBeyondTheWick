@@ -451,7 +451,7 @@ function JobAsk({ r }: { r: TradeRequest }) {
       Asks for the party to take the job <b>{r.jobTitle}</b>
       {j ? (
         <div className="note">
-          {j.reward.kind === "hidden" ? "Reward hidden" : `${formatCp(j.reward.cp)} ${j.reward.kind === "each" ? "each" : "for the party"}`} · needs {rankName(j.renown)}
+          {j.reward.kind === "hidden" ? "Reward hidden" : `${formatCp(j.reward.cp)} ${j.reward.kind === "each" ? "each" : "for the party"}`} · needs {rankName(j.renown, view.state)}
           {j.dm.adventure ? ` · runs ${j.dm.adventure}` : ""}
         </div>
       ) : (

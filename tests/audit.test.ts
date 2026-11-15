@@ -7,6 +7,9 @@ import { execute, hello } from "@/server/game";
 import { createMemoryStore, type MemoryStore } from "@/server/store";
 import { freshStart, seedGame } from "@/shared/seed";
 import type { GameState } from "@/shared/types";
+import { arrivalLook, projectTable } from "@/shared/arrival";
+import { projectPlayer, projectTv } from "@/shared/projection";
+import { rankName, ranksOf } from "@/shared/renown";
 
 const DM = { role: "dm" as const };
 const G = "candlefair";
@@ -184,7 +187,6 @@ describe("backup zip", () => {
 
 describe("the TV ahead of time", () => {
   it("gets scenes that aren't up yet without their words", async () => {
-    const { projectTv } = await import("@/shared/projection");
     const g = await state();
     expect(JSON.stringify(projectTv(g, 1))).not.toContain("lantern cart");
     g.live.sceneId = "s-stinger";
@@ -203,5 +205,38 @@ describe("Ready for tonight?", () => {
     expect(items).toMatch(/“Nobody”, which isn't under Monsters/);
     expect(items).toMatch(/Not locked to a phone yet/);
     expect(items).toMatch(/door is open/);
+  });
+});
+
+describe("a campaign of its own", () => {
+  it("rewords the Renown ranks, with the town filled in by default", async () => {
+    await execute(store, G, DM, { type: "game.town", town: "Saltmere" });
+    let s = await state();
+    expect(ranksOf(s)[3].name).toBe("Heroes of Saltmere");
+    await execute(store, G, DM, { type: "game.renownRanks", ranks: [{}, { name: "  Known on the docks " }] });
+    s = await state();
+    expect(ranksOf(s)[1].name).toBe("Known on the docks");
+    expect(rankName(1, s)).toBe("Known on the docks");
+    expect(projectPlayer(s, 1, s.players[0].id, []).renown.ladder[1].name).toBe("Known on the docks");
+    await execute(store, G, DM, { type: "renown.set", rank: 1 });
+    s = await state();
+    expect(projectTv(s, 1).renownMoment).toMatchObject({ name: "Known on the docks", raised: "Saltmere knows your names" });
+    await execute(store, G, DM, { type: "game.renownRanks", ranks: [{}, { name: "" }] });
+    expect((await state()).renownRanks).toBeUndefined();
+  });
+
+  it("names the Arrival page and skips the boat intro away from Candlefair", async () => {
+    let s = await state();
+    expect(arrivalLook(s)).toEqual({ title: "The Flickering Candle", captain: "Orsa Dell", intro: true });
+    expect(projectTable(s).title).toBe("Tales from the Flickering Candle");
+    await execute(store, G, DM, { type: "game.town", town: "Saltmere" });
+    s = await state();
+    expect(arrivalLook(s).intro).toBe(false);
+    await execute(store, G, DM, { type: "arrival.settings", title: "The Drowned Lamp", captain: "Ness", intro: true });
+    s = await state();
+    expect(arrivalLook(s)).toEqual({ title: "The Drowned Lamp", captain: "Ness", intro: true });
+    expect(projectTable(s).title).toBe("Tales from the Drowned Lamp");
+    const v = (await phone("GET", s.players[0].arrival!.token)) as unknown as { look: { title: string } };
+    expect(v.look.title).toBe("The Drowned Lamp");
   });
 });

@@ -13,13 +13,31 @@ export interface RenownRank {
   raised: string;
 }
 
-export const RENOWN: RenownRank[] = [
-  { name: "Strangers", meaning: "Fresh off the boat", pay: "15–50 gp", raised: "Strangers in Candlefair" },
-  { name: "Known in town", meaning: "Locals nod at you", pay: "50–150 gp", raised: "Candlefair knows your names" },
-  { name: "Trusted", meaning: "The council and merchants come to you", pay: "300–1,000 gp", raised: "Candlefair trusts you" },
-  { name: "Heroes of Candlefair", meaning: "Your names are on things", pay: "1,000–5,000 gp", raised: "Heroes of Candlefair!" },
+/** The ladder with {town} for the campaign's town. Every campaign has these five steps; the DM can reword them. */
+const LADDER: RenownRank[] = [
+  { name: "Strangers", meaning: "Fresh off the boat", pay: "15–50 gp", raised: "Strangers in {town}" },
+  { name: "Known in town", meaning: "Locals nod at you", pay: "50–150 gp", raised: "{town} knows your names" },
+  { name: "Trusted", meaning: "The council and merchants come to you", pay: "300–1,000 gp", raised: "{town} trusts you" },
+  { name: "Heroes of {town}", meaning: "Your names are on things", pay: "1,000–5,000 gp", raised: "Heroes of {town}!" },
   { name: "Famous on the Coast", meaning: "People in Baldur’s Gate have heard of you", pay: "Whatever you negotiate", raised: "Your names have reached Baldur’s Gate" },
 ];
+
+function townName(g: Pick<GameState, "town">): string {
+  return g.town === undefined ? "Candlefair" : g.town.trim() || "town";
+}
+
+/** The five ranks as this campaign words them: the DM's own text where set, else the defaults for its town. */
+export function ranksOf(g: Pick<GameState, "town" | "renownRanks">): RenownRank[] {
+  const town = townName(g);
+  return LADDER.map((r, i) => {
+    const o = g.renownRanks?.[i] ?? {};
+    const pick = (k: keyof RenownRank) => (o[k]?.trim() ? o[k]!.trim() : r[k].replace(/\{town\}/g, town));
+    return { name: pick("name"), meaning: pick("meaning"), pay: pick("pay"), raised: pick("raised") };
+  });
+}
+
+/** The Candlefair wording (kept for anything that has no campaign at hand). */
+export const RENOWN: RenownRank[] = ranksOf({});
 export const RENOWN_MAX = RENOWN.length - 1;
 
 export const STRANGERS = 0;
@@ -33,8 +51,8 @@ export function renownOf(g: Pick<GameState, "renown">): number {
   return Math.max(0, Math.min(RENOWN_MAX, g.renown ?? 0));
 }
 
-export function rankName(rank: number): string {
-  return RENOWN[Math.max(0, Math.min(RENOWN_MAX, rank))].name;
+export function rankName(rank: number, g?: Pick<GameState, "town" | "renownRanks">): string {
+  return (g ? ranksOf(g) : RENOWN)[Math.max(0, Math.min(RENOWN_MAX, rank))].name;
 }
 
 /** Has the party reached this rank? No requirement is always met. */

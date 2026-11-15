@@ -91,7 +91,7 @@ export function SeatPage({
         </button>
       </div>
       <header className="seat-header">
-        <h1>{SEAT_PAGE.header}</h1>
+        <h1>{view?.look.title ?? SEAT_PAGE.header}</h1>
         <RoundTable seats={seats.length ? seats : [0, 1, 2, 3].map(() => ({ name: null, lit: false }))} names={false} size={180} className="seat-table" />
       </header>
 
@@ -198,9 +198,11 @@ export function SeatPage({
       ) : null}
 
       <nav className="seat-actions">
-        <button type="button" className="seat-btn" onClick={onReplay}>
-          {SEAT_PAGE.replay}
-        </button>
+        {view?.look.intro !== false ? (
+          <button type="button" className="seat-btn" onClick={onReplay}>
+            {SEAT_PAGE.replay}
+          </button>
+        ) : null}
         {me ? (
           <a className="seat-btn" href={me.tableHref}>
             {SEAT_PAGE.table}

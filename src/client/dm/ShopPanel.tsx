@@ -8,7 +8,7 @@ import type { Item, ItemTier, Shop, ShopVisibility } from "@/shared/types";
 import { ShopBoard } from "../ui/ShopBoard";
 import { TvIcon } from "../ui/icons";
 import { useDm } from "./context";
-import { RENOWN, tierOf } from "@/shared/renown";
+import { rankName, ranksOf, tierOf } from "@/shared/renown";
 import { Field } from "./Field";
 import { Check } from "./Check";
 import { ContributeBox, GrantBox, KindFields, RunningBox } from "./ItemExtras";
@@ -59,6 +59,7 @@ export function ShopPanel() {
   // What the cards show the DM: progress on projects and who has earned what.
   const cards = s.items.map((i) => ({
     ...i,
+    ...(i.renown ? { renownName: rankName(i.renown, s) } : {}),
     ...(i.kind === "project" ? { raisedCp: raisedCp(s, i.id), funded: !!s.effectsOn[i.id] } : {}),
     ...(i.kind === "earned" ? { earnedBy: s.players.filter((p) => s.awards.some((a) => a.itemId === i.id && a.playerIds.includes(p.id))).map((p) => p.name) } : {}),
   }));
@@ -332,7 +333,8 @@ export function ShopPanel() {
 
 /** Name, tagline, gates and removal for one shop. */
 function ShopSettings({ shop, onRemoved }: { shop: Shop; onRemoved: () => void }) {
-  const { run } = useDm();
+  const { view, run } = useDm();
+  const s = view.state;
   const [confirming, setConfirming] = useState(false);
   return (
     <>
@@ -348,7 +350,7 @@ function ShopSettings({ shop, onRemoved }: { shop: Shop; onRemoved: () => void }
         <label>
           Needs Renown (until then: name and rank only, no goods)
           <select className="fld" value={shop.renown ?? 0} onChange={(e) => run({ type: "shop.update", shopId: shop.id, patch: { renown: Number(e.target.value) } })}>
-            {RENOWN.map((r, i) => (
+            {ranksOf(s).map((r, i) => (
               <option key={r.name} value={i}>
                 {i === 0 ? "No Renown needed" : r.name}
               </option>
@@ -471,7 +473,7 @@ function ItemEditor({ it, quiet, onRemoved }: { it: Item; quiet: boolean; onRemo
         <label>
           Needs Renown
           <select className="fld" value={it.renown ?? 0} onChange={(e) => patch({ renown: Number(e.target.value) })}>
-            {RENOWN.map((r, i) => (
+            {ranksOf(s).map((r, i) => (
               <option key={r.name} value={i}>
                 {i === 0 ? "No Renown needed" : r.name}
               </option>
