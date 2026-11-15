@@ -5,7 +5,8 @@
 // TV and phones only ever get the filtered fight view.
 //
 // Keys: Space next turn, Shift+Space previous, digits type an amount, Enter
-// damages the selected, Shift+Enter heals them, Esc clears.
+// damages the selected, Shift+Enter heals them, Esc clears, Ctrl/Cmd+Z undoes
+// the last HP or condition change.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CONDITIONS, condLabel, HEALTH_LABEL, healthState, monstersOf, rechargeText, upNext, TIMER_DEFAULT } from "@/shared/combat";
@@ -96,11 +97,22 @@ function FightConsole({ f, onExit, run, toast }: { f: Fight; onExit: () => void;
     void run({ type: "fight.begin" });
   };
   const back = useCallback(() => void run({ type: "fight.back" }), [run]);
+  const undo = useCallback(() => {
+    const last = fRef.current.history?.at(-1);
+    if (!last) return toast("Nothing to undo.");
+    void run({ type: "fight.undo" }, `Undone: ${last.label}.`);
+  }, [run, toast]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement | null;
       const typing = t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT" || t.isContentEditable);
+      // Ctrl/Cmd+Z: undo the last HP or condition change (a field being typed in keeps its own undo).
+      if ((e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey && e.key.toLowerCase() === "z" && !typing && f.status !== "over") {
+        e.preventDefault();
+        undo();
+        return;
+      }
       if (e.metaKey || e.ctrlKey || e.altKey) return;
       if (typing && t !== amountRef.current) return;
       const k = e.key;
@@ -126,7 +138,7 @@ function FightConsole({ f, onExit, run, toast }: { f: Fight; onExit: () => void;
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [f.status, next, back, hit, amount, sel.length]);
+  }, [f.status, next, back, hit, undo, amount, sel.length]);
 
   const cur = f.order.find((c) => c.id === f.currentId);
   const nx = upNext(f);
@@ -264,6 +276,8 @@ function FightConsole({ f, onExit, run, toast }: { f: Fight; onExit: () => void;
 
             <Reminders f={f} />
 
+            <UndoHistory f={f} onUndo={undo} />
+
             <AddCombatant f={f} templates={templates} notIn={notIn} />
 
             <section className="box fx-settings" aria-label="Fight settings">
@@ -297,7 +311,7 @@ function FightConsole({ f, onExit, run, toast }: { f: Fight; onExit: () => void;
                 </select>
               </label>
             </section>
-            <p className="note hint">Click a row to pick it · Ctrl, ⌘ or Shift-click to pick more · Keys: Space next turn · Shift+Space previous · digits type an amount · Enter damage · Shift+Enter heal · Esc clears</p>
+            <p className="note hint">Click a row to pick it · Ctrl, ⌘ or Shift-click to pick more · Keys: Space next turn · Shift+Space previous · digits type an amount · Enter damage · Shift+Enter heal · Esc clears · Ctrl/⌘+Z undo</p>
           </aside>
         </div>
       )}
@@ -686,6 +700,46 @@ function Reminders({ f }: { f: Fight }) {
           <ReminderLine key={r.id} r={r} />
         ))}
       </ul>
+    </section>
+  );
+}
+
+/** The last few HP and condition changes, newest first. Undo puts back the newest; an older one undoes everything after it too. */
+function UndoHistory({ f, onUndo }: { f: Fight; onUndo: () => void }) {
+  const { run } = useDm();
+  const [showAll, setShowAll] = useState(false);
+  const list = [...(f.history ?? [])].reverse();
+  if (!list.length) return null;
+  const shown = showAll ? list : list.slice(0, 3);
+  return (
+    <section className="box fx-undo" aria-label="Undo">
+      <div className="box-head">
+        <h3>Last changes</h3>
+        <button className="btn small primary" type="button" onClick={onUndo} title="Ctrl/⌘+Z">
+          Undo <span className="key">⌘Z</span>
+        </button>
+      </div>
+      <ol>
+        {shown.map((u, i) => (
+          <li key={u.id} className={i === 0 ? "newest" : undefined}>
+            <span>{u.label}</span>
+            {i > 0 ? (
+              <button
+                className="btn small"
+                type="button"
+                onClick={() => confirm(`Undo the last ${i + 1} changes, back to “${u.label}”?`) && run({ type: "fight.undo", undoId: u.id }, `Undid ${i + 1} changes.`)}
+              >
+                Undo to here
+              </button>
+            ) : null}
+          </li>
+        ))}
+      </ol>
+      {list.length > 3 ? (
+        <button className="btn small" type="button" onClick={() => setShowAll((v) => !v)}>
+          {showAll ? "Show fewer" : `Show all ${list.length}`}
+        </button>
+      ) : null}
     </section>
   );
 }

@@ -16,6 +16,7 @@ import { Inbox, isInboxOpen } from "./Inbox";
 import { Dues } from "./Dues";
 import { useDm } from "./context";
 import { useAutosave } from "./useAutosave";
+import { LevelUpButton } from "./LevelUp";
 import { DiceButton } from "./DiceTray";
 
 export function actionLabel(a: BeatAction, g: AssetGame): string {
@@ -157,6 +158,7 @@ export function RunGame({ onExit, onFight }: { onExit: () => void; onFight?: () 
           <span className="key">B</span> Bank
         </button>
         <DiceButton small />
+        <LevelUpButton small />
         <button className="btn small run-jump-toggle" type="button" aria-expanded={drawer} onClick={() => setDrawer((v) => !v)}>
           Beats
         </button>

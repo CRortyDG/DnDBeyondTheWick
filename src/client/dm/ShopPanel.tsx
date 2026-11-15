@@ -15,6 +15,7 @@ import { ContributeBox, GrantBox, KindFields, RunningBox } from "./ItemExtras";
 import { categoryLabel, categoriesFor, creditCp, firstChargeCp, KINDS, raisedCp } from "@/shared/progress";
 import { PageHead } from "./PageHead";
 import { Drawer } from "./Drawer";
+import { BulkImport } from "./BulkImport";
 import { MenuItem, RowMenu } from "./RowMenu";
 import { GearIcon, PlusIcon } from "./navIcons";
 import type { ShopMode } from "../ui/ShopBoard";
@@ -45,7 +46,7 @@ export function ShopPanel() {
   const [category, setCategory] = useState<ItemCategory | undefined>(undefined);
   const [preview, setPreview] = useState(false);
   const [editing, setEditing] = useState<string | null>(null);
-  const [drawer, setDrawer] = useState<null | "item" | "shop" | "settings">(null);
+  const [drawer, setDrawer] = useState<null | "item" | "shop" | "settings" | "import">(null);
   // After adding a shop, jump to it once it arrives.
   const [newShop, setNewShop] = useState<{ name: string; known: Set<string> } | null>(null);
   useEffect(() => {
@@ -158,6 +159,9 @@ export function ShopPanel() {
       }
       actions={
         <>
+          <button className="btn" type="button" onClick={() => setDrawer("import")}>
+            Import
+          </button>
           <button className="btn" type="button" onClick={() => setDrawer("shop")}>
             <PlusIcon size={16} /> Shop
           </button>
@@ -191,6 +195,11 @@ export function ShopPanel() {
       {drawer === "item" && shop ? (
         <Drawer title="New item" subtitle={`In ${shop.name}`} onClose={() => setDrawer(null)} closeLabel="Cancel">
           <AddItem shopId={shop.id} quiet={quiet} onAdded={() => setDrawer(null)} />
+        </Drawer>
+      ) : null}
+      {drawer === "import" ? (
+        <Drawer title="Import items" subtitle="Paste several at once" onClose={() => setDrawer(null)} closeLabel="Cancel" wide>
+          <BulkImport kind="items" defaultShop={shop?.name} onDone={() => setDrawer(null)} />
         </Drawer>
       ) : null}
       {drawer === "shop" ? (

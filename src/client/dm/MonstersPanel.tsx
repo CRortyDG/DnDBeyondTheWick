@@ -11,6 +11,7 @@ import { useDm } from "./context";
 import { PageHead } from "./PageHead";
 import { PlusIcon, SwordIcon } from "./navIcons";
 import { Drawer } from "./Drawer";
+import { BulkImport } from "./BulkImport";
 import { MenuItem, RowMenu } from "./RowMenu";
 
 type Draft = Omit<MonsterTemplate, "id" | "abilities"> & { abilities: (Omit<MonsterAbility, "id"> & { id?: string })[] };
@@ -23,6 +24,7 @@ export function MonstersPanel({ onFight }: { onFight: () => void }) {
   const list = monstersOf(s);
   const [editing, setEditing] = useState<string | "new" | null>(null);
   const [counts, setCounts] = useState<Record<string, string>>({});
+  const [importing, setImporting] = useState(false);
   const hist = [...(s.fights ?? [])].reverse();
 
   const start = async (t?: MonsterTemplate) => {
@@ -47,6 +49,9 @@ export function MonstersPanel({ onFight }: { onFight: () => void }) {
                 <SwordIcon size={16} /> Empty fight
               </button>
             )}
+            <button className="btn" type="button" onClick={() => setImporting(true)}>
+              Import
+            </button>
             <button className="btn primary" type="button" onClick={() => setEditing("new")}>
               <PlusIcon size={16} /> Monster
             </button>
@@ -58,6 +63,11 @@ export function MonstersPanel({ onFight }: { onFight: () => void }) {
           ...(s.fight ? [{ label: "Fight", value: "Going on", tone: "warn" as const }] : []),
         ]}
       />
+      {importing ? (
+        <Drawer title="Import monsters" subtitle="Paste several at once" onClose={() => setImporting(false)} closeLabel="Cancel" wide>
+          <BulkImport kind="monsters" onDone={() => setImporting(false)} />
+        </Drawer>
+      ) : null}
       {editing === "new" ? (
         <Drawer title="New monster" onClose={() => setEditing(null)} closeLabel="Cancel">
           <MonsterEditor draft={EMPTY} onDone={() => setEditing(null)} />

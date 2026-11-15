@@ -73,6 +73,8 @@ export const fightDmCommands = [
     tick: z.enum(["start", "end"]).optional(),
   }),
   z.object({ type: z.literal("fight.uncondition"), combatantId: id, conditionId: id }),
+  /** Put back the newest HP or condition change; with an id, every change back to and including that one. */
+  z.object({ type: z.literal("fight.undo"), undoId: id.optional() }),
   z.object({
     type: z.literal("fight.patch"),
     combatantIds: ids,

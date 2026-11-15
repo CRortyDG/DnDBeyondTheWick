@@ -11,6 +11,7 @@ import { Field } from "./Field";
 import { Check } from "./Check";
 import { InspireToggle } from "./InspireToggle";
 import { PageHead } from "./PageHead";
+import { LevelUpButton } from "./LevelUp";
 import { Drawer } from "./Drawer";
 import { MenuItem, RowMenu } from "./RowMenu";
 import { PlusIcon } from "./navIcons";
@@ -85,6 +86,7 @@ export function PlayersPanel() {
                 Long rest{hurt.length ? ` (${hurt.length} hurt)` : ""}
               </button>
             )}
+            <LevelUpButton />
             <button className="btn" type="button" onClick={copyAll}>
               <LinkIcon size={16} /> Copy all links
             </button>
@@ -170,7 +172,7 @@ function PlayerRow({ p, onEdit, selected }: { p: DmPlayer; onEdit: () => void; s
       () => toast(link),
     );
   const hp = p.hp && p.hp.max > 0 ? `HP ${p.hp.cur}/${p.hp.max}${p.hp.temp ? ` +${p.hp.temp}` : ""}` : "";
-  const sub = [p.character, hp, `?player=${p.handle}`, seenText(p.lastSeenAt)].filter(Boolean).join(" · ");
+  const sub = [p.character, p.level ? `Level ${p.level}` : "", hp, `?player=${p.handle}`, seenText(p.lastSeenAt)].filter(Boolean).join(" · ");
   return (
     <li className={`scene-item list-row player-row${p.archived ? " archived" : ""}${p.away ? " away" : ""}${selected ? " selected" : ""}`}>
       <div className="scene-row">
@@ -218,6 +220,17 @@ function PlayerDrawer({ p, onClose }: { p: DmPlayer; onClose: () => void }) {
       <div className="form">
         <Field label="Name" value={p.name} onCommit={(v) => run({ type: "player.update", playerId: p.id, patch: { name: v } })} />
         <Field label="Character name" value={p.character ?? ""} placeholder="Signs their Chronicle notes" onCommit={(v) => run({ type: "player.update", playerId: p.id, patch: { character: v } })} />
+        <Field
+          label="Level"
+          value={p.level ? String(p.level) : ""}
+          placeholder="Not set"
+          hint="Changes it quietly. Use Level up for the moment on the TV."
+          onCommit={(v) => {
+            const n = Math.round(Number(v));
+            if (v.trim() && (!Number.isFinite(n) || n < 1 || n > 20)) return false;
+            return run({ type: "player.level", playerId: p.id, level: v.trim() ? n : null });
+          }}
+        />
         <Field label="URL name (?player=)" value={p.handle} onCommit={(v) => run({ type: "player.update", playerId: p.id, patch: { handle: v } })} />
         <Field label="D&D Beyond character link" value={p.dndbUrl ?? ""} placeholder="https://www.dndbeyond.com/characters/..." onCommit={(v) => run({ type: "player.update", playerId: p.id, patch: { dndbUrl: v } })} />
         <div className="drawer-row">

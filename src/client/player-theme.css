@@ -1874,6 +1874,11 @@ html[data-view="player"] {
   font-size: 13px;
   color: var(--pl-text-3);
 }
+:where(html[data-view="player"]) .pl-side-level {
+  font-family: var(--pl-font-ui);
+  font-size: 13px;
+  color: var(--pl-text-2, inherit);
+}
 :where(html[data-view="player"]) .pl-side-coin {
   display: flex;
   align-items: center;

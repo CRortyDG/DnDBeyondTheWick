@@ -410,6 +410,7 @@ export function freshStart(g: GameState): GameState {
   delete s.renownPoints;
   delete s.renownLog;
   delete s.renownMoment;
+  delete s.levelMoment;
   delete s.diceRoll;
   delete s.rolls;
   s.jobs = (s.jobs ?? []).map(({ takenBy, takenAt, doneAt, paidCp, ...j }) => ({ ...j, status: "open" as const }));

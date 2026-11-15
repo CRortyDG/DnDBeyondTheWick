@@ -21,6 +21,7 @@ import { originOf } from "./presets";
 import { boardNotes, cleanLook, cleanPlace, defaultWidth, NOTICES_MAX, placeFor, slugify as noteSlug, topZ } from "./board";
 import { decodeBits, emptyBits, encodeBits, fullBits } from "./fog";
 import { addPartyTokens, freeSpot, snapToGrid, syncFightTokens, tokensOf, TOKENS_MAX } from "./tokens";
+import { levelLine } from "./levels";
 import { applyFight, isFightCommand, startFightFromBeat, type FightHelpers } from "./combatReducer";
 import type { Notice, NotePlace } from "./types";
 import { beatSuggestions, entryRef, freeQuickKey, liveRef, QUICK_KEYS, quickOf, RECENT_MAX, refForScene, renameRefs, resolveRef, sceneSlug, uniqueSceneSlug } from "./assets";
@@ -109,11 +110,49 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
   return out;
 }
 
+/**
+ * Bulk import: each row runs as the same command the DM would use by hand
+ * (so slugs, limits and tidying match), one after another. Any failure throws,
+ * so nothing is half imported. The error says which one.
+ */
+function importBulk(input: GameState, cmd: Extract<Command, { type: "import.bulk" }>, ctx: Ctx): Result {
+  let state = input;
+  const ledger: LedgerEntry[] = [];
+  const step = (c: Command, what: string) => {
+    try {
+      const r = applyOne(state, c, ctx);
+      state = r.state;
+      ledger.push(...r.ledger);
+    } catch (e) {
+      if (e instanceof CommandError) fail(`${what}: ${e.message}`, e.code);
+      throw e;
+    }
+  };
+  const key = (x: string) => x.trim().toLowerCase().replace(/\s+/g, " ");
+  for (const m of cmd.monsters ?? []) step({ type: "monster.add", monster: m }, m.name);
+  for (const e of cmd.entries ?? []) {
+    step({ type: "entry.add", entry: e.entry, facts: e.facts }, e.entry.name ?? "An entry");
+    // A fresh campaign starts where its first fresh start would: rumored entries are rumors now. Quietly, no TV moment.
+    const made = state.entries?.at(-1);
+    if (made && made.start && made.start !== "hidden" && made.stage === "hidden") made.stage = made.start;
+  }
+  for (const it of cmd.items ?? []) {
+    let shop = state.shops.find((x) => key(x.name) === key(it.shop));
+    if (!shop) {
+      step({ type: "shop.add", name: it.shop.trim(), subtitle: "" }, it.shop);
+      shop = state.shops.at(-1)!;
+    }
+    step({ type: "item.add", item: { ...it.item, shopId: shop.id }, quiet: true }, it.item.name);
+  }
+  return { state, ledger };
+}
+
 function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
   // Authorisation is checked again here so a wiring mistake can't let a player run DM commands.
   if (isDmCommand(cmd.type) && ctx.actor.role !== "dm") fail("Only the DM can do that.");
   if (cmd.type.startsWith("me.") && ctx.actor.role !== "player") fail("Only a player can do that.");
   if (cmd.type.startsWith("system.") && ctx.actor.role !== "system") fail("Not allowed.");
+  if (cmd.type === "import.bulk") return importBulk(input, cmd, ctx);
 
   const s: GameState = structuredClone(input);
   // The server fills in the seed episode when it reads an older game (see withSeedEpisodes on the server).
@@ -1030,6 +1069,7 @@ function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
       delete s.discovery;
       delete s.diceRoll;
       delete s.renownMoment;
+      delete s.levelMoment;
       delete s.chosen;
       s.banner = null;
       delete s.live.recapSessionId;
@@ -1141,8 +1181,13 @@ function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
     }
     case "scene.update": {
       const sc = scene(cmd.sceneId);
-      const { hotkey, slug, ...patch } = cmd.patch;
+      const { hotkey, slug, sheet, ...patch } = cmd.patch;
       const before = refForScene(s, sc);
+      if (sheet === null) delete sc.sheet;
+      else if (sheet) {
+        const { ink, ...rest } = sheet;
+        sc.sheet = { ...rest, title: rest.title.trim(), sign: rest.sign.trim(), body: rest.body.replace(/\s+$/, ""), ...(ink ? { ink } : {}) };
+      }
       if (patch.art?.url && !/^(https:\/\/|\/api\/files\/)/.test(patch.art.url)) fail("Images must be uploaded first.");
       Object.assign(sc, patch);
       if (patch.label !== undefined) sc.label = patch.label.trim() || sc.label;
@@ -1791,6 +1836,26 @@ function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
     case "player.add": {
       const name = cmd.name.trim() || `Player ${s.players.length + 1}`;
       createPlayer(normaliseHandle(name), name, "dm");
+      break;
+    }
+    case "player.level": {
+      const p = player(cmd.playerId);
+      if (cmd.level === null) delete p.level;
+      else p.level = cmd.level;
+      break;
+    }
+    case "party.levelUp": {
+      const seen = new Set<string>();
+      const levels: { playerId: string; level: number }[] = [];
+      for (const l of cmd.levels) {
+        if (seen.has(l.playerId)) continue;
+        seen.add(l.playerId);
+        const p = player(l.playerId);
+        p.level = l.level;
+        levels.push({ playerId: p.id, level: l.level });
+      }
+      chronicle(levelLine(s, levels));
+      if (cmd.tv !== false) s.levelMoment = { n: ++s.seq, at: ctx.now, levels };
       break;
     }
     case "player.update": {

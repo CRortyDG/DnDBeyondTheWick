@@ -298,6 +298,7 @@ function PlayerScreen({ view, online, send, ident, setIdent }: { view: PlayerVie
               <span className="sr-only">Party renown: </span>
               {view.renown.name}
             </span>
+            {me.level ? <span className="pl-side-level">Level {me.level}</span> : null}
             <span className="pl-side-where">{view.session ? `Chapter ${view.session.number}, tonight` : view.game.name}</span>
           </button>
           <button type="button" className="pl-side-coin" aria-haspopup="dialog" aria-label={`Your gold: ${formatCp(me.balanceCp)}. Open your purse.`} onClick={() => setWalletOpen("purse")}>
@@ -335,6 +336,7 @@ function PlayerScreen({ view, online, send, ident, setIdent }: { view: PlayerVie
         </button>
       ) : null}
       <BannerToast banner={view.banner} className="phone-banner" />
+      <BannerToast banner={view.levelUp ? { id: `level-${view.levelUp.n}`, text: `You're level ${view.levelUp.level}!`, at: 0 } : null} className="phone-banner level-banner" />
       {view.world?.news ? <BannerToast banner={{ id: `news-${view.world.news.n}`, text: view.world.news.text, at: 0 }} className="phone-banner world-news" /> : null}
       {screen === "fight" && f ? <FightCard view={view} send={send} /> : null}
       {screen === "map" && hasMaps ? <Maps view={view} send={send} /> : null}
@@ -516,6 +518,12 @@ function PlayerScreen({ view, online, send, ident, setIdent }: { view: PlayerVie
               <span className="sr-only">Party renown: </span>
               {view.renown.name}
             </span>
+            {me.level ? (
+              <>
+                <span aria-hidden="true">·</span>
+                <span className="pl-sub-level">Level {me.level}</span>
+              </>
+            ) : null}
             <span aria-hidden="true">·</span>
             <span className="pl-sub-where">{view.session ? `Chapter ${view.session.number}, tonight` : view.game.name}</span>
           </span>
@@ -542,6 +550,7 @@ function PlayerScreen({ view, online, send, ident, setIdent }: { view: PlayerVie
         </button>
       ) : null}
       <BannerToast banner={view.banner} className="phone-banner" />
+      <BannerToast banner={view.levelUp ? { id: `level-${view.levelUp.n}`, text: `You're level ${view.levelUp.level}!`, at: 0 } : null} className="phone-banner level-banner" />
       {view.world?.news ? <BannerToast banner={{ id: `news-${view.world.news.n}`, text: view.world.news.text, at: 0 }} className="phone-banner world-news" /> : null}
       <PlayerNav {...navProps} />
       {/* On your turn the fight screen's End button owns that corner. */}

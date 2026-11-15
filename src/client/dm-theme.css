@@ -333,6 +333,32 @@ html[data-view="dm"] {
   border-color: transparent;
   color: #eaa596;
 }
+:where(html[data-view="dm"]) .tag.warn {
+  background: rgba(201, 154, 58, 0.18);
+  border-color: transparent;
+  color: #e3c27a;
+}
+:where(html[data-view="dm"]) .handout-words {
+  border: 1px solid var(--dm-border);
+  border-radius: 10px;
+  padding: 10px 14px 14px;
+  margin: 4px 0;
+  display: grid;
+  gap: 10px;
+}
+:where(html[data-view="dm"]) .handout-words legend {
+  padding: 0 6px;
+  font-weight: 600;
+  color: var(--dm-text-2);
+}
+:where(html[data-view="dm"]) .handout-text {
+  min-height: 160px;
+  resize: vertical;
+  font-family: inherit;
+}
+:where(html[data-view="dm"]) .warn-note {
+  color: #e3c27a;
+}
 :where(html[data-view="dm"]) .badge {
   font-family: var(--dm-font-ui);
   font-size: 11px;
@@ -3010,4 +3036,32 @@ html[data-view="dm"] .hc-small { font-size: 12px; margin-top: 10px; }
 @media (max-width: 520px) {
   html[data-view="dm"] .hc-table th:nth-child(4),
   html[data-view="dm"] .hc-table td:nth-child(4) { display: none; }
+}
+
+/* Level up the party. */
+:where(html[data-view="dm"]) .level-up .level-now {
+  display: grid;
+  gap: 6px;
+}
+:where(html[data-view="dm"]) .level-up .level-now .fld {
+  width: 80px;
+}
+:where(html[data-view="dm"]) .level-list {
+  list-style: none;
+  margin: 8px 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+:where(html[data-view="dm"]) .level-list li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+:where(html[data-view="dm"]) .level-name {
+  flex: 1;
+  font-weight: 600;
+}
+:where(html[data-view="dm"]) .level-num {
+  width: 72px;
 }

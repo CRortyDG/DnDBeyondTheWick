@@ -11,6 +11,7 @@ import { ShopBoard } from "../ui/ShopBoard";
 import { Notice } from "../ui/Notice";
 import { BannerToast } from "../ui/BannerToast";
 import { RenownMoment } from "../ui/RenownMoment";
+import { LevelMoment } from "../ui/LevelMoment";
 import { DiscoveryMoment } from "../ui/DiscoveryMoment";
 import { ChosenMoment, LeadsBoard } from "../ui/LeadsBoard";
 import { RecapCard, WorldCorner, WorldNewsCard } from "../ui/RecapCard";
@@ -115,6 +116,7 @@ function TvScreen({ view, online }: { view: TvView; online: boolean }) {
       <DiceRoll roll={view.diceRoll} />
 
       <RenownMoment moment={view.renownMoment} />
+      <LevelMoment moment={view.levelMoment} />
       <DiscoveryMoment moment={view.discovery} />
       <ChosenMoment chosen={view.leads.chosen} />
       <RecapCard card={view.recapCard} />

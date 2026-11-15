@@ -18,6 +18,7 @@ import { artSrc } from "../ui/SceneView";
 import { Field } from "./Field";
 import { useDm } from "./context";
 import { Drawer } from "./Drawer";
+import { BulkImport } from "./BulkImport";
 import { MenuItem, RowMenu } from "./RowMenu";
 import { uploadImage } from "./upload";
 import { makeSilhouette } from "./silhouette";
@@ -53,6 +54,7 @@ export function DiscoveryPanel() {
   };
   const [q, setQ] = useState("");
   const [adding, setAdding] = useState(false);
+  const [importing, setImporting] = useState(false);
   const needle = q.trim().toLowerCase();
   const list = all.filter((e) => (kind === "all" || e.kind === kind) && (!needle || e.name.toLowerCase().includes(needle) || (e.nickname ?? "").toLowerCase().includes(needle)));
   const kinds = [...KINDS.map((k) => k.id), ...new Set(all.map((e) => e.kind).filter((k) => !KINDS.some((x) => x.id === k)))];
@@ -74,9 +76,14 @@ export function DiscoveryPanel() {
           </>
         }
         actions={
-          <button className="btn primary" type="button" onClick={() => setAdding((a) => !a)} aria-expanded={adding}>
-            <PlusIcon size={16} /> Add
-          </button>
+          <>
+            <button className="btn" type="button" onClick={() => setImporting(true)}>
+              Import
+            </button>
+            <button className="btn primary" type="button" onClick={() => setAdding((a) => !a)} aria-expanded={adding}>
+              <PlusIcon size={16} /> Add
+            </button>
+          </>
         }
         stats={[
           { label: "Found", value: all.length - hidden - rumored, tone: "ok" },
@@ -84,6 +91,11 @@ export function DiscoveryPanel() {
           { label: "Hidden", value: hidden, tone: "muted" },
         ]}
       />
+      {importing ? (
+        <Drawer title="Import into Discovery" subtitle="Paste several at once; they arrive hidden unless you say how they start" onClose={() => setImporting(false)} closeLabel="Cancel" wide>
+          <BulkImport kind="entries" onDone={() => setImporting(false)} />
+        </Drawer>
+      ) : null}
       {adding ? (
         <form
           className="pg-inline-form wide"

@@ -1,7 +1,7 @@
 "use client";
 
 import { originOf } from "@/shared/presets";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { Scene, SceneKind } from "@/shared/types";
 import { SceneView } from "../ui/SceneView";
 import { DownIcon, UpIcon } from "../ui/icons";
@@ -16,6 +16,8 @@ import { ShowControls } from "./QuickBar";
 import { PageHead } from "./PageHead";
 import { PlusIcon } from "./navIcons";
 import { isProp, pictureOwner, refForScene, sceneSlug } from "@/shared/assets";
+import { DEFAULT_SHEET, emptyHandout, HANDOUT_BODY_MAX, HANDOUT_LONG, type HandoutSheet } from "@/shared/handout";
+import { FONT_IDS, FONT_LABELS, PAPERS } from "@/shared/board";
 
 const KINDS: [SceneKind, string][] = [
   ["map", "Map with numbered locations"],
@@ -120,6 +122,11 @@ export function ScenesPanel() {
                       <span className="row-meta">
                         {sc.id === s.live.sceneId ? <span className="tag live">On the TV</span> : null}
                         {sc.reveal ? <span className="tag wax">reveal</span> : null}
+                        {emptyHandout(sc) ? (
+                          <span className="tag warn" title="No words or picture yet: the TV would show a blank sheet.">
+                            Empty sheet
+                          </span>
+                        ) : null}
                         {sc.kind === "map" ? <span className="tag">{sc.map?.pins.length ?? 0} locations</span> : null}
                       </span>
                       {sc.kind === "map" ? (
@@ -253,6 +260,8 @@ function SceneEditor({ scene }: { scene: Scene }) {
           </Check>
         ) : null}
 
+        {scene.kind === "handout" && scene.art?.builtin !== "artum-notice" ? <HandoutWords scene={scene} /> : null}
+
         {takesImage ? (
           <div className="inline">
             <button className="btn" type="button" disabled={busy} onClick={() => file.current?.click()}>
@@ -285,5 +294,80 @@ function SceneEditor({ scene }: { scene: Scene }) {
         </button>
       </div>
     </div>
+  );
+}
+
+/** Paper for handouts: the plain papers from the notice board (the four job papers draw their own bounty layout). */
+const HANDOUT_PAPERS = PAPERS.filter((p) => !p.job);
+
+/** A handout's words: title, text with light formatting, signature, paper and writing. */
+function HandoutWords({ scene }: { scene: Scene }) {
+  const { run } = useDm();
+  const w: HandoutSheet = scene.sheet ?? DEFAULT_SHEET;
+  const save = (p: Partial<HandoutSheet>) => run({ type: "scene.update", sceneId: scene.id, patch: { sheet: { ...w, ...p } } });
+  const [body, setBody] = useState(w.body);
+  const [editing, setEditing] = useState(false);
+  useEffect(() => {
+    if (!editing) setBody(w.body);
+  }, [w.body, editing]);
+  const empty = emptyHandout(scene);
+  return (
+    <fieldset className="handout-words">
+      <legend>Words on the paper</legend>
+      {empty ? <p className="note warn-note">This handout has no words or picture yet, so the TV would show a blank sheet. Write something below or upload an image.</p> : null}
+      <Field label="Title" value={w.title} placeholder="A letter, sealed in green wax" onCommit={(v) => save({ title: v })} />
+      <label>
+        Text
+        <textarea
+          className="fld handout-text"
+          rows={8}
+          maxLength={HANDOUT_BODY_MAX}
+          value={body}
+          placeholder={"Friends,\n\nCome to the lighthouse at **midnight**. Tell *no one*.\n\n-- A friend"}
+          onFocus={() => setEditing(true)}
+          onChange={(e) => setBody(e.target.value)}
+          onBlur={() => {
+            setEditing(false);
+            if (body !== w.body) void save({ body });
+          }}
+        />
+      </label>
+      <p className="note">
+        A blank line starts a new paragraph · <code>**bold**</code> · <code>*italic*</code> · a line starting with <code>--</code> is signed on the right.
+        {body.length > HANDOUT_LONG ? <b> This is long: it will come out small on the TV. Two handouts may read better.</b> : null}
+      </p>
+      <Field label="Signed" value={w.sign} placeholder="Lady Vess" onCommit={(v) => save({ sign: v })} />
+      <div className="inline">
+        <label>
+          Paper
+          <select className="fld" value={w.paper} onChange={(e) => save({ paper: e.target.value as HandoutSheet["paper"] })}>
+            {HANDOUT_PAPERS.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          Writing
+          <select className="fld" value={w.font} onChange={(e) => save({ font: e.target.value as HandoutSheet["font"] })}>
+            {FONT_IDS.map((f) => (
+              <option key={f} value={f}>
+                {FONT_LABELS[f]}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          Title ink
+          <select className="fld" value={w.ink ?? ""} onChange={(e) => save({ ink: (e.target.value || undefined) as HandoutSheet["ink"] })}>
+            <option value="">The paper&rsquo;s ink</option>
+            <option value="red">Red</option>
+            <option value="blue">Blue</option>
+            <option value="gold">Gold</option>
+          </select>
+        </label>
+      </div>
+    </fieldset>
   );
 }

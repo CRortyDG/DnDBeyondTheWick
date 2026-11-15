@@ -3,6 +3,8 @@
 
 import type { DiceGroup, RollEntry } from "./dice";
 
+import type { HandoutSheet } from "./handout";
+
 export type SceneKind = "notice" | "portrait" | "handout" | "image" | "black" | "map" | "table" | "stinger" | "video";
 
 /** Built-in art. "merchant-sigil" is DM-only and served through a gated route. */
@@ -40,6 +42,8 @@ export interface Scene {
   shownAt?: number;
   /** Shared world: the characters who know this portrait or map. The table sees it only if everyone present does. */
   knownBy?: string[];
+  /** Handouts: words on the paper (see handout.ts). Sent out only once the handout is live. */
+  sheet?: HandoutSheet;
 }
 
 /** What a pin can open from the DM view: a shop on the TV, or another scene (a portrait or a map). DM-ONLY. */
@@ -182,6 +186,8 @@ export interface Player {
   renown?: number;
   /** Shared world: this character's own Renown points. Missing: their rank's threshold. */
   renownPoints?: number;
+  /** Their character's level, 1-20. Missing: not set yet. */
+  level?: number;
 }
 
 /** A player's hit points, as they (or the DM) typed them. */
@@ -983,6 +989,8 @@ export interface GameState {
   renownProgress?: boolean;
   /** The last time Renown went up: the TV plays the moment when n changes. */
   renownMoment?: { rank: number; n: number; at: number };
+  /** The party levelled up: the TV moment, and each phone's "You're level 3!". */
+  levelMoment?: { n: number; at: number; levels: { playerId: string; level: number }[] };
   /** The last dice roll on the TV (the DM's or a player's): the TV plays it when n changes. Secret and DM-only rolls never get here. */
   diceRoll?: { n: number; at: number; groups: DiceGroup[]; plus: number; total: number; /** Set when a player rolled. */ name?: string };
   /** DM-ONLY: every roll, the DM's and the players', newest last (capped). Players see only their own. */
@@ -1244,6 +1252,22 @@ export interface FightStep {
   gone: string[];
 }
 
+/** DM-ONLY: what one HP or condition change touched, so Undo can put it back exactly. */
+export interface FightUndo {
+  id: string;
+  /** "Goblin A took 7 damage". */
+  label: string;
+  at: number;
+  /** Who did it: the DM, or the player on their phone. */
+  by: "dm" | { playerId: string };
+  combatants: Pick<Combatant, "id" | "hp" | "maxHp" | "tempHp" | "down" | "gone" | "deathSaves" | "concDc" | "concentrating" | "conditions">[];
+  /** Players' own hit points (they live on Player.hp). Missing hp: not set before. */
+  players: { id: string; hp?: PlayerHp }[];
+  downed: string[];
+  /** Reminders the change added, taken away again on Undo. */
+  reminders: string[];
+}
+
 export interface Fight {
   id: string;
   /** setup: rolling initiative. over: the end card, then loot. */
@@ -1271,6 +1295,8 @@ export interface Fight {
   moment?: FightMoment;
   /** DM-ONLY: undo for Previous turn, newest last. */
   steps: FightStep[];
+  /** DM-ONLY: the last HP and condition changes, newest last, for Undo. Missing on fights from before it. */
+  history?: FightUndo[];
   /** Combatant ids of everyone who went down, in order (once each). */
   downed: string[];
   /** Set when the fight ends: won (every foe down), fallen (every player at 0 HP), or ended (stopped with both sides standing). */
