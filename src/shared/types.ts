@@ -794,6 +794,10 @@ export interface Entry {
   knows?: string;
   /** People, DM-ONLY: how they sound ("slow, kind, never finishes a sentence"). */
   voice?: string;
+  /** People, DM-ONLY: what you notice first. */
+  look?: string;
+  /** People, DM-ONLY: a habit or tic to play. */
+  quirk?: string;
   /** DM-ONLY: drafted by a Worldbuilder key. */
   madeBy?: MadeBy;
   /** Places: what the off-script kit uses while the party is here. DM-ONLY. */
@@ -810,6 +814,10 @@ export interface PlaceSetup {
   scene?: string;
   /** Its caption on the TV, for an ambient scene ("The coast road, dusk."). */
   caption?: string;
+  /** The random table to roll encounters on here (a RandomTable id). */
+  encounters?: string;
+  /** The random table to roll rumors on here. */
+  rumors?: string;
 }
 
 // ---------- off-script: where the party is, clues, quick notes (all DM-ONLY) ----------
@@ -1160,6 +1168,10 @@ export interface RandomTable {
   dmNote: string;
   createdAt: number;
   madeBy?: MadeBy;
+  /** DM-ONLY: came with the campaign (the off-script kit's starter tables). */
+  origin?: "seed";
+  /** DM-ONLY: needs the DM's review. */
+  review?: { at: number; sessionId: string | null; placeId?: string };
 }
 
 // ---------- the shared world (several parties in one campaign) ----------

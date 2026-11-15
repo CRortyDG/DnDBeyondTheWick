@@ -3523,3 +3523,76 @@ html[data-view="dm"] .hc-small { font-size: 12px; margin-top: 10px; }
   flex-direction: column;
   gap: 2px;
 }
+/* the off-script generators */
+:where(html[data-view="dm"]) .gen-kinds {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+:where(html[data-view="dm"]) .gen-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--dm-s2, 8px);
+  padding: var(--dm-s3, 12px);
+  border: 1px solid var(--dm-border);
+  border-radius: var(--dm-r-md);
+  background: var(--dm-bg-1);
+}
+:where(html[data-view="dm"]) .gen-title {
+  margin: 0;
+  font-size: 1.25rem;
+  line-height: 1.3;
+}
+:where(html[data-view="dm"]) .gen-sub {
+  margin: 0;
+  font-style: italic;
+}
+:where(html[data-view="dm"]) .gen-detail {
+  margin: 0;
+}
+:where(html[data-view="dm"]) .gen-lines {
+  margin: 0;
+  display: grid;
+  gap: 4px;
+}
+:where(html[data-view="dm"]) .gen-lines div {
+  display: grid;
+  grid-template-columns: 4.5rem 1fr;
+  gap: 8px;
+}
+:where(html[data-view="dm"]) .gen-lines dt {
+  font-weight: 600;
+  color: var(--dm-text-2);
+}
+:where(html[data-view="dm"]) .gen-lines dd {
+  margin: 0;
+}
+:where(html[data-view="dm"]) .gen-rolled,
+:where(html[data-view="dm"]) .gen-done {
+  margin: 0;
+}
+:where(html[data-view="dm"]) .gen-acts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+:where(html[data-view="dm"]) .gen-card-tv {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.85rem;
+}
+:where(html[data-view="dm"]) .gen-edit {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+:where(html[data-view="dm"]) .gen-edit label {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+:where(html[data-view="dm"]) .gen-edit > .btn {
+  align-self: flex-start;
+}

@@ -160,7 +160,7 @@ function importBulk(input: GameState, cmd: Extract<Command, { type: "import.bulk
 }
 
 /** A person's DM-only notes (the Worldbuilder writes these too). */
-const PERSON_NOTES = ["wants", "knows", "voice"] as const;
+const PERSON_NOTES = ["wants", "knows", "voice", "look", "quirk"] as const;
 
 /**
  * Approved Worldbuilder drafts. Each op runs as the DM command that makes the
@@ -397,6 +397,45 @@ function makeFromCapture(input: GameState, cmd: Extract<Command, { type: "captur
   return { state, ledger };
 }
 
+/**
+ * A generator result saved from the off-script panel. Made through entry.add
+ * (a shop there also gets its hidden storefront), marked improvised and for
+ * review, tied to where the party is; a shop's owner becomes a linked person.
+ * Met: Found, with a name card on the TV only when asked.
+ */
+function improvSave(input: GameState, cmd: Extract<Command, { type: "improv.save" }>, ctx: Ctx): Result {
+  let state = input;
+  const ledger: LedgerEntry[] = [];
+  const step = (c: Command): Result => {
+    const r = applyOne(state, c, ctx);
+    state = r.state;
+    ledger.push(...r.ledger);
+    return r;
+  };
+  const here = hereRecord(input);
+  const review = { at: ctx.now, sessionId: input.currentSessionId, ...(here ? { placeId: here.placeId } : {}) };
+  const add = (kind: "person" | "place" | "shop", d: Omit<Extract<Command, { type: "improv.save" }>["draft"], "owner">): Entry => {
+    const { name, title, summary, ...notes } = d;
+    const r = step({ type: "entry.add", entry: { kind, name, title, summary, ...(kind === "person" ? notes : {}) } });
+    const e = state.entries!.find((x) => x.id === r.entryId)!;
+    e.origin = "improvised";
+    e.review = review;
+    if (here && here.placeId !== e.id && !e.links.includes(here.placeId) && state.entries!.some((x) => x.id === here.placeId)) e.links.push(here.placeId);
+    return e;
+  };
+  const main = add(cmd.as, cmd.draft);
+  let owner: Entry | undefined;
+  if (cmd.as === "shop" && cmd.draft.owner) {
+    owner = add("person", { ...cmd.draft.owner, title: cmd.draft.owner.title || `Runs ${main.name}` });
+    if (!owner.links.includes(main.id)) owner.links.push(main.id);
+  }
+  if (cmd.met) {
+    step({ type: "entry.stage", entryId: main.id, stage: "found", announce: cmd.tv });
+    if (owner) step({ type: "entry.stage", entryId: owner.id, stage: "found", announce: false });
+  }
+  return { state, ledger, entryId: main.id };
+}
+
 function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
   // Authorisation is checked again here so a wiring mistake can't let a player run DM commands.
   if (isDmCommand(cmd.type) && ctx.actor.role !== "dm") fail("Only the DM can do that.");
@@ -405,6 +444,7 @@ function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
   if (cmd.type === "import.bulk") return importBulk(input, cmd, ctx);
   if (cmd.type === "system.builderApply") return builderApply(input, cmd.ops, ctx);
   if (cmd.type === "capture.make") return makeFromCapture(input, cmd, ctx);
+  if (cmd.type === "improv.save") return improvSave(input, cmd, ctx);
 
   const s: GameState = structuredClone(input);
   // The server fills in the seed episode when it reads an older game (see withSeedEpisodes on the server).
@@ -3112,8 +3152,19 @@ function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
         if (c) setup.caption = c;
         else delete setup.caption;
       }
+      for (const k of ["encounters", "rumors"] as const) {
+        const v = cmd[k];
+        if (v === undefined) continue;
+        if (v) setup[k] = (tablesOf(s).find((t) => t.id === v) ?? fail("That table is gone.")).id;
+        else delete setup[k];
+      }
       if (Object.keys(setup).length) pl.place = setup;
       else delete pl.place;
+      break;
+    }
+    case "review.done": {
+      if (cmd.entryId) delete entry(cmd.entryId).review;
+      if (cmd.tableId) delete (tablesOf(s).find((t) => t.id === cmd.tableId) ?? fail("That table is gone.")).review;
       break;
     }
     case "clue.add": {
@@ -3458,6 +3509,13 @@ function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
     }
     case "table.remove":
       s.tables = tablesOf(s).filter((t) => t.id !== cmd.tableId);
+      // Places that rolled on it go back to the town's table.
+      for (const e of entriesOf(s)) {
+        if (!e.place) continue;
+        if (e.place.encounters === cmd.tableId) delete e.place.encounters;
+        if (e.place.rumors === cmd.tableId) delete e.place.rumors;
+        if (!Object.keys(e.place).length) delete e.place;
+      }
       if (!s.tables.length) delete s.tables;
       break;
     case "game.vtt": {

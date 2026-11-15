@@ -6,6 +6,7 @@ import { withSeedEpisodes } from "./seed-episodes";
 import { withSeedJobNotes } from "./seed-jobs";
 import { withSeedMonsters } from "./seed-monsters";
 import { withSeedStory } from "./seed-story";
+import { withSeedOffscript } from "./seed-offscript";
 import type { PresetStore } from "./presets";
 import type { UsageReport } from "@/shared/hosting";
 import { MemoryBuilderStore, type BuilderStore } from "./builderStore";
@@ -60,7 +61,7 @@ export interface SnapshotData {
 
 /** What a stored document looks like once read: migrated, with the seed run sheets and monsters added. */
 export function hydrate(state: GameState | null): GameState | null {
-  const out = withAssets(withSeedStory(withSeedEntries(withSeedMonsters(withSeedJobNotes(withSeedEpisodes(state ? upgrade(state) : null))))));
+  const out = withAssets(withSeedOffscript(withSeedStory(withSeedEntries(withSeedMonsters(withSeedJobNotes(withSeedEpisodes(state ? upgrade(state) : null)))))));
   // Every shop gets its Discover entry (older games had none).
   return out ? syncShopEntries(out) : out;
 }

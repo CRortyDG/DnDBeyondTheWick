@@ -10,7 +10,9 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { AMBIENT, ambientOfRef } from "@/shared/ambient";
 import { refForScene, resolveRef } from "@/shared/assets";
 import { entriesOf, kindInfo, stageLabel } from "@/shared/discovery";
-import { capturesOf, cluesOf, hereOf, hereView, readyClues } from "@/shared/offscript";
+import { capturesOf, cluesOf, hereOf, hereView, placeTable, readyClues } from "@/shared/offscript";
+import { tablesOf } from "@/shared/tables";
+import { generate, GENERATORS, genText, type GenKind, type GenResult } from "@/shared/generators";
 import { storyOf } from "@/shared/story";
 import type { Clue, Entry, GameState } from "@/shared/types";
 import { AmbientScene } from "../scenes/Ambient";
@@ -18,9 +20,10 @@ import { Drawer } from "./Drawer";
 import { useDm } from "./context";
 import { typing } from "./QuickBar";
 
-export type OffTab = "here" | "clues" | "scenes" | "notes";
+export type OffTab = "here" | "make" | "clues" | "scenes" | "notes";
 const TABS: { id: OffTab; label: string }[] = [
   { id: "here", label: "Here" },
+  { id: "make", label: "Make up" },
   { id: "clues", label: "Clues" },
   { id: "scenes", label: "Scenes" },
   { id: "notes", label: "Notes" },
@@ -42,6 +45,7 @@ export function OffScriptPanel({ tab, setTab, onClose, episodeId }: { tab: OffTa
     const onKey = (e: KeyboardEvent) => {
       if (typing(e) || e.metaKey || e.ctrlKey || e.altKey) return;
       if (e.key !== "ArrowUp" && e.key !== "ArrowDown") return;
+      if (e.defaultPrevented) return; // the generator list took it
       const i = TABS.findIndex((t) => t.id === tab);
       setTab(TABS[(i + (e.key === "ArrowDown" ? 1 : TABS.length - 1)) % TABS.length].id);
       e.preventDefault();
@@ -61,6 +65,7 @@ export function OffScriptPanel({ tab, setTab, onClose, episodeId }: { tab: OffTa
           ))}
         </div>
         {tab === "here" ? <HereSection /> : null}
+        {tab === "make" ? <MakeSection /> : null}
         {tab === "clues" ? <CluesSection episodeId={episodeId} /> : null}
         {tab === "scenes" ? <ScenesSection /> : null}
         {tab === "notes" ? <NotesSection /> : null}
@@ -185,6 +190,262 @@ function DefaultScene({ place }: { place: Entry }) {
         <span className="note">{place.name} has no TV scene yet. Under Scenes, press “Use here” on one.</span>
       )}
     </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Make up: the generators
+
+const PERSON_LINES = [
+  ["look", "Look"],
+  ["quirk", "Quirk"],
+  ["wants", "Wants"],
+  ["knows", "Knows"],
+  ["voice", "Voice"],
+] as const;
+
+/** What a result saves as: a Discover draft, a quick note, or (monsters) only a fight. */
+function saveAs(r: GenResult): "person" | "shop" | "note" | null {
+  if (r.kind === "name" || r.kind === "npc") return "person";
+  if (r.kind === "shop") return "shop";
+  if (r.kind === "monster") return null;
+  return "note";
+}
+
+function heroCount(g: GameState): number {
+  return g.players.filter((p) => !p.archived && !p.away).length || 4;
+}
+
+/**
+ * The generators. ↑ ↓ choose, R rerolls, E edits, C copies, Enter saves (a
+ * Hidden draft flagged for review, tied to where the party is; or a quick
+ * note), M says they've met now (Found, with a name card on the TV if ticked).
+ * Rolls happen here in the browser, from the campaign's tables or the built-in
+ * lists, so they work offline and never touch the TV.
+ */
+function MakeSection() {
+  const { run } = useDm();
+  const g = useGame();
+  const here = hereOf(g);
+  const [kind, setKind] = useState<GenKind>("npc");
+  const [results, setResults] = useState<Partial<Record<GenKind, GenResult>>>({});
+  const [editing, setEditing] = useState(false);
+  const [card, setCard] = useState(false);
+  const [done, setDone] = useState<string | null>(null);
+  const r = results[kind];
+  const gRef = useRef(g);
+  gRef.current = g;
+  const hereRef = useRef(here);
+  hereRef.current = here;
+
+  const roll = (k: GenKind = kind) => {
+    setResults((x) => ({ ...x, [k]: generate(k, gRef.current, hereRef.current, Math.random, heroCount(gRef.current)) }));
+    setEditing(false);
+    setDone(null);
+  };
+  useEffect(() => {
+    if (!results[kind]) roll(kind);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [kind]);
+
+  const set = (patch: Partial<GenResult>) => r && setResults((x) => ({ ...x, [kind]: { ...r, ...patch } }));
+  const setOwner = (patch: Partial<GenResult>) => r?.owner && set({ owner: { ...r.owner, ...patch } });
+
+  const draftOf = (x: GenResult) => ({
+    name: x.title.trim(),
+    ...(x.subtitle ? { title: x.subtitle } : {}),
+    ...(x.detail ? { summary: x.detail } : {}),
+    ...Object.fromEntries(PERSON_LINES.filter(([k]) => x[k]).map(([k]) => [k, x[k]])),
+  });
+
+  const save = async (met: boolean) => {
+    if (!r) return;
+    const as = saveAs(r);
+    if (!as) return;
+    if (as === "note") {
+      if (await run({ type: "capture.add", text: r.title + (r.detail ? ` ${r.detail}` : "") }, "Saved to your notes.")) setDone("Saved to your notes for wrap-up.");
+      return;
+    }
+    if (!r.title.trim()) return;
+    const ok = await run(
+      { type: "improv.save", as, draft: { ...draftOf(r), ...(r.owner ? { owner: draftOf(r.owner) } : {}) }, met, tv: met && card },
+      met ? `${r.title} is now Found.` : `${r.title} saved as a hidden draft.`,
+    );
+    if (ok) setDone(met ? `${r.title} is Found${card ? " and on the TV" : ""}. It's flagged for review.` : `${r.title} is a hidden draft, flagged for review.`);
+  };
+
+  const fight = async () => {
+    if (!r?.fight?.groups.length) return;
+    await run({ type: "fight.start", groups: r.fight.groups, ...(here ? { where: here.name } : {}) }, "Fight set up.");
+  };
+
+  const copy = async () => {
+    if (!r) return;
+    try {
+      await navigator.clipboard.writeText(genText(r));
+      setDone("Copied.");
+    } catch {
+      setDone("Couldn't copy here. Select the text instead.");
+    }
+  };
+
+  // Keys, in the capture phase so the run sheet's keys step aside.
+  const keyRef = useRef({ roll, save, copy, fight, kind, editing });
+  keyRef.current = { roll, save, copy, fight, kind, editing };
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (typing(e) || e.metaKey || e.ctrlKey || e.altKey || e.repeat) return;
+      if (document.querySelector(".capture-box, .finder, .inbox-drawer")) return;
+      const h = keyRef.current;
+      const k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+      const i = GENERATORS.findIndex((x) => x.id === h.kind);
+      if (k === "ArrowDown" && i < GENERATORS.length - 1) setKind(GENERATORS[i + 1].id);
+      else if (k === "ArrowUp" && i > 0) setKind(GENERATORS[i - 1].id);
+      else if (k === "r") h.roll();
+      else if (k === "e") setEditing((v) => !v);
+      else if (k === "c") void h.copy();
+      else if (k === "Enter" && !(e.target instanceof HTMLButtonElement)) void h.save(false);
+      else if (k === "m") void h.save(true);
+      else if (k === "f") void h.fight();
+      else return;
+      e.preventDefault();
+      e.stopImmediatePropagation();
+    };
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, []);
+
+  const as = r ? saveAs(r) : null;
+  return (
+    <section className="offscript-sec gen" aria-label="Make something up">
+      <div className="gen-kinds" role="listbox" aria-label="Generators (↑ ↓)">
+        {GENERATORS.map((x) => (
+          <button key={x.id} type="button" role="option" aria-selected={kind === x.id} className={`btn small${kind === x.id ? " on" : ""}`} onClick={() => setKind(x.id)}>
+            {x.label}
+          </button>
+        ))}
+      </div>
+      {r ? (
+        <div className="gen-card" aria-live="polite">
+          {editing ? (
+            <div className="gen-edit">
+              <label>
+                <span className="note">{r.kind === "shop" ? "Name" : r.kind === "name" || r.kind === "npc" ? "Name" : "Text"}</span>
+                {r.kind === "encounter" || r.kind === "rumor" || r.kind === "complication" ? (
+                  <textarea className="fld" rows={3} value={r.title} onChange={(e) => set({ title: e.target.value })} autoFocus />
+                ) : (
+                  <input className="fld" value={r.title} onChange={(e) => set({ title: e.target.value })} autoFocus />
+                )}
+              </label>
+              {r.subtitle !== undefined || r.kind === "name" ? (
+                <label>
+                  <span className="note">{r.kind === "shop" ? "What kind of place" : "Who they are"}</span>
+                  <input className="fld" value={r.subtitle ?? ""} onChange={(e) => set({ subtitle: e.target.value })} />
+                </label>
+              ) : null}
+              {r.kind === "npc"
+                ? PERSON_LINES.map(([k, label]) => (
+                    <label key={k}>
+                      <span className="note">{label}</span>
+                      <input className="fld" value={r[k] ?? ""} onChange={(e) => set({ [k]: e.target.value })} />
+                    </label>
+                  ))
+                : null}
+              {r.kind === "shop" ? (
+                <>
+                  <label>
+                    <span className="note">Something odd about it</span>
+                    <input className="fld" value={r.detail ?? ""} onChange={(e) => set({ detail: e.target.value })} />
+                  </label>
+                  {r.owner ? (
+                    <label>
+                      <span className="note">Run by</span>
+                      <input className="fld" value={r.owner.title} onChange={(e) => setOwner({ title: e.target.value })} />
+                    </label>
+                  ) : null}
+                </>
+              ) : null}
+              <button type="button" className="btn small" onClick={() => setEditing(false)}>
+                <span className="key">E</span> Done editing
+              </button>
+            </div>
+          ) : (
+            <>
+              <h3 className="gen-title">{r.title}</h3>
+              {r.subtitle ? <p className="gen-sub">{r.subtitle}</p> : null}
+              {r.kind === "npc" ? (
+                <dl className="gen-lines">
+                  {PERSON_LINES.map(([k, label]) =>
+                    r[k] ? (
+                      <div key={k}>
+                        <dt>{label}</dt>
+                        <dd>{r[k]}</dd>
+                      </div>
+                    ) : null,
+                  )}
+                </dl>
+              ) : null}
+              {r.detail ? <p className="gen-detail">{r.detail}</p> : null}
+              {r.owner ? (
+                <p className="gen-detail">
+                  Run by <b>{r.owner.title}</b>, {r.owner.subtitle}: {r.owner.look}; {r.owner.quirk}. Voice: {r.owner.voice}.
+                </p>
+              ) : null}
+              {r.fight ? (
+                <p className="note">
+                  {r.fight.groups.length ? `Fight: ${r.fight.names.join(", ")}` : null}
+                  {r.fight.missing.length ? `${r.fight.groups.length ? ". " : ""}Not in your monsters yet: ${r.fight.missing.join(", ")}` : null}
+                </p>
+              ) : null}
+              {r.rolled ? <p className="note gen-rolled">Rolled {r.rolled}</p> : <p className="note gen-rolled">From the built-in list</p>}
+            </>
+          )}
+          <div className="gen-acts">
+            <button type="button" className="btn small" onClick={() => roll()}>
+              <span className="key">R</span> Reroll
+            </button>
+            {!editing ? (
+              <button type="button" className="btn small" onClick={() => setEditing(true)}>
+                <span className="key">E</span> Edit
+              </button>
+            ) : null}
+            <button type="button" className="btn small" onClick={() => void copy()}>
+              <span className="key">C</span> Copy
+            </button>
+            {as === "note" ? (
+              <button type="button" className="btn small primary" onClick={() => void save(false)}>
+                <span className="key">Enter</span> Save to notes
+              </button>
+            ) : null}
+            {as === "person" || as === "shop" ? (
+              <>
+                <button type="button" className="btn small primary" onClick={() => void save(false)}>
+                  <span className="key">Enter</span> Save as draft
+                </button>
+                <button type="button" className="btn small" onClick={() => void save(true)}>
+                  <span className="key">M</span> Met now
+                </button>
+                <label className="gen-card-tv">
+                  <input type="checkbox" checked={card} onChange={(e) => setCard(e.target.checked)} /> Name card on the TV
+                </label>
+              </>
+            ) : null}
+            {r.fight?.groups.length ? (
+              <button type="button" className="btn small primary" onClick={() => void fight()} disabled={!!g.fight}>
+                <span className="key">F</span> Start fight
+              </button>
+            ) : null}
+          </div>
+          {done ? <p className="note gen-done">{done}</p> : null}
+          {as === "person" || as === "shop" ? (
+            <p className="note">
+              Saves as a hidden {as === "shop" ? "shop with its owner" : "person"}
+              {here ? ` at ${here.name}` : ""}, flagged on the Review page. Met now makes it Found.
+            </p>
+          ) : null}
+        </div>
+      ) : null}
+    </section>
   );
 }
 
@@ -786,6 +1047,24 @@ export function PlaceSceneFields({ place }: { place: Entry }) {
           <input className="fld" value={caption} maxLength={80} placeholder="The coast road, dusk." onChange={(e) => setCaption(e.target.value)} onBlur={() => caption !== (place.place?.caption ?? "") && void run({ type: "place.setup", entryId: place.id, caption: caption.trim() || null })} />
         </label>
       ) : null}
+      {(["encounters", "rumors"] as const).map((k) => {
+        const kind = k === "encounters" ? "encounter" : "rumor";
+        const list = tablesOf(g).filter((t) => t.kind === kind);
+        const fallback = placeTable({ ...g, entries: [] } as GameState, { ...place, place: { ...place.place, [k]: undefined } }, kind);
+        return (
+          <label key={k}>
+            {k === "encounters" ? "Encounters here roll on" : "Rumors here roll on"}
+            <select className="fld" value={place.place?.[k] ?? ""} onChange={(e) => void run({ type: "place.setup", entryId: place.id, [k]: e.target.value || null })}>
+              <option value="">{fallback ? `${fallback.name} (the default)` : "The built-in list (the default)"}</option>
+              {list.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.name} (d{t.die})
+                </option>
+              ))}
+            </select>
+          </label>
+        );
+      })}
     </div>
   );
 }

@@ -11,7 +11,9 @@ import { apply, CommandError, LOOSE_ENDS, type Ctx } from "@/shared/reducer";
 import { freshStart, seedGame } from "@/shared/seed";
 import { prepOf } from "@/shared/episodeBuilder";
 import { AMBIENT } from "@/shared/ambient";
-import { hereOf, hereView, readyClues } from "@/shared/offscript";
+import { hereOf, hereView, needsReview, readyClues } from "@/shared/offscript";
+import { fightFrom, generate, RUMORS } from "@/shared/generators";
+import { blankGame } from "@/shared/presets";
 import { liveRef, listAssets } from "@/shared/assets";
 import { AmbientScene } from "@/client/scenes/Ambient";
 import type { Actor, GameState } from "@/shared/types";
@@ -273,5 +275,100 @@ describe("ambient scenes", () => {
     // Only transform and opacity are animated.
     const frames = [...block.matchAll(/@keyframes [a-z-]+ \{([\s\S]*?)\n\}/g)].map((m) => m[1]);
     for (const f of frames) for (const prop of f.matchAll(/([a-z-]+):/g)) expect(["transform", "opacity"]).toContain(prop[1]);
+  });
+});
+
+describe("the generators", () => {
+  // A fixed sequence, so rolls are repeatable.
+  const seq = (...xs: number[]) => {
+    let i = 0;
+    return () => xs[i++ % xs.length];
+  };
+
+  it("rolls from the campaign's tables for the place, else the built-in lists, all offline", () => {
+    const docks = entry("e-docks");
+    // Candlefair campaigns get the two starter tables, flagged for review.
+    const starters = g.tables!.filter((t) => t.origin === "seed");
+    expect(starters.map((t) => t.name).sort()).toEqual(["Candlefair rumors", "Candlefair street encounters"]);
+    expect(starters.every((t) => t.review && t.rows.length === 20 && t.die === 20)).toBe(true);
+    const rumor = generate("rumor", g, docks, seq(0));
+    expect(rumor.rolled).toBe("d20 Candlefair rumors: 1");
+    expect(rumor.title).toBe(g.tables!.find((t) => t.name === "Candlefair rumors")!.rows[0].text);
+
+    // A place's own table wins.
+    dm({ type: "table.add", table: { name: "Dock rumors", die: 4, kind: "rumor", rows: [{ text: "Eels are restless." }], areas: [], dmNote: "" } });
+    const own = g.tables!.find((t) => t.name === "Dock rumors")!;
+    dm({ type: "place.setup", entryId: "e-docks", encounters: null, rumors: own.id });
+    expect(generate("rumor", g, entry("e-docks"), seq(0.9)).title).toBe("Eels are restless.");
+    // Removing the table sends the place back to the default.
+    dm({ type: "table.remove", tableId: own.id });
+    expect(entry("e-docks").place?.rumors).toBeUndefined();
+
+    // No tables at all: the built-in list.
+    for (const t of [...g.tables!]) dm({ type: "table.remove", tableId: t.id });
+    const r = generate("rumor", g, docks, seq(0));
+    expect(r.rolled).toBeUndefined();
+    expect(RUMORS).toContain(r.title);
+    expect(generate("complication", g, docks).title.length).toBeGreaterThan(5);
+    const n = generate("npc", g, undefined, seq(0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8));
+    expect(n.title).toMatch(/^\S+ \S+$/);
+    expect(n.look && n.quirk && n.wants && n.knows && n.voice).toBeTruthy();
+    const shop = generate("shop", g, undefined);
+    expect(shop.title).toMatch(/^The /);
+    expect(shop.owner?.subtitle).toBeTruthy();
+  });
+
+  it("turns 'fight:' rows and monster rolls into a fight with real templates", () => {
+    const pud = g.monsters!.find((m) => m.name === "Pudding Gremlin")!;
+    const f = fightFrom(g, "A pudding twitches. fight: Pudding Gremlin x2, Owlbear");
+    expect(f.text).toBe("A pudding twitches.");
+    expect(f.fight).toEqual({ groups: [{ templateId: pud.id, count: 2 }], names: ["Pudding Gremlin x2"], missing: ["Owlbear"] });
+    const m = generate("monster", g, undefined, seq(0), 4);
+    expect(m.fight?.groups[0].count).toBeGreaterThan(0);
+    dm({ type: "fight.start", groups: m.fight!.groups, where: "Candlefair Docks" });
+    expect(g.fight).toBeTruthy();
+  });
+
+  it("saves a result as a hidden draft for review, tied to where the party is", () => {
+    dm({ type: "here.set", placeId: "e-docks" });
+    const r = dm({ type: "improv.save", as: "person", draft: { name: "Tamsin Reedwhistle", title: "net mender", look: "flour to the elbows", quirk: "counts things", wants: "to see the sea", voice: "slow" }, met: false, tv: false });
+    const e = entry(r.entryId!);
+    expect(e).toMatchObject({ stage: "hidden", origin: "improvised", look: "flour to the elbows", quirk: "counts things", wants: "to see the sea", voice: "slow" });
+    expect(e.review).toEqual({ at: now, sessionId: g.currentSessionId, placeId: "e-docks" });
+    expect(e.links).toContain("e-docks");
+    expect(hereView(g)!.people.map((p) => p.id)).toContain(e.id);
+    expect(needsReview(g).entries[0].id).toBe(e.id);
+    // DM-only notes never leave.
+    expect(outside()).not.toContain("Tamsin");
+    expect(outside()).not.toContain("flour to the elbows");
+
+    dm({ type: "review.done", entryId: e.id });
+    expect(entry(e.id).review).toBeUndefined();
+    expect(entry(e.id).origin).toBe("improvised");
+  });
+
+  it("Met now makes it Found, with a name card only when asked; a shop gets its storefront and owner", () => {
+    const quiet = dm({ type: "improv.save", as: "person", draft: { name: "Odo Marsh" }, met: true, tv: false });
+    expect(entry(quiet.entryId!).stage).toBe("found");
+    expect(JSON.stringify(projectTv(g, 1).live)).not.toContain("Odo Marsh");
+
+    const shown = dm({ type: "improv.save", as: "shop", draft: { name: "The Sleepy Heron", title: "tavern", summary: "a parrot takes the orders", owner: { name: "Wenna Crane", title: "innkeeper", quirk: "hums" } }, met: true, tv: true });
+    const shop = entry(shown.entryId!);
+    expect(shop.stage).toBe("found");
+    expect(shop.shopId && g.shops.find((x) => x.id === shop.shopId)).toBeTruthy();
+    const owner = g.entries!.find((e) => e.name === "Wenna Crane")!;
+    expect(owner).toMatchObject({ kind: "person", origin: "improvised", stage: "found", quirk: "hums" });
+    expect(owner.links).toContain(shop.id);
+    expect(JSON.stringify(projectTv(g, 1))).toContain("The Sleepy Heron");
+    expect(JSON.stringify(projectTv(g, 1))).not.toContain("hums");
+  });
+
+  it("a blank campaign gets no starter tables, and seeded tables can be reviewed", () => {
+    const blank = hydrate(blankGame("b", "Saltmarsh Nights"))!;
+    expect(blank.tables ?? []).toEqual([]);
+    const t = g.tables!.find((x) => x.origin === "seed")!;
+    dm({ type: "review.done", tableId: t.id });
+    expect(g.tables!.find((x) => x.id === t.id)!.review).toBeUndefined();
+    expect(outside()).not.toContain(t.rows[0].text);
   });
 });

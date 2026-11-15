@@ -147,6 +147,8 @@ const entryFields = {
   wants: text(PERSON_NOTE_MAX),
   knows: text(PERSON_NOTE_MAX),
   voice: text(PERSON_NOTE_MAX),
+  look: text(PERSON_NOTE_MAX),
+  quirk: text(PERSON_NOTE_MAX),
 };
 const factText = text(FACT_MAX);
 

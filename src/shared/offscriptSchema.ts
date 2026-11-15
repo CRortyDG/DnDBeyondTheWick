@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { AMBIENT_IDS, CAPTION_MAX } from "./ambient";
 import { SHOW_REF_RE } from "./assets";
+import { NAME_MAX, PERSON_NOTE_MAX, SUMMARY_MAX, TITLE_MAX } from "./discovery";
 import { CAPTURE_MAX, CLUE_MAX, CLUE_TAGS_MAX } from "./offscript";
 
 const id = z.string().min(1).max(64);
@@ -16,6 +17,18 @@ const clueFields = z.object({
   storyBeatId: id.nullable(),
 });
 
+const note = z.string().max(PERSON_NOTE_MAX).optional();
+const improvDraft = z.object({
+  name: z.string().min(1).max(NAME_MAX),
+  title: z.string().max(TITLE_MAX).optional(),
+  summary: z.string().max(SUMMARY_MAX).optional(),
+  look: note,
+  quirk: note,
+  wants: note,
+  knows: note,
+  voice: note,
+});
+
 /** The off-script kit (all DM-only). */
 export const offscriptDmCommands = [
   /** Where the party is now. null: nowhere in particular. */
@@ -23,7 +36,30 @@ export const offscriptDmCommands = [
   /** An ambient scene on the TV, with an optional caption. */
   z.object({ type: z.literal("ambient.show"), id: z.enum(AMBIENT_IDS), caption: z.string().max(CAPTION_MAX).optional() }),
   /** A place's off-script settings: its default TV scene and caption. */
-  z.object({ type: z.literal("place.setup"), entryId: id, scene: showRef.nullable().optional(), caption: z.string().max(CAPTION_MAX).nullable().optional() }),
+  z.object({
+    type: z.literal("place.setup"),
+    entryId: id,
+    scene: showRef.nullable().optional(),
+    caption: z.string().max(CAPTION_MAX).nullable().optional(),
+    /** Its random tables to roll encounters and rumors on (null: the town's, or the built-in lists). */
+    encounters: id.nullable().optional(),
+    rumors: id.nullable().optional(),
+  }),
+  /**
+   * Save a generator result: a Hidden person, place or shop (a shop also gets
+   * its storefront, hidden, and its owner as a linked person), made up at the
+   * table, tied to where the party is, and flagged for review. met: they've
+   * met (Found); tv: with a name card on the TV.
+   */
+  z.object({
+    type: z.literal("improv.save"),
+    as: z.enum(["person", "place", "shop"]),
+    draft: improvDraft.extend({ owner: improvDraft.optional() }),
+    met: z.boolean(),
+    tv: z.boolean(),
+  }),
+  /** Done reviewing an improvised, seeded or captured entry or table: it stops being flagged. */
+  z.object({ type: z.literal("review.done"), entryId: id.optional(), tableId: id.optional() }),
 
   z.object({ type: z.literal("clue.add"), clue: clueFields.partial().extend({ text: z.string().max(CLUE_MAX).min(1) }) }),
   z.object({ type: z.literal("clue.update"), clueId: id, patch: clueFields.partial() }),

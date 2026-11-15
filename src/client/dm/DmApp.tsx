@@ -1,4 +1,5 @@
 
+import { reviewCount } from "./ReviewMadeUp";
 import { OffScriptButton } from "./OffScript";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement } from "react";
 import type { DmCommand } from "@/shared/commands";
@@ -550,7 +551,7 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
               <div key={g.group} className="dm-nav">
                 <div className="dm-nav-h">{g.group}</div>
                 {g.items.map((it) => (
-                  <NavButton key={it.id} item={it} current={tab === it.id} onPick={setTab} count={it.id === "players" ? s.knocks.length : it.id === "builder" ? drafts : 0} />
+                  <NavButton key={it.id} item={it} current={tab === it.id} onPick={setTab} count={it.id === "players" ? s.knocks.length : it.id === "builder" ? drafts + reviewCount(s) : 0} />
                 ))}
               </div>
             ))}

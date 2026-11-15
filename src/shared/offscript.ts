@@ -9,7 +9,8 @@ import { entriesOf } from "./discovery";
 import { leadsOf } from "./leads";
 import { storyOf } from "./story";
 import { partyById, tableParty, worldOn } from "./world";
-import type { Capture, Clue, Entry, GameState, Here, Lead, StoryBeat } from "./types";
+import { tablesOf } from "./tables";
+import type { Capture, Clue, Entry, GameState, Here, Lead, RandomTable, StoryBeat } from "./types";
 
 export const CLUES_MAX = 400;
 export const CLUE_MAX = 400;
@@ -114,4 +115,30 @@ export function episodeClueCount(g: Pick<GameState, "clues">, episodeId: string)
 /** Undelivered clues of an episode, for its wrap-up. */
 export function leftoverClues(g: Pick<GameState, "clues">, episodeId: string): Clue[] {
   return cluesOf(g).filter((c) => c.episodeId === episodeId && c.status === "ready");
+}
+
+/**
+ * The random table to roll for this kind of thing here: the place's own pick,
+ * else a table for its area, else one for the whole town (or for anywhere).
+ * Undefined: the generators fall back to their built-in lists.
+ */
+export function placeTable(g: Pick<GameState, "tables" | "town">, place: Entry | undefined, kind: "encounter" | "rumor"): RandomTable | undefined {
+  const list = tablesOf(g).filter((t) => t.kind === kind && t.rows.length);
+  const pick = place?.place?.[kind === "encounter" ? "encounters" : "rumors"];
+  const own = pick ? list.find((t) => t.id === pick) : undefined;
+  if (own) return own;
+  const town = (g.town ?? "Candlefair").toLowerCase().replace(/[^a-z0-9]/g, "");
+  if (place) {
+    const key = areaKey(place.name, town);
+    const area = list.find((t) => t.areas.some((a) => areaKey(a, town) === key));
+    if (area) return area;
+  }
+  const isTown = (a: string) => a.toLowerCase().replace(/[^a-z0-9]/g, "") === town;
+  return list.find((t) => t.areas.some(isTown)) ?? list.find((t) => t.areas.length === 0);
+}
+
+/** Entries and tables made up at the table, from a note, or seeded, still flagged for the DM's review. Newest first. */
+export function needsReview(g: Pick<GameState, "entries" | "tables">): { entries: Entry[]; tables: RandomTable[] } {
+  const by = <T extends { review?: { at: number } }>(a: T, b: T) => (b.review?.at ?? 0) - (a.review?.at ?? 0);
+  return { entries: entriesOf(g).filter((e) => e.review).sort(by), tables: tablesOf(g).filter((t) => t.review).sort(by) };
 }
