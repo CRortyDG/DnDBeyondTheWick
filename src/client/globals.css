@@ -1292,6 +1292,12 @@ label.check,
   display: grid;
   gap: 16px;
 }
+/* Grid items default to min-width: auto, so one wide child would stretch the whole phone page sideways. */
+.player-root > *,
+.job-item > * {
+  min-width: 0;
+  max-width: 100%;
+}
 .player-top {
   display: flex;
   justify-content: space-between;
@@ -4156,6 +4162,24 @@ input.fld.inline-input {
 }
 .paper-handbill.note-page {
   max-width: 520px;
+}
+/* In the flow, a DM-sized title shrinks to fit a phone, and a long word breaks instead of widening the page. */
+.note-page .note-title[style*="--title-size"],
+.job-page .job-title[style*="--title-size"] {
+  font-size: min(var(--title-size), 10vw);
+}
+.note-page .note-title,
+.job-page .job-title,
+.note-page .note-list-head {
+  overflow-wrap: anywhere;
+}
+@media (max-width: 480px) {
+  .paper-handbill.note-page {
+    padding: 12px;
+  }
+  .paper-handbill.note-page > .note-inner {
+    padding: 22px 16px 18px;
+  }
 }
 .flyer.flyer-page {
   max-height: none;

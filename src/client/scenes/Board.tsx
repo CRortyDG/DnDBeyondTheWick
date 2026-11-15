@@ -131,7 +131,8 @@ export function NoteCard({ face, reward, stamp, style, page, label }: { face: No
   const l = face.look ?? {};
   const st = face.style;
   const pin = l.pin && l.pin !== "none" ? PIN_HEX[l.pin] : undefined;
-  const titleStyle: CSSProperties | undefined = l.titleSize ? { fontSize: `${l.titleSize}px` } : undefined;
+  // On the TV board the DM's title size is exact. In the flow (phones, previews) it's a variable that CSS caps to the screen, so a big title can't push a phone sideways.
+  const titleStyle: CSSProperties | undefined = !l.titleSize ? undefined : page ? ({ "--title-size": `${l.titleSize}px` } as CSSProperties) : { fontSize: `${l.titleSize}px` };
   const ink = l.ink ? ` ink-${l.ink}` : "";
   const cls = [l.font ? `font-${l.font}` : "", l.align ? `align-${l.align}` : "", l.band ? "band" : "", l.pin === "none" ? "pin-none" : pin ? "has-pin" : "", page ? "note-page" : ""].filter(Boolean).join(" ");
   const css = { ...style, ...(pin ? ({ "--pin": pin } as CSSProperties) : {}) };
