@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { formatCp, formatDelta } from "@/shared/money";
 import type { PlayerView, PublicItem } from "@/shared/projection";
 import { hrefFor, rememberKey, type Ident } from "../api";
@@ -86,12 +86,20 @@ function PlayerScreen({ view, online, send, ident, setIdent }: { view: PlayerVie
   const [shopId, setShopId] = useState(view.live.shopOpen ? view.live.shopId : view.shops[0]?.id);
   const pendingOrders = view.myOrders.filter((o) => !o.arrived);
   const [msg, setMsg] = useState<string | null>(null);
+  // "Your gold is held until they decide" is only true while a request waits: once the DM answers, it goes.
+  const waiting = view.myRequests.filter((r) => r.status === "pending").length;
+  const waitingWas = useRef(waiting);
+  useEffect(() => {
+    if (waiting < waitingWas.current) setMsg((m) => (m && /held until/.test(m) ? null : m));
+    waitingWas.current = waiting;
+  }, [waiting]);
   const [locking, setLocking] = useState(false);
   const [walletOpen, setWalletOpen] = useState<false | "purse" | "send">(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [youOpen, setYouOpen] = useState(false);
   const [diceOpen, setDiceOpen] = useState(false);
   const [looking, setLooking] = useState<string | null>(null);
+  const wide = useWide();
   // During a session the phone opens on the Chronicle, so a note is one tap away.
   const [screenPick, setScreenPick] = useState<Screen>(view.map ? "map" : view.session ? "chronicle" : "purse");
   const setScreen = (s: Screen) => {
@@ -141,59 +149,19 @@ function PlayerScreen({ view, online, send, ident, setIdent }: { view: PlayerVie
     return null;
   };
 
-  return (
-    <div className="player-root">
+  const navProps = {
+    screen,
+    onScreen: setScreen,
+    hasMaps,
+    fight: f ? (myTurn ? ("turn" as const) : upNext ? ("next" as const) : ("on" as const)) : null,
+    discoverCount: seen.newCount,
+    jobsCount: view.jobs.filter((j) => j.canTake && !j.asked).length,
+    voteOpen: !!view.leads.vote && !view.leads.vote.closed && !view.leads.vote.mine,
+  };
+
+  const sheets = (
+    <>
       {locking ? <LockSheet onLock={lockWith} onClose={() => setLocking(false)} /> : null}
-      <header className="player-top pl-top">
-        <button type="button" className="pl-who" aria-haspopup="dialog" aria-label={`${me.character ?? me.name}: your character, D&D Beyond link and name lock`} onClick={() => setYouOpen(true)}>
-          <span className="player-name">{me.character ?? me.name}</span>
-          <span className="pl-sub">
-            <span className="renown-line-v" title={view.renown.meaning}>
-              <span aria-hidden="true">❦ </span>
-              <span className="sr-only">Party renown: </span>
-              {view.renown.name}
-            </span>
-            <span aria-hidden="true">·</span>
-            <span className="pl-sub-where">{view.session ? `Chapter ${view.session.number}, tonight` : view.game.name}</span>
-          </span>
-        </button>
-        <button type="button" className="pl-coin" aria-haspopup="dialog" aria-label={`Your gold: ${formatCp(me.balanceCp)}. Open your purse.`} onClick={() => setWalletOpen("purse")}>
-          <span className="pl-coin-face" aria-hidden="true" />
-          <span className="pl-coin-amt">{coinLabel(me.balanceCp)}</span>
-          {me.heldCp ? <span className="pl-coin-held" aria-hidden="true" /> : null}
-        </button>
-      </header>
-      {!online ? (
-        <p className="player-offline pl-offline" role="status">
-          Reconnecting&hellip;
-        </p>
-      ) : null}
-      {view.world ? <WorldStrip world={view.world} /> : null}
-      <DecisionBanners view={view} />
-      {f && screen !== "fight" ? (
-        <button type="button" className={`pl-fight-strip${myTurn ? " turn" : upNext ? " next" : ""}`} onClick={() => setScreen("fight")}>
-          <span className="pl-fight-strip-k">{myTurn ? "Your turn!" : upNext ? "You’re up next" : f.status === "setup" ? "Roll initiative" : f.status === "over" ? "Fight over" : "Fight"}</span>
-          <span className="pl-fight-strip-v">
-            {f.status === "running" || f.status === "paused" ? `Round ${f.round} · now ${f.order.find((c) => c.id === f.currentId)?.name ?? "…"}` : "Open the fight"}
-          </span>
-        </button>
-      ) : null}
-      <BannerToast banner={view.banner} className="phone-banner" />
-      {view.world?.news ? <BannerToast banner={{ id: `news-${view.world.news.n}`, text: view.world.news.text, at: 0 }} className="phone-banner world-news" /> : null}
-      <PlayerNav
-        screen={screen}
-        onScreen={setScreen}
-        hasMaps={hasMaps}
-        fight={f ? (myTurn ? "turn" : upNext ? "next" : "on") : null}
-        discoverCount={seen.newCount}
-        jobsCount={view.jobs.filter((j) => j.canTake && !j.asked).length}
-      />
-      {/* On your turn the fight screen's End button owns that corner. */}
-      {!(screen === "fight" && myTurn) ? (
-        <button type="button" className="pl-fab" aria-label="Roll dice" aria-haspopup="dialog" onClick={() => setDiceOpen(true)}>
-          {NAV_ICONS.d20}
-        </button>
-      ) : null}
       {diceOpen ? (
         <Sheet title="Dice" onClose={() => setDiceOpen(false)} className="pl-dice-sheet">
           <Dice view={view} send={send} />
@@ -236,6 +204,320 @@ function PlayerScreen({ view, online, send, ident, setIdent }: { view: PlayerVie
             </button>
           ) : null}
         </Sheet>
+      ) : null}
+      {historyOpen ? (
+        <Sheet title="Your history" onClose={() => setHistoryOpen(false)}>
+          <ul className="ledger">
+            {view.myLedger.length === 0 ? (
+              <li>
+                <span className="note">No gold has changed hands yet.</span>
+              </li>
+            ) : null}
+            {view.myLedger.map((l) => (
+              <li key={l.id}>
+                <span>
+                  <div>{l.note}</div>
+                  <div className="who">{new Date(l.at).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })}</div>
+                </span>
+                <span className={l.amountCp >= 0 ? "up" : "down"}>{formatDelta(l.amountCp)}</span>
+              </li>
+            ))}
+          </ul>
+        </Sheet>
+      ) : null}
+
+      {youOpen ? (
+        <Sheet title={me.character ?? me.name} onClose={() => setYouOpen(false)} className="pl-you-sheet">
+          {me.character ? <p className="note pl-you-player">Played by {me.name}</p> : null}
+          {view.vttUrl ? (
+            <a className="btn primary big vtt-btn" href={view.vttUrl} target="_blank" rel="noopener noreferrer">
+              Launch the VTT
+            </a>
+          ) : null}
+          <CharacterLink current={me.dndbUrl} onSave={async (url) => setMsg((await send({ type: "me.update", patch: { dndbUrl: url } })) ?? "Saved.")} />
+          <p className="note gold-note">Your gold lives here, not on D&amp;D Beyond: keep D&amp;D Beyond&rsquo;s coins at 0. Anything you buy, add to your D&amp;D Beyond inventory yourself.</p>
+          {me.locked ? (
+            <p className="pl-locked">
+              <LockIcon size={16} /> Your name is locked
+            </p>
+          ) : (
+            <button className="btn big" type="button" onClick={() => (setYouOpen(false), lock())}>
+              <LockIcon size={18} /> Lock my name
+            </button>
+          )}
+          {msg && youOpen ? (
+            <p className="player-msg" role="status">
+              {msg}
+            </p>
+          ) : null}
+        </Sheet>
+      ) : null}
+    </>
+  );
+
+  // A computer's screen: tabs down the left, the page in the middle, and your purse and dice kept open on the right.
+  if (wide) {
+    return (
+      <div className="pl-desk">
+        <aside className="pl-side" aria-label="You">
+          <button type="button" className="pl-side-who" aria-haspopup="dialog" aria-label={`${me.character ?? me.name}: your character, D&D Beyond link and name lock`} onClick={() => setYouOpen(true)}>
+            <span className="pl-side-name">{me.character ?? me.name}</span>
+            <span className="pl-side-renown" title={view.renown.meaning}>
+              <span aria-hidden="true">❦ </span>
+              <span className="sr-only">Party renown: </span>
+              {view.renown.name}
+            </span>
+            <span className="pl-side-where">{view.session ? `Chapter ${view.session.number}, tonight` : view.game.name}</span>
+          </button>
+          <button type="button" className="pl-side-coin" aria-haspopup="dialog" aria-label={`Your gold: ${formatCp(me.balanceCp)}. Open your purse.`} onClick={() => setWalletOpen("purse")}>
+            <span className="pl-coin-face" aria-hidden="true" />
+            <span className="pl-side-coin-amt">{formatCp(me.balanceCp)}</span>
+            {me.heldCp ? <span className="pl-side-coin-held">{formatCp(me.heldCp)} held</span> : null}
+          </button>
+          <PlayerNav {...navProps} vertical />
+          <div className="pl-side-foot">
+            {!(screen === "fight" && myTurn) ? (
+              <button type="button" className="pl-side-dice" aria-haspopup="dialog" onClick={() => setDiceOpen(true)}>
+                {NAV_ICONS.d20}
+                <span>Roll dice</span>
+              </button>
+            ) : null}
+            <button type="button" className="pl-side-link" onClick={() => setYouOpen(true)}>
+              Your character
+            </button>
+          </div>
+        </aside>
+        <main className="player-root pl-main">
+      {!online ? (
+        <p className="player-offline pl-offline" role="status">
+          Reconnecting&hellip;
+        </p>
+      ) : null}
+      {view.world ? <WorldStrip world={view.world} /> : null}
+      <DecisionBanners view={view} />
+      {f && screen !== "fight" ? (
+        <button type="button" className={`pl-fight-strip${myTurn ? " turn" : upNext ? " next" : ""}`} onClick={() => setScreen("fight")}>
+          <span className="pl-fight-strip-k">{myTurn ? "Your turn!" : upNext ? "You’re up next" : f.status === "setup" ? "Roll initiative" : f.status === "over" ? "Fight over" : "Fight"}</span>
+          <span className="pl-fight-strip-v">
+            {f.status === "running" || f.status === "paused" ? `Round ${f.round} · now ${f.order.find((c) => c.id === f.currentId)?.name ?? "…"}` : "Open the fight"}
+          </span>
+        </button>
+      ) : null}
+      <BannerToast banner={view.banner} className="phone-banner" />
+      {view.world?.news ? <BannerToast banner={{ id: `news-${view.world.news.n}`, text: view.world.news.text, at: 0 }} className="phone-banner world-news" /> : null}
+      {screen === "fight" && f ? <FightCard view={view} send={send} /> : null}
+      {screen === "map" && hasMaps ? <Maps view={view} send={send} /> : null}
+      {screen === "chronicle" ? <Chronicle view={view.chronicle} gameName={view.game.name} send={send} /> : null}
+      {screen === "jobs" ? <Jobs view={view} send={send} availableAt={availableAt} /> : null}
+      {screen === "discovery" ? <Discovery view={view} send={send} seen={seen} /> : null}
+      {screen === "purse" ? (
+        <>
+          {me.balanceCp < 0 && view.mine.credit.length ? (
+            <p className="note owe-note" role="status">
+              You owe {formatCp(-me.balanceCp)} on your tab at {view.mine.credit.map((c) => c.shopName).join(" and ")}. Pay it off before Mags remembers.
+            </p>
+          ) : null}
+          {msg ? (
+            <p className="player-msg pl-msg" role="status">
+              {msg}
+            </p>
+          ) : null}
+
+          <section className="pl-wallet" aria-label="Your purse">
+            <div className="pl-wallet-lbl">Your purse</div>
+            <div className="pl-wallet-big">{formatCp(me.balanceCp)}</div>
+            <p className={`pl-wallet-avail${me.heldCp ? " held" : ""}`}>
+              {me.heldCp ? (
+                <>
+                  <span className="purse-amt">{formatCp(availableCp)}</span> to spend · {formatCp(me.heldCp)} held for your asks
+                </>
+              ) : (
+                "All of it is yours to spend"
+              )}
+            </p>
+            <div className="pl-wallet-acts">
+              <button type="button" className="btn" onClick={() => setWalletOpen("purse")}>
+                Party purse
+              </button>
+              {view.table.length ? (
+                <button type="button" className="btn" onClick={() => setWalletOpen("send")}>
+                  Send gold
+                </button>
+              ) : null}
+              <button type="button" className="btn" onClick={() => setHistoryOpen(true)}>
+                History
+              </button>
+            </div>
+          </section>
+
+          <MyRequests requests={view.myRequests} send={send} onMsg={setMsg} />
+
+          {view.shops.length ? (
+            <Market
+              view={view}
+              shopId={shopId ?? ""}
+              onShop={setShopId}
+              mode={mode}
+              onMode={setMode}
+              category={category}
+              onCategory={setCategory}
+              availableFor={(it) => (it.kind === "project" ? availableCp : availableAt(it.shopId))}
+              onOpen={setLooking}
+              footer={
+                <p className="pl-hint">
+                  Tap anything to see it and ask the DM. Asking holds the gold until they say yes; you can cancel while it&rsquo;s waiting.
+                  {!me.locked ? (
+                    <>
+                      {" "}
+                      Anyone with your link can ask to spend your gold, so{" "}
+                      <button type="button" className="linkish" onClick={lock}>
+                        lock your name
+                      </button>
+                      .
+                    </>
+                  ) : null}
+                </p>
+              }
+            />
+          ) : (
+            <section className="pl-market">
+              <div className="pl-sec-head">
+                <h2>The market</h2>
+              </div>
+              <div className="pl-empty">
+                <p>No shops are open to you yet. Keep your eyes open.</p>
+              </div>
+            </section>
+          )}
+
+          {lookingAt ? (
+            <RequestSheet
+              item={lookingAt}
+              availableCp={lookingAt.kind === "project" ? availableCp : availableAt(lookingAt.shopId)}
+              send={send}
+              onClose={() => setLooking(null)}
+              onDone={(m) => {
+                setLooking(null);
+                setMsg(m);
+              }}
+            />
+          ) : null}
+
+          <Yours view={view} send={send} onMsg={setMsg} />
+
+          {pendingOrders.length ? (
+            <section className="box">
+              <h2>On its way</h2>
+              <ul className="ledger">
+                {pendingOrders.map((o) => (
+                  <li key={o.id}>
+                    <span>{o.itemName}</span>
+                    <span className="note">arrives at session {o.arrivesAtSession}</span>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ) : null}
+
+          <button type="button" className="pl-row-link" onClick={() => setYouOpen(true)}>
+            <span>
+              <b>Your character</b>
+              <span>D&amp;D Beyond{view.vttUrl ? ", the VTT" : ""} and your name lock</span>
+            </span>
+            <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+              <path d="m9 6 6 6-6 6" />
+            </svg>
+          </button>
+        </>
+      ) : null}
+
+        </main>
+        <aside className="pl-rail" aria-label="Your purse and dice">
+          <section className="pl-rail-purse" aria-label="Your purse">
+            <div className="pl-wallet-lbl">Your purse</div>
+            <div className="pl-rail-big">{formatCp(me.balanceCp)}</div>
+            <p className={`pl-wallet-avail${me.heldCp ? " held" : ""}`}>
+              {me.heldCp ? (
+                <>
+                  <span className="purse-amt">{formatCp(availableCp)}</span> to spend · {formatCp(me.heldCp)} held
+                </>
+              ) : (
+                "All of it is yours to spend"
+              )}
+            </p>
+            <ul className="purse-list pl-rail-party" aria-label="Party purse">
+              {view.purse.map((p) => (
+                <li key={p.id} className={p.id === me.id ? "me" : undefined}>
+                  <span>
+                    {p.inspired ? <InspirationIcon size={16} className="insp" role="img" aria-hidden={false} aria-label="Heroic Inspiration" /> : null}
+                    {p.name}
+                  </span>
+                  <span className="purse-amt">{formatCp(p.balanceCp)}</span>
+                </li>
+              ))}
+            </ul>
+            <div className="pl-rail-acts">
+              {view.table.length ? (
+                <button type="button" className="btn small" onClick={() => setWalletOpen("send")}>
+                  Send gold
+                </button>
+              ) : null}
+              <button type="button" className="btn small" onClick={() => setHistoryOpen(true)}>
+                History
+              </button>
+            </div>
+          </section>
+          <Dice view={view} send={send} />
+        </aside>
+        {sheets}
+      </div>
+    );
+  }
+
+  return (
+    <div className="player-root">
+      <header className="player-top pl-top">
+        <button type="button" className="pl-who" aria-haspopup="dialog" aria-label={`${me.character ?? me.name}: your character, D&D Beyond link and name lock`} onClick={() => setYouOpen(true)}>
+          <span className="player-name">{me.character ?? me.name}</span>
+          <span className="pl-sub">
+            <span className="renown-line-v" title={view.renown.meaning}>
+              <span aria-hidden="true">❦ </span>
+              <span className="sr-only">Party renown: </span>
+              {view.renown.name}
+            </span>
+            <span aria-hidden="true">·</span>
+            <span className="pl-sub-where">{view.session ? `Chapter ${view.session.number}, tonight` : view.game.name}</span>
+          </span>
+        </button>
+        <button type="button" className="pl-coin" aria-haspopup="dialog" aria-label={`Your gold: ${formatCp(me.balanceCp)}. Open your purse.`} onClick={() => setWalletOpen("purse")}>
+          <span className="pl-coin-face" aria-hidden="true" />
+          <span className="pl-coin-amt">{coinLabel(me.balanceCp)}</span>
+          {me.heldCp ? <span className="pl-coin-held" aria-hidden="true" /> : null}
+        </button>
+      </header>
+      {!online ? (
+        <p className="player-offline pl-offline" role="status">
+          Reconnecting&hellip;
+        </p>
+      ) : null}
+      {view.world ? <WorldStrip world={view.world} /> : null}
+      <DecisionBanners view={view} />
+      {f && screen !== "fight" ? (
+        <button type="button" className={`pl-fight-strip${myTurn ? " turn" : upNext ? " next" : ""}`} onClick={() => setScreen("fight")}>
+          <span className="pl-fight-strip-k">{myTurn ? "Your turn!" : upNext ? "You’re up next" : f.status === "setup" ? "Roll initiative" : f.status === "over" ? "Fight over" : "Fight"}</span>
+          <span className="pl-fight-strip-v">
+            {f.status === "running" || f.status === "paused" ? `Round ${f.round} · now ${f.order.find((c) => c.id === f.currentId)?.name ?? "…"}` : "Open the fight"}
+          </span>
+        </button>
+      ) : null}
+      <BannerToast banner={view.banner} className="phone-banner" />
+      {view.world?.news ? <BannerToast banner={{ id: `news-${view.world.news.n}`, text: view.world.news.text, at: 0 }} className="phone-banner world-news" /> : null}
+      <PlayerNav {...navProps} />
+      {/* On your turn the fight screen's End button owns that corner. */}
+      {!(screen === "fight" && myTurn) ? (
+        <button type="button" className="pl-fab" aria-label="Roll dice" aria-haspopup="dialog" onClick={() => setDiceOpen(true)}>
+          {NAV_ICONS.d20}
+        </button>
       ) : null}
       {screen === "fight" && f ? <FightCard view={view} send={send} /> : null}
       {screen === "map" && hasMaps ? <Maps view={view} send={send} /> : null}
@@ -363,53 +645,7 @@ function PlayerScreen({ view, online, send, ident, setIdent }: { view: PlayerVie
         </>
       ) : null}
 
-      {historyOpen ? (
-        <Sheet title="Your history" onClose={() => setHistoryOpen(false)}>
-          <ul className="ledger">
-            {view.myLedger.length === 0 ? (
-              <li>
-                <span className="note">No gold has changed hands yet.</span>
-              </li>
-            ) : null}
-            {view.myLedger.map((l) => (
-              <li key={l.id}>
-                <span>
-                  <div>{l.note}</div>
-                  <div className="who">{new Date(l.at).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })}</div>
-                </span>
-                <span className={l.amountCp >= 0 ? "up" : "down"}>{formatDelta(l.amountCp)}</span>
-              </li>
-            ))}
-          </ul>
-        </Sheet>
-      ) : null}
-
-      {youOpen ? (
-        <Sheet title={me.character ?? me.name} onClose={() => setYouOpen(false)} className="pl-you-sheet">
-          {me.character ? <p className="note pl-you-player">Played by {me.name}</p> : null}
-          {view.vttUrl ? (
-            <a className="btn primary big vtt-btn" href={view.vttUrl} target="_blank" rel="noopener noreferrer">
-              Launch the VTT
-            </a>
-          ) : null}
-          <CharacterLink current={me.dndbUrl} onSave={async (url) => setMsg((await send({ type: "me.update", patch: { dndbUrl: url } })) ?? "Saved.")} />
-          <p className="note gold-note">Your gold lives here, not on D&amp;D Beyond: keep D&amp;D Beyond&rsquo;s coins at 0. Anything you buy, add to your D&amp;D Beyond inventory yourself.</p>
-          {me.locked ? (
-            <p className="pl-locked">
-              <LockIcon size={16} /> Your name is locked
-            </p>
-          ) : (
-            <button className="btn big" type="button" onClick={() => (setYouOpen(false), lock())}>
-              <LockIcon size={18} /> Lock my name
-            </button>
-          )}
-          {msg && youOpen ? (
-            <p className="player-msg" role="status">
-              {msg}
-            </p>
-          ) : null}
-        </Sheet>
-      ) : null}
+      {sheets}
     </div>
   );
 }
@@ -545,6 +781,21 @@ function LockSheet({ onLock, onClose }: { onLock: (key: string) => Promise<strin
       </form>
     </Sheet>
   );
+}
+
+/** A computer-sized window gets the desktop layout; a phone or a narrow window keeps the phone one. */
+const WIDE = "(min-width: 1100px)";
+function useWide(): boolean {
+  const [wide, setWide] = useState(() => typeof window !== "undefined" && !!window.matchMedia?.(WIDE).matches);
+  useEffect(() => {
+    const mq = window.matchMedia?.(WIDE);
+    if (!mq) return;
+    const on = () => setWide(mq.matches);
+    on();
+    mq.addEventListener("change", on);
+    return () => mq.removeEventListener("change", on);
+  }, []);
+  return wide;
 }
 
 /** The header's coin: whole gold pieces once there are any, so a long purse never squeezes the name. The sheet shows it all. */

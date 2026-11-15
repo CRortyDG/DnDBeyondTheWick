@@ -7,6 +7,7 @@ import { withSeedJobNotes } from "./seed-jobs";
 import { withSeedMonsters } from "./seed-monsters";
 import { withSeedStory } from "./seed-story";
 import type { PresetStore } from "./presets";
+import type { UsageReport } from "@/shared/hosting";
 
 /**
  * Where a game lives. One JSON document (state), a version number, an
@@ -37,6 +38,8 @@ export interface Store {
   saveSnapshot?(game: string, reason: string, at: number, data: SnapshotData): Promise<void>;
   listSnapshots?(game: string): Promise<SnapshotInfo[]>;
   loadSnapshot?(game: string, id: number): Promise<SnapshotData | null>;
+  /** What this campaign has used of its host (Cloudflare only). Missing: not counted here. */
+  usage?(game: string): Promise<UsageReport>;
 }
 
 /** How many safety snapshots a campaign keeps. */

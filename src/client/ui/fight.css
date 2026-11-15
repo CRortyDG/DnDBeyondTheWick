@@ -1024,6 +1024,9 @@
 /* the Monsters tab */
 .fx-lib {
   display: grid;
+  /* One column that can shrink: a long stat line must not push the page under the docked TV panel. */
+  grid-template-columns: minmax(0, 1fr);
+  min-width: 0;
   gap: 12px;
 }
 .fx-lib-list {

@@ -69,6 +69,9 @@ export function GridLines({ grid, width, height }: { grid: Pick<PublicGrid, "cel
 
 /** Under a token there's room for a first name: "Brin Ashcombe" -> "Brin". Monsters keep their letter: "Goblin A". */
 export function shortName(name: string): string {
+  // "Sister Cass, Keeper of the Beacon" -> "Sister Cass": the part before a title.
+  const head = name.split(",")[0].trim();
+  if (head && head !== name.trim() && head.length <= 16) return head;
   const words = name.trim().split(/\s+/);
   if (words.length > 1 && /^[A-Z0-9]$/.test(words[words.length - 1])) return words.length === 2 ? name.trim() : `${words[0]} ${words[words.length - 1]}`;
   return words[0] ?? "";

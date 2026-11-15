@@ -221,9 +221,11 @@ export function threadLabel(t: StoryThread, players: Pick<Player, "id" | "name" 
   return t.name || "Untitled thread";
 }
 
-/** One Backstory lane per player at the table, made the first time they're seen. Returns true if it added any. */
+/** One Backstory lane per player at the table, made the first time they're seen. Returns true if it added any. Drops empty lanes of deleted players. */
 export function ensureBackstory(st: Story, players: Player[]): boolean {
   let added = false;
+  // A lane for someone no longer in the game, with nothing planned on it, goes.
+  st.threads = st.threads.filter((t) => t.kind !== "backstory" || !t.playerId || players.some((p) => p.id === t.playerId) || st.beats.some((b) => b.threadId === t.id));
   for (const p of backstoryPlayers(players)) {
     const id = backstoryThreadId(p.id);
     if (st.threads.some((t) => t.id === id)) continue;

@@ -15,23 +15,37 @@ export interface RenownRank {
 
 /** The ladder with {town} for the campaign's town. Every campaign has these five steps; the DM can reword them. */
 const LADDER: RenownRank[] = [
-  { name: "Strangers", meaning: "Fresh off the boat", pay: "15–50 gp", raised: "Strangers in {town}" },
-  { name: "Known in town", meaning: "Locals nod at you", pay: "50–150 gp", raised: "{town} knows your names" },
-  { name: "Trusted", meaning: "The council and merchants come to you", pay: "300–1,000 gp", raised: "{town} trusts you" },
+  { name: "Strangers", meaning: "Nobody knows your names yet", pay: "15–50 gp", raised: "Strangers in {town}" },
+  { name: "Known in town", meaning: "Locals nod at you", pay: "50–150 gp", raised: "{Town} knows your names" },
+  { name: "Trusted", meaning: "The council and merchants come to you", pay: "300–1,000 gp", raised: "{Town} trusts you" },
   { name: "Heroes of {town}", meaning: "Your names are on things", pay: "1,000–5,000 gp", raised: "Heroes of {town}!" },
-  { name: "Famous on the Coast", meaning: "People in Baldur’s Gate have heard of you", pay: "Whatever you negotiate", raised: "Your names have reached Baldur’s Gate" },
+  { name: "Famous far and wide", meaning: "People in distant cities have heard of you", pay: "Whatever you negotiate", raised: "Your names have spread far beyond {town}" },
+];
+
+/** Candlefair's own wording, where it differs: the party came off a boat, and the big city is Baldur's Gate. */
+const CANDLEFAIR: Partial<RenownRank>[] = [
+  { meaning: "Fresh off the boat" },
+  {},
+  {},
+  {},
+  { name: "Famous on the Coast", meaning: "People in Baldur’s Gate have heard of you", raised: "Your names have reached Baldur’s Gate" },
 ];
 
 function townName(g: Pick<GameState, "town">): string {
-  return g.town === undefined ? "Candlefair" : g.town.trim() || "town";
+  return g.town === undefined ? "Candlefair" : g.town.trim();
 }
 
 /** The five ranks as this campaign words them: the DM's own text where set, else the defaults for its town. */
 export function ranksOf(g: Pick<GameState, "town" | "renownRanks">): RenownRank[] {
   const town = townName(g);
-  return LADDER.map((r, i) => {
+  const fill = (t: string) =>
+    t
+      .replace(/\{Town\}/g, town || "The town")
+      .replace(/\{town\}/g, town || "the town");
+  return LADDER.map((base, i) => {
+    const r = town === "Candlefair" ? { ...base, ...CANDLEFAIR[i] } : base;
     const o = g.renownRanks?.[i] ?? {};
-    const pick = (k: keyof RenownRank) => (o[k]?.trim() ? o[k]!.trim() : r[k].replace(/\{town\}/g, town));
+    const pick = (k: keyof RenownRank) => (o[k]?.trim() ? o[k]!.trim() : fill(r[k]));
     return { name: pick("name"), meaning: pick("meaning"), pay: pick("pay"), raised: pick("raised") };
   });
 }

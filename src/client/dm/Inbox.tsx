@@ -8,7 +8,7 @@ import { bothNames } from "@/shared/arrival";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { formatCp, parseAmount } from "@/shared/money";
 import { pendingRequests } from "@/shared/requests";
-import { firstChargeCp } from "@/shared/progress";
+import { firstChargeCp, raisedCp } from "@/shared/progress";
 import type { FlyerText, TradeRequest } from "@/shared/types";
 import { useDm } from "./context";
 import { BOARD_SLOTS, jobsOf, pinnedCount, rankName } from "@/shared/renown";
@@ -256,7 +256,7 @@ function RequestRow({ r }: { r: TradeRequest }) {
             {item ? (
               <span className="note">
                 {" "}
-                ({formatCp(s.stakes.filter((k) => k.itemId === item.id).reduce((a, k) => a + k.cp, 0))} of {formatCp(item.priceCp)} so far)
+                ({formatCp(raisedCp(s, item.id))} of {formatCp(item.priceCp)} so far)
               </span>
             ) : null}
           </>

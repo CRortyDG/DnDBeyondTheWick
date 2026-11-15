@@ -86,6 +86,11 @@ export function slugify(t: string): string {
 }
 
 /** A slug for an entry, unique among entries of its kind. */
+/** A run sheet name as the DM typed it: "place/emberlee" means "emberlee" (the kind is already known). */
+export function slugInput(v: string): string {
+  return v.trim().replace(/^.*\//, "").trim();
+}
+
 export function uniqueSlug(list: Entry[], kind: EntryKind, want: string, exceptId?: string): string {
   const base = slugify(want);
   const taken = new Set(list.filter((e) => e.kind === kind && e.id !== exceptId).map((e) => e.slug));

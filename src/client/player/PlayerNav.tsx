@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 
 export type Screen = "fight" | "map" | "chronicle" | "discovery" | "purse" | "jobs";
 
-type Tab = { id: Screen; label: string; icon: ReactNode; count?: number; alert?: boolean };
+type Tab = { id: Screen; label: string; icon: ReactNode; count?: number; alert?: boolean; alertText?: string };
 
 const svg = (d: ReactNode) => (
   <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
@@ -57,7 +57,7 @@ export const NAV_ICONS = {
   ),
 };
 
-/** The phone's bottom tab bar. */
+/** The phone's bottom tab bar, or the tabs down the side on a computer. */
 export function PlayerNav({
   screen,
   onScreen,
@@ -65,6 +65,8 @@ export function PlayerNav({
   discoverCount,
   jobsCount,
   fight,
+  voteOpen,
+  vertical,
 }: {
   screen: Screen;
   onScreen: (s: Screen) => void;
@@ -73,30 +75,35 @@ export function PlayerNav({
   jobsCount: number;
   /** A fight is on: its tab leads, and lights up when you're next or it's your turn. */
   fight: "on" | "next" | "turn" | null;
+  /** A vote on the leads is open and this player hasn't voted: the Discover tab lights up. */
+  voteOpen?: boolean;
+  vertical?: boolean;
 }) {
   const tabs: Tab[] = [
-    ...(fight ? [{ id: "fight" as const, label: "Fight", icon: NAV_ICONS.fight, alert: fight !== "on" }] : []),
+    ...(fight ? [{ id: "fight" as const, label: "Fight", icon: NAV_ICONS.fight, alert: fight !== "on", alertText: fight === "turn" ? "your turn" : "you're up next" }] : []),
     { id: "chronicle", label: "Story", icon: NAV_ICONS.story },
-    { id: "discovery", label: "Discover", icon: NAV_ICONS.discover, count: discoverCount },
+    { id: "discovery", label: "Discover", icon: NAV_ICONS.discover, count: discoverCount, alert: !!voteOpen, alertText: "a vote is open" },
     ...(hasMaps ? [{ id: "map" as const, label: "Map", icon: NAV_ICONS.map }] : []),
     { id: "purse", label: "Gold", icon: NAV_ICONS.gold },
     { id: "jobs", label: "Jobs", icon: NAV_ICONS.jobs, count: jobsCount },
   ];
   return (
-    <nav className="pl-nav" aria-label="Your page">
-      <div className="pl-nav-in" role="tablist" style={{ gridTemplateColumns: `repeat(${tabs.length}, 1fr)` }}>
+    <nav className={vertical ? "pl-side-nav" : "pl-nav"} aria-label="Your page">
+      <div className="pl-nav-in" role="tablist" aria-orientation={vertical ? "vertical" : undefined} style={vertical ? undefined : { gridTemplateColumns: `repeat(${tabs.length}, 1fr)` }}>
         {tabs.map((t) => (
-          <button key={t.id} type="button" role="tab" aria-selected={screen === t.id} className={`pl-nav-tab${screen === t.id ? " on" : ""}${t.alert ? " alert" : ""}${t.id === "fight" ? " fight" : ""}`} onClick={() => onScreen(t.id)}>
+          <button key={t.id} type="button" role="tab" aria-selected={screen === t.id} aria-label={[t.label, t.count ? `${t.count} new` : "", t.alert ? t.alertText ?? "" : ""].filter(Boolean).join(", ")} className={`pl-nav-tab${screen === t.id ? " on" : ""}${t.alert ? " alert" : ""}${t.id === "fight" ? " fight" : ""}`} onClick={() => onScreen(t.id)}>
             <span className="pl-nav-icon">
               {t.icon}
-              {t.alert ? <span className="pl-nav-alert" aria-label="Your turn soon" /> : null}
+              {t.alert ? <span className={`pl-nav-alert${t.count ? " left" : ""}`} aria-hidden="true" /> : null}
               {t.count ? (
-                <span className="pl-nav-count" aria-label={`${t.count} new`}>
+                <span className="pl-nav-count" aria-hidden="true">
                   {t.count > 99 ? "99+" : t.count}
                 </span>
               ) : null}
             </span>
-            <span className="pl-nav-label">{t.label}</span>
+            <span className="pl-nav-label" aria-hidden="true">
+              {t.label}
+            </span>
           </button>
         ))}
       </div>

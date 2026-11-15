@@ -397,6 +397,15 @@ export interface Stake {
   at: number;
 }
 
+/** NPC money toward a project. */
+export interface NpcStake {
+  itemId: string;
+  /** Who put it in, as the DM wrote it ("The town council"). */
+  from: string;
+  cp: number;
+  at: number;
+}
+
 /** An Earned item the DM granted. */
 export interface Award {
   id: string;
@@ -945,6 +954,8 @@ export interface GameState {
   rentals: Rental[];
   trainings: Training[];
   stakes: Stake[];
+  /** Money the DM put toward projects from NPCs (a patron, the town council). Counts toward the goal; earns no share. */
+  npcStakes?: NpcStake[];
   /** Items whose effects have applied (bought, or funded for projects), with when. */
   effectsOn: Record<string, number>;
   awards: Award[];

@@ -270,6 +270,12 @@ export async function handleApi(req: Request, store: Store): Promise<Response> {
       return json({ snapshots: store.listSnapshots ? await store.listSnapshots(game) : [] });
     }
 
+    // DM only: what this campaign has used of Cloudflare (the Hosting costs box). Null where it isn't counted.
+    if (path === "/api/usage" && method === "GET") {
+      await requireDm(req, store, game);
+      return json({ usage: store.usage ? await store.usage(game) : null });
+    }
+
     // DM only: put the game back to a snapshot (keeping a snapshot of now first).
     if (path === "/api/snapshots/restore" && method === "POST") {
       await requireDm(req, store, game);
