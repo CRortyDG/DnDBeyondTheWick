@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { arrivalLook, arrivalPath, introKind, arrivalStatus, arrivalText, DEFAULT_TEMPLATE, genericArrivalPath, seatedPlayers, type ArrivalStatus } from "@/shared/arrival";
+import { arrivalLook, arrivalPath, introKind, arrivalStatus, arrivalText, DEFAULT_TEMPLATE, genericArrivalPath, seatedPlayers, tableSeats, type ArrivalStatus } from "@/shared/arrival";
 import type { DmPlayer } from "@/shared/projection";
 import { starterById } from "@/shared/starters";
 import { useDm } from "./context";
@@ -26,12 +26,15 @@ function when(t?: number) {
 export function ArrivalPanel() {
   const { view, run, call } = useDm();
   const s = view.state;
-  const seated = seatedPlayers(s) as DmPlayer[];
+  const everyone = seatedPlayers(s) as DmPlayer[];
+  // In a shared world: tonight's table only (the seated party and its guests).
+  const seated = tableSeats(s) as DmPlayer[];
+  const party = s.world ? (s.parties ?? []).find((x) => x.id === s.partyId) : undefined;
   const [name, setName] = useState("");
   const asked = useRef(false);
 
   // Everyone at the table needs a private link. Make any that are missing.
-  const missing = seated.some((p) => !p.arrival?.token);
+  const missing = everyone.some((p) => !p.arrival?.token);
   useEffect(() => {
     if (missing && !asked.current) {
       asked.current = true;
@@ -76,6 +79,13 @@ export function ArrivalPanel() {
           { label: "Links sent", value: sent, tone: "muted" },
         ]}
       />
+
+      {party ? (
+        <p className="note">
+          Showing tonight&rsquo;s table: {party.name}
+          {seated.length < everyone.length ? ` (${everyone.length - seated.length} from other parties hidden)` : ""}. Seat another party from the top bar and The Table on the TV follows.
+        </p>
+      ) : null}
 
       <IntroEditor />
 

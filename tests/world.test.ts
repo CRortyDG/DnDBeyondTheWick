@@ -11,6 +11,7 @@ import { hydrate } from "@/server/store";
 import { presentIds } from "@/shared/world";
 import { projectChronicle } from "@/shared/chronicle";
 import { fogLayout } from "@/shared/fog";
+import { projectArrival, projectTable } from "@/shared/arrival";
 
 const DM: Actor = { role: "dm" };
 const as = (id: string): Actor => ({ role: "player", playerId: id });
@@ -18,8 +19,9 @@ const as = (id: string): Actor => ({ role: "player", playerId: id });
 let g: GameState;
 let now = 1000;
 
+let tokens = 0;
 function run(actor: Actor, cmd: Command) {
-  const r = apply(g, cmd, { now: ++now, actor } as Ctx);
+  const r = apply(g, cmd, { now: ++now, actor, token: () => `token${String(++tokens).padStart(4, "0")}` } as Ctx);
   g = r.state;
   return r;
 }
@@ -357,5 +359,36 @@ describe("the world clock", () => {
     expect(phone("p2").chronicle.notes.some((n) => n.text.includes("Winterfest begins"))).toBe(true);
     expect(phone("p3").chronicle.notes.some((n) => n.text.includes("Winterfest begins"))).toBe(true);
     expect(fails(DM, { type: "world.eventAdd", event: { name: "Bad", from: "2026-12-05", to: "2026-12-01", note: "" } })).toMatch(/ends before/);
+  });
+});
+
+describe("the Table on the TV", () => {
+  it("shows tonight's party (and its guests), following the seated party", () => {
+    twoParties();
+    dm({ type: "arrival.issueLinks" });
+    const ids = (seats: { name: string | null }[]) => seats.length;
+    dm({ type: "party.play", partyId: A });
+    expect(ids(projectTable(g).seats)).toBe(2);
+    expect(projectTable(g).qr.map((q) => q.name).sort()).toEqual(["p1", "p2"].map((id) => g.players.find((p) => p.id === id)!.name).sort());
+    dm({ type: "party.play", partyId: B });
+    expect(ids(projectTable(g).seats)).toBe(3);
+    expect(projectTable(g).qr.map((q) => q.name)).not.toContain(g.players.find((p) => p.id === "p2")!.name);
+  });
+
+  it("a phone's seat page shows its own table: tonight's if here, its party's if not", () => {
+    twoParties();
+    dm({ type: "arrival.issueLinks" });
+    dm({ type: "party.play", partyId: B });
+    const tok = (id: string) => g.players.find((p) => p.id === id)!.arrival!.token;
+    expect(projectArrival(g, 1, tok("p3")).seats).toHaveLength(3);
+    // p2 is in A only and away tonight: sees A's two seats, with their own.
+    const away = projectArrival(g, 1, tok("p2")).seats;
+    expect(away).toHaveLength(2);
+    expect(away.some((x) => x.me)).toBe(true);
+  });
+
+  it("without parties, every seat shows", () => {
+    dm({ type: "arrival.issueLinks" });
+    expect(projectTable(g).seats).toHaveLength(g.players.filter((p) => !p.archived).length);
   });
 });
