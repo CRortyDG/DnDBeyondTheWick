@@ -103,6 +103,8 @@ export const fightDmCommands = [
   z.object({ type: z.literal("fight.cancel") }),
   /** Set a past fight up again, fresh: the same foes and place, full HP, new initiative. The old fight's loot and Chronicle stay as they were. */
   z.object({ type: z.literal("fight.rerun"), fightId: id }),
+  /** Delete one past fight from the history (or all of them). Only the summary goes: purses and the Chronicle stay as they are. */
+  z.object({ type: z.literal("fight.forget"), fightId: id.optional() }),
 ] as const;
 
 export const fightPlayerCommands = [

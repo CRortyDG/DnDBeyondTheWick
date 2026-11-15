@@ -558,3 +558,21 @@ describe("running a past fight again", () => {
     expect(tok.length).toBe(1);
   });
 });
+
+describe("deleting past fights", () => {
+  it("deletes one or all, leaving purses and the Chronicle alone; DM only", () => {
+    const close: Command = { type: "fight.close", payouts: [{ playerId: "p1", cp: 300 }], note: "A test fight." };
+    let { state: g } = run(begun(), [{ type: "fight.end" }, close, { type: "fight.start", groups: [{ templateId: GREMLIN, count: 1 }] }, { type: "fight.begin" }, { type: "fight.end" }, { type: "fight.close", note: null }]);
+    expect(g.fights!.length).toBe(2);
+    const [first, second] = g.fights!;
+    const notes = g.notes!.length;
+    expect(() => run(g, [[{ type: "fight.forget", fightId: first.id }, as("p1")]])).toThrow();
+    ({ state: g } = run(g, [{ type: "fight.forget", fightId: first.id }]));
+    expect(g.fights!.map((f) => f.id)).toEqual([second.id]);
+    expect(g.players[0].balanceCp).toBe(300);
+    expect(g.notes!.length).toBe(notes);
+    expect(() => run(g, [{ type: "fight.forget", fightId: first.id }])).toThrow(/history/i);
+    ({ state: g } = run(g, [{ type: "fight.forget" }]));
+    expect(g.fights ?? []).toEqual([]);
+  });
+});
