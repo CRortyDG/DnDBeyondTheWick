@@ -2444,6 +2444,8 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
         else delete a.template;
       }
       if (cmd.seatsLocked !== undefined) a.seatsLocked = cmd.seatsLocked;
+      // Locking the seats closes the door too: new names knock instead of walking in.
+      if (cmd.seatsLocked) s.doorClosed = true;
       break;
     }
     case "arrival.showTable":
@@ -2729,9 +2731,12 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
         if (cmd.pick && starterById(cmd.pick)) a.pick = cmd.pick;
         else delete a.pick;
       }
+      const first = !a.claimedAt;
       a.claimedAt ??= ctx.now;
       a.finishedAt ??= ctx.now;
       a.openedAt ??= ctx.now;
+      // The last seat claimed: everyone's here, so close the door (the DM can open it again).
+      if (first && s.players.filter((x) => !x.archived).every((x) => x.arrival?.claimedAt)) s.doorClosed = true;
       break;
     }
     case "system.join": {

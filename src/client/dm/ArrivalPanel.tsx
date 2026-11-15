@@ -51,7 +51,7 @@ export function ArrivalPanel() {
         sub="Each player's private intro link, and how far they've got."
         help={
           <p>
-            Text each player their own link. It plays the intro once, then opens on their seat. The generic link <code>{origin + genericArrivalPath(s.id)}</code> plays the intro but can&rsquo;t claim a seat. Lock seats once everyone has claimed, so names and lines can&rsquo;t change.
+            Text each player their own link. It plays the intro once, then opens on their seat. The generic link <code>{origin + genericArrivalPath(s.id)}</code> plays the intro but can&rsquo;t claim a seat. Lock seats once everyone has claimed, so names and lines can&rsquo;t change. When the last seat is claimed (or you lock seats), the door closes by itself, so a new name knocks instead of walking in; open it again under Players.
           </p>
         }
         actions={

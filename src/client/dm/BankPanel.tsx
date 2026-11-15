@@ -1,4 +1,5 @@
 "use client";
+import { bothNames } from "@/shared/arrival";
 
 import { useMemo, useState } from "react";
 import { formatCp, formatDelta, parseAmount } from "@/shared/money";
@@ -183,8 +184,8 @@ export function BankPanel() {
                     <input type="checkbox" checked={picked} onChange={(e) => toggle(p.id, e.target.checked)} aria-label={`Include ${p.name} in Pay`} />
                   </label>
                 )}
-                <span className="bank-name" title={p.name}>
-                  {p.name}
+                <span className="bank-name" title={bothNames(p)}>
+                  {bothNames(p)}
                 </span>
                 <InspireToggle playerId={p.id} name={p.name} on={!!p.inspired} compact />
               </header>
@@ -232,7 +233,7 @@ export function BankPanel() {
                 <option value="all">All players</option>
                 {s.players.map((p) => (
                   <option key={p.id} value={p.id}>
-                    {p.name}
+                    {bothNames(p)}
                   </option>
                 ))}
               </select>

@@ -97,11 +97,17 @@ export class ApiError extends Error {
 }
 
 export async function api<T>(path: string, ident: Ident, init: RequestInit = {}): Promise<T> {
-  const res = await fetch(apiUrl(path, ident), {
-    ...init,
-    cache: "no-store",
-    headers: { ...(init.body && typeof init.body === "string" ? { "Content-Type": "application/json" } : {}), ...authHeaders(ident), ...(init.headers ?? {}) },
-  });
+  let res: Response;
+  try {
+    res = await fetch(apiUrl(path, ident), {
+      ...init,
+      cache: "no-store",
+      headers: { ...(init.body && typeof init.body === "string" ? { "Content-Type": "application/json" } : {}), ...authHeaders(ident), ...(init.headers ?? {}) },
+    });
+  } catch {
+    // The browser's own words here are "Failed to fetch" or "Load failed".
+    throw new Error("No connection right now. Check the Wi-Fi and try again.");
+  }
   const data = (await res.json().catch(() => ({}))) as T & { error?: string; code?: string };
   if (!res.ok) throw new ApiError(data.error || `Request failed (${res.status})`, res.status, data.code);
   return data;

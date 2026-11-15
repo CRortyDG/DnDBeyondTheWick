@@ -27,6 +27,12 @@ export function seatName(p: Player): string {
   return p.character?.trim() || p.name;
 }
 
+/** For the DM, who knows both: "Thorn (Ana)", or just "Ana" before a character is picked. */
+export function bothNames(p: Pick<Player, "name" | "character">): string {
+  const c = p.character?.trim();
+  return c && c.toLowerCase() !== p.name.trim().toLowerCase() ? `${c} (${p.name})` : p.name;
+}
+
 /** The path of a player's private link. */
 export function arrivalPath(gameId: string, token: string): string {
   return `/arrive/${token}` + (gameId === "candlefair" ? "" : `?game=${encodeURIComponent(gameId)}`);

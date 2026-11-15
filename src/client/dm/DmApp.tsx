@@ -92,9 +92,13 @@ function pageFromUrl(): Tab {
 function pageToUrl(tab: Tab) {
   try {
     const hash = new URLSearchParams(window.location.hash.replace(/^#/, ""));
-    if (hash.get("page") === tab) return;
+    const was = hash.get("page");
+    if (was === tab) return;
     hash.set("page", tab);
-    window.history.replaceState(null, "", window.location.pathname + window.location.search + "#" + hash.toString());
+    // A new history entry per page, so the browser's Back goes to the page before.
+    const url = window.location.pathname + window.location.search + "#" + hash.toString();
+    if (was) window.history.pushState(null, "", url);
+    else window.history.replaceState(null, "", url);
   } catch {}
 }
 
@@ -194,6 +198,11 @@ function useGatedArt(ident: Ident, names: string[]) {
 function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: Ident; online: boolean; send: (c: object) => Promise<string | null>; call: (c: object) => Promise<CallResult> }) {
   const [tab, setTab] = useState<Tab>(pageFromUrl);
   useEffect(() => pageToUrl(tab), [tab]);
+  useEffect(() => {
+    const back = () => setTab(pageFromUrl());
+    window.addEventListener("popstate", back);
+    return () => window.removeEventListener("popstate", back);
+  }, []);
   const [railOpen, setRailOpen] = useState(readRail);
   const toggleRail = useCallback(() => {
     setRailOpen((v) => {
