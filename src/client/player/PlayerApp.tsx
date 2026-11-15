@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { formatCp, formatDelta } from "@/shared/money";
 import type { PlayerView, PublicItem } from "@/shared/projection";
 import { hrefFor, rememberKey, type Ident } from "../api";
@@ -86,6 +86,13 @@ function PlayerScreen({ view, online, send, ident, setIdent }: { view: PlayerVie
   const [shopId, setShopId] = useState(view.live.shopOpen ? view.live.shopId : view.shops[0]?.id);
   const pendingOrders = view.myOrders.filter((o) => !o.arrived);
   const [msg, setMsg] = useState<string | null>(null);
+  // "Your gold is held until they decide" is only true while a request waits: once the DM answers, it goes.
+  const waiting = view.myRequests.filter((r) => r.status === "pending").length;
+  const waitingWas = useRef(waiting);
+  useEffect(() => {
+    if (waiting < waitingWas.current) setMsg((m) => (m && /held until/.test(m) ? null : m));
+    waitingWas.current = waiting;
+  }, [waiting]);
   const [locking, setLocking] = useState(false);
   const [walletOpen, setWalletOpen] = useState<false | "purse" | "send">(false);
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -149,6 +156,7 @@ function PlayerScreen({ view, online, send, ident, setIdent }: { view: PlayerVie
     fight: f ? (myTurn ? ("turn" as const) : upNext ? ("next" as const) : ("on" as const)) : null,
     discoverCount: seen.newCount,
     jobsCount: view.jobs.filter((j) => j.canTake && !j.asked).length,
+    voteOpen: !!view.leads.vote && !view.leads.vote.closed && !view.leads.vote.mine,
   };
 
   const sheets = (

@@ -247,7 +247,7 @@ function writeSeen(k: string, v: number) {
 
 /**
  * "Approved: Shield" / "Declined: Bag of Holding". Stays until tapped, so it
- * still shows if your phone was asleep. A first visit never replays old news.
+ * still shows if your phone was asleep. Neither a first visit nor a reload replays old news.
  */
 export function DecisionBanners({ view }: { view: PlayerView }) {
   const slot = seenSlot(view);
@@ -262,6 +262,10 @@ export function DecisionBanners({ view }: { view: PlayerView }) {
     // only on first load for this player
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [slot]);
+  // Shown once is seen: the banner stays up until "Got it", but a reload doesn't bring it back.
+  useEffect(() => {
+    if (seen !== null && latest > seen) writeSeen(slot, latest);
+  }, [slot, seen, latest]);
   if (seen === null) return null;
   const fresh = view.myRequests.filter((r) => (r.status === "approved" || r.status === "declined") && (r.decidedAt ?? 0) > seen);
   if (!fresh.length) return null;

@@ -455,8 +455,8 @@ export function freshStart(g: GameState): GameState {
 }
 
 /** Rentals, training, shares, awards, inbox tasks and flyers: none yet. */
-export function emptyProgress(): Pick<GameState, "rentals" | "trainings" | "stakes" | "effectsOn" | "awards" | "tasks" | "flyers"> {
-  return { rentals: [], trainings: [], stakes: [], effectsOn: {}, awards: [], tasks: [], flyers: [] };
+export function emptyProgress(): Pick<GameState, "rentals" | "trainings" | "stakes" | "npcStakes" | "effectsOn" | "awards" | "tasks" | "flyers"> {
+  return { rentals: [], trainings: [], stakes: [], npcStakes: [], effectsOn: {}, awards: [], tasks: [], flyers: [] };
 }
 
 /** The starter job flyers, stamped with when they were made. */

@@ -4,7 +4,7 @@
 // awarding (or taking) Renown points, with an optional reason for the Chronicle
 // and a choice to skip the TV moment. Also the progress bar and the history.
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { progressOf, ranksOf, renownOf } from "@/shared/renown";
 import type { RenownChange } from "@/shared/types";
 import { useDm } from "./context";
@@ -150,6 +150,27 @@ export function RenownChip() {
   const name = ranksOf(view.state)[rank].name;
   const [open, setOpen] = useState(false);
   const box = useRef<HTMLDivElement>(null);
+  const pop = useRef<HTMLDivElement>(null);
+  const [shift, setShift] = useState(0);
+  // The pop-up hangs from the chip's right edge; on a narrow window that can push it off the left. Slide it back in.
+  useLayoutEffect(() => {
+    if (!open || !pop.current) return setShift(0);
+    const place = () => {
+      const el = pop.current;
+      if (!el) return;
+      const r = el.getBoundingClientRect();
+      setShift((cur) => {
+        const left = r.left - cur;
+        const right = r.right - cur;
+        if (left < 8) return 8 - left;
+        if (right > window.innerWidth - 8) return window.innerWidth - 8 - right;
+        return 0;
+      });
+    };
+    place();
+    window.addEventListener("resize", place);
+    return () => window.removeEventListener("resize", place);
+  }, [open]);
   useEffect(() => {
     if (!open) return;
     const onDown = (e: MouseEvent) => {
@@ -169,7 +190,7 @@ export function RenownChip() {
         <span aria-hidden="true">❦</span> <span className="renown-chip-name">{name}</span>
       </button>
       {open ? (
-        <div className="renown-pop" role="dialog" aria-label="Party Renown">
+        <div className="renown-pop" role="dialog" aria-label="Party Renown" ref={pop} style={shift ? { transform: `translateX(${shift}px)` } : undefined}>
           <h4>Party Renown</h4>
           <RenownControl />
         </div>

@@ -1415,6 +1415,11 @@ html[data-view="player"] {
   box-shadow: 0 0 0 2px rgba(18, 14, 11, 0.94);
   animation: pl-blink 1s ease-in-out infinite;
 }
+/* Next to a "new" count: the dot moves to the other side. */
+:where(html[data-view="player"]) .pl-nav-alert.left {
+  right: auto;
+  left: -5px;
+}
 
 /* The fight screen. Its parts are grid items: keep the face strip from widening the page. */
 :where(html[data-view="player"]) .pl-fight > * {
@@ -2188,4 +2193,9 @@ html[data-view="player"] {
   font-size: 12px;
   color: var(--pl-text-3);
   white-space: nowrap;
+}
+/* "Approved: …" sits above the bottom tab bar, never over it. */
+:where(html[data-view="player"]) .decisions {
+  bottom: calc(72px + env(safe-area-inset-bottom));
+  max-height: calc(100vh - 160px);
 }

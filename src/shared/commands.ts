@@ -310,6 +310,8 @@ export const dmCommand = z.discriminatedUnion("type", [
   /** question: what a training is for ("Elvish"). */
   z.object({ type: z.literal("money.buy"), playerId: id, itemId: id, question: text(300).optional() }),
   z.object({ type: z.literal("project.contribute"), playerId: id, itemId: id, amountCp: cp.min(1) }),
+  /** NPC money straight into a project: no player's purse involved. */
+  z.object({ type: z.literal("project.npcContribute"), itemId: id, amountCp: cp.min(1), from: text(60) }),
   /** Charge the rent and lessons due at the end of the running session (the ids the DM ticked). */
   z.object({ type: z.literal("dues.charge"), ids: z.array(id).max(200) }),
   z.object({ type: z.literal("rental.cancel"), rentalId: id }),
@@ -454,6 +456,9 @@ export const dmCommand = z.discriminatedUnion("type", [
   z.object({ type: z.literal("run.attend"), playerId: id, here: z.boolean() }),
   /** noteIds: starred Chronicle notes from that session to show under the recap. */
   z.object({ type: z.literal("live.recap"), sessionId: id.nullable(), noteIds: z.array(id).max(20).optional() }),
+
+  /** A long rest: every player (or these) back to full HP, temporary HP gone. */
+  z.object({ type: z.literal("party.longRest"), playerIds: z.array(id).min(1).max(40).optional() }),
 
   z.object({ type: z.literal("door.set"), closed: z.boolean() }),
   z.object({ type: z.literal("table.seats"), max: z.number().int().min(1).max(12) }),

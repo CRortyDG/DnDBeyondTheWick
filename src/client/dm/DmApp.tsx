@@ -599,7 +599,7 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
               <div className={`live-shops${s.live.shopOpen ? " open" : ""}`} role="group" aria-label="Which shop the TV shows">
                 <span className="note">{s.live.shopOpen ? "The TV is showing:" : "Open the shop on the TV at:"}</span>
                 {s.shops.filter((sh) => sh.visibility === "all").length === 0 ? <span className="note">Every shop is hidden. Open one to everyone under Shop first.</span> : null}
-                {categoriesWith(tvView.items).map((c) => {
+                {categoriesWith(tvView.items, tvView.game.town).map((c) => {
                   const on = s.live.shopOpen && s.live.shopCategory === c.id;
                   return (
                     <button key={c.id} type="button" className={`btn small${on ? " on" : ""}`} aria-pressed={on} onClick={() => run({ type: "live.shop", open: true, category: c.id })}>

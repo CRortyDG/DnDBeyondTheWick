@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { CATEGORIES } from "@/shared/progress";
+import { categoriesFor } from "@/shared/progress";
 import type { ItemCategory } from "@/shared/types";
 import { ItemCard, type CardItem } from "./ItemCard";
 
@@ -26,8 +26,8 @@ export function cheapestFirst<T extends CardItem>(list: T[]): T[] {
 }
 
 /** Categories that have something in them, in their usual order. */
-export function categoriesWith(items: CardItem[]) {
-  return CATEGORIES.filter((c) => items.some((i) => i.category === c.id));
+export function categoriesWith(items: CardItem[], town?: string) {
+  return categoriesFor(town).filter((c) => items.some((i) => i.category === c.id));
 }
 
 /**
@@ -81,7 +81,7 @@ export function ShopBoard<T extends CardItem>({
     );
   }
   const shopName = new Map(shops.map((s) => [s.id, s.name]));
-  const cats = categoriesWith(items.filter((i) => shopName.has(i.shopId)));
+  const cats = categoriesWith(items.filter((i) => shopName.has(i.shopId)), town);
   const byCategory = mode === "category" && cats.length > 0;
   const cat = cats.find((c) => c.id === category) ?? cats[0];
   const list = byCategory ? cheapestFirst(items.filter((i) => i.category === cat.id && shopName.has(i.shopId))) : items.filter((i) => i.shopId === shop.id);

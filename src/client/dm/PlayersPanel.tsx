@@ -34,6 +34,13 @@ export function PlayersPanel() {
   const archivedCount = s.players.filter((p) => p.archived).length;
   const away = s.players.filter((p) => !p.archived && p.away).length;
   const editingPlayer = s.players.find((p) => p.id === editing) as DmPlayer | undefined;
+  const [resting, setResting] = useState(false);
+  const hurt = s.players.filter((p) => !p.archived && p.hp && p.hp.max > 0 && (p.hp.cur < p.hp.max || p.hp.temp > 0));
+  const fightOpen = !!s.fight && s.fight.status !== "over";
+  const longRest = async () => {
+    setResting(false);
+    await run({ type: "party.longRest" }, "Long rest: everyone is back to full HP.");
+  };
 
   const copyAll = () => {
     const text = [`TV: ${absoluteHref(view.state.id, "TV")}`, ...s.players.filter((p) => !p.archived).map((p) => `${p.name}: ${absoluteHref(view.state.id, p.handle)}`)].join("\n");
@@ -58,6 +65,26 @@ export function PlayersPanel() {
         }
         actions={
           <>
+            {resting ? (
+              <>
+                <button className="btn" type="button" onClick={() => setResting(false)}>
+                  Not yet
+                </button>
+                <button className="btn primary" type="button" onClick={() => void longRest()}>
+                  Everyone to full HP
+                </button>
+              </>
+            ) : (
+              <button
+                className="btn"
+                type="button"
+                disabled={fightOpen}
+                title={fightOpen ? "End the fight first." : hurt.length ? `${hurt.map((p) => p.name).join(", ")} ${hurt.length === 1 ? "isn't" : "aren't"} at full HP.` : "Everyone is at full HP."}
+                onClick={() => setResting(true)}
+              >
+                Long rest{hurt.length ? ` (${hurt.length} hurt)` : ""}
+              </button>
+            )}
             <button className="btn" type="button" onClick={copyAll}>
               <LinkIcon size={16} /> Copy all links
             </button>
@@ -142,7 +169,8 @@ function PlayerRow({ p, onEdit, selected }: { p: DmPlayer; onEdit: () => void; s
       () => toast(`Copied ${p.name}'s link.`),
       () => toast(link),
     );
-  const sub = [p.character, `?player=${p.handle}`, seenText(p.lastSeenAt)].filter(Boolean).join(" · ");
+  const hp = p.hp && p.hp.max > 0 ? `HP ${p.hp.cur}/${p.hp.max}${p.hp.temp ? ` +${p.hp.temp}` : ""}` : "";
+  const sub = [p.character, hp, `?player=${p.handle}`, seenText(p.lastSeenAt)].filter(Boolean).join(" · ");
   return (
     <li className={`scene-item list-row player-row${p.archived ? " archived" : ""}${p.away ? " away" : ""}${selected ? " selected" : ""}`}>
       <div className="scene-row">
@@ -165,8 +193,8 @@ function PlayerRow({ p, onEdit, selected }: { p: DmPlayer; onEdit: () => void; s
           <span className="pg-money">{formatCp(p.balanceCp)}</span>
         </span>
         <InspireToggle playerId={p.id} name={p.name} on={!!p.inspired} compact />
-        <button className="btn small" type="button" onClick={copy} title={link}>
-          <LinkIcon size={14} /> Link
+        <button className="btn small" type="button" onClick={copy} title={`Copy ${link}`}>
+          <LinkIcon size={14} /> Copy link
         </button>
         <RowMenu label={p.name}>
           <MenuItem onClick={onEdit}>Edit</MenuItem>

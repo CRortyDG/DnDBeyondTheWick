@@ -304,7 +304,7 @@ function EntryEditor({ entry: e, tv }: { entry: Entry; tv: boolean }) {
 
       <h4>Where and what it&rsquo;s tied to</h4>
       <div className="inline">
-        <Field label="Areas (comma between)" value={e.areas.join(", ")} placeholder="Candlefair, The Docks" onCommit={(v) => patch({ areas: v.split(",").map((x) => x.trim()).filter(Boolean) })} />
+        <Field label="Areas (comma between)" value={e.areas.join(", ")} placeholder="The Docks, Old Town" onCommit={(v) => patch({ areas: v.split(",").map((x) => x.trim()).filter(Boolean) })} />
         <label>
           Starts as (on a fresh start)
           <select className="fld" value={e.start ?? "hidden"} onChange={(ev) => void patch({ start: ev.target.value as Stage })}>
