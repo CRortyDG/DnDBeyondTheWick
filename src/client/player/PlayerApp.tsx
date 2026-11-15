@@ -6,7 +6,8 @@ import type { PlayerView, PublicItem } from "@/shared/projection";
 import { hrefFor, rememberKey, type Ident } from "../api";
 import { useGame } from "../useGame";
 import { Notice } from "../ui/Notice";
-import { ShopBoard, type ShopMode } from "../ui/ShopBoard";
+import type { ShopMode } from "../ui/ShopBoard";
+import { Market } from "./Market";
 import type { ItemCategory } from "@/shared/types";
 import { Chronicle } from "../ui/Chronicle";
 import { BannerToast } from "../ui/BannerToast";
@@ -18,7 +19,7 @@ import { FightCard } from "./FightCard";
 import { Maps } from "./PhoneMap";
 import { Sheet, useConfirm } from "./Sheet";
 import { NAV_ICONS, PlayerNav, type Screen } from "./PlayerNav";
-import { askLabel, DecisionBanners, MyRequests, RequestSheet, SendGold, whyNot } from "./Requests";
+import { DecisionBanners, MyRequests, RequestSheet, SendGold } from "./Requests";
 
 export function PlayerApp({ ident: initial }: { ident: Ident }) {
   const [ident, setIdent] = useState(initial);
@@ -86,7 +87,9 @@ function PlayerScreen({ view, online, send, ident, setIdent }: { view: PlayerVie
   const pendingOrders = view.myOrders.filter((o) => !o.arrived);
   const [msg, setMsg] = useState<string | null>(null);
   const [locking, setLocking] = useState(false);
-  const [walletOpen, setWalletOpen] = useState(false);
+  const [walletOpen, setWalletOpen] = useState<false | "purse" | "send">(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [youOpen, setYouOpen] = useState(false);
   const [diceOpen, setDiceOpen] = useState(false);
   const [looking, setLooking] = useState<string | null>(null);
   // During a session the phone opens on the Chronicle, so a note is one tap away.
@@ -131,9 +134,9 @@ function PlayerScreen({ view, online, send, ident, setIdent }: { view: PlayerVie
     <div className="player-root">
       {locking ? <LockSheet onLock={lockWith} onClose={() => setLocking(false)} /> : null}
       <header className="player-top pl-top">
-        <div className="pl-who">
-          <h1 className="player-name">{me.character ?? me.name}</h1>
-          <p className="pl-sub">
+        <button type="button" className="pl-who" aria-haspopup="dialog" aria-label={`${me.character ?? me.name}: your character, D&D Beyond link and name lock`} onClick={() => setYouOpen(true)}>
+          <span className="player-name">{me.character ?? me.name}</span>
+          <span className="pl-sub">
             <span className="renown-line-v" title={view.renown.meaning}>
               <span aria-hidden="true">❦ </span>
               <span className="sr-only">Party renown: </span>
@@ -141,9 +144,9 @@ function PlayerScreen({ view, online, send, ident, setIdent }: { view: PlayerVie
             </span>
             <span aria-hidden="true">·</span>
             <span className="pl-sub-where">{view.session ? `Chapter ${view.session.number}, tonight` : view.game.name}</span>
-          </p>
-        </div>
-        <button type="button" className="pl-coin" aria-haspopup="dialog" aria-label={`Your gold: ${formatCp(me.balanceCp)}. Open your purse.`} onClick={() => setWalletOpen(true)}>
+          </span>
+        </button>
+        <button type="button" className="pl-coin" aria-haspopup="dialog" aria-label={`Your gold: ${formatCp(me.balanceCp)}. Open your purse.`} onClick={() => setWalletOpen("purse")}>
           <span className="pl-coin-face" aria-hidden="true" />
           <span className="pl-coin-amt">{coinLabel(me.balanceCp)}</span>
           {me.heldCp ? <span className="pl-coin-held" aria-hidden="true" /> : null}
@@ -173,7 +176,7 @@ function PlayerScreen({ view, online, send, ident, setIdent }: { view: PlayerVie
         </Sheet>
       ) : null}
       {walletOpen ? (
-        <Sheet title="Your purse" onClose={() => setWalletOpen(false)} className="pl-wallet-sheet">
+        <Sheet title={walletOpen === "send" ? "Send gold" : "Your purse"} onClose={() => setWalletOpen(false)} className="pl-wallet-sheet">
           <div className="pl-wallet-big" aria-label={`Your gold: ${formatCp(me.balanceCp)}`}>
             {formatCp(me.balanceCp)}
           </div>
@@ -202,7 +205,7 @@ function PlayerScreen({ view, online, send, ident, setIdent }: { view: PlayerVie
               <span className="purse-amt">{formatCp(view.purse.reduce((a, p) => a + p.balanceCp, 0))}</span>
             </li>
           </ul>
-          <SendGold view={view} availableCp={availableCp} send={send} onMsg={(m) => (setMsg(m), setWalletOpen(false), setScreen("purse"))} />
+          <SendGold view={view} availableCp={availableCp} send={send} startOpen={walletOpen === "send"} onMsg={(m) => (setMsg(m), setWalletOpen(false), setScreen("purse"))} />
           {screen !== "purse" ? (
             <button type="button" className="btn big" onClick={() => (setWalletOpen(false), setScreen("purse"))}>
               Shops and your history
@@ -215,137 +218,172 @@ function PlayerScreen({ view, online, send, ident, setIdent }: { view: PlayerVie
       {screen === "jobs" ? <Jobs view={view} send={send} /> : null}
       {screen === "discovery" ? <Discovery view={view} send={send} seen={seen} /> : null}
       {screen === "purse" ? (
-      <>
-      {me.balanceCp < 0 && view.mine.credit.length ? (
-        <p className="note owe-note" role="status">
-          You owe {formatCp(-me.balanceCp)} on your tab at {view.mine.credit.map((c) => c.shopName).join(" and ")}. Pay it off before Mags remembers.
-        </p>
-      ) : null}
-      <p className="note gold-note">Your gold lives here, not on D&amp;D Beyond: keep D&amp;D Beyond&rsquo;s coins at 0. Anything you buy, add to your D&amp;D Beyond inventory yourself.</p>
-      {msg ? (
-        <p className="player-msg" role="status">
-          {msg}
-        </p>
-      ) : null}
+        <>
+          {me.balanceCp < 0 && view.mine.credit.length ? (
+            <p className="note owe-note" role="status">
+              You owe {formatCp(-me.balanceCp)} on your tab at {view.mine.credit.map((c) => c.shopName).join(" and ")}. Pay it off before Mags remembers.
+            </p>
+          ) : null}
+          {msg ? (
+            <p className="player-msg pl-msg" role="status">
+              {msg}
+            </p>
+          ) : null}
 
-      <section className="box">
-        {view.shops.length ? (
-          <>
-            <ShopBoard
-              town={view.game.town}
-              shops={view.shops}
-              items={view.items}
+          <section className="pl-wallet" aria-label="Your purse">
+            <div className="pl-wallet-lbl">Your purse</div>
+            <div className="pl-wallet-big">{formatCp(me.balanceCp)}</div>
+            <p className={`pl-wallet-avail${me.heldCp ? " held" : ""}`}>
+              {me.heldCp ? (
+                <>
+                  <span className="purse-amt">{formatCp(availableCp)}</span> to spend · {formatCp(me.heldCp)} held for your asks
+                </>
+              ) : (
+                "All of it is yours to spend"
+              )}
+            </p>
+            <div className="pl-wallet-acts">
+              <button type="button" className="btn" onClick={() => setWalletOpen("purse")}>
+                Party purse
+              </button>
+              {view.table.length ? (
+                <button type="button" className="btn" onClick={() => setWalletOpen("send")}>
+                  Send gold
+                </button>
+              ) : null}
+              <button type="button" className="btn" onClick={() => setHistoryOpen(true)}>
+                History
+              </button>
+            </div>
+          </section>
+
+          <MyRequests requests={view.myRequests} send={send} onMsg={setMsg} />
+
+          {view.shops.length ? (
+            <Market
+              view={view}
               shopId={shopId ?? ""}
               onShop={setShopId}
               mode={mode}
               onMode={setMode}
               category={category}
               onCategory={setCategory}
-              size="page"
-              actions={(it) => {
-                if (it.tier === "rumored" || it.kind === "earned") return null;
-                const why = whyNot(it, it.kind === "project" ? availableCp : availableAt(it.shopId));
-                return (
-                  <>
-                    <button type="button" className={`btn${why ? "" : " primary"} grow-btn`} onClick={() => setLooking(it.id)}>
-                      {askLabel(it)}
-                    </button>
-                    {why && it.tier === "sale" && !it.funded ? <span className="card-why">{why}</span> : null}
-                  </>
-                );
+              availableFor={(it) => (it.kind === "project" ? availableCp : availableAt(it.shopId))}
+              onOpen={setLooking}
+              footer={
+                <p className="pl-hint">
+                  Tap anything to see it and ask the DM. Asking holds the gold until they say yes; you can cancel while it&rsquo;s waiting.
+                  {!me.locked ? (
+                    <>
+                      {" "}
+                      Anyone with your link can ask to spend your gold, so{" "}
+                      <button type="button" className="linkish" onClick={lock}>
+                        lock your name
+                      </button>
+                      .
+                    </>
+                  ) : null}
+                </p>
+              }
+            />
+          ) : (
+            <section className="pl-market">
+              <div className="pl-sec-head">
+                <h2>The market</h2>
+              </div>
+              <div className="pl-empty">
+                <p>No shops are open to you yet. Keep your eyes open.</p>
+              </div>
+            </section>
+          )}
+
+          {lookingAt ? (
+            <RequestSheet
+              item={lookingAt}
+              availableCp={lookingAt.kind === "project" ? availableCp : availableAt(lookingAt.shopId)}
+              send={send}
+              onClose={() => setLooking(null)}
+              onDone={(m) => {
+                setLooking(null);
+                setMsg(m);
               }}
             />
-            <p className="note">Asking holds the gold until the DM approves or declines. You can cancel while it&rsquo;s waiting.</p>
-            {!me.locked ? (
-              <p className="note">
-                Tip: anyone who opens your link can ask to spend your gold.{" "}
-                <button type="button" className="linkish" onClick={lock}>
-                  Lock your name
-                </button>{" "}
-                so only you can.
-              </p>
-            ) : null}
-          </>
-        ) : (
-          <>
-            <h2>The market</h2>
-            <p className="note">No shops are open to you yet. Keep your eyes open.</p>
-          </>
-        )}
-      </section>
+          ) : null}
 
-      {lookingAt ? (
-        <RequestSheet
-          item={lookingAt}
-          availableCp={lookingAt.kind === "project" ? availableCp : availableAt(lookingAt.shopId)}
-          send={send}
-          onClose={() => setLooking(null)}
-          onDone={(m) => {
-            setLooking(null);
-            setMsg(m);
-          }}
-        />
+          <Yours view={view} send={send} onMsg={setMsg} />
+
+          {pendingOrders.length ? (
+            <section className="box">
+              <h2>On its way</h2>
+              <ul className="ledger">
+                {pendingOrders.map((o) => (
+                  <li key={o.id}>
+                    <span>{o.itemName}</span>
+                    <span className="note">arrives at session {o.arrivesAtSession}</span>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ) : null}
+
+          <button type="button" className="pl-row-link" onClick={() => setYouOpen(true)}>
+            <span>
+              <b>Your character</b>
+              <span>D&amp;D Beyond{view.vttUrl ? ", the VTT" : ""} and your name lock</span>
+            </span>
+            <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+              <path d="m9 6 6 6-6 6" />
+            </svg>
+          </button>
+        </>
       ) : null}
 
-      <MyRequests requests={view.myRequests} send={send} onMsg={setMsg} />
-
-      <Yours view={view} send={send} onMsg={setMsg} />
-
-      {pendingOrders.length ? (
-        <section className="box">
-          <h2>On its way</h2>
+      {historyOpen ? (
+        <Sheet title="Your history" onClose={() => setHistoryOpen(false)}>
           <ul className="ledger">
-            {pendingOrders.map((o) => (
-              <li key={o.id}>
-                <span>{o.itemName}</span>
-                <span className="note">arrives at session {o.arrivesAtSession}</span>
+            {view.myLedger.length === 0 ? (
+              <li>
+                <span className="note">No gold has changed hands yet.</span>
+              </li>
+            ) : null}
+            {view.myLedger.map((l) => (
+              <li key={l.id}>
+                <span>
+                  <div>{l.note}</div>
+                  <div className="who">{new Date(l.at).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })}</div>
+                </span>
+                <span className={l.amountCp >= 0 ? "up" : "down"}>{formatDelta(l.amountCp)}</span>
               </li>
             ))}
           </ul>
-        </section>
+        </Sheet>
       ) : null}
 
-      <section className="box">
-        <h2>Your history</h2>
-        <ul className="ledger">
-          {view.myLedger.length === 0 ? (
-            <li>
-              <span className="note">No gold has changed hands yet.</span>
-            </li>
+      {youOpen ? (
+        <Sheet title={me.character ?? me.name} onClose={() => setYouOpen(false)} className="pl-you-sheet">
+          {me.character ? <p className="note pl-you-player">Played by {me.name}</p> : null}
+          {view.vttUrl ? (
+            <a className="btn primary big vtt-btn" href={view.vttUrl} target="_blank" rel="noopener noreferrer">
+              Launch the VTT
+            </a>
           ) : null}
-          {view.myLedger.map((l) => (
-            <li key={l.id}>
-              <span>
-                <div>{l.note}</div>
-                <div className="who">{new Date(l.at).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })}</div>
-              </span>
-              <span className={l.amountCp >= 0 ? "up" : "down"}>{formatDelta(l.amountCp)}</span>
-            </li>
-          ))}
-        </ul>
-      </section>
-
-      <section className="box">
-        <h2>Your character</h2>
-        {view.vttUrl ? (
-          <a className="btn primary big vtt-btn" href={view.vttUrl} target="_blank" rel="noopener noreferrer">
-            Launch the VTT
-          </a>
-        ) : null}
-        <CharacterLink current={me.dndbUrl} onSave={async (url) => setMsg((await send({ type: "me.update", patch: { dndbUrl: url } })) ?? "Saved.")} />
-        <div className="inline">
+          <CharacterLink current={me.dndbUrl} onSave={async (url) => setMsg((await send({ type: "me.update", patch: { dndbUrl: url } })) ?? "Saved.")} />
+          <p className="note gold-note">Your gold lives here, not on D&amp;D Beyond: keep D&amp;D Beyond&rsquo;s coins at 0. Anything you buy, add to your D&amp;D Beyond inventory yourself.</p>
           {me.locked ? (
-            <span className="tag">
-              <LockIcon size={14} /> Your name is locked
-            </span>
+            <p className="pl-locked">
+              <LockIcon size={16} /> Your name is locked
+            </p>
           ) : (
-            <button className="btn" type="button" onClick={lock}>
+            <button className="btn big" type="button" onClick={() => (setYouOpen(false), lock())}>
               <LockIcon size={18} /> Lock my name
             </button>
           )}
-        </div>
-      </section>
-      </>
+          {msg && youOpen ? (
+            <p className="player-msg" role="status">
+              {msg}
+            </p>
+          ) : null}
+        </Sheet>
       ) : null}
     </div>
   );

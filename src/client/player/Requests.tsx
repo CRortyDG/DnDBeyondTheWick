@@ -2,10 +2,11 @@
 
 // Buying from your phone: ask the DM, see what they decided.
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { formatCp, parseAmount } from "@/shared/money";
 import type { MyRequest, PlayerView, PublicItem } from "@/shared/projection";
 import { ItemCard } from "../ui/ItemCard";
+import { Sheet } from "./Sheet";
 
 type Send = (c: object) => Promise<string | null>;
 
@@ -78,14 +79,6 @@ export function RequestSheet({ item, availableCp, send, onClose, onDone }: { ite
     (item.prompt && !question.trim() ? item.prompt : null) ??
     (item.flyer && !flyer.title.trim() ? "Give your flyer a title" : null);
   const total = project ? (pledgeCp ?? 0) : dueNow(item) * qty;
-  const dialog = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    dialog.current?.focus();
-    const esc = (e: KeyboardEvent) => e.key === "Escape" && onClose();
-    window.addEventListener("keydown", esc);
-    return () => window.removeEventListener("keydown", esc);
-  }, [onClose]);
 
   const submit = async () => {
     setBusy(true);
@@ -106,8 +99,7 @@ export function RequestSheet({ item, availableCp, send, onClose, onDone }: { ite
   };
 
   return (
-    <div className="sheet-backdrop" onClick={onClose}>
-      <div className="sheet" role="dialog" aria-modal="true" aria-label={item.name} tabIndex={-1} ref={dialog} onClick={(e) => e.stopPropagation()}>
+    <Sheet label={item.tier === "rumored" ? "A rumor" : item.name} onClose={onClose} className="pl-item-sheet">
         <ItemCard item={item} />
         {item.held && left !== 0 ? <p className="note">{item.held} on hold for other requests.</p> : null}
         {item.tier === "sale" && item.kind !== "earned" && !item.funded ? (
@@ -176,8 +168,7 @@ export function RequestSheet({ item, availableCp, send, onClose, onDone }: { ite
         <button type="button" className="btn big" onClick={onClose}>
           Close
         </button>
-      </div>
-    </div>
+    </Sheet>
   );
 }
 
@@ -296,8 +287,8 @@ export function DecisionBanners({ view }: { view: PlayerView }) {
 }
 
 /** Pay someone back. Goes to the DM like a purchase. */
-export function SendGold({ view, availableCp, send, onMsg }: { view: PlayerView; availableCp: number; send: Send; onMsg: (m: string) => void }) {
-  const [open, setOpen] = useState(false);
+export function SendGold({ view, availableCp, send, onMsg, startOpen = false }: { view: PlayerView; availableCp: number; send: Send; onMsg: (m: string) => void; startOpen?: boolean }) {
+  const [open, setOpen] = useState(startOpen);
   const [to, setTo] = useState("");
   const [amt, setAmt] = useState("");
   const [note, setNote] = useState("");
