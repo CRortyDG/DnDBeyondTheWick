@@ -135,3 +135,49 @@ describe("ending a session", () => {
     expect((await state()).currentSessionId).toBeNull();
   });
 });
+
+describe("safety snapshots", () => {
+  const dmReq = (path: string, method = "GET", body?: object) =>
+    handleApi(new Request(`http://x${path}?game=${G}&player=DM`, { method, headers: { "x-candlefair-key": "dm-key" }, ...(body ? { body: JSON.stringify(body) } : {}) }), store);
+
+  it("are taken before a reset and can put the game back", async () => {
+    await execute(store, G, DM, { type: "money.adjust", playerId: "p1", amountCp: 500, note: "test" });
+    expect((await dmReq("/api/reset", "POST", { mode: "play" })).status).toBe(200);
+    expect((await state()).players[0].balanceCp).toBe(0);
+    const { snapshots } = (await (await dmReq("/api/snapshots")).json()) as { snapshots: { id: number; reason: string }[] };
+    expect(snapshots[0].reason).toMatch(/Before clearing/);
+    expect((await dmReq("/api/snapshots/restore", "POST", { id: snapshots[0].id })).status).toBe(200);
+    expect((await state()).players[0].balanceCp).toBe(500);
+    expect(await store.ledger(G)).toHaveLength(1);
+    // Going back kept a snapshot of the reset game too.
+    const after = (await (await dmReq("/api/snapshots")).json()) as { snapshots: { reason: string }[] };
+    expect(after.snapshots[0].reason).toMatch(/Before going back/);
+  });
+
+  it("are DM only", async () => {
+    const res = await handleApi(new Request(`http://x/api/snapshots?game=${G}&player=DM`), store);
+    expect(res.status).toBe(401);
+  });
+
+  it("keep only the newest 10", async () => {
+    for (let i = 0; i < 12; i++) await dmReq("/api/reset", "POST", { mode: "play" });
+    const { snapshots } = (await (await dmReq("/api/snapshots")).json()) as { snapshots: unknown[] };
+    expect(snapshots).toHaveLength(10);
+  });
+});
+
+describe("backup zip", () => {
+  it("round-trips the game and its images", async () => {
+    const { readZip, writeZip, crc32 } = await import("@/shared/zip");
+    expect(crc32(new TextEncoder().encode("123456789"))).toBe(0xcbf43926);
+    const img = new Uint8Array([137, 80, 78, 71, 1, 2, 3]);
+    const z = writeZip([
+      { name: "backup.json", data: new TextEncoder().encode('{"a":"/api/files/g/abc.png"}') },
+      { name: "images/g/abc.png", data: img },
+    ]);
+    const out = readZip(z);
+    expect(out.map((e) => e.name)).toEqual(["backup.json", "images/g/abc.png"]);
+    expect(new TextDecoder().decode(out[0].data)).toContain("abc.png");
+    expect([...out[1].data]).toEqual([...img]);
+  });
+});

@@ -2,7 +2,7 @@ import { DurableObject } from "cloudflare:workers";
 import { handleApi, miss } from "@/server/api";
 import { isDmKey, KEY_HEADER } from "@/server/auth";
 import { actorOf, HttpError, identify, projectFor } from "@/server/game";
-import { hydrate, type Store } from "@/server/store";
+import { hydrate, SNAPSHOTS_KEPT, type SnapshotData, type SnapshotInfo, type Store } from "@/server/store";
 import { isToken, projectArrival } from "@/shared/arrival";
 import type { GameState, LedgerEntry } from "@/shared/types";
 import type { Env } from "./env";
@@ -148,6 +148,45 @@ export class GameRoom extends DurableObject<Env> implements Store {
     this.save(game, next);
     this.doc = next;
     if ((await this.ctx.storage.getAlarm()) === null) await this.ctx.storage.setAlarm(Date.now() + CHECK_EVERY_MS);
+  }
+
+  // ---------------------------------------------------------------- safety snapshots
+  //
+  // The whole game and ledger, before a reset or restore and at each session's end.
+  // A row tops out at 2 MB, so a snapshot is stored in pieces.
+
+  private snapSchema() {
+    this.ensureSchema();
+    this.sql.exec(
+      `CREATE TABLE IF NOT EXISTS snap (id INTEGER PRIMARY KEY AUTOINCREMENT, at INTEGER NOT NULL, reason TEXT NOT NULL);
+       CREATE TABLE IF NOT EXISTS snap_part (snap_id INTEGER NOT NULL, n INTEGER NOT NULL, body TEXT NOT NULL, PRIMARY KEY (snap_id, n));`,
+    );
+  }
+  async saveSnapshot(_game: string, reason: string, at: number, data: SnapshotData) {
+    this.snapSchema();
+    const json = JSON.stringify(data);
+    const PIECE = 900_000;
+    this.ctx.storage.transactionSync(() => {
+      this.sql.exec("INSERT INTO snap (at, reason) VALUES (?, ?)", at, reason.slice(0, 120));
+      const id = this.sql.exec<{ id: number }>("SELECT last_insert_rowid() AS id").one().id;
+      for (let i = 0, n = 0; i < json.length; i += PIECE, n++) this.sql.exec("INSERT INTO snap_part (snap_id, n, body) VALUES (?, ?, ?)", id, n, json.slice(i, i + PIECE));
+      const old = this.sql.exec<{ id: number }>("SELECT id FROM snap ORDER BY id DESC LIMIT -1 OFFSET ?", SNAPSHOTS_KEPT).toArray();
+      for (const o of old) {
+        this.sql.exec("DELETE FROM snap_part WHERE snap_id = ?", o.id);
+        this.sql.exec("DELETE FROM snap WHERE id = ?", o.id);
+      }
+    });
+  }
+  async listSnapshots(_game: string): Promise<SnapshotInfo[]> {
+    if (!this.hasSchema) return [];
+    this.snapSchema();
+    return this.sql.exec<{ id: number; at: number; reason: string }>("SELECT id, at, reason FROM snap ORDER BY id DESC").toArray().map((r) => ({ id: r.id, at: r.at, reason: r.reason }));
+  }
+  async loadSnapshot(_game: string, id: number): Promise<SnapshotData | null> {
+    if (!this.hasSchema) return null;
+    this.snapSchema();
+    const parts = this.sql.exec<{ body: string }>("SELECT body FROM snap_part WHERE snap_id = ? ORDER BY n", id).toArray();
+    return parts.length ? (JSON.parse(parts.map((p) => p.body).join("")) as SnapshotData) : null;
   }
 
   /** The game changed: push every open screen its own view. Outgoing messages are free. */

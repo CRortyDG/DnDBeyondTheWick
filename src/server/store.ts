@@ -33,6 +33,23 @@ export interface Store {
   setDmKeyHash(game: string, hash: string): Promise<void>;
   /** Saved presets (shared by every campaign). Missing: presets are off (some tests). */
   presets?: PresetStore;
+  /** Safety snapshots: the whole game and ledger, kept in the campaign (the newest SNAPSHOTS_KEPT). */
+  saveSnapshot?(game: string, reason: string, at: number, data: SnapshotData): Promise<void>;
+  listSnapshots?(game: string): Promise<SnapshotInfo[]>;
+  loadSnapshot?(game: string, id: number): Promise<SnapshotData | null>;
+}
+
+/** How many safety snapshots a campaign keeps. */
+export const SNAPSHOTS_KEPT = 10;
+
+export interface SnapshotInfo {
+  id: number;
+  at: number;
+  reason: string;
+}
+export interface SnapshotData {
+  state: GameState;
+  ledger: LedgerEntry[];
 }
 
 /** What a stored document looks like once read: migrated, with the seed run sheets and monsters added. */
@@ -47,6 +64,8 @@ interface MemoryGame {
   version: number;
   ledger: LedgerEntry[];
   dmKeyHash: string | null;
+  snapshots?: (SnapshotInfo & { json: string })[];
+  nextSnap?: number;
 }
 
 /** Tests only. One process, nothing saved. */
@@ -97,6 +116,20 @@ export class MemoryStore implements Store {
   }
   async setDmKeyHash(game: string, hash: string) {
     this.load(game).dmKeyHash = hash;
+  }
+  async saveSnapshot(game: string, reason: string, at: number, data: SnapshotData) {
+    const g = this.load(game);
+    g.snapshots ??= [];
+    g.nextSnap = (g.nextSnap ?? 0) + 1;
+    g.snapshots.push({ id: g.nextSnap, at, reason, json: JSON.stringify(data) });
+    g.snapshots = g.snapshots.slice(-SNAPSHOTS_KEPT);
+  }
+  async listSnapshots(game: string) {
+    return [...(this.load(game).snapshots ?? [])].reverse().map(({ id, at, reason }) => ({ id, at, reason }));
+  }
+  async loadSnapshot(game: string, id: number) {
+    const x = this.load(game).snapshots?.find((s) => s.id === id);
+    return x ? (JSON.parse(x.json) as SnapshotData) : null;
   }
 }
 

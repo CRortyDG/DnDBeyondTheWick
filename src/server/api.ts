@@ -75,6 +75,17 @@ async function guard(fn: () => Promise<Response>): Promise<Response> {
   }
 }
 
+/** Keep a copy of the whole game before something that replaces it. Never stops the action itself. */
+async function snapshot(store: Store, game: string, reason: string) {
+  if (!store.saveSnapshot) return;
+  try {
+    const { state } = await store.read(game);
+    if (state) await store.saveSnapshot(game, reason, Date.now(), { state, ledger: await store.ledger(game) });
+  } catch (e) {
+    console.error("snapshot failed", e);
+  }
+}
+
 async function requireDm(req: Request, store: Store, game: string) {
   if (!isDmKey(params(req).key, await store.dmKeyHash(game))) throw new HttpError(401, "That DM key isn't right.", "bad-key");
 }
@@ -133,6 +144,10 @@ export async function handleApi(req: Request, store: Store): Promise<Response> {
       let cmd = parseClientCommand(actor, await readJson(req));
       if (cmd.type === "me.lock") cmd = { type: "me.lockHashed", keyHash: sha256(cmd.key) };
       const r = await execute(store, game, actor, cmd);
+      if (cmd.type === "session.end") {
+        const ended = r.state.sessions.filter((x) => x.endedAt).sort((a, b) => (b.endedAt ?? 0) - (a.endedAt ?? 0))[0];
+        await snapshot(store, game, `End of ${ended?.title ?? "a session"}`);
+      }
       return json({ ok: true, version: r.version, ...(r.info ? { info: r.info } : {}) });
     }
 
@@ -193,6 +208,7 @@ export async function handleApi(req: Request, store: Store): Promise<Response> {
       }
       const state = { ...upgrade(body.state), id: game };
       if (JSON.stringify(state).length > MAX_STATE_CHARS) throw new HttpError(413, "That backup is too big to restore.");
+      await snapshot(store, game, "Before restoring a backup");
       const v = await store.overwrite(game, state, body.ledger);
       await store.publish(game, v);
       return json({ ok: true, version: v });
@@ -205,6 +221,7 @@ export async function handleApi(req: Request, store: Store): Promise<Response> {
       const r = ledgerRemoveBody.safeParse(await readJson(req));
       if (!r.success) throw new HttpError(400, "Choose which ledger lines to remove.");
       const ids = new Set(r.data.ids);
+      let snapped = false;
       for (let attempt = 0; attempt < 3; attempt++) {
         const { state, version } = await store.read(game);
         if (!state) throw new HttpError(404, "No game here yet.", "no-game");
@@ -219,6 +236,7 @@ export async function handleApi(req: Request, store: Store): Promise<Response> {
         }
         // overwrite() doesn't check versions, so make sure nobody saved since we read.
         if ((await store.version(game)) !== version) continue;
+        if (!snapped && (snapped = true)) await snapshot(store, game, `Before removing ${gone.length} ledger ${gone.length === 1 ? "line" : "lines"}`);
         const v = await store.overwrite(game, state, all.filter((l) => !ids.has(l.id)));
         await store.publish(game, v);
         return json({ ok: true, version: v, removed: gone.length });
@@ -235,12 +253,31 @@ export async function handleApi(req: Request, store: Store): Promise<Response> {
       if (body.mode !== "play" && body.mode !== "all") throw new HttpError(400, "Choose what to reset.");
       const { state } = await store.read(game);
       if (!state) throw new HttpError(404, "No game here yet.", "no-game");
+      await snapshot(store, game, body.mode === "all" ? "Before resetting everything" : "Before clearing gold, ledger and sessions");
       let next: GameState;
       if (body.mode === "all") {
         const o = originOf(state);
         next = await startingState(store, game, state.name, o.kind === "preset" ? `preset:${o.code}` : o.kind);
       } else next = freshStart(state);
       const v = await store.overwrite(game, next, []);
+      await store.publish(game, v);
+      return json({ ok: true, version: v });
+    }
+
+    // DM only: the safety snapshots, newest first.
+    if (path === "/api/snapshots" && method === "GET") {
+      await requireDm(req, store, game);
+      return json({ snapshots: store.listSnapshots ? await store.listSnapshots(game) : [] });
+    }
+
+    // DM only: put the game back to a snapshot (keeping a snapshot of now first).
+    if (path === "/api/snapshots/restore" && method === "POST") {
+      await requireDm(req, store, game);
+      const id = Number(((await readJson(req)) as { id?: unknown } | null)?.id);
+      const snap = Number.isInteger(id) && store.loadSnapshot ? await store.loadSnapshot(game, id) : null;
+      if (!snap) throw new HttpError(404, "That snapshot is gone.");
+      await snapshot(store, game, "Before going back to a snapshot");
+      const v = await store.overwrite(game, { ...upgrade(snap.state), id: game }, snap.ledger);
       await store.publish(game, v);
       return json({ ok: true, version: v });
     }

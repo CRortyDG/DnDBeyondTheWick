@@ -2312,3 +2312,7 @@ html[data-view="dm"] .wrapup-step { border: 1px solid var(--line, rgba(255, 255,
 html[data-view="dm"] .wrapup-step h3 { margin: 0; font-size: 14px; }
 html[data-view="dm"] .wrapup-step.warn { border-color: rgba(214, 160, 70, 0.55); background: rgba(214, 160, 70, 0.08); }
 html[data-view="dm"] .wrapup-step textarea { width: 100%; }
+html[data-view="dm"] .snapshots { margin-top: 12px; }
+html[data-view="dm"] .snapshots summary { cursor: pointer; font-weight: 600; }
+html[data-view="dm"] .snapshot-list { list-style: none; padding: 0; margin: 8px 0 0; display: grid; gap: 6px; }
+html[data-view="dm"] .snapshot-list li { display: flex; justify-content: space-between; align-items: center; gap: 12px; }

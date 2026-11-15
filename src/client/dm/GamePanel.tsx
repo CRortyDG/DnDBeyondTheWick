@@ -1,10 +1,10 @@
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { originOf, PRESET_NAME_MAX, townOf } from "@/shared/presets";
 import { deletePresetOnline, devicePresets, forgetPreset, rememberPreset, renamePresetOnline, type DevicePreset } from "../presets";
 import { absoluteHref, api, authHeaders, dmLink, rememberKey } from "../api";
 import { useDm } from "./context";
-import { downloadBackup } from "./backup";
+import { downloadBackup, restoreBackup } from "./backup";
 import { EndSessionDialog } from "./Dues";
 import { PageHead } from "./PageHead";
 import { LinkIcon } from "../ui/icons";
@@ -36,9 +36,9 @@ export function GamePanel() {
 
   const restore = async (f: File | undefined) => {
     if (!f) return;
-    if (!confirm("Replace this whole game with the backup? Everything since the backup will be lost.")) return;
+    if (!confirm("Replace this whole game with the backup? A safety snapshot of right now is kept first.")) return;
     try {
-      await api("/api/import", ident, { method: "POST", body: await f.text() });
+      await restoreBackup(ident, f, toast);
       toast("Backup restored.");
     } catch (e) {
       toast(e instanceof Error ? e.message : String(e));
@@ -137,7 +137,7 @@ export function GamePanel() {
       <PresetsBox />
       <section className="box">
         <h3>Backup</h3>
-        <p className="note">Everything is saved online automatically. A backup now and then is still a good idea.</p>
+        <p className="note">Everything is saved online automatically. A backup now and then is still a good idea: it&rsquo;s a zip with the game, the ledger and every image you uploaded.</p>
         <div className="inline">
           <button className="btn" type="button" onClick={download}>
             Download backup
@@ -145,12 +145,14 @@ export function GamePanel() {
           <button className="btn" type="button" onClick={() => file.current?.click()}>
             Restore from a backup
           </button>
-          <input ref={file} type="file" accept="application/json,.json" hidden onChange={(e) => void restore(e.target.files?.[0])} />
+          <input ref={file} type="file" accept="application/json,.json,application/zip,.zip" hidden onChange={(e) => void restore(e.target.files?.[0])} />
         </div>
+        <p className="note">Your DM link is the only way into this campaign as the DM. Keep a copy in a password manager. A campaign nobody opens for six months is deleted, images and all.</p>
+        <Snapshots />
       </section>
       <section className="box danger-zone">
         <h3>Start fresh</h3>
-        <p className="note">For after a test run. Neither can be undone, so download a backup first if you might want it.</p>
+        <p className="note">For after a test run. A safety snapshot is kept first, so you can go back from Backup above.</p>
         <div className="form">
           <button className="btn danger" type="button" onClick={() => reset("play")}>
             Clear gold, ledger and sessions
@@ -357,5 +359,58 @@ function PresetsBox() {
       )}
       <p className="note">Your presets are listed on this device. Share a code to start a campaign from it anywhere.</p>
     </section>
+  );
+}
+
+/** Safety snapshots the campaign keeps by itself: before a reset or restore, and at each session's end. */
+function Snapshots() {
+  const { view, ident, toast } = useDm();
+  const [list, setList] = useState<{ id: number; at: number; reason: string }[] | null>(null);
+  const [open, setOpen] = useState(false);
+  const load = async () => {
+    try {
+      setList((await api<{ snapshots: { id: number; at: number; reason: string }[] }>("/api/snapshots", ident)).snapshots);
+    } catch (e) {
+      toast(e instanceof Error ? e.message : String(e));
+    }
+  };
+  // Refresh while open, when the game changes (a new snapshot may have been taken).
+  const version = view.version;
+  useEffect(() => {
+    if (open) void load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, version]);
+  const back = async (x: { id: number; at: number; reason: string }) => {
+    if (!confirm(`Put the whole game back to ${new Date(x.at).toLocaleString()} (${x.reason})? A snapshot of right now is kept first.`)) return;
+    try {
+      await api("/api/snapshots/restore", ident, { method: "POST", body: JSON.stringify({ id: x.id }) });
+      toast("Back to that snapshot.");
+    } catch (e) {
+      toast(e instanceof Error ? e.message : String(e));
+    }
+  };
+  return (
+    <details className="snapshots" open={open} onToggle={(e) => setOpen((e.target as HTMLDetailsElement).open)}>
+      <summary>Safety snapshots</summary>
+      <p className="note">Kept by themselves before a reset, a restore or removing ledger lines, and at the end of each session. The newest 10 stay.</p>
+      {list === null ? (
+        <p className="note">Loading…</p>
+      ) : list.length === 0 ? (
+        <p className="note">None yet.</p>
+      ) : (
+        <ul className="snapshot-list">
+          {list.map((x) => (
+            <li key={x.id}>
+              <span>
+                <b>{x.reason}</b> <span className="note">{new Date(x.at).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })}</span>
+              </span>
+              <button className="btn small" type="button" onClick={() => void back(x)}>
+                Go back to this
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </details>
   );
 }
