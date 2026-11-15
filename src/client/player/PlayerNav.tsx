@@ -2,9 +2,9 @@
 
 import type { ReactNode } from "react";
 
-export type Screen = "map" | "chronicle" | "discovery" | "purse" | "jobs";
+export type Screen = "fight" | "map" | "chronicle" | "discovery" | "purse" | "jobs";
 
-type Tab = { id: Screen; label: string; icon: ReactNode; count?: number };
+type Tab = { id: Screen; label: string; icon: ReactNode; count?: number; alert?: boolean };
 
 const svg = (d: ReactNode) => (
   <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
@@ -43,6 +43,12 @@ export const NAV_ICONS = {
       <circle cx="12" cy="8" r="1.4" />
     </>,
   ),
+  fight: svg(
+    <>
+      <path d="M14.5 3.5 20 9l-9 9-5.5-5.5z" />
+      <path d="M4 20l3-3M9 9l6 6" />
+    </>,
+  ),
   d20: (
     <svg viewBox="0 0 24 24" width="28" height="28" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round">
       <path d="M12 2 21 7v10l-9 5-9-5V7z" />
@@ -52,8 +58,24 @@ export const NAV_ICONS = {
 };
 
 /** The phone's bottom tab bar. */
-export function PlayerNav({ screen, onScreen, hasMaps, discoverCount, jobsCount }: { screen: Screen; onScreen: (s: Screen) => void; hasMaps: boolean; discoverCount: number; jobsCount: number }) {
+export function PlayerNav({
+  screen,
+  onScreen,
+  hasMaps,
+  discoverCount,
+  jobsCount,
+  fight,
+}: {
+  screen: Screen;
+  onScreen: (s: Screen) => void;
+  hasMaps: boolean;
+  discoverCount: number;
+  jobsCount: number;
+  /** A fight is on: its tab leads, and lights up when you're next or it's your turn. */
+  fight: "on" | "next" | "turn" | null;
+}) {
   const tabs: Tab[] = [
+    ...(fight ? [{ id: "fight" as const, label: "Fight", icon: NAV_ICONS.fight, alert: fight !== "on" }] : []),
     { id: "chronicle", label: "Story", icon: NAV_ICONS.story },
     { id: "discovery", label: "Discover", icon: NAV_ICONS.discover, count: discoverCount },
     ...(hasMaps ? [{ id: "map" as const, label: "Map", icon: NAV_ICONS.map }] : []),
@@ -64,9 +86,10 @@ export function PlayerNav({ screen, onScreen, hasMaps, discoverCount, jobsCount 
     <nav className="pl-nav" aria-label="Your page">
       <div className="pl-nav-in" role="tablist" style={{ gridTemplateColumns: `repeat(${tabs.length}, 1fr)` }}>
         {tabs.map((t) => (
-          <button key={t.id} type="button" role="tab" aria-selected={screen === t.id} className={`pl-nav-tab${screen === t.id ? " on" : ""}`} onClick={() => onScreen(t.id)}>
+          <button key={t.id} type="button" role="tab" aria-selected={screen === t.id} className={`pl-nav-tab${screen === t.id ? " on" : ""}${t.alert ? " alert" : ""}${t.id === "fight" ? " fight" : ""}`} onClick={() => onScreen(t.id)}>
             <span className="pl-nav-icon">
               {t.icon}
+              {t.alert ? <span className="pl-nav-alert" aria-label="Your turn soon" /> : null}
               {t.count ? (
                 <span className="pl-nav-count" aria-label={`${t.count} new`}>
                   {t.count > 99 ? "99+" : t.count}

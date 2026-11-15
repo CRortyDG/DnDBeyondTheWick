@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { formatCp, formatDelta } from "@/shared/money";
 import type { PlayerView, PublicItem } from "@/shared/projection";
 import { hrefFor, rememberKey, type Ident } from "../api";
@@ -100,7 +100,18 @@ function PlayerScreen({ view, online, send, ident, setIdent }: { view: PlayerVie
   };
   // The map tab exists while a map is on the TV, or once the party knows a map.
   const hasMaps = !!view.map || view.maps.length > 0;
-  const screen = screenPick === "map" && !hasMaps ? (view.session ? "chronicle" : "purse") : screenPick;
+  const fallback: Screen = view.session ? "chronicle" : "purse";
+  const screen = (screenPick === "map" && !hasMaps) || (screenPick === "fight" && !view.fight) ? fallback : screenPick;
+  // A fight opens its own screen when it starts, and again whenever it's your turn.
+  const f = view.fight;
+  const myTurn = !!f && f.status === "running" && !!view.myFight && f.currentId === view.myFight.combatantId;
+  const upNext = !!f && f.status === "running" && !!view.myFight && f.nextId === view.myFight.combatantId && !myTurn;
+  useEffect(() => {
+    if (f?.id) setScreenPick("fight");
+  }, [f?.id]);
+  useEffect(() => {
+    if (myTurn) setScreenPick("fight");
+  }, [myTurn, f?.round]);
   const seen = useDiscoverySeen(view);
   const [mode, setMode] = useState<ShopMode>("category");
   const [category, setCategory] = useState<ItemCategory | undefined>(undefined);
@@ -158,18 +169,29 @@ function PlayerScreen({ view, online, send, ident, setIdent }: { view: PlayerVie
         </p>
       ) : null}
       <DecisionBanners view={view} />
-      {view.fight ? <FightCard view={view} send={send} /> : null}
+      {f && screen !== "fight" ? (
+        <button type="button" className={`pl-fight-strip${myTurn ? " turn" : upNext ? " next" : ""}`} onClick={() => setScreen("fight")}>
+          <span className="pl-fight-strip-k">{myTurn ? "Your turn!" : upNext ? "You’re up next" : f.status === "setup" ? "Roll initiative" : f.status === "over" ? "Fight over" : "Fight"}</span>
+          <span className="pl-fight-strip-v">
+            {f.status === "running" || f.status === "paused" ? `Round ${f.round} · now ${f.order.find((c) => c.id === f.currentId)?.name ?? "…"}` : "Open the fight"}
+          </span>
+        </button>
+      ) : null}
       <BannerToast banner={view.banner} className="phone-banner" />
       <PlayerNav
         screen={screen}
         onScreen={setScreen}
         hasMaps={hasMaps}
+        fight={f ? (myTurn ? "turn" : upNext ? "next" : "on") : null}
         discoverCount={seen.newCount}
         jobsCount={view.jobs.filter((j) => j.canTake && !j.asked).length}
       />
-      <button type="button" className="pl-fab" aria-label="Roll dice" aria-haspopup="dialog" onClick={() => setDiceOpen(true)}>
-        {NAV_ICONS.d20}
-      </button>
+      {/* On your turn the fight screen's End button owns that corner. */}
+      {!(screen === "fight" && myTurn) ? (
+        <button type="button" className="pl-fab" aria-label="Roll dice" aria-haspopup="dialog" onClick={() => setDiceOpen(true)}>
+          {NAV_ICONS.d20}
+        </button>
+      ) : null}
       {diceOpen ? (
         <Sheet title="Dice" onClose={() => setDiceOpen(false)} className="pl-dice-sheet">
           <Dice view={view} send={send} />
@@ -213,6 +235,7 @@ function PlayerScreen({ view, online, send, ident, setIdent }: { view: PlayerVie
           ) : null}
         </Sheet>
       ) : null}
+      {screen === "fight" && f ? <FightCard view={view} send={send} /> : null}
       {screen === "map" && hasMaps ? <Maps view={view} send={send} /> : null}
       {screen === "chronicle" ? <Chronicle view={view.chronicle} gameName={view.game.name} send={send} /> : null}
       {screen === "jobs" ? <Jobs view={view} send={send} /> : null}
