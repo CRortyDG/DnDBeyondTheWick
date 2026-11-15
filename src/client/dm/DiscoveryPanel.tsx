@@ -23,6 +23,8 @@ import { uploadImage } from "./upload";
 import { makeSilhouette } from "./silhouette";
 import { ShowControls } from "./QuickBar";
 import { entryRef } from "@/shared/assets";
+import { penName } from "@/shared/chronicle";
+import { presentIds, STAGE_NAMES, stageFor, whoKnows } from "@/shared/world";
 
 const TV_KEY = "candlefair-discovery-tv";
 
@@ -150,6 +152,10 @@ function EntryRow({ entry: e, tv, first, last, open, onToggle }: { entry: Entry;
   const notes = notesAbout(view.chronicle, entryTags(s, e)).length;
   const sc = e.sceneId ? s.scenes.find((x) => x.id === e.sceneId) : undefined;
   const sub = [e.nickname ? `“${e.nickname}”` : "", e.title ?? ""].filter(Boolean).join(" · ");
+  // The shared world: someone at the table who knows this better than the table does.
+  const aheadId = s.world ? presentIds(s).find((id) => STAGES.indexOf(stageFor(e, id)) > STAGES.indexOf(e.stage)) : undefined;
+  const aheadP = aheadId ? s.players.find((p) => p.id === aheadId) : undefined;
+  const ahead = aheadP ? penName(aheadP) : "";
   return (
     <li className={`scene-item list-row person-item stage-${e.stage}${open ? " selected" : ""}`}>
       <div className="scene-row">
@@ -168,6 +174,7 @@ function EntryRow({ entry: e, tv, first, last, open, onToggle }: { entry: Entry;
             </span>
           ) : null}
           {notes ? <span className="tag">{notes === 1 ? "1 note" : `${notes} notes`}</span> : null}
+          {ahead ? <span className="tag" title="Someone at the table knows more than the rest: open it to tell the table">{ahead} knows more</span> : null}
         </span>
         <label className="stage-pick">
           <span className="sr-only">Stage of {e.name}</span>
@@ -246,6 +253,7 @@ function EntryEditor({ entry: e, tv }: { entry: Entry; tv: boolean }) {
 
   return (
     <div className="person-editor">
+      {s.world ? <WhoKnows entry={e} tv={tv} /> : null}
       <div className="inline">
         <label>
           Kind
@@ -548,5 +556,70 @@ function FactText({ entryId, factId, value }: { entryId: string; factId: string;
         if (ev.key === "Enter") ev.currentTarget.blur();
       }}
     />
+  );
+}
+
+/**
+ * The shared world: who knows this entry and how well, and a character at the
+ * table telling the others (the TV follows once everyone present knows).
+ */
+function WhoKnows({ entry: e, tv }: { entry: Entry; tv: boolean }) {
+  const { view, run } = useDm();
+  const s = view.state;
+  const here = new Set(presentIds(s));
+  const who = whoKnows(s, e);
+  const name = (id: string) => {
+    const p = s.players.find((x) => x.id === id);
+    return p ? penName(p) : "someone";
+  };
+  // Tellers: people here who know it better than someone else here.
+  const low = Math.min(...[...here].map((id) => STAGES.indexOf(stageFor(e, id))));
+  const tellers = [...here].filter((id) => STAGES.indexOf(stageFor(e, id)) > low || e.facts.some((f) => f.knownBy?.[id] !== undefined && [...here].some((o) => f.knownBy?.[o] === undefined)));
+  const [from, setFrom] = useState("");
+  const [as, setAs] = useState<"rumored" | "found">("rumored");
+  const teller = tellers.includes(from) ? from : tellers[0];
+  const facts = teller ? e.facts.filter((f) => f.knownBy?.[teller] !== undefined) : [];
+  const [picked, setPicked] = useState<string[]>([]);
+  return (
+    <section className="who-knows" aria-label="Who knows">
+      <div className="note">
+        At this table: <b>{stageLabel(e.kind, e.stage)}</b>. The TV shows what everyone here knows.
+      </div>
+      <div className="who-knows-list">
+        {who.length ? (
+          who.map((w) => (
+            <span key={w.id} className={`tag${here.has(w.id) ? " here" : ""}`} title={here.has(w.id) ? "At the table" : "Not at the table"}>
+              {name(w.id)}: {STAGE_NAMES[w.stage]}
+            </span>
+          ))
+        ) : (
+          <span className="note">Nobody knows of {e.name} yet.</span>
+        )}
+      </div>
+      {teller ? (
+        <div className="tell-row">
+          <select className="fld" aria-label="Who tells" value={teller} onChange={(ev) => setFrom(ev.target.value)}>
+            {tellers.map((id) => (
+              <option key={id} value={id}>
+                {name(id)}
+              </option>
+            ))}
+          </select>
+          <span>tells the table, and they</span>
+          <select className="fld" aria-label="How well" value={as} onChange={(ev) => setAs(ev.target.value as "rumored" | "found")}>
+            <option value="rumored">hear of {e.kind === "person" ? "them" : "it"}</option>
+            <option value="found">{e.kind === "person" ? "meet them" : "find it"}</option>
+          </select>
+          {facts.map((f) => (
+            <label key={f.id} className="check" title={f.text}>
+              <input type="checkbox" checked={picked.includes(f.id)} onChange={(ev) => setPicked(ev.target.checked ? [...picked, f.id] : picked.filter((x) => x !== f.id))} /> {f.text.length > 40 ? f.text.slice(0, 40) + "…" : f.text}
+            </label>
+          ))}
+          <button className="btn small primary" type="button" onClick={() => run({ type: "entry.tell", entryId: e.id, playerId: teller, stage: as, factIds: picked, tv })}>
+            Tell the table
+          </button>
+        </div>
+      ) : null}
+    </section>
   );
 }

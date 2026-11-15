@@ -16,6 +16,7 @@ import { jobsOf, jobTitle, rankName, ranksOf, renownMet, renownNeeded, renownOf,
 import { fightView, myFight, type FightView, type MyFight } from "./combat";
 import type { Art, Banner, Flyer, FlyerText, GameState, Job, JobStyle, Item, ItemCategory, ItemKind, LedgerEntry, LegendStyle, LiveState, NoteLook, NotePlace, Notice, Player, RequestStatus, Scene, Shop } from "./types";
 import { noticesOf } from "./board";
+import { partiesFor, partyName, playerLens, tableParty, tvLens, worldView, type WorldView } from "./world";
 
 export const GATED_ART = new Set(["merchant-sigil", ...PORTRAIT_ART]);
 
@@ -158,6 +159,10 @@ export interface PublicItem {
 /** A player flyer on the notice board. */
 export interface PublicFlyer extends FlyerText {
   id: string;
+  /** Gold the poster put up, while it's held. */
+  rewardCp?: number;
+  /** Shared world: the poster's party. */
+  party?: string;
   /** When it went up (orders the pins with the jobs). */
   at: number;
   style?: JobStyle;
@@ -199,6 +204,8 @@ export interface PublicJob {
   at: number;
   /** When the party took it (status taken) or finished it (status done). */
   when?: JobWhen;
+  /** Shared world: the party that took it or did it. */
+  party?: string;
   look?: NoteLook;
   place?: NotePlace;
 }
@@ -280,6 +287,8 @@ interface Common {
   banner: Banner | null;
   /** The party's Renown. */
   renown: PublicRenown;
+  /** A shared world: the date, events, news and parties. Missing: one table, as before. */
+  world?: WorldView;
 }
 
 export interface TvView extends Common {
@@ -541,14 +550,18 @@ function liveShop(game: GameState, viewer: Viewer) {
   return { shopOpen: ok && game.live.shopOpen, shopId: ok ? game.live.shopId : "" };
 }
 
-export function projectTv(game: GameState, version: number): TvView {
+export function projectTv(table: GameState, version: number): TvView {
+  // A shared world: the TV shows the table, and only the playing party's leads, chapters and jobs.
+  const game = tvLens(table);
+  const party = tableParty(game);
   return {
+    ...(game.world ? { world: worldView(game, party ? [party] : []) } : {}),
     ...common(game, version, { tv: true }),
     role: "tv",
     live: { sceneId: game.live.sceneId, ...liveShop(game, { tv: true }), purseVisible: game.live.purseVisible, ...(game.live.shopCategory ? { shopCategory: game.live.shopCategory } : {}), ...(game.live.leads ? { leads: true } : {}) },
     leads: leadsView(game, Date.now()),
     ...(game.recapCard ? { recapCard: { n: game.recapCard.n, text: game.recapCard.text } } : {}),
-    flyers: game.flyers.filter((f) => f.up).map(publicFlyer),
+    flyers: game.flyers.filter((f) => f.up).map((f) => publicFlyer(f, game)),
     jobs: pinnedJobs(game).map((j) => publicJob(game, j)),
     notices: noticesOf(game).filter((n) => n.up).map(publicNotice),
     ...(closeUpOf(game) ? { closeUp: closeUpOf(game) } : {}),
@@ -602,10 +615,13 @@ function publicRecap(game: GameState): TvView["recap"] {
   return out;
 }
 
-export function projectPlayer(game: GameState, version: number, playerId: string, ledger: LedgerEntry[]): PlayerView {
-  const p = game.players.find((x) => x.id === playerId);
-  if (!p) throw new Error("No such player");
+export function projectPlayer(table: GameState, version: number, playerId: string, ledger: LedgerEntry[]): PlayerView {
+  if (!table.players.some((x) => x.id === playerId)) throw new Error("No such player");
+  // A shared world: the phone shows what this character knows, and their parties' leads, chapters and jobs.
+  const game = playerLens(table, playerId);
+  const p = game.players.find((x) => x.id === playerId)!;
   return {
+    ...(game.world ? { world: worldView(game, partiesFor(game, playerId)) } : {}),
     ...common(game, version, { tv: false, playerId }),
     role: "player",
     ...(game.vttUrl ? { vttUrl: game.vttUrl } : {}),
@@ -693,12 +709,24 @@ function closeUpOf(game: GameState): CloseUp | undefined {
     return j ? { kind: "job", job: publicJob(game, j) } : undefined;
   }
   const f = game.flyers.find((x) => x.id === want.id);
-  return f ? { kind: "flyer", flyer: publicFlyer(f) } : undefined;
+  return f ? { kind: "flyer", flyer: publicFlyer(f, game) } : undefined;
 }
 
 /** Field by field. */
-export function publicFlyer(f: Flyer): PublicFlyer {
-  return { id: f.id, title: f.title, body: f.body, signedBy: f.signedBy, at: f.pinnedAt ?? f.postedAt, ...(f.style ? { style: f.style } : {}), ...(f.look ? { look: { ...f.look } } : {}), ...(f.place ? { place: { ...f.place } } : {}) };
+export function publicFlyer(f: Flyer, game?: Pick<GameState, "parties">): PublicFlyer {
+  const party = game ? partyName(game, f.partyId) : undefined;
+  return {
+    id: f.id,
+    title: f.title,
+    body: f.body,
+    signedBy: f.signedBy,
+    at: f.pinnedAt ?? f.postedAt,
+    ...(f.style ? { style: f.style } : {}),
+    ...(f.look ? { look: { ...f.look } } : {}),
+    ...(f.place ? { place: { ...f.place } } : {}),
+    ...(f.rewardCp && !f.rewardDone ? { rewardCp: f.rewardCp } : {}),
+    ...(party ? { party } : {}),
+  };
 }
 
 /** Field by field: the DM's note never goes out. */
@@ -726,8 +754,11 @@ export function publicJob(game: GameState, j: Job): PublicJob {
   if (!renownMet(game, j.renown)) out.needs = rankName(j.renown, game);
   const trust = trustText(game, j.trust);
   if (trust) out.goodwill = trust;
-  const when = jobWhen(game, j);
+  // A shared world counts chapters per party: the one that did it.
+  const when = jobWhen(game.world && j.partyId ? { sessions: game.sessions.filter((x) => x.partyId === j.partyId) } : game, j);
   if (when) out.when = when;
+  const party = j.status !== "open" && j.status !== "expired" ? partyName(game, j.partyId) : undefined;
+  if (party) out.party = party;
   return out;
 }
 

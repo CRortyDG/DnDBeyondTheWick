@@ -63,12 +63,14 @@ export function RequestSheet({ item, availableCp, send, onClose, onDone }: { ite
   const [question, setQuestion] = useState("");
   const [flyer, setFlyer] = useState({ title: "", body: "", signedBy: "" });
   const [amount, setAmount] = useState("");
+  const [reward, setReward] = useState("");
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const left = freeStock(item);
   const maxQty = item.oneAtATime ? 1 : Math.max(1, Math.min(99, left ?? 99, item.priceCp ? Math.floor(Math.max(0, availableCp) / item.priceCp) || 1 : 99));
   const project = item.kind === "project";
   const pledgeCp = parseAmount(amount);
+  const rewardCp = reward.trim() ? parseAmount(reward) : 0;
   const needCp = Math.max(0, (item.priceCp ?? 0) - (item.raisedCp ?? 0));
   const reason =
     whyNot(item, availableCp, qty) ??
@@ -77,7 +79,9 @@ export function RequestSheet({ item, availableCp, send, onClose, onDone }: { ite
     (project && pledgeCp! > availableCp ? `You have ${formatCp(Math.max(0, availableCp))} available` : null) ??
     (project && pledgeCp! > needCp ? `It only needs ${formatCp(needCp)} more` : null) ??
     (item.prompt && !question.trim() ? item.prompt : null) ??
-    (item.flyer && !flyer.title.trim() ? "Give your flyer a title" : null);
+    (item.flyer && !flyer.title.trim() ? "Give your flyer a title" : null) ??
+    (item.flyer && reward.trim() && (rewardCp === null || rewardCp < 0) ? "Enter a reward, like 20 or 5 gp 5 sp" : null) ??
+    (item.flyer && rewardCp && dueNow(item) + rewardCp > availableCp ? `With the reward that's ${formatCp(dueNow(item) + rewardCp)}; you have ${formatCp(Math.max(0, availableCp))}` : null);
   const total = project ? (pledgeCp ?? 0) : dueNow(item) * qty;
 
   const submit = async () => {
@@ -92,6 +96,7 @@ export function RequestSheet({ item, availableCp, send, onClose, onDone }: { ite
           expectedUnitCp: item.priceCp === null ? undefined : dueNow(item),
           ...(question.trim() ? { question: question.trim() } : {}),
           ...(item.flyer ? { flyer } : {}),
+          ...(item.flyer && rewardCp ? { rewardCp } : {}),
         });
     setBusy(false);
     if (e) return setErr(e);
@@ -132,6 +137,11 @@ export function RequestSheet({ item, availableCp, send, onClose, onDone }: { ite
                   Signed
                   <input className="fld" value={flyer.signedBy} maxLength={60} onChange={(e) => setFlyer({ ...flyer, signedBy: e.target.value })} placeholder="Your character's name" />
                 </label>
+                <label>
+                  Reward from your own gold (optional)
+                  <input className="fld amt" inputMode="decimal" value={reward} onChange={(e) => setReward(e.target.value)} placeholder="20 or 5 gp 5 sp" />
+                </label>
+                {rewardCp ? <p className="note">The reward comes out of your purse when the flyer goes up. The DM pays it to whoever does the job, or gives it back.</p> : null}
                 <p className="note">Mags (the DM) reads it first, and may tidy it up.</p>
               </>
             ) : null}

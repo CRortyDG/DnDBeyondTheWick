@@ -8,6 +8,7 @@
 import { useEffect, useState } from "react";
 import { entriesOf, kindInfo } from "@/shared/discovery";
 import { leadsOf, leadVisible, tally, voteClosed } from "@/shared/leads";
+import { tableParty } from "@/shared/world";
 import type { Lead, LeadStatus } from "@/shared/types";
 import { penName } from "@/shared/chronicle";
 import { DownIcon, TvIcon, UpIcon } from "../ui/icons";
@@ -34,7 +35,9 @@ function useNow(every = 5000) {
 export function LeadsPanel() {
   const { view, run } = useDm();
   const s = view.state;
-  const leads = leadsOf(s);
+  // A shared world: the seated party's leads (and ones for every party).
+  const seated = s.world ? tableParty(s) : undefined;
+  const leads = leadsOf(s).filter((l) => !s.world || !l.partyId || l.partyId === s.partyId);
   const [text, setText] = useState("");
   const [picked, setPicked] = useState<string[]>([]);
   const [minutes, setMinutes] = useState("");
@@ -51,7 +54,7 @@ export function LeadsPanel() {
     <div className="people-panel leads-panel pg">
       <PageHead
         title="Leads"
-        sub="Threads the party can pull on, and votes on where to go next."
+        sub={seated ? `${seated.name}'s threads to pull on, and votes on where to go next. Seat another party to see theirs.` : "Threads the party can pull on, and votes on where to go next."}
         help={
           <p>
             Players see a lead once you show it and whatever it&rsquo;s about isn&rsquo;t hidden. Leads are grouped by the place they point to. Your notes never leave this screen. To let the table choose, tick two or three shown leads and open a vote; everyone sees the count as it comes in.

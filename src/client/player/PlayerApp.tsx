@@ -293,6 +293,7 @@ function PlayerScreen({ view, online, send, ident, setIdent }: { view: PlayerVie
           Reconnecting&hellip;
         </p>
       ) : null}
+      {view.world ? <WorldStrip world={view.world} /> : null}
       <DecisionBanners view={view} />
       {f && screen !== "fight" ? (
         <button type="button" className={`pl-fight-strip${myTurn ? " turn" : upNext ? " next" : ""}`} onClick={() => setScreen("fight")}>
@@ -303,6 +304,7 @@ function PlayerScreen({ view, online, send, ident, setIdent }: { view: PlayerVie
         </button>
       ) : null}
       <BannerToast banner={view.banner} className="phone-banner" />
+      {view.world?.news ? <BannerToast banner={{ id: `news-${view.world.news.n}`, text: view.world.news.text, at: 0 }} className="phone-banner world-news" /> : null}
       {screen === "fight" && f ? <FightCard view={view} send={send} /> : null}
       {screen === "map" && hasMaps ? <Maps view={view} send={send} /> : null}
       {screen === "chronicle" ? <Chronicle view={view.chronicle} gameName={view.game.name} send={send} /> : null}
@@ -498,6 +500,7 @@ function PlayerScreen({ view, online, send, ident, setIdent }: { view: PlayerVie
           Reconnecting&hellip;
         </p>
       ) : null}
+      {view.world ? <WorldStrip world={view.world} /> : null}
       <DecisionBanners view={view} />
       {f && screen !== "fight" ? (
         <button type="button" className={`pl-fight-strip${myTurn ? " turn" : upNext ? " next" : ""}`} onClick={() => setScreen("fight")}>
@@ -508,6 +511,7 @@ function PlayerScreen({ view, online, send, ident, setIdent }: { view: PlayerVie
         </button>
       ) : null}
       <BannerToast banner={view.banner} className="phone-banner" />
+      {view.world?.news ? <BannerToast banner={{ id: `news-${view.world.news.n}`, text: view.world.news.text, at: 0 }} className="phone-banner world-news" /> : null}
       <PlayerNav {...navProps} />
       {/* On your turn the fight screen's End button owns that corner. */}
       {!(screen === "fight" && myTurn) ? (
@@ -797,4 +801,33 @@ function useWide(): boolean {
 /** The header's coin: whole gold pieces once there are any, so a long purse never squeezes the name. The sheet shows it all. */
 function coinLabel(cp: number): string {
   return Math.abs(cp) >= 100 ? formatCp(cp - (cp % 100)) : formatCp(cp);
+}
+
+/** A shared world: today's date, what's on or coming, and the parties this character plays in. */
+function WorldStrip({ world: w }: { world: NonNullable<PlayerView["world"]> }) {
+  const bits: string[] = [];
+  if (w.date) bits.push(shortDay(w.date));
+  if (w.now.length) bits.push(w.now.map((e) => e.name).join(", "));
+  else if (w.next) bits.push(w.next.inDays === 1 ? `${w.next.name} tomorrow` : `${w.next.name} in ${w.next.inDays} days`);
+  if (!bits.length && !w.parties.length) return null;
+  return (
+    <div className="pl-world" role="note">
+      {bits.length ? <span className="pl-world-when">{bits.join(" · ")}</span> : null}
+      {w.parties.length ? (
+        <span className="pl-world-parties">
+          {w.parties.map((p) => (
+            <span key={p.id} className="pl-party">
+              <span className="pl-party-dot" style={{ background: p.color }} aria-hidden="true" />
+              {p.name}
+            </span>
+          ))}
+        </span>
+      ) : null}
+    </div>
+  );
+}
+
+function shortDay(d: string): string {
+  const [y, m, day] = d.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, day)).toLocaleDateString(undefined, { month: "short", day: "numeric", timeZone: "UTC" });
 }

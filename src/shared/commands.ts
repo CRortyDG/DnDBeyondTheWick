@@ -204,7 +204,11 @@ const noticeFields = {
 const noteRef = z.object({ kind: z.enum(["notice", "job", "flyer"]), id });
 
 // The bounty board. dm: DM-ONLY notes, never sent to the TV or a phone.
+const worldDay = z.string().regex(/^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/);
+const worldEvent = z.object({ name: text(60), from: worldDay, to: worldDay, note: text(200) });
 const jobFields = {
+  /** Shared world: the parties that see it (empty: every party). */
+  parties: z.array(id).max(12),
   look: noteLook,
   place: notePlace,
   trust: trustNeed.nullable(),
@@ -318,6 +322,8 @@ export const dmCommand = z.discriminatedUnion("type", [
   z.object({ type: z.literal("task.done"), taskId: id, done: z.boolean() }),
   z.object({ type: z.literal("flyer.update"), flyerId: id, patch: flyerText.partial().extend({ up: z.boolean().optional(), style: paper.optional(), look: noteLook.optional(), place: notePlace.optional() }) }),
   z.object({ type: z.literal("flyer.remove"), flyerId: id }),
+  /** The gold a player put up for their flyer: to whoever did the job (split evenly), or back to the poster. */
+  z.object({ type: z.literal("flyer.reward"), flyerId: id, to: z.enum(["players", "poster"]), playerIds: z.array(id).max(50).optional() }),
 
   /**
    * The party's Renown. Raising it plays the TV moment (unless tv is false) and goes in the Chronicle;
@@ -375,7 +381,23 @@ export const dmCommand = z.discriminatedUnion("type", [
   z.object({ type: z.literal("catalog.reset") }),
   z.object({ type: z.literal("item.remove"), itemId: id }),
 
-  z.object({ type: z.literal("session.start"), title: text(120).optional() }),
+  z.object({ type: z.literal("session.start"), title: text(120).optional(), partyId: id.optional() }),
+  // The shared world: parties, telling the table, the calendar and world news.
+  /** The first one turns the campaign into a shared world (everyone so far becomes firstName's party). */
+  z.object({ type: z.literal("party.add"), name: text(40), firstName: text(40).optional() }),
+  z.object({ type: z.literal("party.update"), partyId: id, patch: z.object({ name: text(40), color: z.string().regex(/^#[0-9a-fA-F]{6}$/) }).partial() }),
+  z.object({ type: z.literal("party.remove"), partyId: id }),
+  /** catchUp (default on): a new member learns what everyone already in the party knows. */
+  z.object({ type: z.literal("party.member"), partyId: id, playerId: id, member: z.boolean(), catchUp: z.boolean().optional() }),
+  /** Seat a party at the table (between sessions): its members are here, everyone else away. */
+  z.object({ type: z.literal("party.play"), partyId: id }),
+  /** A character at the table tells the others: they hear of it (rumored) or meet it (found), and learn the facts picked. */
+  z.object({ type: z.literal("entry.tell"), entryId: id, playerId: id, stage: z.enum(["rumored", "found", "known"]), factIds: z.array(id).max(40).optional(), tv: z.boolean().optional() }),
+  z.object({ type: z.literal("world.date"), date: worldDay.nullable(), tv: z.boolean().optional() }),
+  z.object({ type: z.literal("world.eventAdd"), event: worldEvent }),
+  z.object({ type: z.literal("world.eventUpdate"), eventId: id, patch: worldEvent.partial() }),
+  z.object({ type: z.literal("world.eventRemove"), eventId: id }),
+  z.object({ type: z.literal("world.news"), text: text(200), tv: z.boolean().optional() }),
   z.object({ type: z.literal("session.end") }),
   z.object({ type: z.literal("session.update"), sessionId: id, patch: z.object({ title: text(120), number: z.number().int().min(1).max(9999) }).partial() }),
   z.object({ type: z.literal("session.reopen"), sessionId: id }),
@@ -406,11 +428,11 @@ export const dmCommand = z.discriminatedUnion("type", [
   /** Revealing a fact makes the entry Known. tv: also show it on the TV. */
   z.object({ type: z.literal("entry.factReveal"), entryId: id, factId: id, revealed: z.boolean(), tv: z.boolean().optional() }),
 
-  z.object({ type: z.literal("lead.add"), text: text(LEAD_MAX).min(1), entryId: id.optional(), placeId: id.optional(), jobId: id.optional(), shown: z.boolean().optional() }),
+  z.object({ type: z.literal("lead.add"), text: text(LEAD_MAX).min(1), entryId: id.optional(), placeId: id.optional(), jobId: id.optional(), shown: z.boolean().optional(), partyId: id.nullable().optional() }),
   z.object({
     type: z.literal("lead.update"),
     leadId: id,
-    patch: z.object({ text: text(LEAD_MAX).min(1), entryId: id.nullable(), placeId: id.nullable(), jobId: id.nullable(), shown: z.boolean(), dmNote: text(DM_TEXT_MAX) }).partial(),
+    patch: z.object({ text: text(LEAD_MAX).min(1), entryId: id.nullable(), placeId: id.nullable(), jobId: id.nullable(), shown: z.boolean(), dmNote: text(DM_TEXT_MAX), partyId: id.nullable() }).partial(),
   }),
   z.object({ type: z.literal("lead.status"), leadId: id, status: z.enum(["open", "followed", "closed"]) }),
   z.object({ type: z.literal("lead.remove"), leadId: id }),
@@ -513,7 +535,7 @@ export const playerCommand = z.discriminatedUnion("type", [
   z.object({ type: z.literal("me.lock"), key: z.string().min(4).max(128) }),
   /** expectedUnitCp: the price the phone showed; refused if it has changed since. */
   // question: the answer to the item's prompt. flyer: "Post on the notice board".
-  z.object({ type: z.literal("me.requestBuy"), itemId: id, qty: z.number().int().min(1).max(99), note: text(120), expectedUnitCp: cp.optional(), question: text(300).optional(), flyer: flyerText.optional() }),
+  z.object({ type: z.literal("me.requestBuy"), itemId: id, qty: z.number().int().min(1).max(99), note: text(120), expectedUnitCp: cp.optional(), question: text(300).optional(), flyer: flyerText.optional(), rewardCp: cp.max(10_000_000).optional() }),
   z.object({ type: z.literal("me.contribute"), itemId: id, amountCp: cp.min(1), note: text(120) }),
   z.object({ type: z.literal("me.cancelRental"), rentalId: id }),
   z.object({ type: z.literal("me.requestGive"), toPlayerId: id, amountCp: cp.min(1), note: text(120) }),

@@ -3206,6 +3206,11 @@ input.fld.inline-input {
   font-size: 24px;
   text-align: right;
 }
+.flyer-reward {
+  font-size: 28px;
+  font-weight: 700;
+  color: #7a2a1f;
+}
 
 /* ---------- The Table (Arrival) on the TV ---------- */
 .table-scene {
@@ -6765,4 +6770,32 @@ input.fld.inline-input {
   color: rgba(244, 220, 174, 0.7);
   font-family: "IM Fell English", Georgia, serif;
   font-size: clamp(14px, 2.4vw, 36px);
+}
+
+/* ---------- The shared world on the TV ---------- */
+.tv-world {
+  position: absolute;
+  top: calc(4 * var(--u));
+  left: calc(48 * var(--u));
+  z-index: 5;
+  display: flex;
+  align-items: baseline;
+  gap: calc(14 * var(--u));
+  padding: calc(4 * var(--u)) calc(18 * var(--u));
+  border-radius: calc(6 * var(--u));
+  background: rgba(14, 9, 6, 0.85);
+  border: calc(1.5 * var(--u)) solid rgba(227, 182, 92, 0.5);
+  color: #f3e7cf;
+  font-family: var(--font-display, Georgia, serif);
+}
+.tv-world-day {
+  font-size: calc(26 * var(--u));
+  line-height: 1.1;
+}
+.tv-world-what {
+  font-size: calc(22 * var(--u));
+  color: #e3b65c;
+}
+.phone-banner.world-news {
+  top: 60px;
 }

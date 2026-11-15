@@ -9,7 +9,9 @@ import { useMemo, useState } from "react";
 import { cpToGpInput, formatCp, parseAmount } from "@/shared/money";
 import { jobWhen, type PublicJob } from "@/shared/projection";
 import { defaultPayout, jobsOf, jobTitle, payoutPlayers, rankName, ranksOf, renownOf } from "@/shared/renown";
-import type { Job, JobReward, JobStatus, JobStyle, NoteLook, TrustNeed } from "@/shared/types";
+import type { Flyer, Job, JobReward, JobStatus, JobStyle, NoteLook, TrustNeed } from "@/shared/types";
+import { partiesOf, partyName } from "@/shared/world";
+import { penName } from "@/shared/chronicle";
 import { JobCard, STYLE_LABELS, whenLabel } from "../scenes/Board";
 import { useDm } from "./context";
 import { PageHead } from "./PageHead";
@@ -172,6 +174,8 @@ function JobRow({ job: j, onEdit, onFollowUp, onPay }: { job: Job; onEdit: () =>
           {STYLE_LABELS[j.style]} · {reward} · needs {rankName(j.renown, s)}
           {when ? ` · ${j.status === "done" ? "done" : "taken"} ${when.chapter !== undefined ? "in" : "on"} ${whenLabel(when)}` : ""}
           {j.status === "done" && j.paidCp !== undefined ? ` · paid ${formatCp(j.paidCp)}` : ""}
+          {s.world && j.partyId && j.status !== "open" ? ` · by ${partyName(s, j.partyId) ?? "a past party"}` : ""}
+          {s.world && j.parties?.length ? ` · only ${j.parties.map((id) => partyName(s, id)).filter(Boolean).join(", ")}` : ""}
         </div>
         {j.dm.adventure ? <div className="note">Runs: {j.dm.adventure}</div> : null}
       </div>
@@ -235,6 +239,8 @@ interface Draft {
   trust: TrustNeed | null;
   style: JobStyle;
   look: NoteLook;
+  /** Shared world: the parties that see it (empty: every party). */
+  parties: string[];
   adventure: string;
   loot: string;
   twists: string;
@@ -252,6 +258,7 @@ function draftOf(j?: Job): Draft {
     trust: j?.trust ?? null,
     style: j?.style ?? "scrawl",
     look: structuredClone(j?.look ?? {}),
+    parties: [...(j?.parties ?? [])],
     adventure: j?.dm.adventure ?? "",
     loot: j?.dm.loot ?? "",
     twists: j?.dm.twists ?? "",
@@ -298,6 +305,7 @@ function JobEditor({ job, followUpOf, onClose }: { job?: Job; followUpOf?: Job; 
       trust: d.trust,
       style: d.style,
       look: d.look,
+      ...(view.state.world ? { parties: d.parties } : {}),
       dm: { adventure: d.adventure, loot: d.loot, twists: d.twists, notes: d.notes },
     };
     const r = job ? await call({ type: "job.update", jobId: job.id, patch: body }) : await call({ type: "job.add", job: body, ...(followUpOf ? { followUpOf: followUpOf.id } : {}) });
@@ -350,6 +358,19 @@ function JobEditor({ job, followUpOf, onClose }: { job?: Job; followUpOf?: Job; 
           <TrustSelect value={d.trust} onChange={(v) => set("trust", v)} />
         </div>
         {rewardCp === null ? <p className="note">That isn&rsquo;t an amount I can read.</p> : null}
+        {view.state.world ? (
+          <fieldset className="job-parties">
+            <legend>Who can see this</legend>
+            <label className="check">
+              <input type="checkbox" checked={!d.parties.length} onChange={(e) => e.target.checked && set("parties", [])} /> Every party
+            </label>
+            {partiesOf(view.state).map((p) => (
+              <label key={p.id} className="check">
+                <input type="checkbox" checked={d.parties.includes(p.id)} onChange={(e) => set("parties", e.target.checked ? [...d.parties, p.id] : d.parties.filter((x) => x !== p.id))} /> {p.name}
+              </label>
+            ))}
+          </fieldset>
+        ) : null}
       </div>
 
       <div className="board-editor-split">
@@ -442,8 +463,41 @@ function PayoutForm({ job, onClose }: { job: Job; onClose: () => void }) {
   );
 }
 
+/** The gold a player put up for their flyer: split among whoever answered it, or back to the poster. */
+function RewardForm({ flyer: f, onClose }: { flyer: Flyer; onClose: () => void }) {
+  const { view, run } = useDm();
+  const s = view.state;
+  const [ids, setIds] = useState<string[]>(() => s.players.filter((p) => !p.archived && !p.away && p.id !== f.playerId).map((p) => p.id));
+  return (
+    <div className="reward-form">
+      <p className="note">Split {formatCp(f.rewardCp ?? 0)} evenly between:</p>
+      <div className="inline">
+        {s.players
+          .filter((p) => !p.archived)
+          .map((p) => (
+            <label key={p.id} className="check">
+              <input type="checkbox" checked={ids.includes(p.id)} onChange={(e) => setIds(e.target.checked ? [...ids, p.id] : ids.filter((x) => x !== p.id))} /> {penName(p)}
+            </label>
+          ))}
+      </div>
+      <div className="inline">
+        <button type="button" className="btn small primary" disabled={!ids.length} onClick={async () => (await run({ type: "flyer.reward", flyerId: f.id, to: "players", playerIds: ids }, "Reward paid.")) && onClose()}>
+          Pay {ids.length ? `${ids.length === 1 ? "1 person" : `${ids.length} people`}` : ""}
+        </button>
+        <button type="button" className="btn small" onClick={async () => (await run({ type: "flyer.reward", flyerId: f.id, to: "poster" }, "Given back.")) && onClose()}>
+          Give it back to {f.signedBy}
+        </button>
+        <button type="button" className="btn small ghost" onClick={onClose}>
+          Cancel
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function PlayerFlyers() {
   const { view, run } = useDm();
+  const [paying, setPaying] = useState<string | null>(null);
   const flyers = view.state.flyers;
   return (
     <section className="box">
@@ -456,12 +510,22 @@ function PlayerFlyers() {
           <div key={f.id} className="board-row">
             <div className="board-row-main">
               <b>{f.title}</b> {f.up ? <span className="tag">pinned</span> : null}
-              <div className="note">{f.signedBy}</div>
+              <div className="note">
+                {f.signedBy}
+                {f.partyId && partyName(view.state, f.partyId) ? ` · ${partyName(view.state, f.partyId)}` : ""}
+                {f.rewardCp ? (f.rewardDone ? ` · reward of ${formatCp(f.rewardCp)} ${f.rewardDone.to === "poster" ? "given back" : "paid out"}` : ` · ${formatCp(f.rewardCp)} reward held`) : ""}
+              </div>
+              {paying === f.id ? <RewardForm flyer={f} onClose={() => setPaying(null)} /> : null}
             </div>
             <div className="board-row-actions">
               <button type="button" className={`btn small${f.up ? " on" : ""}`} onClick={() => run({ type: "flyer.update", flyerId: f.id, patch: { up: !f.up } })}>
                 {f.up ? "Unpin" : "Pin up"}
               </button>
+              {f.rewardCp && !f.rewardDone ? (
+                <button type="button" className="btn small" onClick={() => setPaying(paying === f.id ? null : f.id)}>
+                  Pay the reward&hellip;
+                </button>
+              ) : null}
               {!f.up ? (
                 <button type="button" className="btn small danger" onClick={() => run({ type: "flyer.remove", flyerId: f.id })}>
                   Throw away
