@@ -17,11 +17,13 @@ import { RecapCard } from "../ui/RecapCard";
 import { useTvSound } from "../ui/tvSound";
 import { FightOverlay } from "../ui/FightOverlay";
 import { DiceRoll } from "../ui/DiceRoll";
+import { useFreshBuild } from "./useFreshBuild";
 
 const FADE_MS = 600;
 
 export function TvApp({ ident }: { ident: Ident }) {
   const g = useGame<TvView>(ident);
+  useFreshBuild();
   const view = g.view;
 
   if (!view) {

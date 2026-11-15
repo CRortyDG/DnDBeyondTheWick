@@ -5,6 +5,7 @@ import { describeDice, describeResult, natural, rollPool } from "@/shared/dice";
 import { projectPlayer, projectTv } from "@/shared/projection";
 import { apply, CommandError, type Ctx } from "@/shared/reducer";
 import { freshStart, seedGame } from "@/shared/seed";
+import { entryScript } from "@/client/tv/useFreshBuild";
 import type { Actor, GameState } from "@/shared/types";
 
 const DM: Actor = { role: "dm" };
@@ -105,6 +106,14 @@ describe("dice.roll", () => {
     expect(ok({ type: "dice.roll", dice: [{ sides: 20, count: 1 }], plus: 51 })).toBe(false);
   });
 
+  it("comes off the TV when the DM clears it, and the log keeps it", () => {
+    as(DM, { type: "dice.roll", dice: [{ sides: 20, count: 1 }], plus: 0 });
+    as(DM, { type: "dice.clearTv" });
+    expect(projectTv(g, 1).diceRoll).toBeUndefined();
+    expect(g.rolls).toHaveLength(1);
+    expect(() => as({ role: "player", playerId: g.players[0]?.id ?? "p1" }, { type: "dice.clearTv" })).toThrow(CommandError);
+  });
+
   it("is forgotten on a fresh start", () => {
     as(DM, { type: "dice.roll", dice: [{ sides: 4, count: 1 }], plus: 0 });
     expect(projectTv(freshStart(g), 1).diceRoll).toBeUndefined();
@@ -156,5 +165,12 @@ describe("the roll log and players' rolls", () => {
     as(DM, { type: "dice.clearLog" });
     expect(g.rolls).toBeUndefined();
     expect(() => as(P(), { type: "dice.clearLog" })).toThrow(CommandError);
+  });
+});
+
+describe("the TV's fresh-build check", () => {
+  it("finds the entry script in the built page", () => {
+    expect(entryScript('<head><script type="module" crossorigin src="/assets/main-DQOZIYGm.js"></script></head>')).toBe("/assets/main-DQOZIYGm.js");
+    expect(entryScript("<head></head>")).toBeNull();
   });
 });

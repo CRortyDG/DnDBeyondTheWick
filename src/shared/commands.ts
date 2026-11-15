@@ -322,6 +322,8 @@ export const dmCommand = z.discriminatedUnion("type", [
   z.object({ type: z.literal("dice.roll"), dice: diceAsk, plus: dicePlus, secret: z.boolean().optional() }),
   /** Empty the roll log (the DM's and the players' rolls). */
   z.object({ type: z.literal("dice.clearLog") }),
+  /** Take the roll off the TV right away. */
+  z.object({ type: z.literal("dice.clearTv") }),
   /** A new job flyer (unpinned unless pin). followUpOf: the flyer it replaces, which is pulled. */
   z.object({ type: z.literal("job.add"), job: z.object(jobFields).partial(), followUpOf: id.optional(), pin: z.boolean().optional() }),
   /** status: back to open, or taken by hand. Done goes through job.done (it pays); expired through job.expire. */
