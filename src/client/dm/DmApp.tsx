@@ -77,7 +77,7 @@ const NAV: { group: string; items: NavItem[] }[] = [
 const SETTINGS: NavItem = { id: "game", label: "Settings", icon: GearIcon };
 const ALL_TABS: Tab[] = [...NAV.flatMap((g) => g.items.map((i) => i.id)), SETTINGS.id];
 /** Pages that draw their own header (with summary and buttons). */
-const OWN_HEAD = new Set<Tab>(["bank", "players", "arrival", "shop"]);
+const OWN_HEAD = new Set<Tab>(["bank", "players", "arrival", "shop", "discovery", "leads", "scenes", "board", "monsters"]);
 const PAGE_LABEL = Object.fromEntries([...NAV.flatMap((g) => g.items), SETTINGS].map((i) => [i.id, i.label])) as Record<Tab, string>;
 
 /** The page in the address (#page=discovery), so a reload keeps your place. */

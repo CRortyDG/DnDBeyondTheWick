@@ -11,6 +11,8 @@ import { entriesOf, entryTags, FACT_MAX, kindInfo, KINDS, RELATIONS, stageLabel,
 import type { Entry, EntryKind, Relation, Stage } from "@/shared/types";
 import { DownIcon, UpIcon } from "../ui/icons";
 import { Portrait } from "../ui/Portrait";
+import { PageHead } from "./PageHead";
+import { PlusIcon } from "./navIcons";
 import { PersonNotes, notesAbout } from "../ui/PersonNotes";
 import { artSrc } from "../ui/SceneView";
 import { Field } from "./Field";
@@ -47,16 +49,68 @@ export function DiscoveryPanel() {
       localStorage.setItem(TV_KEY, v ? "on" : "off");
     } catch {}
   };
-  const list = all.filter((e) => kind === "all" || e.kind === kind);
+  const [q, setQ] = useState("");
+  const [adding, setAdding] = useState(false);
+  const needle = q.trim().toLowerCase();
+  const list = all.filter((e) => (kind === "all" || e.kind === kind) && (!needle || e.name.toLowerCase().includes(needle) || (e.nickname ?? "").toLowerCase().includes(needle)));
   const kinds = [...KINDS.map((k) => k.id), ...new Set(all.map((e) => e.kind).filter((k) => !KINDS.some((x) => x.id === k)))];
 
+  const hidden = all.filter((e) => e.stage === "hidden").length;
+  const rumored = all.filter((e) => e.stage === "rumored").length;
+
   return (
-    <div className="people-panel">
-      <p className="note">
-        Players never get hidden entries, locked facts, real names behind nicknames, your notes or secrets. A rumor shows as a silhouette with its nickname (or &ldquo;???&rdquo;) and hint.
-        <b> Show</b> puts it on the TV (a person&rsquo;s picture, a place&rsquo;s spot on its map, a shop&rsquo;s storefront) and finds it if the party hadn&rsquo;t yet; <b>Announce</b> plays its card.
-        Notes about an entry are Chronicle notes tagged with its name.
-      </p>
+    <div className="people-panel pg">
+      <PageHead
+        title="Discovery"
+        sub="People, places, shops and monsters the party can find."
+        help={
+          <>
+            <p>Players never get hidden entries, locked facts, real names behind nicknames, your notes or secrets. A rumor shows as a silhouette with its nickname (or &ldquo;???&rdquo;) and hint.</p>
+            <p>
+              <b>Show</b> puts it on the TV (a person&rsquo;s picture, a place&rsquo;s spot on its map, a shop&rsquo;s storefront) and finds it if the party hadn&rsquo;t yet; <b>Announce</b> plays its card. Notes about an entry are Chronicle notes tagged with its name.
+            </p>
+          </>
+        }
+        actions={
+          <button className="btn primary" type="button" onClick={() => setAdding((a) => !a)} aria-expanded={adding}>
+            <PlusIcon size={16} /> Add
+          </button>
+        }
+        stats={[
+          { label: "Found", value: all.length - hidden - rumored, tone: "ok" },
+          { label: "Rumored", value: rumored, tone: "gold" },
+          { label: "Hidden", value: hidden, tone: "muted" },
+        ]}
+      />
+      {adding ? (
+        <form
+          className="pg-inline-form wide"
+          onSubmit={async (ev) => {
+            ev.preventDefault();
+            if (!newName.trim()) return;
+            const ok = await run({ type: "entry.add", entry: { name: newName, kind: newKind } }, "Added, hidden. Nobody sees it until you make it a rumor or reveal it.");
+            if (ok) {
+              setNewName("");
+              setAdding(false);
+            }
+          }}
+        >
+          <select className="fld" value={newKind} onChange={(e) => setNewKind(e.target.value)} aria-label="Kind">
+            {KINDS.map((k) => (
+              <option key={k.id} value={k.id}>
+                {k.label}
+              </option>
+            ))}
+          </select>
+          <input className="fld" autoFocus value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="Name, e.g. Old Hannet the smith" aria-label="Name" onKeyDown={(e) => e.key === "Escape" && setAdding(false)} />
+          <button className="btn primary" type="submit" disabled={!newName.trim()}>
+            Add (hidden)
+          </button>
+          <button className="btn ghost" type="button" onClick={() => setAdding(false)}>
+            Cancel
+          </button>
+        </form>
+      ) : null}
       <div className="inline discovery-filters">
         <div className="tabs" role="tablist" aria-label="Kind">
           {(["all", ...kinds] as (EntryKind | "all")[]).map((k) => {
@@ -68,6 +122,7 @@ export function DiscoveryPanel() {
             );
           })}
         </div>
+        <input className="fld pg-search" type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Filter by name" aria-label="Filter by name" />
         <span className="spacer" />
         <label className="check">
           <input type="checkbox" checked={tv} onChange={(e) => setTv(e.target.checked)} />
@@ -83,36 +138,7 @@ export function DiscoveryPanel() {
           <EntryRow key={e.id} entry={e} tv={tv} first={i === 0} last={i === list.length - 1} open={openId === e.id} onToggle={() => setOpenId(openId === e.id ? null : e.id)} />
         ))}
       </ol>
-      <form
-        className="box form"
-        onSubmit={async (ev) => {
-          ev.preventDefault();
-          if (!newName.trim()) return;
-          const ok = await run({ type: "entry.add", entry: { name: newName, kind: newKind } }, "Added, hidden. Nobody sees it until you make it a rumor or reveal it.");
-          if (ok) setNewName("");
-        }}
-      >
-        <h3>Add something</h3>
-        <div className="inline">
-          <label>
-            Kind
-            <select className="fld" value={newKind} onChange={(e) => setNewKind(e.target.value)}>
-              {KINDS.map((k) => (
-                <option key={k.id} value={k.id}>
-                  {k.label}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="grow">
-            Name
-            <input className="fld" value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="e.g. Old Hannet the smith" />
-          </label>
-          <button className="btn primary" type="submit" disabled={!newName.trim()}>
-            Add
-          </button>
-        </div>
-      </form>
+      {list.length === 0 ? <p className="pg-empty">{needle ? `Nothing called “${q.trim()}” here.` : "Nothing here yet."}</p> : null}
     </div>
   );
 }

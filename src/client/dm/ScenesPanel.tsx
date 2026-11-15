@@ -11,6 +11,8 @@ import { Field } from "./Field";
 import { Check } from "./Check";
 import { uploadImage } from "./upload";
 import { ShowControls } from "./QuickBar";
+import { PageHead } from "./PageHead";
+import { PlusIcon } from "./navIcons";
 import { isProp, pictureOwner, refForScene, sceneSlug } from "@/shared/assets";
 
 const KINDS: [SceneKind, string][] = [
@@ -32,6 +34,7 @@ export function ScenesPanel() {
   const [openId, setOpenId] = useState<string | null>(null);
   const [newKind, setNewKind] = useState<SceneKind>("image");
   const [newLabel, setNewLabel] = useState("");
+  const [adding, setAdding] = useState(false);
   const pictures = s.scenes.filter((x) => pictureOwner(s, x)).length;
   const sections: [string, Scene[]][] = [
     ["Maps", s.scenes.filter((x) => x.kind === "map")],
@@ -39,16 +42,64 @@ export function ScenesPanel() {
     ["Screens", s.scenes.filter((x) => x.kind !== "map" && !isProp(s, x) && !pictureOwner(s, x))],
   ];
 
+  const liveScene = s.scenes.find((x) => x.id === s.live.sceneId);
+
   return (
-    <div className="scenes-panel">
-      <p className="note">
-        Everything here has a <b>Show</b> button and can sit on a number key. People, places, shops and monsters are shown from Discovery
-        {pictures ? ` (${pictures} picture${pictures === 1 ? "" : "s"} live there with their people)` : ""}. Reveal props never reach the TV until you show them. Images you upload are stored online, so they show on every screen.
-      </p>
+    <div className="scenes-panel pg">
+      <PageHead
+        title="Maps & props"
+        sub="Maps, handouts, images and screens the TV can show."
+        help={
+          <p>
+            Everything here has a <b>Show</b> button and can sit on a number key. People, places, shops and monsters are shown from Discovery
+            {pictures ? ` (${pictures} picture${pictures === 1 ? "" : "s"} live there with their people)` : ""}. Reveal props never reach the TV until you show them. Images you upload are stored online, so they show on every screen.
+          </p>
+        }
+        actions={
+          <button className="btn primary" type="button" onClick={() => setAdding((a) => !a)} aria-expanded={adding}>
+            <PlusIcon size={16} /> Map or prop
+          </button>
+        }
+        stats={[
+          { label: "On the TV", value: liveScene?.label ?? "Something else", tone: "gold" },
+          { label: "Maps", value: sections[0][1].length },
+          { label: "Props", value: sections[1][1].length },
+          { label: "Screens", value: sections[2][1].length, tone: "muted" },
+        ]}
+      />
+      {adding ? (
+        <form
+          className="pg-inline-form wide"
+          onSubmit={async (e) => {
+            e.preventDefault();
+            if (await run({ type: "scene.add", kind: newKind, label: newLabel || KINDS.find((k) => k[0] === newKind)![1] }, "Added, on the first free number key.")) {
+              setNewLabel("");
+              setAdding(false);
+            }
+          }}
+        >
+          <select className="fld" value={newKind} onChange={(e) => setNewKind(e.target.value as SceneKind)} aria-label="Kind">
+            {KINDS.map(([k, l]) => (
+              <option key={k} value={k}>
+                {l}
+              </option>
+            ))}
+          </select>
+          <input className="fld" autoFocus value={newLabel} onChange={(e) => setNewLabel(e.target.value)} placeholder="Name in your list, e.g. The docks at dusk" aria-label="Name in your list" onKeyDown={(e) => e.key === "Escape" && setAdding(false)} />
+          <button className="btn primary" type="submit">
+            Add
+          </button>
+          <button className="btn ghost" type="button" onClick={() => setAdding(false)}>
+            Cancel
+          </button>
+        </form>
+      ) : null}
       {sections.map(([title, list]) =>
         list.length ? (
           <section key={title} className="assets-section">
-            <h3>{title}</h3>
+            <h3 className="pg-section">
+              {title} <span className="pg-count">{list.length}</span>
+            </h3>
             <ol className="scene-list">
               {list.map((sc) => {
                 const i = s.scenes.indexOf(sc);
@@ -113,34 +164,6 @@ export function ScenesPanel() {
         </div>
       ) : null}
 
-      <form
-        className="box form add-scene"
-        onSubmit={async (e) => {
-          e.preventDefault();
-          if (await run({ type: "scene.add", kind: newKind, label: newLabel || KINDS.find((k) => k[0] === newKind)![1] }, "Added, on the first free number key.")) setNewLabel("");
-        }}
-      >
-        <h3>Add a map or prop</h3>
-        <div className="inline">
-          <label>
-            Kind
-            <select className="fld" value={newKind} onChange={(e) => setNewKind(e.target.value as SceneKind)}>
-              {KINDS.map(([k, l]) => (
-                <option key={k} value={k}>
-                  {l}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="grow">
-            Name in your list
-            <input className="fld" value={newLabel} onChange={(e) => setNewLabel(e.target.value)} placeholder="e.g. The docks at dusk" />
-          </label>
-          <button className="btn primary" type="submit">
-            Add
-          </button>
-        </div>
-      </form>
     </div>
   );
 }

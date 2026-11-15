@@ -165,7 +165,7 @@ export function BoardCanvas({ onEditJob, onNewJob }: { onEditJob: (id: string) =
           {up} of {BOARD_MAX} up
         </span>
       </div>
-      <p className="note">This is the TV&rsquo;s board. Drag a note to move it, the round handle to tilt it, the side handle to make it wider. Double-click to edit. Changes go to the TV when you let go. Notes in the drawer never leave this screen.</p>
+      <p className="note">Drag to move, double-click to edit. Changes reach the TV when you let go.</p>
       <div className="inline">
         <button type="button" className="btn primary" onClick={() => void newNote()}>
           New note
