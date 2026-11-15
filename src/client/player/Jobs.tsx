@@ -24,8 +24,12 @@ export function Jobs({ view, send }: { view: PlayerView; send: Send }) {
   return (
     <>
       {confirmSheet}
-      <section className="box" aria-label="Renown">
-        <h2>Renown</h2>
+      <details className="pl-renown" aria-label="Renown">
+        <summary>
+          <span className="pl-renown-k">Renown</span>
+          <span className="pl-renown-v">{view.renown.name}</span>
+          <span className="pl-renown-pay">jobs pay {RENOWN[rank]?.pay ?? "—"}</span>
+        </summary>
         <p>
           {view.game.town || "The town"} knows the party as <b>{view.renown.name}</b>. <span className="note">{view.renown.meaning}.</span>
         </p>
@@ -37,15 +41,22 @@ export function Jobs({ view, send }: { view: PlayerView; send: Send }) {
             </li>
           ))}
         </ol>
-      </section>
-      <section className="box" aria-label="The bounty board">
-        <h2>The notice board</h2>
+      </details>
+      <section className="pl-board" aria-label="The bounty board">
+        <div className="pl-sec-head">
+          <h2>The notice board</h2>
+          {view.jobs.length ? <span>{view.jobs.length === 1 ? "1 notice" : `${view.jobs.length} notices`}</span> : null}
+        </div>
         {msg ? (
           <p className="player-msg" role="status">
             {msg}
           </p>
         ) : null}
-        {!view.jobs.length ? <p className="note">Nothing pinned up yet. Keep an eye on the board at the Candle.</p> : null}
+        {!view.jobs.length ? (
+          <div className="pl-empty">
+            <p>Nothing pinned up yet. Keep an eye on the board at the Candle.</p>
+          </div>
+        ) : null}
         <div className="job-list">
           {view.jobs.map((j) => {
             const title = j.style === "sealed" ? "A sealed envelope" : j.title;

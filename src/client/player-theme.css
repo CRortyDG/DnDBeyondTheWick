@@ -998,3 +998,321 @@ html[data-view="player"] {
   font-size: 14px;
   color: var(--pl-ok);
 }
+
+/* ---------- Story (the Chronicle) ---------- */
+
+/* The note box is one line until you tap it or start writing. */
+:where(html[data-view="player"]) .chron-add {
+  gap: var(--pl-s2);
+  padding: 12px;
+  border-radius: 14px;
+  background: var(--pl-bg-1);
+  border-color: var(--pl-border);
+}
+:where(html[data-view="player"]) .chron-add-label {
+  font-family: var(--pl-font-ui);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--pl-text-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+:where(html[data-view="player"]) .chron-add-text {
+  font-family: var(--font-body);
+  font-size: 17px;
+  min-height: 48px;
+  height: 48px;
+  padding-top: 11px;
+  resize: none;
+  transition: height 0.16s ease;
+}
+:where(html[data-view="player"]) .chron-add:focus-within .chron-add-text,
+:where(html[data-view="player"]) .chron-add-text:not(:placeholder-shown) {
+  height: 112px;
+}
+:where(html[data-view="player"]) .chron-add:has(.chron-add-text:placeholder-shown):not(:focus-within):not(:has(.chron-add-more)) .chron-add-row {
+  display: none;
+}
+:where(html[data-view="player"]) .btn.chron-post {
+  min-height: 44px;
+  font-size: 15px;
+}
+
+/* Search on its own line, then the toggles in one row that scrolls. */
+:where(html[data-view="player"]) .chron-search {
+  border-radius: var(--pl-r-md);
+  background: var(--pl-bg-1);
+}
+:where(html[data-view="player"]) .chron-toggles {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scrollbar-width: none;
+  gap: 6px;
+}
+:where(html[data-view="player"]) .chron-toggles::-webkit-scrollbar {
+  display: none;
+}
+:where(html[data-view="player"]) .chron-toggles .btn.small {
+  flex: none;
+  min-height: 34px;
+  padding: 0 14px;
+  border-radius: 99px;
+  font-size: 13px;
+  background: var(--pl-bg-1);
+}
+:where(html[data-view="player"]) .chron-toggles .btn.small.on {
+  background: var(--pl-gold-soft);
+}
+:where(html[data-view="player"]) .chron-page {
+  border-radius: var(--pl-r-md);
+}
+
+/* ---------- Discover ---------- */
+
+:where(html[data-view="player"]) .pl-areas {
+  display: grid;
+  gap: var(--pl-s2);
+}
+:where(html[data-view="player"]) .pl-chip-n {
+  margin-left: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--pl-text-3);
+}
+:where(html[data-view="player"]) .pl-chip.on .pl-chip-n {
+  color: var(--pl-gold);
+}
+:where(html[data-view="player"]) .pl-area-line {
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--pl-font-ui);
+  font-size: 13px;
+  color: var(--pl-text-2);
+}
+:where(html[data-view="player"]) .pl-discovery {
+  display: grid;
+  gap: var(--pl-s2);
+}
+/* Entries as rows in one panel: portrait, name, one line, what's known. */
+:where(html[data-view="player"]) .pl-discovery .people-grid {
+  margin: 0;
+  gap: 0;
+  border: 1px solid var(--pl-border);
+  border-radius: 14px;
+  background: var(--pl-bg-1);
+  overflow: hidden;
+}
+:where(html[data-view="player"]) .pl-discovery .people-grid > li + li {
+  border-top: 1px solid var(--pl-border);
+}
+:where(html[data-view="player"]) .pl-discovery .person-card {
+  gap: var(--pl-s3);
+  padding: 12px 14px;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+  color: var(--pl-text);
+}
+:where(html[data-view="player"]) .pl-discovery .person-card:active:not(.rumored) {
+  background: var(--pl-bg-2);
+}
+:where(html[data-view="player"]) .pl-discovery .person-card:not(.rumored)::after {
+  content: "";
+  flex: none;
+  margin-left: auto;
+  width: 8px;
+  height: 8px;
+  border-right: 2px solid var(--pl-text-3);
+  border-top: 2px solid var(--pl-text-3);
+  transform: rotate(45deg);
+}
+:where(html[data-view="player"]) .pl-discovery .person-face {
+  width: 48px;
+  height: 48px;
+  font-size: 22px;
+  border-width: 1.5px;
+}
+:where(html[data-view="player"]) .pl-discovery .person-name {
+  font-size: 18px;
+  color: var(--parchment);
+}
+:where(html[data-view="player"]) .pl-discovery .person-card .person-title {
+  font-size: 14px;
+  color: var(--pl-text-2);
+}
+:where(html[data-view="player"]) .pl-discovery .person-card .person-meta {
+  font-size: 12px;
+  color: var(--pl-text-3);
+}
+:where(html[data-view="player"]) .pl-discovery .entry-stage {
+  font-weight: 600;
+  color: var(--pl-text-2);
+}
+:where(html[data-view="player"]) .pl-discovery .entry-stage-rumored {
+  color: #c79a3e;
+}
+/* "New" is a small gold dot by the name. */
+:where(html[data-view="player"]) .pl-discovery .person-new {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  min-width: 0;
+  padding: 0;
+  margin-left: 8px;
+  vertical-align: 4px;
+  border-radius: 50%;
+  font-size: 0;
+  background: var(--pl-gold);
+  box-shadow: 0 0 0 3px var(--pl-gold-soft);
+}
+/* Rumors: dimmer, dashed ring, the hint in italics. */
+:where(html[data-view="player"]) .pl-discovery .person-card.rumored {
+  background: repeating-linear-gradient(135deg, transparent 0 10px, rgba(255, 255, 255, 0.015) 10px 20px);
+}
+:where(html[data-view="player"]) .pl-discovery .person-card.rumored .person-name {
+  color: var(--pl-text-3);
+}
+:where(html[data-view="player"]) .pl-discovery .person-card.rumored .person-face {
+  opacity: 0.75;
+  border-style: dashed;
+}
+
+/* ---------- Jobs ---------- */
+
+/* Renown folds into one line; tap to see the ladder. */
+:where(html[data-view="player"]) .pl-renown {
+  border: 1px solid var(--pl-border);
+  border-radius: 14px;
+  background: var(--pl-bg-1);
+  padding: 0 14px;
+}
+:where(html[data-view="player"]) .pl-renown summary {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-height: 52px;
+  padding: 14px 0;
+  cursor: pointer;
+  list-style: none;
+  font-family: var(--pl-font-ui);
+}
+:where(html[data-view="player"]) .pl-renown summary::-webkit-details-marker {
+  display: none;
+}
+:where(html[data-view="player"]) .pl-renown summary::after {
+  content: "";
+  margin-left: auto;
+  align-self: center;
+  width: 7px;
+  height: 7px;
+  border-right: 2px solid var(--pl-text-3);
+  border-bottom: 2px solid var(--pl-text-3);
+  transform: rotate(45deg) translate(-2px, -2px);
+  transition: transform 0.15s;
+}
+:where(html[data-view="player"]) .pl-renown[open] summary::after {
+  transform: rotate(-135deg);
+}
+:where(html[data-view="player"]) .pl-renown-k {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--pl-text-3);
+}
+:where(html[data-view="player"]) .pl-renown-v {
+  font-family: var(--font-sc);
+  font-size: 18px;
+  color: var(--pl-gold);
+}
+:where(html[data-view="player"]) .pl-renown-pay {
+  font-size: 12px;
+  color: var(--pl-text-3);
+  white-space: nowrap;
+}
+:where(html[data-view="player"]) .pl-renown > p {
+  margin: 0 0 8px;
+}
+:where(html[data-view="player"]) .pl-renown .renown-ladder {
+  margin: 0 0 14px;
+  font-family: var(--pl-font-ui);
+  font-size: 14px;
+}
+:where(html[data-view="player"]) .pl-renown .renown-ladder li {
+  padding: 8px 10px;
+  border-radius: var(--pl-r-sm);
+}
+:where(html[data-view="player"]) .pl-renown .renown-ladder li.on {
+  background: var(--pl-gold-soft);
+  color: var(--pl-gold);
+}
+:where(html[data-view="player"]) .pl-board {
+  display: grid;
+  gap: var(--pl-s3);
+}
+:where(html[data-view="player"]) .pl-board .job-list {
+  margin: 4px 0 0;
+}
+
+/* ---------- Map ---------- */
+
+/* The map runs edge to edge. */
+:where(html[data-view="player"]) .phone-map {
+  margin: 0;
+}
+:where(html[data-view="player"]) .phone-map-head h2 {
+  font-size: 20px;
+  color: var(--parchment);
+}
+:where(html[data-view="player"]) .phone-map-head .btn.small {
+  min-height: 40px;
+  border-radius: 99px;
+}
+:where(html[data-view="player"]) .phone-map-head .btn.small[aria-label^="Zoom"] {
+  width: 40px;
+  min-width: 40px;
+  padding: 0;
+  font-size: 18px;
+}
+:where(html[data-view="player"]) .phone-map-frame {
+  margin: 0 calc(-1 * max(16px, env(safe-area-inset-right))) 0 calc(-1 * max(16px, env(safe-area-inset-left)));
+  border-radius: 0;
+  border-left: 0;
+  border-right: 0;
+  height: min(62vh, 640px);
+}
+@media (min-width: 760px) {
+  :where(html[data-view="player"]) .phone-map-frame {
+    margin: 0;
+    border-radius: var(--pl-r-md);
+    border: 1px solid var(--pl-border);
+  }
+}
+:where(html[data-view="player"]) .phone-map-pick .btn.small {
+  min-height: 34px;
+  border-radius: 99px;
+  font-size: 13px;
+}
+:where(html[data-view="player"]) .phone-pin-card {
+  border-color: var(--pl-gold-line);
+  border-radius: var(--pl-r-md);
+  background: var(--pl-bg-1);
+}
+:where(html[data-view="player"]) .phone-legend {
+  gap: 0;
+  border: 1px solid var(--pl-border);
+  border-radius: 14px;
+  background: var(--pl-bg-1);
+  overflow: hidden;
+}
+:where(html[data-view="player"]) .phone-legend > li + li {
+  border-top: 1px solid var(--pl-border);
+}
+:where(html[data-view="player"]) .phone-legend .note {
+  font-size: 12px;
+}
