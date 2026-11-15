@@ -238,7 +238,7 @@ function PlayerScreen({ view, online, send, ident, setIdent }: { view: PlayerVie
       {screen === "fight" && f ? <FightCard view={view} send={send} /> : null}
       {screen === "map" && hasMaps ? <Maps view={view} send={send} /> : null}
       {screen === "chronicle" ? <Chronicle view={view.chronicle} gameName={view.game.name} send={send} /> : null}
-      {screen === "jobs" ? <Jobs view={view} send={send} /> : null}
+      {screen === "jobs" ? <Jobs view={view} send={send} availableAt={availableAt} /> : null}
       {screen === "discovery" ? <Discovery view={view} send={send} seen={seen} /> : null}
       {screen === "purse" ? (
         <>
