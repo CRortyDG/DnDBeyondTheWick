@@ -9,11 +9,13 @@
 //   prop/artums-notice   a handout, image or other picture
 //   note/tale-night      one note from the notice board, up close
 //   board, leads, table, stinger, black   built-in screens
+//   ambient/rainy-night  a built-in ambient scene (see ambient.ts)
 //
 // All DM-only: refs, the quick bar and suggestions never reach the TV or a phone.
 
 import { entriesOf, entryScene, findRef, kindInfo, slugify } from "./discovery";
 import { boardNotes, findBoardNote, noteRef, type BoardNote } from "./board";
+import { AMBIENT, ambientById, type AmbientId } from "./ambient";
 import type { Beat, BeatAction, Entry, GameState, Pin, Scene, SceneKind } from "./types";
 
 export type AssetGame = Pick<GameState, "scenes" | "entries"> & Partial<Pick<GameState, "quick" | "monsters" | "notices" | "jobs" | "flyers">>;
@@ -46,6 +48,8 @@ export interface Asset {
   screen?: Screen;
   /** A note from the notice board (shown up close over the board). */
   note?: BoardNote;
+  /** A built-in ambient scene. */
+  ambient?: AmbientId;
 }
 
 // ---------------------------------------------------------------------------
@@ -101,6 +105,7 @@ export function refForScene(g: AssetGame, sc: Scene): string {
 
 /** What the TV shows right now, as a ref (a map zoomed to a pin is that pin). */
 export function liveRef(g: AssetGame & Pick<GameState, "live">): string | null {
+  if (g.live.ambient && ambientById(g.live.ambient.id)) return `ambient/${g.live.ambient.id}`;
   const sc = g.scenes.find((x) => x.id === g.live.sceneId);
   if (!sc) return null;
   const close = g.live.note && boardNotes(g).find((n) => n.kind === g.live.note!.kind && n.id === g.live.note!.id);
@@ -139,6 +144,10 @@ export function resolveRef(g: AssetGame, ref: string | null | undefined): Asset 
     const note = rest === undefined ? findBoardNote(g, slug) : undefined;
     return note ? noteAsset(note) : null;
   }
+  if (head === "ambient") {
+    const a = rest === undefined ? ambientById(slug) : undefined;
+    return a ? ambientAsset(a) : null;
+  }
   if (head === "prop") {
     const scene = g.scenes.find((x) => x.kind !== "map" && sceneSlug(x) === slug);
     return scene ? { ref: r, label: scene.label, group: "Props", sub: propSub(scene), scene } : null;
@@ -146,6 +155,10 @@ export function resolveRef(g: AssetGame, ref: string | null | undefined): Asset 
   const hit = rest === undefined ? findRef(g, r) : null;
   if (!hit) return null;
   return entryAsset(g, hit.entry);
+}
+
+function ambientAsset(a: (typeof AMBIENT)[number]): Asset {
+  return { ref: `ambient/${a.id}`, label: a.label, group: "Ambient", sub: "Ambient scene", ambient: a.id };
 }
 
 function pinLabel(p: Pin): string {
@@ -185,6 +198,7 @@ export function listAssets(g: AssetGame): Asset[] {
   for (const sc of g.scenes) if (isProp(g, sc)) out.push({ ref: refForScene(g, sc), label: sc.label, group: "Props", sub: propSub(sc), scene: sc });
   for (const n of boardNotes(g)) out.push(noteAsset(n));
   for (const screen of SCREENS) out.push(resolveRef(g, screen)!);
+  for (const a of AMBIENT) out.push(ambientAsset(a));
   return out;
 }
 

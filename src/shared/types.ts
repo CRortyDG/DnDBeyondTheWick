@@ -796,6 +796,64 @@ export interface Entry {
   voice?: string;
   /** DM-ONLY: drafted by a Worldbuilder key. */
   madeBy?: MadeBy;
+  /** Places: what the off-script kit uses while the party is here. DM-ONLY. */
+  place?: PlaceSetup;
+  /** DM-ONLY: made up during play (the off-script kit), from a quick note, or seeded. */
+  origin?: "improvised" | "capture" | "seed";
+  /** DM-ONLY: needs the DM's review. When and where it was made. */
+  review?: { at: number; sessionId: string | null; placeId?: string };
+}
+
+/** DM-ONLY: a place's off-script settings. */
+export interface PlaceSetup {
+  /** The TV scene to suggest when the party gets here: a show ref ("ambient/river-dusk", "map/candlefair/3"). */
+  scene?: string;
+  /** Its caption on the TV, for an ambient scene ("The coast road, dusk."). */
+  caption?: string;
+}
+
+// ---------- off-script: where the party is, clues, quick notes (all DM-ONLY) ----------
+
+/** Where the party is now: a place entry. */
+export interface Here {
+  placeId: string;
+  since: number;
+}
+
+export type ClueStatus = "ready" | "delivered" | "dropped";
+
+/** A secret or clue not tied to a scene, delivered wherever the party ends up. */
+export interface Clue {
+  id: string;
+  text: string;
+  /** The episode it's written for. null: the campaign's clue pool. */
+  episodeId: string | null;
+  /** Delivering it reveals this fact. */
+  fact?: { entryId: string; factId: string };
+  /** Or moves this mystery (or any entry) one stage forward. */
+  entryId?: string;
+  /** What it's about: entry ids (people, places) and story thread ids. */
+  tags: string[];
+  /** Delivering it marks this story beat Played. */
+  storyBeatId?: string;
+  status: ClueStatus;
+  delivered?: { at: number; sessionId: string | null; placeId?: string; viaId?: string; partyId?: string };
+  createdAt: number;
+}
+
+export type CaptureStatus = "open" | "made" | "dismissed";
+
+/** A quick note the DM jotted during play, to turn into something after. */
+export interface Capture {
+  id: string;
+  text: string;
+  at: number;
+  sessionId: string | null;
+  placeId?: string;
+  partyId?: string;
+  status: CaptureStatus;
+  /** What it became: "person/old-tam", "fact:<entryId>/<factId>", "beat:<id>", "job:<id>". */
+  made?: string;
 }
 
 // ---------- leads and votes ----------
@@ -946,6 +1004,8 @@ export interface LiveState {
   leads?: boolean;
   /** One note from the notice board, up close over the board. Cleared by any scene change. */
   note?: { kind: "notice" | "job" | "flyer"; id: string };
+  /** An ambient scene over the stage (see ambient.ts), with an optional caption. Cleared by any scene change. */
+  ambient?: { id: string; caption?: string };
 }
 
 export interface GameState {
@@ -1057,6 +1117,12 @@ export interface GameState {
   tables?: RandomTable[];
   /** DM-ONLY: the Worldbuilder style guide (tone and rules Claude must follow). Read-only to builder keys. */
   builderNotes?: string;
+  /** DM-ONLY: where the party is now (one table). In a shared world each Party has its own. Read with hereOf(). */
+  here?: Here;
+  /** DM-ONLY: portable clues, per episode and in the campaign pool. Read with cluesOf(). */
+  clues?: Clue[];
+  /** DM-ONLY: quick notes from play. Read with capturesOf(). */
+  captures?: Capture[];
   seq: number;
 }
 
@@ -1105,6 +1171,8 @@ export interface Party {
   /** Its characters (player ids). A character can be in several parties. */
   memberIds: string[];
   createdAt: number;
+  /** DM-ONLY: where this party is now. */
+  here?: Here;
 }
 
 /** A dated event everyone in the world lives through ("Winterfest"). Days are YYYY-MM-DD. */
@@ -1461,6 +1529,8 @@ export interface StoryBeat {
   plays: StoryPlay[];
   /** A reworded copy of this beat. */
   variantOf?: string;
+  /** Can happen anywhere: the off-script kit offers it wherever the party is. */
+  anywhere?: boolean;
   createdAt: number;
   /** Drafted by a Worldbuilder key. */
   madeBy?: MadeBy;

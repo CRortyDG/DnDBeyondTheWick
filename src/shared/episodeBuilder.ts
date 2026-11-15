@@ -10,7 +10,7 @@ import { entriesOf, entryScene, findRef, isStub, kindInfo, slugify } from "./dis
 import { dayLabel, storyOf } from "./story";
 import type { Beat, Entry, Episode, Flyer, GameState, Job, MonsterTemplate, Notice, Story, StoryBeat, StoryBlock } from "./types";
 
-type G = Pick<GameState, "entries" | "scenes" | "flyers" | "items" | "sessions"> & Partial<Pick<GameState, "jobs" | "notices" | "monsters" | "story" | "episodes" | "leads">>;
+type G = Pick<GameState, "entries" | "scenes" | "flyers" | "items" | "sessions"> & Partial<Pick<GameState, "jobs" | "notices" | "monsters" | "story" | "episodes" | "leads" | "clues">>;
 
 // ---------------------------------------------------------------------------
 // Placements and status
@@ -333,6 +333,9 @@ export function prepOf(g: G, ep: Episode): PrepItem[] {
       if (/\bTBD\b/.test(`${sb.summary} ${sb.dmNotes}`)) push(`tbd:${sb.id}`, `“${sb.title}” still has a TBD. Decide it before the session.`);
     }
   }
+  // Portable clues: about ten a session, five at the very least (see offscript.ts).
+  const clues = (g.clues ?? []).filter((c) => c.episodeId === ep.id && c.status !== "dropped").length;
+  if (clues < 5) push("clues", clues ? `Only ${clues} clue${clues === 1 ? "" : "s"} written for this episode. Aim for 5 or more.` : "No clues written for this episode yet. Aim for 5 or more.");
   return out;
 }
 

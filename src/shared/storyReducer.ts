@@ -138,6 +138,7 @@ export function applyStory(s: GameState, cmd: StoryCommand, h: StoryHelpers): st
       if (f.window) b.window = f.window;
       if (f.by) b.by = f.by;
       if (f.repeat) b.repeat = true;
+      if (f.anywhere) b.anywhere = true;
       b.links = checkLinks(f.links ?? []);
       b.after = checkAfter(b, f.after ?? []);
       st.beats.push(b);
@@ -161,6 +162,10 @@ export function applyStory(s: GameState, cmd: StoryCommand, h: StoryHelpers): st
         else delete b.by;
       }
       if (p.links !== undefined) b.links = checkLinks(p.links);
+      if (p.anywhere !== undefined) {
+        if (p.anywhere) b.anywhere = true;
+        else delete b.anywhere;
+      }
       if (p.after !== undefined) b.after = checkAfter(b, p.after);
       if (p.repeat !== undefined) {
         if (p.repeat) b.repeat = true;

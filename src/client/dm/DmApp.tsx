@@ -407,7 +407,9 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
   // What the TV sees, for the preview (hidden prices stay hidden here too).
   const tvView = projectTv(s as unknown as GameState, view.version);
   // Maps preview exactly what the TV gets: discovered pins only.
-  const previewScene = tvView.scenes.find((x) => x.id === live.id) ?? { ...live, map: undefined };
+  const baseScene = tvView.scenes.find((x) => x.id === live.id) ?? { ...live, map: undefined };
+  // An ambient scene stands in for the black screen, as on the TV.
+  const previewScene = tvView.live.ambient ? { ...baseScene, id: `ambient/${tvView.live.ambient.id}`, ambient: tvView.live.ambient } : baseScene;
   const session = s.sessions.find((x) => x.id === s.currentSessionId);
   const seated = s.world ? tableParty(s) : undefined;
   const liveShop = s.shops.find((x) => x.id === s.live.shopId);

@@ -452,6 +452,12 @@ export function freshStart(g: GameState): GameState {
   s.live.shopOpen = false;
   delete s.live.recapSessionId;
   delete s.live.recapNoteIds;
+  delete s.live.ambient;
+  // The off-script kit: nobody is anywhere yet, quick notes go, and every clue is ready again.
+  delete s.here;
+  for (const p of s.parties ?? []) delete p.here;
+  delete s.captures;
+  if (s.clues) s.clues = s.clues.filter((c) => c.status !== "dropped").map(({ delivered, ...c }) => ({ ...c, status: "ready" as const }));
   return s;
 }
 
