@@ -9,8 +9,10 @@ export interface Env {
   ASSETS: Fetcher;
   /** Limits how fast one address can create campaigns. Optional: absent in some local setups. */
   CREATE_LIMIT?: RateLimit;
-  /** Every /api/ call and live connection, per address. Generous: a whole table can share one Wi-Fi. */
+  /** Every /api/ call and live connection, per screen (address + campaign + name). */
   API_LIMIT?: RateLimit;
+  /** Every /api/ call and live connection, per address: the ceiling for a whole table on one Wi-Fi. */
+  ADDRESS_LIMIT?: RateLimit;
   /** Misses per address (unknown code, wrong key or name lock, dead Arrival link). Going over shuts the address out for a while. */
   GUESS_LIMIT?: RateLimit;
   /** Image uploads per address. */
