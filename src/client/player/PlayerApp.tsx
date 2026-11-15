@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { formatCp, formatDelta } from "@/shared/money";
 import type { PlayerView, PublicItem } from "@/shared/projection";
-import { hrefFor, rememberKey, type Ident } from "../api";
+import { hrefFor, rememberKey, signInLink, type Ident } from "../api";
 import { useGame } from "../useGame";
 import { Notice } from "../ui/Notice";
 import type { ShopMode } from "../ui/ShopBoard";
@@ -59,7 +59,9 @@ function Taken({ ident, onKey }: { ident: Ident; onKey: (k: string) => void }) {
   const [k, setK] = useState("");
   return (
     <Notice title="That name is taken">
-      <p>Someone has locked &ldquo;{ident.player}&rdquo;. If it&rsquo;s yours, enter your key.</p>
+      <p>&ldquo;{ident.player}&rdquo; is already signed in on another phone or computer.</p>
+      <p>If it&rsquo;s you, open your sign-in link on this device: on your other device, tap your name, then <strong>Copy sign-in link</strong>. Or ask the DM to reset your name lock.</p>
+      <p className="note">Have a key instead? Enter it here.</p>
       <form
         className="form"
         onSubmit={(e) => {
@@ -79,6 +81,32 @@ function Taken({ ident, onKey }: { ident: Ident; onKey: (k: string) => void }) {
         Use another name
       </a>
     </Notice>
+  );
+}
+
+/** "Use on another device": the player's personal sign-in link, to copy or share. */
+function OtherDevices({ ident, onDone }: { ident: Ident; onDone: (m: string) => void }) {
+  const link = signInLink(ident);
+  if (!link) return null;
+  const share = async () => {
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: "My sign-in link", url: link });
+        return;
+      }
+      await navigator.clipboard.writeText(link);
+      onDone("Copied. Open it on your other phone or computer to sign in there too. Keep it to yourself: it signs in as you.");
+    } catch {
+      onDone("Couldn't copy. Your browser blocked it.");
+    }
+  };
+  return (
+    <div className="pl-other-devices">
+      <button className="btn big" type="button" onClick={share}>
+        Copy sign-in link
+      </button>
+      <p className="note">Playing on a phone and a computer? Open this link on the other one and you&rsquo;re signed in there too. Don&rsquo;t share it: it signs in as you.</p>
+    </div>
   );
 }
 
@@ -237,9 +265,12 @@ function PlayerScreen({ view, online, send, ident, setIdent }: { view: PlayerVie
           <CharacterLink current={me.dndbUrl} onSave={async (url) => setMsg((await send({ type: "me.update", patch: { dndbUrl: url } })) ?? "Saved.")} />
           <p className="note gold-note">Your gold lives here, not on D&amp;D Beyond: keep D&amp;D Beyond&rsquo;s coins at 0. Anything you buy, add to your D&amp;D Beyond inventory yourself.</p>
           {me.locked ? (
-            <p className="pl-locked">
-              <LockIcon size={16} /> Your name is locked
-            </p>
+            <>
+              <p className="pl-locked">
+                <LockIcon size={16} /> Your name is locked to you
+              </p>
+              <OtherDevices ident={ident} onDone={setMsg} />
+            </>
           ) : (
             <button className="btn big" type="button" onClick={() => (setYouOpen(false), lock())}>
               <LockIcon size={18} /> Lock my name

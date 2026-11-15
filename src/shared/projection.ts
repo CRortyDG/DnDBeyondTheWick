@@ -393,7 +393,13 @@ export type View = TvView | PlayerView | DmView;
 
 // ---------------------------------------------------------------------------
 
-export function artForPublic(game: GameState, sc: Scene): Art {
+/**
+ * mayShowUpload: whether an uploaded picture (sc.art.url) may go to this non-DM
+ * viewer. A scene the DM has staged but never shown is held back, so a spectator
+ * can't pre-fetch an upcoming handout or map from its URL. Built-in art is safe
+ * (bundled, or gated art served through a route that re-checks on each fetch).
+ */
+export function artForPublic(game: GameState, sc: Scene, mayShowUpload = true): Art {
   const builtin = sc.art?.builtin;
   if (builtin && GATED_ART.has(builtin)) {
     // Gated art is only described to the TV while live, via a route that re-checks.
@@ -401,13 +407,18 @@ export function artForPublic(game: GameState, sc: Scene): Art {
   }
   const art: Art = {};
   if (builtin) art.builtin = builtin;
-  if (sc.art?.url) art.url = sc.art.url;
+  if (sc.art?.url && mayShowUpload) art.url = sc.art.url;
   return art;
+}
+
+/** An uploaded picture is sent out only once the scene is live, already shown, or marked known. */
+export function sceneArtPublic(game: GameState, sc: Scene): boolean {
+  return game.live.sceneId === sc.id || !!sc.known || sc.shownAt !== undefined;
 }
 
 function publicScene(game: GameState, sc: Scene): PublicScene {
   // A fogged map goes out as tiles (in its map), never as the whole image.
-  const out: PublicScene = { id: sc.id, kind: sc.kind, art: sc.kind === "map" && sc.map?.fog?.on ? {} : artForPublic(game, sc) };
+  const out: PublicScene = { id: sc.id, kind: sc.kind, art: sc.kind === "map" && sc.map?.fog?.on ? {} : artForPublic(game, sc, sceneArtPublic(game, sc)) };
   // A person's picture reads their name and title (once the room may see them; a portrait still hidden is only sent while it's live, and showing it finds them).
   const owner = sc.kind === "portrait" ? (game.entries ?? []).find((e) => e.sceneId === sc.id && (e.stage === "found" || e.stage === "known")) : undefined;
   const name = owner ? owner.name : sc.name;

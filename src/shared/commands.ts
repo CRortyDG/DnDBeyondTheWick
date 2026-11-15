@@ -565,7 +565,9 @@ export type SystemCommand =
   | { type: "system.arrivalStep"; playerId: string; step: "open" | "finish" }
   | { type: "system.arrivalClaim"; playerId: string; character: string; why: string; pick?: string | null }
   /** Lock an unlocked player's name with their Arrival link, so the link signs their phone in. */
-  | { type: "system.arrivalKey"; playerId: string; keyHash: string };
+  | { type: "system.arrivalKey"; playerId: string; keyHash: string }
+  /** First sign-in with a key on a name nobody has locked yet: the name is now tied to that key (trust on first use). */
+  | { type: "system.autoLock"; playerId: string; keyHash: string };
 
 export type DmCommand = z.infer<typeof dmCommand>;
 export type PlayerCommand = z.infer<typeof playerCommand>;

@@ -147,10 +147,13 @@ export async function hello(gameRaw: string | null, rawPlayer: string | null, ke
   const system: Actor = { role: "system" };
   if (who.kind === "unknown") {
     // A closed door, or a full table: knock and let the DM decide.
+    // Once a session is running, a brand-new name knocks too, so nobody who only knows the code
+    // can grab empty seats mid-game; the DM lets a late player in with one tap.
     const full = seatedCount(state) >= seatsOf(state);
-    if (state.doorClosed || full) {
+    const running = !!state.currentSessionId;
+    if (state.doorClosed || full || running) {
       await execute(store, game, system, { type: "system.knock", handle: who.handle });
-      return { status: state.doorClosed ? "knocking" : "full" };
+      return { status: full && !state.doorClosed ? "full" : "knocking" };
     }
     try {
       const r = await execute(store, game, system, {
@@ -167,6 +170,12 @@ export async function hello(gameRaw: string | null, rawPlayer: string | null, ke
       if (again.kind !== "player") return { status: again.kind === "taken" ? "taken" : "invalid" };
       return { status: "ok", view: await viewFor(store, game, actorOf(again)) };
     }
+  }
+  // A name nobody has locked yet, signing in with a key: tie the name to that key now, so
+  // someone who only knows the code and the name can't act as this player. The key is the
+  // player's personal sign-in link, so their other devices get in by opening that link.
+  if (key && !state.players.find((x) => x.id === who.playerId)?.keyHash) {
+    await execute(store, game, system, { type: "system.autoLock", playerId: who.playerId, keyHash: sha256(key) });
   }
   await execute(store, game, system, { type: "system.hello", playerId: who.playerId });
   return { status: "ok", view: await viewFor(store, game, actorOf(who)), handle: normaliseHandle(rawPlayer ?? "") };

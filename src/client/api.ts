@@ -55,8 +55,37 @@ export function readIdent(): Ident {
       window.history.replaceState(null, "", url.pathname + (url.search ? url.search : "") + (rest ? "#" + rest : ""));
     }
     key = urlKey ?? safeGet(keySlot(game, player));
+    // A player with no key yet gets one made up on this device and saved, with nothing to pick.
+    // The server ties an unlocked name to the first key it sees, so someone who only knows the
+    // code and the name can't act as this player. Their other devices sign in with signInLink().
+    if (!key && isPlayerName(player)) {
+      key = newPlayerKey();
+      if (key) safeSet(keySlot(game, player), key);
+    }
   }
   return { game, player, key };
+}
+
+/** Not the DM or TV screen. */
+function isPlayerName(player: string): boolean {
+  const p = player.trim().toLowerCase();
+  return !!p && p !== "dm" && p !== "tv";
+}
+
+function newPlayerKey(): string | null {
+  try {
+    const b = new Uint8Array(18);
+    crypto.getRandomValues(b);
+    return btoa(String.fromCharCode(...b)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  } catch {
+    return null;
+  }
+}
+
+/** This player's personal sign-in link: opening it on another phone or computer signs in as them. The key rides after the #, so it never reaches a server log. */
+export function signInLink(ident: Ident): string | null {
+  if (!ident.player || !ident.key) return null;
+  return `${absoluteHref(ident.game, ident.player)}#key=${encodeURIComponent(ident.key)}`;
 }
 
 export function rememberKey(ident: Ident, key: string | null) {

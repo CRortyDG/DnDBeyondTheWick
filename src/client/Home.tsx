@@ -98,7 +98,7 @@ function StartForm({ onCreated }: { onCreated: (c: { game: string; key: string }
       <StartFrom from={from} onFrom={setFrom} mine={mine} />
       <label>
         Campaign code (optional)
-        <input className="fld" value={code} onChange={(e) => setCode(e.target.value)} maxLength={40} autoCapitalize="none" spellCheck={false} placeholder="Leave blank for a random one" />
+        <input className="fld" value={code} onChange={(e) => setCode(e.target.value)} maxLength={40} autoCapitalize="none" spellCheck={false} placeholder="Blank for a random one, or 8+ letters" />
       </label>
       {err ? <p className="error-text">{err}</p> : null}
       <button className="btn primary" type="submit" disabled={busy || from === ""}>

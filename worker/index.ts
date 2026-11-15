@@ -2,7 +2,7 @@ import { TILES_MAX } from "@/shared/fog";
 import { KEY_HEADER, makeCampaignCode, newDmKey, sha256 } from "@/server/auth";
 import { handlePresetApi, isPresetPath, json, MISS_HEADER } from "@/server/api";
 import { normaliseGameId } from "@/shared/handles";
-import { screenKey } from "@/server/limits";
+import { pickedCodeProblem, screenKey } from "@/server/limits";
 import { parseRange, rangeBounds } from "@/server/range";
 import { CLIP_VIDEO_MAX } from "@/shared/arrival";
 import type { Env } from "./env";
@@ -120,9 +120,8 @@ async function createCampaign(req: Request, env: Env, ctx: ExecutionContext): Pr
   const from = typeof body.from === "string" && /^(blank|candlefair|preset:[a-z0-9]{10})$/.test(body.from) ? body.from : "blank";
   const name = typeof body.name === "string" ? body.name.trim().slice(0, 80) : "";
   const wanted = typeof body.code === "string" && body.code.trim() ? normaliseGameId(body.code) : null;
-  if (wanted !== null && !/^[a-z0-9][a-z0-9-]{2,39}$/.test(wanted)) {
-    return json({ error: "A campaign code needs 3 to 40 letters, numbers or dashes." }, 400);
-  }
+  const problem = wanted !== null ? pickedCodeProblem(wanted) : null;
+  if (problem) return json({ error: problem }, 400);
   const key = newDmKey();
   for (let attempt = 0; attempt < 6; attempt++) {
     const game = wanted ?? makeCampaignCode();

@@ -121,3 +121,25 @@ get DM powers and image space.
   leave no storage; garbage on a live socket and a 6th key both hang up; a
   non-DM upload is refused and the 11th upload in a minute gets a 429; 320
   rapid calls from one address get 38 refusals.
+
+## Adversarial pass (2026-11-15)
+
+A "try to break it" read of the auth, reducer, projections and economy. Fixed here:
+
+- **P1, unlocked names (was R1).** A player's device now makes up its own key, and the
+  server ties an unlocked name to the first key that signs in with it (`system.autoLock`).
+  The key is the player's personal sign-in link (*You → Copy sign-in link*), so opening that
+  link on a second phone or a laptop signs in there too. Trust on first use: someone who
+  grabs a name before its player ever connects still wins it, and the DM's *Reset name lock*
+  undoes that. Arrival links already lock names before anyone types them.
+- **P2.** `me.update` refuses a name that matches another active player's name, URL name or
+  character.
+- **P3.** A scene's uploaded picture isn't sent to the TV or phones until the scene has been
+  shown once (`Scene.shownAt`), is live, or is known. Before, `?player=tv` (no key) got the
+  URLs of every staged handout and map.
+- **P4 (was R2).** A campaign code the DM picks needs at least 8 letters or numbers.
+- **P5.** Once a session is running, a brand-new name knocks instead of taking a seat.
+
+Checked and fine: player ids come from the server's identity, never the request; gold holds
+stop over-spending; projections are allowlists; `/internal/*` can't be reached from outside;
+links must be `https://`; the DM key is compared in constant time; sockets are capped.
