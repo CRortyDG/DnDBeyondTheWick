@@ -31,7 +31,8 @@ export function FightOverlay({ fight, preview = false, onMap = false }: { fight:
 }
 
 function RollInitiative({ fight }: { fight: FightView }) {
-  const players = fight.order.filter((c) => c.kind === "player");
+  // Players, and companions they run (who roll too).
+  const players = fight.order.filter((c) => c.kind === "player" || c.kind === "companion");
   const ready = players.filter((c) => c.ready).length;
   return (
     <div className="fv-roll">
@@ -179,7 +180,7 @@ function MapTurns({ fight, now, next }: { fight: FightView; now: PublicCombatant
 
 /** Players at 0 HP whose turn it isn't: their saves stay visible in the corner. */
 function DownSaves({ fight }: { fight: FightView }) {
-  const down = fight.order.filter((c) => c.kind === "player" && c.down && c.deathSaves && c.id !== fight.currentId);
+  const down = fight.order.filter((c) => c.kind !== "monster" && c.down && c.deathSaves && c.id !== fight.currentId);
   if (!down.length) return null;
   return (
     <ul className="fv-downlist" aria-label="Down">
@@ -211,7 +212,7 @@ function Saves({ c }: { c: PublicCombatant }) {
 }
 
 function Health({ c, small }: { c: PublicCombatant; small?: boolean }) {
-  if (c.kind === "monster" && c.health) return <span className={`fv-health ${c.health}${small ? " small" : ""}`}>{HEALTH_LABEL[c.health]}</span>;
+  if ((c.kind === "monster" || c.kind === "companion") && c.health && !c.hp) return <span className={`fv-health ${c.health}${small ? " small" : ""}`}>{HEALTH_LABEL[c.health]}</span>;
   if (c.hp) {
     const pct = Math.max(0, Math.min(100, (c.hp.cur / Math.max(1, c.hp.max)) * 100));
     return (
@@ -235,9 +236,9 @@ function Health({ c, small }: { c: PublicCombatant; small?: boolean }) {
 function Badge({ c, size }: { c: PublicCombatant; size: "sm" | "md" | "lg" }) {
   const src = c.art ? artSrc(c.art) : undefined;
   if (src) return <img className={`fv-badge ${size}`} src={src} alt="" />;
-  if (c.kind === "player") {
+  if (c.kind === "player" || c.kind === "companion") {
     return (
-      <span className={`fv-badge ${size} player`} aria-hidden="true">
+      <span className={`fv-badge ${size} player${c.kind === "companion" ? " companion" : ""}`} aria-hidden="true">
         {c.name.trim().charAt(0).toUpperCase() || "?"}
       </span>
     );

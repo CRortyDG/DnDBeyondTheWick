@@ -31,18 +31,19 @@ import {
   type TurnHooks,
 } from "./combat";
 import { formatCp } from "./money";
+import { companionCombatant, companionFate, companionsOf, companionsWith, companionTemplatesOf, placeFollowers, syncCompanions, templateAsMonster } from "./companions";
 import { rollDice } from "./progress";
 import type { Combatant, Fight, FightGroup, FightSummary, FoeSetup, FightMoment, FightReminder, FightReminderKind, FightUndo, GameState, LedgerEntry, LedgerKind, MonsterAbility, MonsterTemplate, Player } from "./types";
 import { DM_AUTHOR } from "./types";
 import type { z } from "zod";
 import type { monsterBody } from "./combatSchema";
 
-export type FightCommand = Extract<Command, { type: `fight.${string}` | `monster.${string}` | "me.initiative" | "me.hp" | "me.deathSave" | "me.endTurn" }>;
+export type FightCommand = Extract<Command, { type: `fight.${string}` | `monster.${string}` | "me.initiative" | "me.hp" | "me.deathSave" | "me.endTurn" | `me.companion${string}` }>;
 
 const FIGHT_TYPES = new Set(["me.initiative", "me.hp", "me.deathSave", "me.endTurn"]);
 
 export function isFightCommand(cmd: Command): cmd is FightCommand {
-  return cmd.type.startsWith("fight.") || cmd.type.startsWith("monster.") || FIGHT_TYPES.has(cmd.type);
+  return cmd.type.startsWith("fight.") || cmd.type.startsWith("monster.") || cmd.type.startsWith("me.companion") || FIGHT_TYPES.has(cmd.type);
 }
 
 export interface FightHelpers {
@@ -55,6 +56,10 @@ export interface FightHelpers {
   move: (p: Player, amountCp: number, note: string, kind: LedgerKind, extra?: Partial<LedgerEntry>) => void;
   addNote: (authorId: string, authorName: string, text: string) => string;
   showScene: (id: string) => void;
+  /** A line on the DM's to-do list. */
+  task: (text: string) => void;
+  /** End a rental (a hireling who died). */
+  endRental: (rentalId: string) => void;
 }
 
 /** Set up a new fight: everyone at the table, plus monsters. Fails if one is already going. */
@@ -79,6 +84,11 @@ export function startFight(s: GameState, groups: { template: MonsterTemplate; co
     downed: [],
   };
   for (const p of s.players) if (!p.archived && !p.away) f.order.push(playerCombatant(h.nextId("c"), p));
+  // Companions who fight come along (not porters and the like).
+  for (const c of companionsWith(s)) {
+    const t = companionTemplatesOf(s).find((x) => x.id === c.templateId);
+    if (t?.combat) f.order.push(companionCombatant(h.nextId("c"), c, t));
+  }
   for (const g of groups) f.order.push(...monstersFrom(f, g.template, g.count, () => h.nextId("c"), h.rand));
   for (const name of missing) remind(f, h, "info", `No monster template called “${name}”. Add it under Monsters, then add it here.`);
   // The DM's note on each template, once, as a reminder.
@@ -146,10 +156,10 @@ function cleanMonster(m: z.infer<typeof monsterBody>, id: string, old?: MonsterT
 /** How many HP and condition changes Undo remembers per fight. */
 export const UNDO_KEPT = 10;
 
-type Undoable = Extract<FightCommand, { type: "fight.hp" | "fight.setHp" | "fight.condition" | "fight.uncondition" | "me.hp" }>;
+type Undoable = Extract<FightCommand, { type: "fight.hp" | "fight.setHp" | "fight.condition" | "fight.uncondition" | "me.hp" | "me.companionHp" }>;
 
 function isUndoable(cmd: FightCommand): cmd is Undoable {
-  return cmd.type === "fight.hp" || cmd.type === "fight.setHp" || cmd.type === "fight.condition" || cmd.type === "fight.uncondition" || cmd.type === "me.hp";
+  return cmd.type === "fight.hp" || cmd.type === "fight.setHp" || cmd.type === "fight.condition" || cmd.type === "fight.uncondition" || cmd.type === "me.hp" || cmd.type === "me.companionHp";
 }
 
 /** "Goblin A", "Goblin A and Brin", "Goblin A, Goblin B and 2 more". */
@@ -176,6 +186,8 @@ function undoLabel(f: Fight, cmd: Undoable, touched: Combatant[]): string {
     }
     case "me.hp":
       return cmd.mode && cmd.amount ? `${names} (phone) ${hpWords(cmd.mode, cmd.amount)}` : `${names} (phone) set HP`;
+    case "me.companionHp":
+      return `${names} (phone) ${hpWords(cmd.mode, cmd.amount)}`;
   }
   void f;
 }
@@ -213,6 +225,12 @@ function restore(s: GameState, f: Fight, u: FightUndo) {
 }
 
 export function applyFight(s: GameState, cmd: FightCommand, h: FightHelpers): void {
+  applyFightUndoable(s, cmd, h);
+  // What happened to companions in the fight sticks to them (HP, abilities used).
+  syncCompanions(s);
+}
+
+function applyFightUndoable(s: GameState, cmd: FightCommand, h: FightHelpers): void {
   if (cmd.type === "fight.undo") {
     const f = s.fight ?? h.fail("There's no fight going.");
     const list = f.history ?? [];
@@ -233,18 +251,25 @@ export function applyFight(s: GameState, cmd: FightCommand, h: FightHelpers): vo
   const ids = new Set<string>();
   if (cmd.type === "fight.hp" || cmd.type === "fight.condition") cmd.combatantIds.forEach((x) => ids.add(x));
   else if (cmd.type === "fight.setHp" || cmd.type === "fight.uncondition") ids.add(cmd.combatantId);
-  else {
+  else if (cmd.type === "me.companionHp") {
+    const c = f.order.find((x) => x.companionId === cmd.companionId);
+    if (c) ids.add(c.id);
+  } else {
     const c = f.order.find((x) => x.kind === "player" && x.playerId === h.actorPlayerId);
     if (c) ids.add(c.id);
   }
   const touched = f.order.filter((c) => ids.has(c.id));
   const playerIds = new Set(touched.map((c) => c.playerId).filter((x): x is string => !!x));
   if (cmd.type === "me.hp" && h.actorPlayerId) playerIds.add(h.actorPlayerId);
+  if (cmd.type === "me.companionHp" && !touched.length) {
+    applyFightCore(s, cmd, h);
+    return;
+  }
   const before: FightUndo = {
     id: h.nextId("u"),
     label: undoLabel(f, cmd, touched),
     at: h.now,
-    by: cmd.type === "me.hp" ? { playerId: h.actorPlayerId ?? "" } : "dm",
+    by: cmd.type === "me.hp" || cmd.type === "me.companionHp" ? { playerId: h.actorPlayerId ?? "" } : "dm",
     combatants: touched.map(snapCombatant),
     players: [...playerIds].map((id) => {
       const p = s.players.find((x) => x.id === id);
@@ -272,7 +297,13 @@ export function applyFight(s: GameState, cmd: FightCommand, h: FightHelpers): vo
 
 function applyFightCore(s: GameState, cmd: FightCommand, h: FightHelpers): void {
   const { fail } = h;
-  const tpl = (id?: string) => (id ? monstersOf(s).find((t) => t.id === id) : undefined);
+  const tpl = (id?: string): MonsterTemplate | undefined => {
+    if (!id) return undefined;
+    const m = monstersOf(s).find((t) => t.id === id);
+    if (m) return m;
+    const ct = companionTemplatesOf(s).find((t) => t.id === id);
+    return ct ? templateAsMonster(ct) : undefined;
+  };
   const fight = (): Fight => s.fight ?? fail("There's no fight going.");
   const running = (): Fight => {
     const f = fight();
@@ -309,6 +340,14 @@ function applyFightCore(s: GameState, cmd: FightCommand, h: FightHelpers): void 
       else insertSorted(f.order, c);
     }
   };
+  /** A companion this player controls, and their place in the fight if there is one. */
+  const myCompanion = (cid: string) => {
+    const comp = companionsWith(s).find((x) => x.id === cid) ?? fail("That companion isn't with the party.");
+    if (!h.actorPlayerId || comp.controllerId !== h.actorPlayerId) fail(`You're not running ${comp.name} right now.`);
+    const c = s.fight?.order.find((x) => x.companionId === comp.id);
+    return { comp, c };
+  };
+  const fate = (c: Combatant, which: "saves" | "dies") => companionFate(s, c, which, { now: h.now, fail, task: h.task, endRental: h.endRental });
   const myCombatant = (): { f: Fight; c: Combatant } => {
     const f = fight();
     const c = f.order.find((x) => x.kind === "player" && x.playerId === h.actorPlayerId) ?? fail("You're not in this fight.");
@@ -399,15 +438,19 @@ function applyFightCore(s: GameState, cmd: FightCommand, h: FightHelpers): void 
       if (cmd.bonus !== undefined) c.initBonus = cmd.bonus;
       // Re-slot by the new number; everyone else keeps their place (manual drags survive).
       reslotCombatant(f, c);
+      placeFollowers(s, f);
       break;
     }
     case "fight.rollInit": {
       const f = fight();
-      const targets = cmd.combatantIds?.length ? cmd.combatantIds.map((id) => who(f, id)) : f.order.filter((c) => c.kind === "monster" && c.init === null);
+      // By default: monsters, and companions who roll their own (not those who act right after their controller).
+      const follows = (c: Combatant) => !!companionsOf(s).find((x) => x.id === c.companionId)?.follow;
+      const targets = cmd.combatantIds?.length ? cmd.combatantIds.map((id) => who(f, id)) : f.order.filter((c) => (c.kind === "monster" || (c.kind === "companion" && !follows(c))) && c.init === null);
       for (const c of targets) {
         c.init = rollInitiative(c.initBonus ?? 0, h.rand);
         reslotCombatant(f, c);
       }
+      placeFollowers(s, f);
       break;
     }
     case "fight.move": {
@@ -442,6 +485,7 @@ function applyFightCore(s: GameState, cmd: FightCommand, h: FightHelpers): void 
       const f = fight();
       if (f.status !== "setup") fail("The fight has already begun.");
       if (!f.order.length) fail("Add someone to the fight first.");
+      placeFollowers(s, f);
       beginFight(f, turnHooks(f), tpl);
       break;
     }
@@ -526,8 +570,9 @@ function applyFightCore(s: GameState, cmd: FightCommand, h: FightHelpers): void 
     case "fight.deathSave": {
       const f = fight();
       const c = who(f, cmd.combatantId);
-      if (c.kind !== "player") fail("Only players make death saves.");
+      if (c.kind === "monster") fail("Only players and companions make death saves.");
       markDeathSave(c, playerOf(c), cmd.mark);
+      if (c.kind === "companion" && c.deathSaves && c.deathSaves.fail >= 3) fate(c, "dies");
       break;
     }
     case "me.deathSave": {
@@ -542,6 +587,76 @@ function applyFightCore(s: GameState, cmd: FightCommand, h: FightHelpers): void 
       if (f.status === "over") fail("The fight is over.");
       c.init = cmd.init;
       reslotCombatant(f, c);
+      placeFollowers(s, f);
+      break;
+    }
+
+    // ---------- companions, from their controller's phone ----------
+    case "me.companionHp": {
+      const { comp, c } = myCompanion(cmd.companionId);
+      const f = s.fight;
+      if (f && c && f.status !== "over") {
+        changeHp(f, c, undefined, cmd.mode, cmd.amount, false, hpHooks(f));
+      } else {
+        // Between fights: straight onto the companion.
+        if (cmd.mode === "temp") comp.hp.temp = Math.max(comp.hp.temp, cmd.amount);
+        else if (cmd.mode === "heal") comp.hp.cur = Math.min(comp.hp.max, comp.hp.cur + cmd.amount);
+        else {
+          const soak = Math.min(comp.hp.temp, cmd.amount);
+          comp.hp.temp -= soak;
+          comp.hp.cur = Math.max(0, comp.hp.cur - (cmd.amount - soak));
+        }
+      }
+      break;
+    }
+    case "me.companionAbility": {
+      const { comp, c } = myCompanion(cmd.companionId);
+      const t = companionTemplatesOf(s).find((x) => x.id === comp.templateId);
+      if (t?.hidden.includes("abilities")) fail("The DM keeps track of those.");
+      const a = t?.abilities.find((x) => x.id === cmd.abilityId) ?? fail(`That isn't one of ${comp.name}'s abilities.`);
+      const spent = c ? c.spent : comp.spent;
+      const n = spent[a.id] ?? 0;
+      if (cmd.act === "use") {
+        if (n >= (a.uses ?? 1)) fail(`${a.name} is used up.`);
+        spent[a.id] = n + 1;
+      } else if (n <= 1) {
+        delete spent[a.id];
+        if (s.fight && c) s.fight.reminders = s.fight.reminders.filter((r) => !(r.kind === "recharge" && r.combatantId === c.id && r.abilityId === a.id));
+      } else spent[a.id] = n - 1;
+      break;
+    }
+    case "me.companionInit": {
+      const { comp, c: maybe } = myCompanion(cmd.companionId);
+      const f = s.fight ?? fail("There's no fight going.");
+      const c = maybe ?? fail(`${comp.name} isn't in this fight.`);
+      if (f.status === "over") fail("The fight is over.");
+      c.init = cmd.init;
+      reslotCombatant(f, c);
+      break;
+    }
+    case "me.companionDeathSave": {
+      const { comp, c: maybe } = myCompanion(cmd.companionId);
+      const f = s.fight ?? fail("There's no fight going.");
+      const c = (maybe?.deathSaves ? maybe : undefined) ?? fail(`${comp.name} isn't making death saves.`);
+      markDeathSave(c, undefined, cmd.mark);
+      if (c.deathSaves && c.deathSaves.fail >= 3) {
+        fate(c, "dies");
+        remind(f, h, "death", `${c.name} failed three death saves and died.`, { combatantId: c.id });
+      } else if (c.deathSaves && c.deathSaves.ok >= 3) {
+        remind(f, h, "death", `${c.name} is stable at 0 HP.`, { combatantId: c.id });
+      }
+      break;
+    }
+    case "me.companionEndTurn": {
+      const { comp, c } = myCompanion(cmd.companionId);
+      const f = s.fight ?? fail("There's no fight going.");
+      if (!c || f.status !== "running" || f.currentId !== c.id) return fail(`It's not ${comp.name}'s turn.`);
+      nextTurn(f, turnHooks(f), tpl);
+      break;
+    }
+    case "fight.companionFate": {
+      const f = fight();
+      fate(who(f, cmd.combatantId), cmd.fate);
       break;
     }
 
@@ -684,6 +799,18 @@ function applyFightCore(s: GameState, cmd: FightCommand, h: FightHelpers): void 
         h.move(p, pay.cp, note, "loot", { batchId });
         lootCp += pay.cp;
       }
+      // Companions who take a share keep it themselves. Hirelings are paid by the day, not in loot.
+      for (const pay of cmd.companionPayouts ?? []) {
+        if (pay.cp <= 0) continue;
+        const comp = companionsOf(s).find((x) => x.id === pay.companionId) ?? fail("That companion isn't with the party.");
+        const t = companionTemplatesOf(s).find((x) => x.id === comp.templateId);
+        if (comp.hire) fail(`${comp.name} is a hireling: they're paid by the day, not from the loot.`);
+        if (!t?.takesShare) fail(`${comp.name} doesn't take a share.`);
+        comp.purseCp = (comp.purseCp ?? 0) + pay.cp;
+        lootCp += pay.cp;
+      }
+      // A companion left at 0 HP with no death saves (the DM chose "dies", or never chose) died.
+      for (const c of f.order) if (c.kind === "companion" && c.hp <= 0 && !c.deathSaves && companionsOf(s).find((x) => x.id === c.companionId)?.status === "with") fate(c, "dies");
       const items = (cmd.items ?? "").trim();
       let noteId: string | undefined;
       const text = cmd.note?.trim();
@@ -759,7 +886,7 @@ const unlettered = (name: string) => name.replace(/ (?:[A-Z]|\d+)$/, "");
 
 /** Fights kept before Run again only have names: match the monsters back to the library, leaving the players out. */
 function legacyFoes(s: GameState, past: FightSummary): FoeSetup[] {
-  const people = new Set(s.players.flatMap((p) => [p.name, p.character ?? ""]).filter(Boolean).map((x) => x.toLowerCase()));
+  const people = new Set([...s.players.flatMap((p) => [p.name, p.character ?? ""]), ...companionsOf(s).map((c) => c.name)].filter(Boolean).map((x) => x.toLowerCase()));
   const list = monstersOf(s);
   const out: FoeSetup[] = [];
   for (const name of past.combatants) {

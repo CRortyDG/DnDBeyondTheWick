@@ -8,6 +8,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { PlayerView } from "@/shared/projection";
 import { HEALTH_LABEL } from "@/shared/combat";
+import { CompanionInit, CompanionPanel, healthText, myCompanionIds } from "./Companions";
 import "../ui/fight.css";
 
 type Send = (c: object) => Promise<string | null>;
@@ -23,13 +24,18 @@ export function FightCard({ view, send }: { view: PlayerView; send: Send }) {
   };
   const meId = mine?.combatantId;
   const myTurn = !!f && f.status === "running" && !!meId && f.currentId === meId;
-  const upNext = !!f && f.status === "running" && !!meId && f.nextId === meId && !myTurn;
-  useBuzz(myTurn ? "turn" : upNext ? "next" : null, `${f?.round}:${f?.currentId}`);
+  // A companion I run: their turn buzzes my phone too.
+  const compIds = myCompanionIds(view);
+  const comps = view.myCompanions.filter((c) => c.combatantId);
+  const compTurn = f && f.status === "running" && f.currentId && compIds.has(f.currentId) ? comps.find((c) => c.combatantId === f.currentId) : undefined;
+  const upNext = !!f && f.status === "running" && !myTurn && !compTurn && ((!!meId && f.nextId === meId) || (!!f.nextId && compIds.has(f.nextId)));
+  useBuzz(myTurn || compTurn ? "turn" : upNext ? "next" : null, `${f?.round}:${f?.currentId}`);
   // The whole screen changes colour on your turn.
+  const anyTurn = myTurn || !!compTurn;
   useEffect(() => {
-    document.documentElement.classList.toggle("fc-myturn", myTurn);
+    document.documentElement.classList.toggle("fc-myturn", anyTurn);
     return () => document.documentElement.classList.remove("fc-myturn");
-  }, [myTurn]);
+  }, [anyTurn]);
 
   if (!f) return null;
   const me = f.order.find((c) => c.id === meId);
@@ -41,13 +47,14 @@ export function FightCard({ view, send }: { view: PlayerView; send: Send }) {
   const running = f.status === "running" || f.status === "paused";
 
   return (
-    <section className={`fc-card pl-fight${myTurn ? " turn" : upNext ? " next" : ""}${down ? " down" : ""}`} aria-label="The fight" aria-live="polite">
+    <section className={`fc-card pl-fight${anyTurn ? " turn" : upNext ? " next" : ""}${down ? " down" : ""}`} aria-label="The fight" aria-live="polite">
       {f.status === "setup" ? (
-        mine ? (
-          <InitiativePad value={mine.init} onSubmit={(n) => go({ type: "me.initiative", init: n })} />
-        ) : (
-          <p className="fc-big">Roll initiative! The DM is setting up the fight.</p>
-        )
+        <>
+          {mine ? <InitiativePad value={mine.init} onSubmit={(n) => go({ type: "me.initiative", init: n })} /> : <p className="fc-big">Roll initiative! The DM is setting up the fight.</p>}
+          {comps.map((c) => (
+            <CompanionInit key={c.id} c={c} go={go} follows={!!c.follow && !!mine} />
+          ))}
+        </>
       ) : f.status === "over" ? (
         <div className="pl-fight-head">
           <div className="fc-big pl-fight-title">{f.over?.outcome === "won" ? "Victory!" : f.over?.outcome === "fallen" ? "The party has fallen…" : "The fight is over"}</div>
@@ -62,6 +69,8 @@ export function FightCard({ view, send }: { view: PlayerView; send: Send }) {
             </div>
             {myTurn ? (
               <div className="fc-big pl-fight-title">Your turn!</div>
+            ) : compTurn ? (
+              <div className="fc-big pl-fight-title">{compTurn.name}&rsquo;s turn</div>
             ) : upNext ? (
               <div className="fc-big pl-fight-title">You&rsquo;re up next</div>
             ) : (
@@ -69,7 +78,7 @@ export function FightCard({ view, send }: { view: PlayerView; send: Send }) {
                 <span>Now</span> {current?.name ?? "…"}
               </div>
             )}
-            <div className="pl-fight-sub">{myTurn ? "Everyone’s waiting on you" : upNext ? `After ${current?.name ?? "this turn"}` : mine ? "Waiting for your turn" : "Watching the fight"}</div>
+            <div className="pl-fight-sub">{myTurn ? "Everyone’s waiting on you" : compTurn ? `You run ${compTurn.name}. Everyone’s waiting` : upNext ? `After ${current?.name ?? "this turn"}` : mine ? "Waiting for your turn" : "Watching the fight"}</div>
           </header>
           {mine?.concDc ? <p className="fc-conc">You took damage while concentrating: Constitution save, DC {mine.concDc}.</p> : null}
           {me?.conditions.length ? (
@@ -85,18 +94,21 @@ export function FightCard({ view, send }: { view: PlayerView; send: Send }) {
           ) : null}
         </>
       )}
-      {mine && f.status !== "over" ? down && mine.deathSaves ? <DeathSaves saves={mine.deathSaves} go={go} /> : <MyHp hp={hp} go={go} /> : null}
+      {compTurn ? <CompanionPanel c={compTurn} go={go} active /> : null}
+      {mine && f.status !== "over" && !compTurn ? down && mine.deathSaves ? <DeathSaves saves={mine.deathSaves} go={go} /> : <MyHp hp={hp} go={go} /> : null}
       {running ? (
         <div className="pl-fight-order">
           <h3>Turn order</h3>
           <ol className="pl-strip" aria-label="Turn order">
             {f.order.map((c) => (
-              <li key={c.id} className={`pl-who-${c.kind}${c.id === f.currentId ? " cur" : ""}${c.id === meId ? " me" : ""}${c.down ? " down" : ""}`} aria-current={c.id === f.currentId ? "true" : undefined}>
+              <li key={c.id} className={`pl-who-${c.kind}${c.id === f.currentId ? " cur" : ""}${c.id === meId || compIds.has(c.id) ? " me" : ""}${c.down ? " down" : ""}`} aria-current={c.id === f.currentId ? "true" : undefined}>
                 <span className="pl-av" aria-hidden="true">
                   {c.art?.url ? <img src={c.art.url} alt="" /> : (c.name.trim()[0] ?? "?").toUpperCase()}
                 </span>
                 <span className="pl-av-name">{c.id === meId ? "You" : c.name}</span>
-                <span className="pl-av-state">{c.kind === "monster" && c.health ? HEALTH_LABEL[c.health] : c.down ? "Down" : c.id === f.nextId ? "Next" : ""}</span>
+                <span className="pl-av-state">
+                  {c.kind === "monster" && c.health ? HEALTH_LABEL[c.health] : c.kind === "companion" && !c.down ? healthText({ health: c.health ?? "unhurt", hp: c.hp }) : c.down ? "Down" : c.id === f.nextId ? "Next" : ""}
+                </span>
               </li>
             ))}
           </ol>
@@ -110,6 +122,16 @@ export function FightCard({ view, send }: { view: PlayerView; send: Send }) {
           {next && next.id !== meId ? <p>Up next: {next.name}</p> : null}
         </div>
       ) : null}
+      {running && !compTurn
+        ? comps.map((c) => (
+            <details key={c.id} className="pl-comp-more">
+              <summary>
+                {c.name} · {healthText(c)}
+              </summary>
+              <CompanionPanel c={c} go={go} active={false} />
+            </details>
+          ))
+        : null}
       {msg ? (
         <p className="error-text" role="alert">
           {msg}

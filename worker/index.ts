@@ -1,6 +1,8 @@
 import { TILES_MAX } from "@/shared/fog";
 import { KEY_HEADER, makeCampaignCode, newDmKey, sha256 } from "@/server/auth";
 import { handlePresetApi, isPresetPath, json, MISS_HEADER } from "@/server/api";
+import { handlePracticeAdmin, isPracticeAdminPath } from "@/server/practice";
+import type { Store } from "@/server/store";
 import { normaliseGameId } from "@/shared/handles";
 import { pickedCodeProblem, screenKey } from "@/server/limits";
 import { parseRange, rangeBounds } from "@/server/range";
@@ -50,6 +52,16 @@ function withHeaders(res: Response): Response {
 
 function room(env: Env, game: string) {
   return env.ROOMS.get(env.ROOMS.idFromName(game));
+}
+
+/** A campaign's practice copy: "practice:<code>". Codes are letters, digits and dashes, so no code is ever this name. */
+function practiceRoom(env: Env, game: string) {
+  return env.ROOMS.get(env.ROOMS.idFromName(`practice:${game}`));
+}
+
+/** A room, called directly (its Store methods over RPC) rather than over HTTP. */
+function asStore(stub: DurableObjectStub<GameRoom>): Store {
+  return stub as unknown as Store;
 }
 
 // ---------------------------------------------------------------- abuse limits
@@ -391,7 +403,11 @@ export default {
         if (path === "/api/upload" && req.method === "POST") return withHeaders(await upload(req, env, ctx, ip));
         if (path === "/api/upload-tiles" && req.method === "POST") return withHeaders(await uploadTiles(req, env, ctx, ip));
         if (isPresetPath(path)) return withHeaders(await settle(await handlePresetApi(req, new R2Presets(env.FILES)), env, ctx, ip));
-        const res = await room(env, normaliseGameId(url.searchParams.get("game"))).fetch(req);
+        const game = normaliseGameId(url.searchParams.get("game"));
+        // Practice mode: start, finish and the edit list need both rooms (src/server/practice.ts).
+        if (isPracticeAdminPath(path)) return withHeaders(await settle(await handlePracticeAdmin(req, asStore(room(env, game)), asStore(practiceRoom(env, game))), env, ctx, ip));
+        // A practice screen talks to the practice copy, never the live room. Its name can't be typed as a code.
+        const res = await (url.searchParams.get("practice") === "1" ? practiceRoom(env, game) : room(env, game)).fetch(req);
         return withHeaders(await settle(res, env, ctx, ip));
       }
       if (path === "/arrive" || path.startsWith("/arrive/")) return withHeaders(await arrivalPage(req, env, ctx));

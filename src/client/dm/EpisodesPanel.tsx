@@ -20,6 +20,7 @@ import { PageHead } from "./PageHead";
 import { PlayIcon, PlusIcon } from "./navIcons";
 import { Drawer } from "./Drawer";
 import { MenuItem, RowMenu } from "./RowMenu";
+import { openPractice } from "./Practice";
 import { monstersOf } from "@/shared/combat";
 import { Field } from "./Field";
 import { actionLabel } from "./RunGame";
@@ -241,7 +242,7 @@ function EpisodeEditor({
   onRun: (id: string) => void;
   running: boolean;
 }) {
-  const { view, run, toast } = useDm();
+  const { view, run, toast, ident } = useDm();
   const s = view.state;
   const [editing, setEditing] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
@@ -275,6 +276,17 @@ function EpisodeEditor({
           </>
         ) : (
           <RowMenu label={ep.title}>
+            {ident.practice ? null : (
+              <MenuItem
+                title="Rehearse it alone on a private copy. Nothing reaches the real TV or phones."
+                onClick={async () => {
+                  const err = await openPractice(ident, ep.id);
+                  if (err) toast(err);
+                }}
+              >
+                Practice this episode
+              </MenuItem>
+            )}
             <MenuItem onClick={() => setExporting((v) => !v)}>{exporting ? "Hide Markdown" : "Export as Markdown"}</MenuItem>
             <MenuItem danger onClick={() => setConfirmDelete(ep.id)}>
               Delete episode

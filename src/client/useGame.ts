@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { View } from "@/shared/projection";
 import { api, ApiError, liveUrl, type Ident } from "./api";
+import { swapGatedArt } from "./practiceArt";
 
 export type Phase = "loading" | "ok" | "taken" | "knocking" | "full" | "invalid" | "no-game" | "error";
 
@@ -46,11 +47,18 @@ export function useGame<V extends View = View>(ident: Ident | null): GameHook<V>
 
   phaseRef.current = phase;
 
-  const accept = useCallback((v: View) => {
-    if (v.version < versionRef.current) return;
-    versionRef.current = v.version;
-    setView(v as V);
-  }, []);
+  const lastRaw = useRef<View | null>(null);
+  const accept = useCallback(
+    (raw: View) => {
+      if (raw.version < versionRef.current) return;
+      versionRef.current = raw.version;
+      lastRaw.current = raw;
+      // Practice screens can't send the key with an <img>: gated art comes as blobs fetched with it.
+      const v = ident?.practice ? swapGatedArt(raw, ident, () => lastRaw.current && setView(swapGatedArt(lastRaw.current, ident, () => {}) as V)) : raw;
+      setView(v as V);
+    },
+    [ident],
+  );
 
   const refresh = useCallback(() => {
     if (!ident) return;
@@ -123,7 +131,7 @@ export function useGame<V extends View = View>(ident: Ident | null): GameHook<V>
     // A sleeping campaign costs nothing with the socket open, so it stays open.
     const open = () => {
       if (closed || ws) return;
-      const sock = new WebSocket(liveUrl(ident.game, ident.player ? { player: ident.player } : {}));
+      const sock = new WebSocket(liveUrl(ident.game, { ...(ident.player ? { player: ident.player } : {}), ...(ident.practice ? { practice: "1" } : {}) }));
       ws = sock;
       sock.onopen = () => {
         attempt = 0;

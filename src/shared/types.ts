@@ -188,6 +188,14 @@ export interface Player {
   renownPoints?: number;
   /** Their character's level, 1-20. Missing: not set yet. */
   level?: number;
+  /** DM-ONLY, practice copies only: a stand-in for rehearsing (see practice.ts). Never in a live game. */
+  standIn?: StandIn;
+}
+
+/** Numbers a practice stand-in uses that real players don't store. */
+export interface StandIn {
+  ac?: number;
+  initBonus?: number;
 }
 
 /** A player's hit points, as they (or the DM) typed them. */
@@ -364,7 +372,72 @@ export interface Item {
   /** The party's Renown this needs (see renown.ts). Below it, a "sale" item shows as locked with the rank. */
   renown?: number;
   /** Someone's goodwill it also needs. Without it, a "sale" item shows as locked. (null only in a patch: cleared.) */
-  trust?: TrustNeed | null;
+  trust?: TrustNeed | null;  /** DM-ONLY: buying it hires this companion (Rent items: paid per session, Keep or Let go at session end). */
+  companionTemplateId?: string;
+}
+
+// ---------- companions and hirelings ----------
+
+/** Stat block fields the DM can hide from the controlling player. DM notes are never sent. */
+export type CompanionField = "ac" | "hp" | "initBonus" | "speed" | "attacks" | "abilities" | "resist";
+
+/** DM-ONLY: a companion's stat block, like a monster template. */
+export interface CompanionTemplate {
+  id: string;
+  name: string;
+  /** A portrait scene for its art. */
+  sceneId?: string;
+  /** A Discover person it is (Fennick). */
+  entryId?: string;
+  /** false: a porter or guide: no initiative, just a card with what they offer. */
+  combat: boolean;
+  ac: number;
+  /** Max HP. */
+  hp: number;
+  initBonus: number;
+  speed: string;
+  attacks: MonsterAttack[];
+  abilities: MonsterAbility[];
+  resist: string;
+  /** What they offer, shown to everyone ("Survival +5. Knows the safe paths."). */
+  offers: string;
+  /** DM-ONLY, never sent. */
+  dmNote: string;
+  /** Fields the controller may not see. Default: none hidden. */
+  hidden: CompanionField[];
+  /** The TV shows an HP bar, or only a health state (like monsters). */
+  tvHealth: "hp" | "state";
+  /** What 0 HP means by default. */
+  atZero: "saves" | "dies";
+  /** Takes a share of fight loot (friends only; hirelings never do). */
+  takesShare: boolean;
+  /** Only joins once this person (entryId) feels this way about the party. A warning, not a lock. */
+  needs?: "friendly" | "ally";
+}
+
+/** A companion with the party (or who was). */
+export interface Companion {
+  id: string;
+  templateId: string;
+  name: string;
+  hp: { cur: number; max: number; temp: number };
+  /** Ability id -> uses spent, kept between fights until the DM resets them. */
+  spent: Record<string, number>;
+  /** Who runs them in fights: a player id, or "dm". */
+  controllerId: string;
+  /** In a fight, acts right after the controller instead of rolling. */
+  follow?: boolean;
+  /** "session": leaves when the session ends. "until": until the DM dismisses them (hirelings: until let go). */
+  stay: "session" | "until";
+  /** Shared world: the party they travel with. */
+  partyId?: string;
+  /** Hirelings: the rental that pays them, and who hired them. */
+  hire?: { rentalId: string; buyerId: string };
+  status: "with" | "dead" | "gone";
+  /** Their loot shares, if they take one. */
+  purseCp?: number;
+  joinedAt: number;
+  endedAt?: number;
 }
 
 /** A rented room, safekeeping, the Back Room. */
@@ -379,6 +452,8 @@ export interface Rental {
   paidThrough: number;
   active: boolean;
   endedAt?: number;
+  /** A hireling: renewed with Keep or Let go at session end, not with the other rent. */
+  hire?: boolean;
 }
 
 /** Lessons paid for in parts, one per session. */
@@ -975,6 +1050,14 @@ export interface Episode {
   beats: Beat[];
   /** DM-ONLY: prep checklist items ticked off or dismissed, by item key. */
   prep?: Record<string, "done" | "dismissed">;
+  /** DM-ONLY: the DM's own prep checklist items (practice notes land here), keyed "note:<id>" in prep. */
+  prepNotes?: PrepNote[];
+}
+
+export interface PrepNote {
+  id: string;
+  text: string;
+  at: number;
 }
 
 export interface SessionRun {
@@ -1121,6 +1204,12 @@ export interface GameState {
   parties?: Party[];
   /** Shared world: the party at the table now (whose session runs, whose fog the maps show). */
   partyId?: string;
+  /** DM-ONLY: companion and hireling stat blocks (see companions.ts). */
+  companionTemplates?: CompanionTemplate[];
+  /** Companions travelling with the party (and those who left or died, for the record). Players see only the allowed parts. */
+  companions?: Companion[];
+  /** DM-ONLY: set only in a practice copy (see practice.ts). A live game never has it. */
+  practice?: PracticeInfo;
   /** DM-ONLY: random tables (rumors, encounters, names, weather). Read with tablesOf(). */
   tables?: RandomTable[];
   /** DM-ONLY: the Worldbuilder style guide (tone and rules Claude must follow). Read-only to builder keys. */
@@ -1132,6 +1221,31 @@ export interface GameState {
   /** DM-ONLY: quick notes from play. Read with capturesOf(). */
   captures?: Capture[];
   seq: number;
+}
+
+/** One timed stretch of a rehearsal: a run-sheet beat or a fight. */
+export interface PracticeSegment {
+  /** "beat:<id>", "fight:<id>", "start", "end". */
+  key: string;
+  label: string;
+  ms: number;
+}
+
+/** DM-ONLY: what a practice copy knows about the rehearsal. */
+export interface PracticeInfo {
+  startedAt: number;
+  /** The episode being rehearsed, if any. */
+  episodeId?: string;
+  /** Practice notes, one per line. They go to the episode's prep checklist at the end. */
+  notes: string;
+  /** Real session estimate = practice time x this. */
+  factor: number;
+  /** Time away from the screen (tab hidden for a while), not counted. */
+  awayMs: number;
+  /** Time per beat and fight, in the order first reached. */
+  segments: PracticeSegment[];
+  /** What's being timed right now. */
+  open: { key: string; label: string; since: number } | null;
 }
 
 /** DM-ONLY: content a Worldbuilder key drafted and the DM approved. Never sent to the TV or a phone. */
@@ -1320,8 +1434,13 @@ export interface FightCondition {
 
 export interface Combatant {
   id: string;
-  kind: "player" | "monster";
+  /** companion: a player-controlled companion or hireling (see companions.ts). Its HP lives here during the fight, like a monster's. */
+  kind: "player" | "monster" | "companion";
   playerId?: string;
+  /** Companions: which one. */
+  companionId?: string;
+  /** Companions: what 0 HP means (death saves, or dead). The DM can change it at the moment. */
+  atZero?: "saves" | "dies";
   templateId?: string;
   /** DM-ONLY until revealed: the real name ("Goblin A"). Players: their character name. */
   name: string;

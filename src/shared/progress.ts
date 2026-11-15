@@ -171,7 +171,7 @@ export interface Due {
  * same session can never charge twice.
  */
 export function duesFor(s: Pick<GameState, "rentals" | "trainings">, number: number): Due[] {
-  const rent = s.rentals.filter((r: Rental) => r.active && r.paidThrough < number).map((r): Due => ({ id: r.id, kind: "rent", playerId: r.playerId, itemName: r.itemName, cp: r.monthlyCp }));
+  const rent = s.rentals.filter((r: Rental) => r.active && !r.hire && r.paidThrough < number).map((r): Due => ({ id: r.id, kind: "rent", playerId: r.playerId, itemName: r.itemName, cp: r.monthlyCp }));
   const lessons = s.trainings
     .filter((t: Training) => !t.done && !t.cancelled && t.paidThrough < number)
     .map((t): Due => ({ id: t.id, kind: "lesson", playerId: t.playerId, itemName: t.itemName, cp: installmentCp(t.totalCp, t.of, t.paid), step: `${t.paid + 1} of ${t.of}` }));

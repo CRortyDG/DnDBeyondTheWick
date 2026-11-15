@@ -111,6 +111,13 @@ export function GamePanel() {
         </div>
       </section>
       <SessionsBox />
+      {s.practice ? (
+        <section className="box">
+          <h3>Off in practice</h3>
+          <p className="note">Links, the DM key, presets, backups, snapshots and Start fresh reach outside the game, so they only work in the live game. Reset practice and End practice are on the PRACTICE bar.</p>
+        </section>
+      ) : (
+        <>
       <section className="box">
         <h3>Links</h3>
         <dl className="links">
@@ -181,6 +188,8 @@ export function GamePanel() {
           </p>
         </div>
       </section>
+        </>
+      )}
     </div>
     </div>
   );
