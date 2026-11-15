@@ -17,6 +17,53 @@ export function useDues(session: Session | undefined): Due[] {
 }
 
 export function Dues({ session, onCharged }: { session: Session; onCharged?: () => void }) {
+  return (
+    <>
+      <DuesList session={session} onCharged={onCharged} />
+      <Hirelings session={session} />
+    </>
+  );
+}
+
+/** Hirelings paid up to this session: keep them on for the next one (charged now), or let them go. */
+function Hirelings({ session }: { session: Session }) {
+  const { view, run, call, toast } = useDm();
+  const s = view.state;
+  const list = (s.companions ?? []).flatMap((c) => {
+    if (c.status !== "with" || !c.hire) return [];
+    const r = s.rentals.find((x) => x.id === c.hire!.rentalId && x.active);
+    return r && r.paidThrough <= session.number ? [{ c, r }] : [];
+  });
+  if (!list.length) return null;
+  const name = (id: string) => s.players.find((p) => p.id === id)?.name ?? "someone who left";
+  return (
+    <div className="dues hire-dues">
+      <h4>Hirelings</h4>
+      <ul className="dues-list">
+        {list.map(({ c, r }) => (
+          <li key={c.id}>
+            <span>
+              <b>{c.name}</b>, hired by {name(r.playerId)}: keep them for the next session? <span className="purse-amt">{formatCp(r.monthlyCp)}</span>
+            </span>
+            <span className="hire-acts">
+              <button type="button" className="btn small primary" onClick={async () => {
+                  const r = await call({ type: "companion.keep", companionId: c.id });
+                  toast(r.error ?? r.info ?? `${c.name} stays on.`);
+                }}>
+                Keep
+              </button>
+              <button type="button" className="btn small" onClick={() => run({ type: "companion.dismiss", companionId: c.id }, `${c.name} goes home.`)}>
+                Let go
+              </button>
+            </span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function DuesList({ session, onCharged }: { session: Session; onCharged?: () => void }) {
   const { view, call, toast } = useDm();
   const s = view.state;
   const due = useDues(session);

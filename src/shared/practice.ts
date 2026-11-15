@@ -416,6 +416,14 @@ const COLLECTIONS: Collection[] = [
     (x) => String(x.name ?? ""),
     [],
   ),
+  simple(
+    "companionTemplates",
+    "Companion",
+    (g) => g.companionTemplates,
+    (g, v) => (g.companionTemplates = v as never),
+    (x) => String(x.name ?? ""),
+    [],
+  ),
   {
     key: "entries",
     what: "Discover",

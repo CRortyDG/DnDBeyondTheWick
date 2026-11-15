@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { practiceDmCommands } from "./practice";
+import { companionDmCommands, companionPlayerCommands } from "./companions";
 import { CATEGORY_IDS, KIND_IDS } from "./progress";
 import { RENOWN_MAX, RENOWN_POINTS_MAX } from "./renown";
 import { FONT_IDS, LIST_MAX, NOTE_W_MAX, NOTE_W_MIN, PAPER_IDS, PIN_IDS, TITLE_SIZE_MAX, TITLE_SIZE_MIN } from "./board";
@@ -569,6 +570,9 @@ export const dmCommand = z.discriminatedUnion("type", [
 
   // Practice mode (practice copies only).
   ...practiceDmCommands,
+
+  // Companions and hirelings.
+  ...companionDmCommands,
 ]);
 
 /** Commands a player may send about themselves. */
@@ -595,6 +599,8 @@ export const playerCommand = z.discriminatedUnion("type", [
   z.object({ type: z.literal("me.diceRoll"), dice: diceAsk, plus: dicePlus, tv: z.boolean() }),
   // Combat mode: initiative, my HP, death saves, end my turn.
   ...fightPlayerCommands,
+  // Companions I control.
+  ...companionPlayerCommands,
 ]);
 
 /** Commands the server issues itself; never accepted from a client. */

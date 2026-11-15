@@ -14,6 +14,7 @@ import { notesOf, penName, projectChronicle, type ChronicleView } from "./chroni
 import { discoveryView, PORTRAIT_ART, portraitArtAllowed, publicEntries, sceneSpoils, type DiscoveryView, type PublicEntry } from "./discovery";
 import { jobsOf, jobTitle, progressOf, rankName, ranksOf, renownMet, renownNeeded, renownOf, shopOpenNow, tierOf, trustText } from "./renown";
 import { fightView, myFight, type FightView, type MyFight } from "./combat";
+import { controlledBy, publicCompanions, type ControlledCompanion, type PublicCompanion } from "./companions";
 import type { Art, Banner, Flyer, FlyerText, GameState, Job, JobStyle, Item, ItemCategory, ItemKind, LedgerEntry, LegendStyle, LiveState, NoteLook, NotePlace, Notice, Player, RequestStatus, Scene, Shop } from "./types";
 import { noticesOf } from "./board";
 import { hasWords, type HandoutSheet } from "./handout";
@@ -330,6 +331,8 @@ export interface TvView extends Common {
   table?: TableView;
   /** Combat mode: the fight going on, as the room may see it. */
   fight: FightView | null;
+  /** Companions and hirelings with the party (a small card each). */
+  companions: PublicCompanion[];
 }
 
 export interface MyLedgerLine {
@@ -368,6 +371,10 @@ export interface PlayerView extends Common {
   /** Combat mode: the fight going on, as the room sees it, and my part in it. */
   fight: FightView | null;
   myFight: MyFight | null;
+  /** Companions and hirelings with the party (a small card each). */
+  companions: PublicCompanion[];
+  /** The ones I run: their stat block (what the DM lets me see) and their part in the fight. */
+  myCompanions: ControlledCompanion[];
   myLedger: MyLedgerLine[];
   myOrders: MyOrder[];
   /** My purchase and gold requests, newest first. Never anyone else's. */
@@ -619,6 +626,7 @@ export function projectTv(table: GameState, version: number): TvView {
     recap: publicRecap(game),
     ...(game.scenes.find((sc) => sc.id === game.live.sceneId)?.kind === "table" ? { table: projectTable(game) } : {}),
     fight: publicFight(game),
+    companions: publicCompanions(game),
   };
 }
 
@@ -690,6 +698,8 @@ export function projectPlayer(table: GameState, version: number, playerId: strin
     })(),
     fight: publicFight(game),
     myFight: myFight(game, p.id),
+    companions: publicCompanions(game),
+    myCompanions: controlledBy(game, p.id),
     myRolls: (game.rolls ?? [])
       .filter((r) => r.by === p.id)
       .slice(-5)

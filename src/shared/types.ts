@@ -372,7 +372,72 @@ export interface Item {
   /** The party's Renown this needs (see renown.ts). Below it, a "sale" item shows as locked with the rank. */
   renown?: number;
   /** Someone's goodwill it also needs. Without it, a "sale" item shows as locked. (null only in a patch: cleared.) */
-  trust?: TrustNeed | null;
+  trust?: TrustNeed | null;  /** DM-ONLY: buying it hires this companion (Rent items: paid per session, Keep or Let go at session end). */
+  companionTemplateId?: string;
+}
+
+// ---------- companions and hirelings ----------
+
+/** Stat block fields the DM can hide from the controlling player. DM notes are never sent. */
+export type CompanionField = "ac" | "hp" | "initBonus" | "speed" | "attacks" | "abilities" | "resist";
+
+/** DM-ONLY: a companion's stat block, like a monster template. */
+export interface CompanionTemplate {
+  id: string;
+  name: string;
+  /** A portrait scene for its art. */
+  sceneId?: string;
+  /** A Discover person it is (Fennick). */
+  entryId?: string;
+  /** false: a porter or guide: no initiative, just a card with what they offer. */
+  combat: boolean;
+  ac: number;
+  /** Max HP. */
+  hp: number;
+  initBonus: number;
+  speed: string;
+  attacks: MonsterAttack[];
+  abilities: MonsterAbility[];
+  resist: string;
+  /** What they offer, shown to everyone ("Survival +5. Knows the safe paths."). */
+  offers: string;
+  /** DM-ONLY, never sent. */
+  dmNote: string;
+  /** Fields the controller may not see. Default: none hidden. */
+  hidden: CompanionField[];
+  /** The TV shows an HP bar, or only a health state (like monsters). */
+  tvHealth: "hp" | "state";
+  /** What 0 HP means by default. */
+  atZero: "saves" | "dies";
+  /** Takes a share of fight loot (friends only; hirelings never do). */
+  takesShare: boolean;
+  /** Only joins once this person (entryId) feels this way about the party. A warning, not a lock. */
+  needs?: "friendly" | "ally";
+}
+
+/** A companion with the party (or who was). */
+export interface Companion {
+  id: string;
+  templateId: string;
+  name: string;
+  hp: { cur: number; max: number; temp: number };
+  /** Ability id -> uses spent, kept between fights until the DM resets them. */
+  spent: Record<string, number>;
+  /** Who runs them in fights: a player id, or "dm". */
+  controllerId: string;
+  /** In a fight, acts right after the controller instead of rolling. */
+  follow?: boolean;
+  /** "session": leaves when the session ends. "until": until the DM dismisses them (hirelings: until let go). */
+  stay: "session" | "until";
+  /** Shared world: the party they travel with. */
+  partyId?: string;
+  /** Hirelings: the rental that pays them, and who hired them. */
+  hire?: { rentalId: string; buyerId: string };
+  status: "with" | "dead" | "gone";
+  /** Their loot shares, if they take one. */
+  purseCp?: number;
+  joinedAt: number;
+  endedAt?: number;
 }
 
 /** A rented room, safekeeping, the Back Room. */
@@ -387,6 +452,8 @@ export interface Rental {
   paidThrough: number;
   active: boolean;
   endedAt?: number;
+  /** A hireling: renewed with Keep or Let go at session end, not with the other rent. */
+  hire?: boolean;
 }
 
 /** Lessons paid for in parts, one per session. */
@@ -1055,6 +1122,10 @@ export interface GameState {
   parties?: Party[];
   /** Shared world: the party at the table now (whose session runs, whose fog the maps show). */
   partyId?: string;
+  /** DM-ONLY: companion and hireling stat blocks (see companions.ts). */
+  companionTemplates?: CompanionTemplate[];
+  /** Companions travelling with the party (and those who left or died, for the record). Players see only the allowed parts. */
+  companions?: Companion[];
   /** DM-ONLY: set only in a practice copy (see practice.ts). A live game never has it. */
   practice?: PracticeInfo;
   seq: number;
@@ -1227,8 +1298,13 @@ export interface FightCondition {
 
 export interface Combatant {
   id: string;
-  kind: "player" | "monster";
+  /** companion: a player-controlled companion or hireling (see companions.ts). Its HP lives here during the fight, like a monster's. */
+  kind: "player" | "monster" | "companion";
   playerId?: string;
+  /** Companions: which one. */
+  companionId?: string;
+  /** Companions: what 0 HP means (death saves, or dead). The DM can change it at the moment. */
+  atZero?: "saves" | "dies";
   templateId?: string;
   /** DM-ONLY until revealed: the real name ("Goblin A"). Players: their character name. */
   name: string;

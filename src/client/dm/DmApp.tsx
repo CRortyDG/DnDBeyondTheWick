@@ -40,6 +40,7 @@ import { FightScreen } from "./FightScreen";
 import { Storyboard } from "./Storyboard";
 import { StoryPanel } from "./StoryPanel";
 import { MonstersPanel } from "./MonstersPanel";
+import { CompanionsPanel } from "./CompanionsPanel";
 import { FightOverlay } from "../ui/FightOverlay";
 import { DiceButton, DiceTray, PlayerRollCards, TvDiceBar } from "./DiceTray";
 import { Finder, QuickBar, quickKey, typing } from "./QuickBar";
@@ -48,7 +49,7 @@ import { WorldPanel } from "./WorldPanel";
 import { partiesOf, tableParty } from "@/shared/world";
 import { BoardIcon, BookIcon, CoinIcon, EyeIcon, GearIcon, GlobeIcon, ListIcon, MapIcon, PanelRightIcon, PeopleIcon, PinIcon, PlayIcon, QuillIcon, SearchIcon, ShipIcon, SkullIcon, StoreIcon, SwordIcon } from "./navIcons";
 
-type Tab = "world" | "bank" | "shop" | "board" | "scenes" | "discovery" | "leads" | "players" | "arrival" | "story" | "episodes" | "monsters" | "chronicle" | "game";
+type Tab = "world" | "bank" | "shop" | "board" | "scenes" | "discovery" | "leads" | "players" | "arrival" | "story" | "episodes" | "monsters" | "companions" | "chronicle" | "game";
 type NavItem = { id: Tab; label: string; icon: (p: { size?: number }) => ReactElement; key?: string };
 /** The DM pages, grouped by when you reach for them. */
 const NAV: { group: string; items: NavItem[] }[] = [
@@ -69,6 +70,7 @@ const NAV: { group: string; items: NavItem[] }[] = [
       { id: "scenes", label: "Maps & props", icon: MapIcon },
       { id: "board", label: "Notice board", icon: BoardIcon },
       { id: "monsters", label: "Monsters", icon: SkullIcon },
+      { id: "companions", label: "Companions", icon: PeopleIcon },
     ],
   },
   {
@@ -84,7 +86,7 @@ const NAV: { group: string; items: NavItem[] }[] = [
 const SETTINGS: NavItem = { id: "game", label: "Settings", icon: GearIcon };
 const ALL_TABS: Tab[] = [...NAV.flatMap((g) => g.items.map((i) => i.id)), SETTINGS.id];
 /** Pages that draw their own header (with summary and buttons). */
-const OWN_HEAD = new Set<Tab>(["world", "bank", "players", "arrival", "shop", "discovery", "leads", "scenes", "board", "monsters", "episodes", "story", "chronicle", "game"]);
+const OWN_HEAD = new Set<Tab>(["world", "bank", "players", "arrival", "shop", "discovery", "leads", "scenes", "board", "monsters", "companions", "episodes", "story", "chronicle", "game"]);
 const PAGE_LABEL = Object.fromEntries([...NAV.flatMap((g) => g.items), SETTINGS].map((i) => [i.id, i.label])) as Record<Tab, string>;
 
 /** The page in the address (#page=discovery), so a reload keeps your place. */
@@ -583,6 +585,7 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
               {tab === "story" ? <StoryPanel onOpen={(id) => setStoryOpen(id ?? "")} /> : null}
               {tab === "episodes" ? <EpisodesPanel onRun={startRun} /> : null}
               {tab === "monsters" ? <MonstersPanel onFight={openFight} /> : null}
+              {tab === "companions" ? <CompanionsPanel /> : null}
               {tab === "chronicle" ? <ChroniclePanel /> : null}
               {tab === "game" ? <GamePanel /> : null}
             </div>

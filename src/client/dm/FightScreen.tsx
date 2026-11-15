@@ -10,6 +10,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CONDITIONS, condLabel, HEALTH_LABEL, healthState, monstersOf, rechargeText, upNext, TIMER_DEFAULT } from "@/shared/combat";
+import { controllerName, templateAsMonster } from "@/shared/companions";
 import { chronicleLine } from "@/shared/combatReducer";
 import { formatCp, parseAmount } from "@/shared/money";
 import type { DmCommand } from "@/shared/commands";
@@ -44,7 +45,17 @@ function FightConsole({ f, onExit, run, toast }: { f: Fight; onExit: () => void;
   const s = view.state;
   const players = s.players as DmPlayer[];
   const templates = monstersOf(s);
-  const tpl = useCallback((id?: string) => templates.find((t) => t.id === id), [templates]);
+  const companionTpls = s.companionTemplates;
+  // Companions read as monster templates here (abilities, recharge, the stat block).
+  const tpl = useCallback(
+    (id?: string) => {
+      const m = templates.find((t) => t.id === id);
+      if (m) return m;
+      const ct = (companionTpls ?? []).find((t) => t.id === id);
+      return ct ? templateAsMonster(ct) : undefined;
+    },
+    [templates, companionTpls],
+  );
   const [sel, setSel] = useState<string[]>([]);
   const [amount, setAmount] = useState("");
   const [crit, setCrit] = useState(false);
@@ -56,7 +67,7 @@ function FightConsole({ f, onExit, run, toast }: { f: Fight; onExit: () => void;
   useEffect(() => setSel((xs) => xs.filter((x) => f.order.some((c) => c.id === x))), [ids]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const hpOf = (c: Combatant) => {
-    if (c.kind === "monster") return { cur: c.hp, max: c.maxHp, temp: c.tempHp };
+    if (c.kind !== "player") return { cur: c.hp, max: c.maxHp, temp: c.tempHp };
     const p = players.find((x) => x.id === c.playerId);
     return { cur: p?.hp?.cur ?? 0, max: p?.hp?.max ?? 0, temp: p?.hp?.temp ?? 0 };
   };
@@ -320,7 +331,7 @@ function FightConsole({ f, onExit, run, toast }: { f: Fight; onExit: () => void;
         <footer className="run-foot fx-foot">
           {f.status === "setup" ? (
             <>
-              <button className="btn run-nav" type="button" onClick={() => run({ type: "fight.rollInit" })} disabled={!f.order.some((c) => c.kind === "monster" && c.init === null)}>
+              <button className="btn run-nav" type="button" onClick={() => run({ type: "fight.rollInit" })} disabled={!f.order.some((c) => c.kind !== "player" && c.init === null)}>
                 Roll monsters&rsquo; initiative
               </button>
               {s.practice ? (
@@ -380,13 +391,15 @@ function Row({
   onOpen: () => void;
 }) {
   const { run } = useDm();
-  const state = c.kind === "monster" ? (c.down ? "down" : healthState(hp.cur, hp.max)) : hp.max > 0 ? healthState(hp.cur, hp.max) : null;
+  const state = c.kind !== "player" ? (c.down ? "down" : healthState(hp.cur, hp.max)) : hp.max > 0 ? healthState(hp.cur, hp.max) : null;
+  const { view } = useDm();
+  const comp = c.kind === "companion" ? (view.state.companions ?? []).find((x) => x.id === c.companionId) : undefined;
   const [drag, setDrag] = useState(false);
   const pct = hp.max > 0 ? Math.max(0, Math.min(100, (hp.cur / hp.max) * 100)) : 0;
   const others = f.order.filter((x) => x.id !== c.id && !x.gone);
   return (
     <li
-      className={`fx-row${selected ? " sel" : ""}${current ? " cur" : ""}${isNext ? " next" : ""}${c.kind === "monster" && c.down ? " down" : ""}${c.hidden ? " hidden" : ""}${drag ? " drag" : ""}`}
+      className={`fx-row${selected ? " sel" : ""}${current ? " cur" : ""}${isNext ? " next" : ""}${c.kind !== "player" && c.down && !c.deathSaves ? " down" : ""}${c.kind === "companion" ? " companion" : ""}${c.hidden ? " hidden" : ""}${drag ? " drag" : ""}`}
       draggable
       onDragStart={(e) => {
         e.dataTransfer.setData("text/plain", c.id);
@@ -419,12 +432,13 @@ function Row({
         <div className="fx-name">
           <b>{c.name}</b>
           {c.kind === "monster" && !c.revealed ? <span className="fx-tv">TV: {c.displayName}</span> : null}
+          {comp ? <span className="fx-tv">Companion · run by {controllerName(view.state, comp)}</span> : null}
           {current ? <span className="fx-tag now">now</span> : isNext ? <span className="fx-tag">next</span> : null}
           {c.hidden ? <span className="fx-tag">hidden from TV</span> : null}
           {c.concentrating ? <span className="fx-tag conc">concentrating</span> : null}
         </div>
         <div className="fx-hp" title={state ? HEALTH_LABEL[state] : "HP not set"}>
-          {hp.max > 0 || c.kind === "monster" ? (
+          {hp.max > 0 || c.kind !== "player" ? (
             <>
               <span className="fx-hp-num">
                 {hp.cur}/{hp.max}
@@ -441,7 +455,19 @@ function Row({
         </div>
         {c.ac !== undefined ? <span className="fx-ac" title="Armor class">AC {c.ac}</span> : null}
       </div>
-      {c.conditions.length || (c.deathSaves && c.kind === "player") ? (
+      {c.kind === "companion" && c.down && comp?.status === "with" ? (
+        <div className="fx-chips fx-fate" role="group" aria-label={`${c.name} is at 0 HP`}>
+          <span>{c.name} is at 0 HP:</span>
+          <button className={`btn small${c.deathSaves ? " on" : ""}`} type="button" aria-pressed={!!c.deathSaves} onClick={() => run({ type: "fight.companionFate", combatantId: c.id, fate: "saves" })}>
+            Unconscious (death saves)
+          </button>
+          <button className="btn small danger" type="button" onClick={() => run({ type: "fight.companionFate", combatantId: c.id, fate: "dies" })}>
+            Dies
+          </button>
+        </div>
+      ) : null}
+      {comp?.status === "dead" ? <div className="fx-chips fx-fate">{c.name} died.</div> : null}
+      {c.conditions.length || (c.deathSaves && c.kind !== "monster") ? (
         <div className="fx-chips">
           {c.conditions.map((k) => (
             <span key={k.id} className="beat-action-chip">
@@ -452,7 +478,7 @@ function Row({
               </button>
             </span>
           ))}
-          {c.kind === "player" && c.deathSaves ? <DeathSaves c={c} /> : null}
+          {c.kind !== "monster" && c.deathSaves ? <DeathSaves c={c} /> : null}
         </div>
       ) : null}
       {t?.abilities.some((a) => a.recharge || a.uses) ? (
@@ -869,8 +895,17 @@ function AddCombatant({ f, templates, notIn }: { f: Fight; templates: MonsterTem
 // The end: loot, the Chronicle, back to the scene.
 
 function EndStep({ f, players, onDone }: { f: Fight; players: DmPlayer[]; onDone: () => void }) {
-  const { run } = useDm();
-  const inFight = useMemo(() => players.filter((p) => f.order.some((c) => c.playerId === p.id) && !p.archived), [players, f.order]);
+  const { run, view } = useDm();
+  const players0 = useMemo(() => players.filter((p) => f.order.some((c) => c.playerId === p.id) && !p.archived), [players, f.order]);
+  // Companions who take a share (never hirelings: they're paid by the day). Their share is held on them. Keys "c:<id>".
+  const sharers = useMemo(
+    () =>
+      (view.state.companions ?? [])
+        .filter((c) => c.status === "with" && !c.hire && (view.state.companionTemplates ?? []).find((t) => t.id === c.templateId)?.takesShare)
+        .map((c) => ({ id: `c:${c.id}`, name: c.name, character: c.name })),
+    [view.state.companions, view.state.companionTemplates],
+  );
+  const inFight = useMemo(() => [...players0.map((p) => ({ id: p.id, name: p.name, character: p.character })), ...sharers], [players0, sharers]);
   const [coins, setCoins] = useState("");
   const [items, setItems] = useState("");
   const [split, setSplit] = useState<"even" | "each">("even");
@@ -884,8 +919,10 @@ function EndStep({ f, players, onDone }: { f: Fight; players: DmPlayer[]; onDone
     let left = totalCp - base * n;
     return who.map((id) => ({ playerId: id, cp: base + (left-- > 0 ? 1 : 0) }));
   }, [who, totalCp]);
-  const payouts = split === "even" ? evenShares : inFight.map((p) => ({ playerId: p.id, cp: parseAmount(each[p.id] ?? "") ?? 0 })).filter((x) => x.cp > 0);
-  const lootCp = payouts.reduce((n, x) => n + x.cp, 0);
+  const shares = split === "even" ? evenShares : inFight.map((p) => ({ playerId: p.id, cp: parseAmount(each[p.id] ?? "") ?? 0 })).filter((x) => x.cp > 0);
+  const payouts = shares.filter((x) => !x.playerId.startsWith("c:"));
+  const companionPayouts = shares.filter((x) => x.playerId.startsWith("c:")).map((x) => ({ companionId: x.playerId.slice(2), cp: x.cp }));
+  const lootCp = shares.reduce((n, x) => n + x.cp, 0);
   const auto = chronicleLine(f, items, lootCp);
   const [note, setNote] = useState<string | null>(null);
   const text = note ?? auto;
@@ -897,7 +934,7 @@ function EndStep({ f, players, onDone }: { f: Fight; players: DmPlayer[]; onDone
   const finish = async (skip: boolean) => {
     setBusy(true);
     const ok = await run(
-      skip ? { type: "fight.close", note: null } : { type: "fight.close", payouts, items, note: writeNote && text.trim() ? text.trim() : null },
+      skip ? { type: "fight.close", note: null } : { type: "fight.close", payouts, ...(companionPayouts.length ? { companionPayouts } : {}), items, note: writeNote && text.trim() ? text.trim() : null },
       skip ? "Fight closed. The TV is back on the scene." : lootCp ? `Paid ${formatCp(lootCp)} in loot.` : "Fight closed. The TV is back on the scene.",
     );
     setBusy(false);

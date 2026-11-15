@@ -98,6 +98,8 @@ export const fightDmCommands = [
   z.object({
     type: z.literal("fight.close"),
     payouts: z.array(z.object({ playerId: id, cp })).max(50).optional(),
+    /** Companions who take a share: it's held on them ("Fennick has 14 gp"). Never hirelings. */
+    companionPayouts: z.array(z.object({ companionId: id, cp })).max(20).optional(),
     items: text(600).optional(),
     note: text(2000).nullable().optional(),
   }),
