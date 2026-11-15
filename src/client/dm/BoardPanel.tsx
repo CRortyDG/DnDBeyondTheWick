@@ -12,6 +12,8 @@ import { defaultPayout, jobsOf, jobTitle, payoutPlayers, rankName, RENOWN, renow
 import type { Job, JobReward, JobStatus, JobStyle, NoteLook, TrustNeed } from "@/shared/types";
 import { JobCard, STYLE_LABELS, whenLabel } from "../scenes/Board";
 import { useDm } from "./context";
+import { PageHead } from "./PageHead";
+import { PlusIcon } from "./navIcons";
 
 const STATUS_LABELS: Record<JobStatus, string> = { open: "Open", taken: "Taken", done: "Done", expired: "Pulled" };
 
@@ -25,7 +27,32 @@ export function BoardPanel() {
   const followOf = editing?.followUpOf ? jobs.find((j) => j.id === editing.followUpOf) : undefined;
   const payJob = paying ? jobs.find((j) => j.id === paying) : undefined;
 
+  const n = (st: JobStatus) => jobs.filter((j) => j.status === st).length;
+  const newJob = () => (setPaying(null), setEditing({ id: null }));
+
   return (
+    <div className="pg board-page">
+      <PageHead
+        title="Notice board"
+        sub="The TV's board, the party's Renown and the job flyers."
+        help={
+          <>
+            <p>Drag a note to move it, the round handle to tilt it, the side handle to make it wider. Double-click to edit. Changes go to the TV when you let go. Notes in the drawer never leave this screen.</p>
+            <p>Pinned jobs show on the TV&rsquo;s notice board and on phones. Jobs above the party&rsquo;s Renown stay readable, stamped &ldquo;Experienced parties only&rdquo;. Your notes (adventure, loot, twists) never leave this screen.</p>
+          </>
+        }
+        actions={
+          <button type="button" className="btn primary" onClick={newJob}>
+            <PlusIcon size={16} /> Job flyer
+          </button>
+        }
+        stats={[
+          { label: "Renown", value: rankName(renownOf(s)), tone: "gold" },
+          { label: "Open jobs", value: n("open") },
+          { label: "Taken", value: n("taken"), tone: n("taken") ? "warn" : "muted" },
+          { label: "Done", value: n("done"), tone: "muted" },
+        ]}
+      />
     <div className="panel-grid">
       <BoardCanvas onEditJob={(id) => (setPaying(null), setEditing({ id }))} onNewJob={() => (setPaying(null), setEditing({ id: null }))} />
       {editing ? <JobEditor key={`${editing.id ?? "new"}-${editing.followUpOf ?? ""}`} job={editJob} followUpOf={followOf} onClose={() => setEditing(null)} /> : null}
@@ -35,12 +62,7 @@ export function BoardPanel() {
         <div className="box-head">
           <h3>Job flyers</h3>
         </div>
-        <p className="note">Pinned jobs show on the TV&rsquo;s notice board and on phones. Jobs above the party&rsquo;s Renown stay readable, stamped &ldquo;Experienced parties only&rdquo;. Your notes (adventure, loot, twists) never leave this screen.</p>
-        <div className="inline">
-          <button type="button" className="btn primary" onClick={() => (setPaying(null), setEditing({ id: null }))}>
-            New job flyer
-          </button>
-        </div>
+        {jobs.length === 0 ? <p className="note">No job flyers yet. Add one with + Job flyer at the top.</p> : null}
         {payJob ? <PayoutForm key={payJob.id} job={payJob} onClose={() => setPaying(null)} /> : null}
         {(["open", "taken", "done", "expired"] as JobStatus[]).map((st) => {
           const list = jobs.filter((j) => j.status === st);
@@ -57,6 +79,7 @@ export function BoardPanel() {
           );
         })}
       </section>
+    </div>
     </div>
   );
 }

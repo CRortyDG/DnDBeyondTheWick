@@ -8,6 +8,8 @@ import { monstersOf, rechargeText, isDice } from "@/shared/combat";
 import { formatCp } from "@/shared/money";
 import type { MonsterAbility, MonsterTemplate } from "@/shared/types";
 import { useDm } from "./context";
+import { PageHead } from "./PageHead";
+import { PlusIcon, SwordIcon } from "./navIcons";
 import { Drawer } from "./Drawer";
 import { MenuItem, RowMenu } from "./RowMenu";
 
@@ -29,22 +31,33 @@ export function MonstersPanel({ onFight }: { onFight: () => void }) {
   };
 
   return (
-    <div className="fx-lib">
-      <p className="note">Monster templates for combat mode: the numbers from a stat block, typed in by hand. Only you see these. The TV shows a monster&rsquo;s TV name and how hurt it looks, never its numbers.</p>
-      <div className="fx-add-row">
-        <button className="btn primary" type="button" onClick={() => setEditing("new")}>
-          + New monster
-        </button>
-        {s.fight ? (
-          <button className="btn" type="button" onClick={onFight}>
-            Back to the fight
-          </button>
-        ) : (
-          <button className="btn" type="button" onClick={() => start()}>
-            Start a fight (add monsters there)
-          </button>
-        )}
-      </div>
+    <div className="fx-lib pg">
+      <PageHead
+        title="Monsters"
+        sub="Stat blocks for combat mode, and your past fights."
+        help={<p>Monster templates for combat mode: the numbers from a stat block, typed in by hand. Only you see these. The TV shows a monster&rsquo;s TV name and how hurt it looks, never its numbers. Set how many and press Fight to start a fight with them, or start an empty fight and add monsters there.</p>}
+        actions={
+          <>
+            {s.fight ? (
+              <button className="btn" type="button" onClick={onFight}>
+                Back to the fight
+              </button>
+            ) : (
+              <button className="btn" type="button" onClick={() => start()}>
+                <SwordIcon size={16} /> Empty fight
+              </button>
+            )}
+            <button className="btn primary" type="button" onClick={() => setEditing("new")}>
+              <PlusIcon size={16} /> Monster
+            </button>
+          </>
+        }
+        stats={[
+          { label: "In the library", value: list.length },
+          { label: "Past fights", value: hist.length, tone: "muted" },
+          ...(s.fight ? [{ label: "Fight", value: "Going on", tone: "warn" as const }] : []),
+        ]}
+      />
       {editing === "new" ? (
         <Drawer title="New monster" onClose={() => setEditing(null)} closeLabel="Cancel">
           <MonsterEditor draft={EMPTY} onDone={() => setEditing(null)} />
@@ -91,7 +104,7 @@ export function MonstersPanel({ onFight }: { onFight: () => void }) {
           </li>
         ))}
       </ul>
-      {!list.length && editing !== "new" ? <p className="note">No monsters yet.</p> : null}
+      {!list.length && editing !== "new" ? <p className="pg-empty">No monsters yet. Add one from a stat block with + Monster.</p> : null}
 
       <div className="fx-hist-row">
         <h3 className="fx-hist-h">Past fights</h3>

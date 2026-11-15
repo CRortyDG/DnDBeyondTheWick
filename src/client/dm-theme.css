@@ -2147,3 +2147,65 @@ html[data-view="dm"] {
   :where(html[data-view="dm"]) .shop-fronts { position: static; flex-direction: row; flex-wrap: wrap; }
   :where(html[data-view="dm"]) .shop-front { width: auto; }
 }
+
+/* ---------- World pages ---------- */
+
+:where(html[data-view="dm"]) .pg-inline-form.wide {
+  max-width: 760px;
+}
+:where(html[data-view="dm"]) .pg-inline-form select.fld {
+  flex: none;
+  width: auto;
+}
+:where(html[data-view="dm"]) .pg-search {
+  width: 200px;
+  height: var(--dm-control-sm);
+  font-size: 13px;
+}
+:where(html[data-view="dm"]) .pg-section {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  margin: var(--dm-s4) 0 var(--dm-s2);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--dm-text-3);
+}
+:where(html[data-view="dm"]) .pg-count {
+  font-weight: 500;
+  color: var(--dm-text-3);
+  opacity: 0.8;
+}
+:where(html[data-view="dm"]) .scenes-panel .assets-section:first-of-type .pg-section {
+  margin-top: 0;
+}
+:where(html[data-view="dm"]) .vote-bar {
+  padding: 8px 12px;
+  border: 1px dashed var(--dm-border-strong);
+  border-radius: var(--dm-r-md);
+}
+:where(html[data-view="dm"]) .vote-bar .note {
+  margin: 0;
+}
+:where(html[data-view="dm"]) .vote-bar.active {
+  border-style: solid;
+  border-color: var(--dm-gold-line);
+  background: var(--dm-gold-soft);
+}
+:where(html[data-view="dm"]) .vote-bar .fld.amt {
+  width: 72px;
+}
+:where(html[data-view="dm"]) .pg-head .btn.on {
+  background: var(--dm-gold-soft);
+  border-color: var(--dm-gold-line);
+  color: var(--dm-gold);
+}
+:where(html[data-view="dm"]) .board-page > .panel-grid {
+  margin: 0;
+}
+@media (max-width: 700px) {
+  :where(html[data-view="dm"]) .pg-search { width: 100%; }
+  :where(html[data-view="dm"]) .pg-inline-form { flex-wrap: wrap; }
+}
