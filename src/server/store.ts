@@ -8,6 +8,7 @@ import { withSeedMonsters } from "./seed-monsters";
 import { withSeedStory } from "./seed-story";
 import type { PresetStore } from "./presets";
 import type { UsageReport } from "@/shared/hosting";
+import { MemoryBuilderStore, type BuilderStore } from "./builderStore";
 
 /**
  * Where a game lives. One JSON document (state), a version number, an
@@ -40,6 +41,8 @@ export interface Store {
   loadSnapshot?(game: string, id: number): Promise<SnapshotData | null>;
   /** What this campaign has used of its host (Cloudflare only). Missing: not counted here. */
   usage?(game: string): Promise<UsageReport>;
+  /** Worldbuilder keys, drafts and Activity, kept beside the game (never in it). Missing: no Worldbuilder. */
+  builder?: BuilderStore;
 }
 
 /** How many safety snapshots a campaign keeps. */
@@ -76,6 +79,8 @@ export class MemoryStore implements Store {
   private games = new Map<string, MemoryGame>();
   readonly published: { game: string; version: number }[] = [];
   presets?: PresetStore;
+  /** One campaign per test store is enough for the Worldbuilder tests. */
+  builder: MemoryBuilderStore = new MemoryBuilderStore();
 
   private load(game: string): MemoryGame {
     let g = this.games.get(game);

@@ -524,6 +524,8 @@ export interface Notice {
   createdAt: number;
   /** DM-ONLY */
   dmNote: string;
+  /** DM-ONLY: drafted by a Worldbuilder key. */
+  madeBy?: MadeBy;
 }
 
 // ---------- the bounty board ----------
@@ -571,6 +573,8 @@ export interface Job {
   parties?: string[];
   /** Shared world: the party that took (and did) it. */
   partyId?: string;
+  /** DM-ONLY: drafted by a Worldbuilder key. */
+  madeBy?: MadeBy;
 }
 
 /** DM-ONLY */
@@ -731,6 +735,8 @@ export interface EntryFact {
   learnedIn?: string | null;
   /** Shared world: who knows it, and when they learned it. */
   knownBy?: Record<string, number>;
+  /** DM-ONLY: drafted by a Worldbuilder key. */
+  madeBy?: MadeBy;
 }
 
 export interface Entry {
@@ -782,6 +788,14 @@ export interface Entry {
   dmNote: string;
   /** DM-ONLY */
   secrets: string;
+  /** People, DM-ONLY: what they want. */
+  wants?: string;
+  /** People, DM-ONLY: what they know. */
+  knows?: string;
+  /** People, DM-ONLY: how they sound ("slow, kind, never finishes a sentence"). */
+  voice?: string;
+  /** DM-ONLY: drafted by a Worldbuilder key. */
+  madeBy?: MadeBy;
 }
 
 // ---------- leads and votes ----------
@@ -1039,7 +1053,47 @@ export interface GameState {
   parties?: Party[];
   /** Shared world: the party at the table now (whose session runs, whose fog the maps show). */
   partyId?: string;
+  /** DM-ONLY: random tables (rumors, encounters, names, weather). Read with tablesOf(). */
+  tables?: RandomTable[];
+  /** DM-ONLY: the Worldbuilder style guide (tone and rules Claude must follow). Read-only to builder keys. */
+  builderNotes?: string;
   seq: number;
+}
+
+/** DM-ONLY: content a Worldbuilder key drafted and the DM approved. Never sent to the TV or a phone. */
+export interface MadeBy {
+  /** The key's label ("Claude Desktop laptop"). */
+  label: string;
+  /** When it was approved. */
+  at: number;
+  /** The draft it came from (so an approve can't run twice). */
+  draft: string;
+}
+
+// ---------- random tables (DM-only) ----------
+
+export type TableDie = 4 | 6 | 8 | 10 | 12 | 20 | 100;
+export type TableKind = "rumor" | "encounter" | "name" | "weather" | "other";
+
+export interface TableRow {
+  /** The lowest roll for this row, 1-based. */
+  from: number;
+  /** The highest roll, inclusive. */
+  to: number;
+  text: string;
+}
+
+export interface RandomTable {
+  id: string;
+  name: string;
+  die: TableDie;
+  kind: TableKind;
+  /** Every number 1..die is in exactly one row. */
+  rows: TableRow[];
+  areas: string[];
+  dmNote: string;
+  createdAt: number;
+  madeBy?: MadeBy;
 }
 
 // ---------- the shared world (several parties in one campaign) ----------
@@ -1167,6 +1221,8 @@ export interface MonsterTemplate {
   dmNote: string;
   /** A portrait scene whose art the TV shows for it. */
   sceneId?: string;
+  /** DM-ONLY: drafted by a Worldbuilder key. */
+  madeBy?: MadeBy;
 }
 
 export type ConditionTick = "start" | "end";
@@ -1372,6 +1428,8 @@ export interface StoryThread {
   kind: StoryThreadKind;
   /** Backstory lanes: whose. */
   playerId?: string;
+  /** Drafted by a Worldbuilder key. */
+  madeBy?: MadeBy;
 }
 
 export interface StoryPlay {
@@ -1404,6 +1462,8 @@ export interface StoryBeat {
   /** A reworded copy of this beat. */
   variantOf?: string;
   createdAt: number;
+  /** Drafted by a Worldbuilder key. */
+  madeBy?: MadeBy;
 }
 
 /** A planned game night. Episodes sit on their dates. */

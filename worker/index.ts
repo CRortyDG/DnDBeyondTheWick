@@ -8,6 +8,8 @@ import { CLIP_VIDEO_MAX } from "@/shared/arrival";
 import type { Env } from "./env";
 import { R2Presets } from "./presets";
 import { GameRoom } from "./room";
+import { BATCH_HEADER, COUNTRY_HEADER } from "@/server/builder";
+import { carriesBuilderKey, parseBuilderAuth } from "@/server/builderKeys";
 
 export { GameRoom };
 
@@ -109,6 +111,39 @@ async function overApi(env: Env, ip: string, url: URL): Promise<boolean> {
 }
 
 const slowDown = (msg: string) => json({ error: msg, code: "rate-limited" }, 429);
+
+/**
+ * The Worldbuilder's door: POST /api/builder/<op> with a cfb_ key in the
+ * Authorization header. Not for browsers (no CORS; a page's request is
+ * refused). The campaign comes from the key, so no code is in the URL. Only the
+ * headers the builder needs go through; the country is Cloudflare's, never the
+ * caller's.
+ */
+async function builderDoor(req: Request, env: Env, ctx: ExecutionContext, ip: string): Promise<Response> {
+  // Browsers always send Origin or Sec-Fetch-Site on these; Node's fetch (the MCP server) sends neither.
+  if (req.method === "OPTIONS" || req.headers.has("Origin") || req.headers.has("Sec-Fetch-Site")) {
+    return json({ ok: false, error: "The Worldbuilder API can't be called from a browser.", code: "browser" }, 403);
+  }
+  const url = new URL(req.url);
+  if (req.headers.has(KEY_HEADER) || url.searchParams.has("player")) {
+    return json({ ok: false, error: "This is the Worldbuilder API. DM and player keys don't work here.", code: "wrong-door" }, 403);
+  }
+  if (req.method !== "POST") return json({ ok: false, error: "Use POST.", code: "bad-request" }, 405);
+  const parsed = parseBuilderAuth(req.headers.get("Authorization"));
+  if (!parsed) {
+    await noteMiss(env, ctx, ip);
+    return json({ ok: false, error: "Send a Worldbuilder key (cfb_...) in the Authorization header.", code: "bad-key" }, 401);
+  }
+  const headers = new Headers();
+  for (const h of ["Authorization", "Content-Type", "Content-Length", BATCH_HEADER]) {
+    const v = req.headers.get(h);
+    if (v) headers.set(h, v);
+  }
+  const country = (req as Request & { cf?: { country?: unknown } }).cf?.country;
+  if (typeof country === "string") headers.set(COUNTRY_HEADER, country);
+  const res = await room(env, parsed.game).fetch(new Request(`https://room${url.pathname}?game=${encodeURIComponent(parsed.game)}`, { method: "POST", headers, body: req.body }));
+  return settle(res, env, ctx, ip);
+}
 
 /** Start a campaign: a new room, a new DM key. The key is returned once and only its hash is kept. */
 async function createCampaign(req: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
@@ -349,6 +384,9 @@ export default {
         const ip = ipOf(req);
         if (await lockedOut(ip)) return withHeaders(slowDown("Too many wrong codes or links from here. Try again in 15 minutes."));
         if (await overApi(env, ip, url)) return withHeaders(slowDown("Too many requests from here. Slow down a little."));
+        if (path.startsWith("/api/builder/")) return withHeaders(await builderDoor(req, env, ctx, ip));
+        // A Worldbuilder key opens nothing else (the room says the same for its own routes).
+        if (carriesBuilderKey(req)) return withHeaders(json({ error: "A Worldbuilder key only works on the Worldbuilder API.", code: "wrong-door" }, 403));
         if (path === "/api/create" && req.method === "POST") return withHeaders(await createCampaign(req, env, ctx));
         if (path === "/api/upload" && req.method === "POST") return withHeaders(await upload(req, env, ctx, ip));
         if (path === "/api/upload-tiles" && req.method === "POST") return withHeaders(await uploadTiles(req, env, ctx, ip));

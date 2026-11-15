@@ -139,6 +139,7 @@ function cleanMonster(m: z.infer<typeof monsterBody>, id: string, old?: MonsterT
   };
   const scene = m.sceneId === undefined ? old?.sceneId : m.sceneId;
   if (scene) t.sceneId = scene;
+  if (old?.madeBy) t.madeBy = old.madeBy;
   return t;
 }
 

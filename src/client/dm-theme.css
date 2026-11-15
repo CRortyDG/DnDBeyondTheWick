@@ -3065,3 +3065,197 @@ html[data-view="dm"] .hc-small { font-size: 12px; margin-top: 10px; }
 :where(html[data-view="dm"]) .level-num {
   width: 72px;
 }
+
+/* ---------------------------------------------------------------- Worldbuilder and random tables */
+:where(html[data-view="dm"]) .fld-row {
+  display: flex;
+  flex-direction: column;
+  gap: var(--dm-s1);
+  font-size: 13px;
+  color: var(--dm-text-2);
+}
+:where(html[data-view="dm"]) .builder-panel .seg {
+  margin: var(--dm-s3) 0;
+}
+:where(html[data-view="dm"]) .builder-bulk {
+  align-items: flex-end;
+  margin-bottom: var(--dm-s3);
+  flex-wrap: wrap;
+}
+:where(html[data-view="dm"]) .builder-batch {
+  margin-bottom: var(--dm-s5);
+}
+:where(html[data-view="dm"]) .builder-batch > .inline {
+  flex-wrap: wrap;
+  gap: var(--dm-s2);
+  margin-bottom: var(--dm-s2);
+}
+:where(html[data-view="dm"]) .builder-batch h3 {
+  margin: 0;
+  font-size: 15px;
+}
+:where(html[data-view="dm"]) .draft-card {
+  margin-bottom: var(--dm-s3);
+  border-left: 3px solid var(--dm-gold-line);
+}
+:where(html[data-view="dm"]) .draft-card.draft-stale {
+  border-left-color: var(--dm-warn);
+}
+:where(html[data-view="dm"]) .draft-head {
+  display: flex;
+  align-items: center;
+  gap: var(--dm-s2);
+  flex-wrap: wrap;
+  margin-bottom: var(--dm-s2);
+}
+:where(html[data-view="dm"]) .draft-title {
+  overflow-wrap: anywhere;
+}
+:where(html[data-view="dm"]) .draft-fields {
+  display: grid;
+  gap: var(--dm-s2);
+  margin: 0 0 var(--dm-s3);
+}
+:where(html[data-view="dm"]) .draft-fields > div {
+  display: grid;
+  grid-template-columns: 9em 1fr;
+  gap: var(--dm-s3);
+}
+:where(html[data-view="dm"]) .draft-fields dt {
+  color: var(--dm-text-3);
+  font-size: 13px;
+}
+:where(html[data-view="dm"]) .draft-fields dd {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+:where(html[data-view="dm"]) .diff-cols {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--dm-s3);
+  margin-bottom: var(--dm-s3);
+}
+:where(html[data-view="dm"]) .diff-h {
+  font-size: 12px;
+  color: var(--dm-text-3);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: var(--dm-s1);
+}
+:where(html[data-view="dm"]) .diff-before,
+:where(html[data-view="dm"]) .diff-after {
+  margin: 0;
+  padding: var(--dm-s2) var(--dm-s3);
+  border-radius: var(--dm-r-sm);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font: inherit;
+}
+:where(html[data-view="dm"]) .diff-before {
+  background: rgba(226, 115, 95, 0.1);
+}
+:where(html[data-view="dm"]) .diff-after {
+  background: var(--dm-ok-soft);
+}
+:where(html[data-view="dm"]) .draft-edit {
+  margin-bottom: var(--dm-s3);
+}
+:where(html[data-view="dm"]) .builder-settings .builder-new {
+  flex-wrap: wrap;
+  gap: var(--dm-s2);
+  margin: var(--dm-s3) 0;
+}
+:where(html[data-view="dm"]) .builder-fresh {
+  border: 1px solid var(--dm-gold-line);
+  background: var(--dm-gold-soft);
+  margin: var(--dm-s3) 0;
+}
+:where(html[data-view="dm"]) .builder-key {
+  display: block;
+  padding: var(--dm-s2);
+  margin: var(--dm-s2) 0;
+  background: var(--dm-bg-0);
+  border-radius: var(--dm-r-sm);
+  overflow-wrap: anywhere;
+  user-select: all;
+  font-size: 12px;
+}
+:where(html[data-view="dm"]) .builder-keys,
+:where(html[data-view="dm"]) .builder-log {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  margin: var(--dm-s2) 0;
+}
+:where(html[data-view="dm"]) .builder-keys th,
+:where(html[data-view="dm"]) .builder-log th {
+  text-align: left;
+  color: var(--dm-text-3);
+  font-weight: 500;
+}
+:where(html[data-view="dm"]) .builder-keys td,
+:where(html[data-view="dm"]) .builder-keys th,
+:where(html[data-view="dm"]) .builder-log td,
+:where(html[data-view="dm"]) .builder-log th {
+  padding: var(--dm-s1) var(--dm-s2);
+  border-bottom: 1px solid var(--dm-border);
+  vertical-align: top;
+}
+:where(html[data-view="dm"]) .builder-keys tr.muted td {
+  color: var(--dm-text-3);
+}
+:where(html[data-view="dm"]) .builder-keys .tag {
+  margin-left: var(--dm-s1);
+}
+:where(html[data-view="dm"]) .builder-log tr.builder-fail td {
+  color: var(--dm-danger);
+  background: rgba(226, 115, 95, 0.06);
+}
+:where(html[data-view="dm"]) .builder-settings details h4 {
+  display: inline;
+  margin: 0;
+}
+:where(html[data-view="dm"]) .rtable {
+  margin-bottom: var(--dm-s3);
+}
+:where(html[data-view="dm"]) .rtable h3 {
+  margin: 0;
+}
+:where(html[data-view="dm"]) .rtable-rows {
+  list-style: none;
+  padding: 0;
+  margin: var(--dm-s2) 0 0;
+}
+:where(html[data-view="dm"]) .rtable-rows li {
+  padding: 2px var(--dm-s2);
+  border-radius: var(--dm-r-sm);
+}
+:where(html[data-view="dm"]) .rtable-rows li.on {
+  background: var(--dm-gold-soft);
+  color: var(--dm-gold);
+}
+:where(html[data-view="dm"]) .rtable-range {
+  display: inline-block;
+  min-width: 3.5em;
+  color: var(--dm-text-3);
+  font-variant-numeric: tabular-nums;
+}
+:where(html[data-view="dm"]) .rtable-roll {
+  font-size: 18px;
+  margin: var(--dm-s2) 0 0;
+}
+:where(html[data-view="dm"]) .rtable-roll b {
+  color: var(--dm-gold);
+}
+@media (max-width: 640px) {
+  :where(html[data-view="dm"]) .diff-cols,
+  :where(html[data-view="dm"]) .draft-fields > div {
+    grid-template-columns: 1fr;
+  }
+  :where(html[data-view="dm"]) .builder-keys,
+  :where(html[data-view="dm"]) .builder-log {
+    display: block;
+    overflow-x: auto;
+  }
+}
