@@ -181,3 +181,27 @@ describe("backup zip", () => {
     expect([...out[1].data]).toEqual([...img]);
   });
 });
+
+describe("the TV ahead of time", () => {
+  it("gets scenes that aren't up yet without their words", async () => {
+    const { projectTv } = await import("@/shared/projection");
+    const g = await state();
+    expect(JSON.stringify(projectTv(g, 1))).not.toContain("lantern cart");
+    g.live.sceneId = "s-stinger";
+    expect(JSON.stringify(projectTv(g, 1))).toContain("lantern cart");
+  });
+});
+
+describe("Ready for tonight?", () => {
+  it("flags blank scenes, broken beats, open names and the open door", async () => {
+    const { readiness } = await import("@/shared/readiness");
+    const g = await state();
+    g.episodes![0].beats[0].actions = [{ type: "scene", sceneId: "gone" }, { type: "fight", monsters: [{ name: "Nobody", count: 1 }] }];
+    const items = readiness(g).map((x) => x.text).join("\n");
+    expect(items).toMatch(/has no picture/);
+    expect(items).toMatch(/scene that was deleted/);
+    expect(items).toMatch(/“Nobody”, which isn't under Monsters/);
+    expect(items).toMatch(/Not locked to a phone yet/);
+    expect(items).toMatch(/door is open/);
+  });
+});

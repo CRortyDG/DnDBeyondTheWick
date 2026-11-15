@@ -556,7 +556,18 @@ export function projectTv(game: GameState, version: number): TvView {
       ? { diceRoll: { n: game.diceRoll.n, groups: game.diceRoll.groups, plus: game.diceRoll.plus, total: game.diceRoll.total, ...(game.diceRoll.name ? { name: game.diceRoll.name } : {}) } }
       : {}),
     // Reveal scenes, and portraits of people the party hasn't found, only while they're live.
-    scenes: game.scenes.filter((sc) => sc.id === game.live.sceneId || (!sc.reveal && !sceneSpoils(game, sc))).map((sc) => publicScene(game, sc)),
+    // Scenes that aren't up yet go out without their words (so the TV can preload the pictures): names, titles and descriptions wait until they're shown.
+    scenes: game.scenes
+      .filter((sc) => sc.id === game.live.sceneId || (!sc.reveal && !sceneSpoils(game, sc)))
+      .map((sc) => {
+        const out = publicScene(game, sc);
+        if (sc.id !== game.live.sceneId) {
+          delete out.name;
+          delete out.title;
+          delete out.alt;
+        }
+        return out;
+      }),
     recap: publicRecap(game),
     ...(game.scenes.find((sc) => sc.id === game.live.sceneId)?.kind === "table" ? { table: projectTable(game) } : {}),
     fight: publicFight(game),

@@ -28,6 +28,8 @@ import { MapEditor } from "./MapEditor";
 import { TableMap } from "./TableMap";
 import { Inbox } from "./Inbox";
 import { EndSessionDialog } from "./Dues";
+import { ReadyDialog } from "./ReadyDialog";
+import { readiness } from "@/shared/readiness";
 import { duesFor } from "@/shared/progress";
 import { ArrivalPanel } from "./ArrivalPanel";
 import { ChroniclePanel } from "./ChroniclePanel";
@@ -243,6 +245,7 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
   const [storyOpen, setStoryOpen] = useState<string | null>(null);
   const closeStory = useCallback(() => setStoryOpen(null), []);
   const [ending, setEnding] = useState(false);
+  const [ready, setReady] = useState(false);
   const closeMap = useCallback(() => setEditingMap(null), []);
   const [tableMap, setTableMap] = useState<string | null>(null);
   const closeTable = useCallback(() => setTableMap(null), []);
@@ -434,6 +437,7 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
           </button>
           <Inbox />
           {ending && session ? <EndSessionDialog session={session} onClose={() => setEnding(false)} /> : null}
+          {ready && !session ? <ReadyDialog onClose={() => setReady(false)} onGo={(page) => setTab(page)} /> : null}
           {s.fight ? null : (
             <button className="btn icon-only" type="button" onClick={startFight} title="Start a fight: Roll initiative! on the TV and phones" aria-label="Start fight">
               <SwordIcon />
@@ -478,7 +482,7 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
             </span>
           ) : null}
           {session ? null : (
-            <button className="btn primary" type="button" onClick={() => run({ type: "session.start" }, "Session started. The TV is back on the notice board.")}>
+            <button className="btn primary" type="button" onClick={() => (readiness(s).length ? setReady(true) : void run({ type: "session.start" }, "Session started. The TV is back on the notice board."))}>
               Start session {nextSessionNumber(s)}
             </button>
           )}
