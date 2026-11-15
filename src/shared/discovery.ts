@@ -370,3 +370,51 @@ export function sessionRecap(g: Pick<GameState, "entries">, sessionId: string): 
   if (!parts.length) return null;
   return `Tonight you ${list(parts)}.`;
 }
+
+// ---------------------------------------------------------------------------
+// Shops and their Discover entries
+
+/** The Discover entry tied to a shop's storefront. */
+export function shopEntry(g: Pick<GameState, "entries">, shopId: string): Entry | undefined {
+  return entriesOf(g).find((e) => e.shopId === shopId);
+}
+
+/**
+ * Every shop has exactly one Discover entry (kind shop). Run after any change
+ * and when a game is read, so older games catch up. A shop without one takes
+ * an untied shop entry of the same name, else gets a new one: Open when the
+ * shop is open to everyone, otherwise hidden. Ties to deleted shops, and
+ * second entries on the same shop, are dropped. Returns the same state.
+ */
+export function syncShopEntries<T extends GameState>(g: T, now: number = g.createdAt ?? 0): T {
+  const list = (g.entries ??= []);
+  const ids = new Set(g.shops.map((x) => x.id));
+  const tied = new Set<string>();
+  for (const e of list) {
+    if (!e.shopId) continue;
+    if (!ids.has(e.shopId) || tied.has(e.shopId)) delete e.shopId;
+    else tied.add(e.shopId);
+  }
+  const norm = (t: string) => slugify(t);
+  for (const sh of g.shops) {
+    if (tied.has(sh.id)) continue;
+    const same = list.find((e) => e.kind === "shop" && !e.shopId && norm(e.name) === norm(sh.name));
+    if (same) {
+      same.shopId = sh.id;
+      tied.add(sh.id);
+      continue;
+    }
+    if (list.length >= ENTRIES_MAX) continue;
+    let id = `e-shop-${sh.id}`;
+    for (let i = 2; list.some((x) => x.id === id); i++) id = `e-shop-${sh.id}-${i}`;
+    const e = blankEntry(list, id, "shop", sh.name, { title: sh.subtitle, shopId: sh.id });
+    if (sh.visibility === "all") {
+      e.stage = "found";
+      e.foundAt = now;
+      e.foundIn = null;
+    }
+    list.push(e);
+    tied.add(sh.id);
+  }
+  return g;
+}

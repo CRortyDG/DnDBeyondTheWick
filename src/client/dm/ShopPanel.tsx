@@ -372,7 +372,7 @@ function ShopSettings({ shop, onRemoved }: { shop: Shop; onRemoved: () => void }
                   if (await run({ type: "shop.remove", shopId: shop.id }, `Removed ${shop.name}.`)) onRemoved();
                 }}
               >
-                Remove {shop.name} and all its items
+                Remove {shop.name}, its items and its Discover entry
               </button>
             </>
           ) : (
