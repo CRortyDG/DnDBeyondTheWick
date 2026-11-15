@@ -201,10 +201,14 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
   const contribute = (p: Player, it: Item, cp: number, extra: Partial<LedgerEntry> = {}) => {
     move(p, -cp, `Put ${formatCp(cp)} toward ${it.name}`, "contribution", { itemId: it.id, ...extra });
     addStake(it, p, cp);
+    checkFunded(it);
+  };
+  const checkFunded = (it: Item) => {
     if (!s.effectsOn[it.id] && raisedCp(s, it.id) >= it.priceCp) {
       announcePublic(it.shopId, `Funded: ${it.name}!`);
       turnOn(it);
-      const who = [...sharesOf(s, it.id).keys()].map((id) => s.players.find((x) => x.id === id)?.name ?? "someone").join(", ");
+      const npcs = [...new Set((s.npcStakes ?? []).filter((k) => k.itemId === it.id).map((k) => k.from))];
+      const who = [...[...sharesOf(s, it.id).keys()].map((id) => s.players.find((x) => x.id === id)?.name ?? "someone"), ...npcs].join(", ");
       task(`Funded: ${it.name} (by ${who}).${it.dmNote ? ` Your note: ${it.dmNote}` : ""}`, { itemId: it.id });
     }
   };
@@ -1283,6 +1287,16 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
       fulfil(p, item, 1, cost, {}, { question: cmd.question });
       break;
     }
+    case "project.npcContribute": {
+      const it = item(cmd.itemId);
+      const left = projectLeft(it);
+      const cp = Math.min(cmd.amountCp, left);
+      const from = cleanLine(cmd.from) || "Someone in town";
+      (s.npcStakes ??= []).push({ itemId: it.id, from, cp, at: ctx.now });
+      checkFunded(it);
+      if (cp < cmd.amountCp) out.info = `${it.name} only needed ${formatCp(cp)}, so that's all ${from} put in.`;
+      break;
+    }
     case "project.contribute": {
       const p = player(cmd.playerId);
       if (p.archived) fail(`${p.name} has left the table.`);
@@ -1619,6 +1633,12 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
       const p = player(cmd.playerId);
       if (p.balanceCp !== 0) fail(`${p.name} still has ${formatCp(p.balanceCp)}. Archive them instead, or zero their purse first.`);
       s.players = s.players.filter((x) => x.id !== p.id);
+      // Their Backstory lane goes with them, unless something was planned on it: then it keeps their name.
+      if (s.story) {
+        const lane = s.story.threads.find((t) => t.kind === "backstory" && t.playerId === p.id);
+        if (lane && !s.story.beats.some((b) => b.threadId === lane.id)) s.story.threads = s.story.threads.filter((t) => t !== lane);
+        else if (lane && !lane.name) lane.name = penName(p);
+      }
       break;
     }
     case "player.clearKey": {

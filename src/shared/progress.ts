@@ -108,9 +108,10 @@ export function sharesOf(s: Pick<GameState, "stakes">, itemId: string): Map<stri
   return m;
 }
 
-export function raisedCp(s: Pick<GameState, "stakes">, itemId: string): number {
+export function raisedCp(s: Pick<GameState, "stakes" | "npcStakes">, itemId: string): number {
   let t = 0;
   for (const k of s.stakes) if (k.itemId === itemId) t += k.cp;
+  for (const k of s.npcStakes ?? []) if (k.itemId === itemId) t += k.cp;
   return t;
 }
 

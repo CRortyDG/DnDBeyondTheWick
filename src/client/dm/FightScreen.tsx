@@ -68,12 +68,33 @@ function FightConsole({ f, onExit, run, toast }: { f: Fight; onExit: () => void;
       if (await run({ type: "fight.hp", combatantIds: sel, mode, amount: Math.floor(n), ...(mode === "damage" && crit ? { crit: true } : {}) })) {
         setAmount("");
         setCrit(false);
+        // A hit is done with its targets: the next one starts from nobody, so last turn's target can't be caught by mistake.
+        setSel([]);
       }
     },
     [amount, sel, crit, run, toast],
   );
 
-  const next = useCallback(() => void run({ type: "fight.next" }), [run]);
+  // A double click on Begin lands its second click on Next turn, in the same spot: ignore Next for a moment after Begin.
+  const beganAt = useRef(0);
+  const next = useCallback(() => {
+    if (Date.now() - beganAt.current < 800) return;
+    void run({ type: "fight.next" });
+  }, [run]);
+  const fRef = useRef(f);
+  fRef.current = f;
+  const begin = async () => {
+    // An initiative still being typed is saved first (it saves on blur), so Begin works on the first click.
+    const el = document.activeElement as HTMLElement | null;
+    if (el?.closest(".fx-init")) el.blur();
+    await Promise.all([...initSaves]);
+    const order = fRef.current.order;
+    // Anyone still without an initiative goes last this round; say so first.
+    const missing = order.filter((c) => initOf(c) === null && !c.hidden).map((c) => c.name);
+    if (missing.length && !confirm(`Still no initiative for ${missing.join(", ")}. Begin anyway? They go last this round and move to their place from round 2.`)) return;
+    beganAt.current = Date.now();
+    void run({ type: "fight.begin" });
+  };
   const back = useCallback(() => void run({ type: "fight.back" }), [run]);
 
   useEffect(() => {
@@ -112,7 +133,11 @@ function FightConsole({ f, onExit, run, toast }: { f: Fight; onExit: () => void;
   const active = f.order.filter((c) => !c.gone);
   const gone = f.order.filter((c) => c.gone);
   const notIn = players.filter((p) => !p.archived && !f.order.some((c) => c.playerId === p.id));
-  const toggle = (id: string) => setSel((xs) => (xs.includes(id) ? xs.filter((x) => x !== id) : [...xs, id]));
+  // A click picks just that row (click it again to let go); Ctrl, ⌘ or Shift adds to the pick, for a Fireball.
+  const pick = (id: string, add: boolean) =>
+    setSel((xs) => (add ? (xs.includes(id) ? xs.filter((x) => x !== id) : [...xs, id]) : xs.length === 1 && xs[0] === id ? [] : [id]));
+  // Enter on a focused row only ever picks it: it never lets go.
+  const pickKey = (id: string, add: boolean) => setSel((xs) => (xs.includes(id) ? xs : add ? [...xs, id] : [id]));
   const statusText = f.status === "setup" ? "Rolling initiative" : f.status === "over" ? "The fight is over" : `Round ${f.round}${f.status === "paused" ? " · paused" : ""}`;
   const live = s.scenes.find((x) => x.id === s.live.sceneId);
   const waiting = f.status === "setup" ? f.order.filter((c) => c.kind === "player" && c.init === null).map((c) => c.name) : [];
@@ -187,7 +212,7 @@ function FightConsole({ f, onExit, run, toast }: { f: Fight; onExit: () => void;
                   current={c.id === f.currentId && f.status !== "setup"}
                   isNext={c.id === nx?.id && f.status !== "setup"}
                   open={open === c.id}
-                  onToggle={() => toggle(c.id)}
+                  onPick={(add) => pick(c.id, add)} onPickKey={(add) => pickKey(c.id, add)}
                   typing={!!amount}
                   onOpen={() => setOpen((o) => (o === c.id ? null : c.id))}
                 />
@@ -199,7 +224,7 @@ function FightConsole({ f, onExit, run, toast }: { f: Fight; onExit: () => void;
                 <p className="note">Off the TV. Heal one to bring it back.</p>
                 <ol className="fx-order">
                   {gone.map((c, i) => (
-                    <Row key={c.id} c={c} index={active.length + i} f={f} hp={hpOf(c)} t={tpl(c.templateId)} selected={sel.includes(c.id)} current={false} isNext={false} open={open === c.id} onToggle={() => toggle(c.id)} typing={!!amount} onOpen={() => setOpen((o) => (o === c.id ? null : c.id))} />
+                    <Row key={c.id} c={c} index={active.length + i} f={f} hp={hpOf(c)} t={tpl(c.templateId)} selected={sel.includes(c.id)} current={false} isNext={false} open={open === c.id} onPick={(add) => pick(c.id, add)} onPickKey={(add) => pickKey(c.id, add)} typing={!!amount} onOpen={() => setOpen((o) => (o === c.id ? null : c.id))} />
                   ))}
                 </ol>
               </section>
@@ -208,7 +233,7 @@ function FightConsole({ f, onExit, run, toast }: { f: Fight; onExit: () => void;
 
           <aside className="fx-side">
             <section className="box fx-hit" aria-label="Damage and healing">
-              <div className="fx-sel">{sel.length ? `For: ${sel.map((id) => f.order.find((c) => c.id === id)?.name).join(", ")}` : "Click rows to pick who it's for."}</div>
+              <div className="fx-sel">{sel.length ? `For: ${sel.map((id) => f.order.find((c) => c.id === id)?.name).join(", ")}` : "Click a row to pick who it's for. Ctrl-click to add more."}</div>
               <div className="fx-amount">
                 <input
                   ref={amountRef}
@@ -272,7 +297,7 @@ function FightConsole({ f, onExit, run, toast }: { f: Fight; onExit: () => void;
                 </select>
               </label>
             </section>
-            <p className="note hint">Keys: Space next turn · Shift+Space previous · digits type an amount · Enter damage · Shift+Enter heal · Esc clears</p>
+            <p className="note hint">Click a row to pick it · Ctrl, ⌘ or Shift-click to pick more · Keys: Space next turn · Shift+Space previous · digits type an amount · Enter damage · Shift+Enter heal · Esc clears</p>
           </aside>
         </div>
       )}
@@ -284,12 +309,7 @@ function FightConsole({ f, onExit, run, toast }: { f: Fight; onExit: () => void;
               <button className="btn run-nav" type="button" onClick={() => run({ type: "fight.rollInit" })} disabled={!f.order.some((c) => c.kind === "monster" && c.init === null)}>
                 Roll monsters&rsquo; initiative
               </button>
-              <button className="btn primary run-nav" type="button" onClick={() => {
-                  // Anyone still without an initiative goes last this round; say so first.
-                  const missing = f.order.filter((c) => c.init === null && !c.hidden).map((c) => c.name);
-                  if (missing.length && !confirm(`Still no initiative for ${missing.join(", ")}. Begin anyway? They go last this round and move to their place from round 2.`)) return;
-                  void run({ type: "fight.begin" });
-                }} disabled={!f.order.length}>
+              <button className="btn primary run-nav" type="button" onClick={(e) => e.detail < 2 && void begin()} disabled={!f.order.length}>
                 Begin ›
               </button>
             </>
@@ -298,7 +318,7 @@ function FightConsole({ f, onExit, run, toast }: { f: Fight; onExit: () => void;
               <button className="btn run-nav" type="button" onClick={back}>
                 ‹ Previous <span className="key">⇧␣</span>
               </button>
-              <button className="btn primary run-nav" type="button" onClick={next}>
+              <button className="btn primary run-nav" type="button" onClick={(e) => e.detail < 2 && next()}>
                 Next turn › <span className="key">␣</span>
               </button>
             </>
@@ -321,7 +341,8 @@ function Row({
   current,
   isNext,
   open,
-  onToggle,
+  onPick,
+  onPickKey,
   onOpen,
   typing,
 }: {
@@ -335,7 +356,8 @@ function Row({
   current: boolean;
   isNext: boolean;
   open: boolean;
-  onToggle: () => void;
+  onPick: (add: boolean) => void;
+  onPickKey: (add: boolean) => void;
   onOpen: () => void;
 }) {
   const { run } = useDm();
@@ -363,7 +385,14 @@ function Row({
         if (id && id !== c.id) void run({ type: "fight.move", combatantId: id, to: index });
       }}
     >
-      <div className="fx-row-main" onClick={onToggle} role="button" tabIndex={0} aria-pressed={selected} onKeyDown={(e) => (e.key === "Enter" && e.target === e.currentTarget && !typing ? onToggle() : null)}>
+      <div
+        className="fx-row-main"
+        onClick={(e) => onPick(e.ctrlKey || e.metaKey || e.shiftKey)}
+        role="button"
+        tabIndex={0}
+        aria-pressed={selected}
+        onKeyDown={(e) => (e.key === "Enter" && e.target === e.currentTarget && !typing ? onPickKey(e.ctrlKey || e.metaKey || e.shiftKey) : null)}
+      >
         <span className="fx-grip" aria-hidden="true">
           ⋮⋮
         </span>
@@ -473,6 +502,15 @@ function Row({
   );
 }
 
+/** Initiative saves still on their way, so Begin can wait for them. */
+const initSaves = new Set<Promise<unknown>>();
+/** What the DM just typed, until the server's copy catches up. */
+const typedInit = new Map<string, { v: number | null; at: number }>();
+function initOf(c: Combatant): number | null {
+  const t = typedInit.get(c.id);
+  return t && Date.now() - t.at < 5000 ? t.v : c.init;
+}
+
 function InitInput({ c }: { c: Combatant }) {
   const { run } = useDm();
   return (
@@ -484,10 +522,13 @@ function InitInput({ c }: { c: Combatant }) {
         label={`Initiative for ${c.name}`}
         onCommit={(v) => {
           const t = v.trim();
-          if (t === "") return run({ type: "fight.init", combatantId: c.id, init: null });
-          const n = Number(t);
-          if (!Number.isInteger(n) || n < -99 || n > 999) return false;
-          return run({ type: "fight.init", combatantId: c.id, init: n });
+          const n = t === "" ? null : Number(t);
+          if (n !== null && (!Number.isInteger(n) || n < -99 || n > 999)) return false;
+          typedInit.set(c.id, { v: n, at: Date.now() });
+          const p = run({ type: "fight.init", combatantId: c.id, init: n });
+          initSaves.add(p);
+          void p.finally(() => initSaves.delete(p));
+          return p;
         }}
       />
     </span>

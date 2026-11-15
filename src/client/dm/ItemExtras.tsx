@@ -194,21 +194,27 @@ function EffectsEditor({ it, patch }: { it: Item; patch: Patch }) {
   );
 }
 
-/** Put a player's gold toward a project from the DM view. */
+/** Put gold toward a project from the DM view: a player's, or an NPC's straight in. */
 export function ContributeBox({ it, onDone }: { it: Item; onDone: () => void }) {
   const { view, run } = useDm();
   const players = view.state.players.filter((p) => !p.archived);
-  const [who, setWho] = useState(players[0]?.id ?? "");
+  const [who, setWho] = useState(players[0]?.id ?? NPC);
+  const [from, setFrom] = useState("");
   const [amt, setAmt] = useState("");
   const cp = parseAmount(amt);
   const left = Math.max(0, it.priceCp - raisedCp(view.state, it.id));
+  const npc = who === NPC;
   return (
     <form
       className="buyers"
       onSubmit={async (e) => {
         e.preventDefault();
         if (!cp || !who) return;
-        if (await run({ type: "project.contribute", playerId: who, itemId: it.id, amountCp: cp }, `Put ${formatCp(Math.min(cp, left))} toward ${it.name}.`)) onDone();
+        const put = formatCp(Math.min(cp, left));
+        const ok = npc
+          ? await run({ type: "project.npcContribute", itemId: it.id, amountCp: cp, from }, `${from.trim() || "Someone in town"} put ${put} toward ${it.name}.`)
+          : await run({ type: "project.contribute", playerId: who, itemId: it.id, amountCp: cp }, `Put ${put} toward ${it.name}.`);
+        if (ok) onDone();
       }}
     >
       <select className="fld" value={who} onChange={(e) => setWho(e.target.value)} aria-label="Who's putting gold in?">
@@ -217,7 +223,9 @@ export function ContributeBox({ it, onDone }: { it: Item; onDone: () => void }) 
             {p.name} ({formatCp(p.balanceCp)})
           </option>
         ))}
+        <option value={NPC}>An NPC (no player pays)</option>
       </select>
+      {npc ? <input className="fld" value={from} maxLength={60} onChange={(e) => setFrom(e.target.value)} placeholder="Who? e.g. The town council" aria-label="Which NPC" /> : null}
       <input className="fld amt" inputMode="decimal" value={amt} onChange={(e) => setAmt(e.target.value)} placeholder={`up to ${cpToGpInput(left)}`} aria-label="How much (gp)" />
       <button className="btn small primary" type="submit" disabled={!cp}>
         Put it in
@@ -228,6 +236,7 @@ export function ContributeBox({ it, onDone }: { it: Item; onDone: () => void }) 
     </form>
   );
 }
+const NPC = "__npc";
 
 /** Grant an Earned item to some players. */
 export function GrantBox({ it, onDone }: { it: Item; onDone: () => void }) {

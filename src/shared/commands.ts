@@ -307,6 +307,8 @@ export const dmCommand = z.discriminatedUnion("type", [
   /** question: what a training is for ("Elvish"). */
   z.object({ type: z.literal("money.buy"), playerId: id, itemId: id, question: text(300).optional() }),
   z.object({ type: z.literal("project.contribute"), playerId: id, itemId: id, amountCp: cp.min(1) }),
+  /** NPC money straight into a project: no player's purse involved. */
+  z.object({ type: z.literal("project.npcContribute"), itemId: id, amountCp: cp.min(1), from: text(60) }),
   /** Charge the rent and lessons due at the end of the running session (the ids the DM ticked). */
   z.object({ type: z.literal("dues.charge"), ids: z.array(id).max(200) }),
   z.object({ type: z.literal("rental.cancel"), rentalId: id }),
