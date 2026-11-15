@@ -8,6 +8,8 @@ import { monstersOf, rechargeText, isDice } from "@/shared/combat";
 import { formatCp } from "@/shared/money";
 import type { MonsterAbility, MonsterTemplate } from "@/shared/types";
 import { useDm } from "./context";
+import { Drawer } from "./Drawer";
+import { MenuItem, RowMenu } from "./RowMenu";
 
 type Draft = Omit<MonsterTemplate, "id" | "abilities"> & { abilities: (Omit<MonsterAbility, "id"> & { id?: string })[] };
 
@@ -43,47 +45,51 @@ export function MonstersPanel({ onFight }: { onFight: () => void }) {
           </button>
         )}
       </div>
-      {editing === "new" ? <MonsterEditor draft={EMPTY} onDone={() => setEditing(null)} /> : null}
-      <ul className="fx-lib-list">
-        {list.map((t) =>
-          editing === t.id ? (
-            <li key={t.id}>
-              <MonsterEditor id={t.id} draft={t} onDone={() => setEditing(null)} />
-            </li>
-          ) : (
-            <li key={t.id} className="box fx-lib-item">
-              <div className="fx-lib-head">
-                <div>
-                  <b>{t.name}</b>
-                  {t.displayName && t.displayName !== t.name ? <span className="note"> · TV: “{t.displayName}”</span> : null}
-                  <div className="note">
-                    AC {t.ac} · HP {t.hp} · Init {t.initBonus >= 0 ? "+" : ""}
-                    {t.initBonus}
-                    {t.speed ? ` · ${t.speed}` : ""}
-                    {t.attacks.length ? ` · ${t.attacks.map((a) => `${a.name} ${a.bonus >= 0 ? "+" : ""}${a.bonus} (${a.damage})`).join(", ")}` : ""}
-                  </div>
-                  {t.abilities.length ? <div className="note">{t.abilities.map((a) => `${a.name}${a.recharge ? ` (Recharge ${rechargeText(a.recharge)})` : a.uses ? ` (${a.uses}/day)` : a.onDeath ? " (on death)" : ""}`).join(" · ")}</div> : null}
-                  {t.dmNote ? <div className="note">Note: {t.dmNote}</div> : null}
-                </div>
-                <span className="spacer" />
-                {!s.fight ? (
-                  <span className="fx-add-row">
-                    <input className="fld fx-rounds" inputMode="numeric" aria-label={`How many ${t.name}`} value={counts[t.id] ?? "1"} onChange={(e) => setCounts({ ...counts, [t.id]: e.target.value.replace(/\D/g, "").slice(0, 2) })} />
-                    <button className="btn small primary" type="button" onClick={() => start(t)}>
-                      Fight
-                    </button>
-                  </span>
-                ) : null}
-                <button className="btn small" type="button" onClick={() => setEditing(t.id)}>
-                  Edit
-                </button>
-                <button className="btn small danger" type="button" onClick={() => window.confirm(`Delete ${t.name} from the library?`) && run({ type: "monster.remove", monsterId: t.id }, `${t.name} deleted.`)}>
+      {editing === "new" ? (
+        <Drawer title="New monster" onClose={() => setEditing(null)} closeLabel="Cancel">
+          <MonsterEditor draft={EMPTY} onDone={() => setEditing(null)} />
+        </Drawer>
+      ) : null}
+      <ul className="fx-lib-list row-list">
+        {list.map((t) => (
+          <li key={t.id} className={`list-row fx-lib-item${editing === t.id ? " selected" : ""}`}>
+            <div className="scene-row">
+              <button type="button" className="row-main" onClick={() => setEditing(editing === t.id ? null : t.id)} aria-expanded={editing === t.id} title={`Edit ${t.name}`}>
+                <span className="row-title">
+                  {t.name}
+                  {t.displayName && t.displayName !== t.name ? <span className="row-aside"> · TV: “{t.displayName}”</span> : null}
+                </span>
+                <span className="row-sub">
+                  AC {t.ac} · HP {t.hp} · Init {t.initBonus >= 0 ? "+" : ""}
+                  {t.initBonus}
+                  {t.speed ? ` · ${t.speed}` : ""}
+                  {t.attacks.length ? ` · ${t.attacks.map((a) => `${a.name} ${a.bonus >= 0 ? "+" : ""}${a.bonus} (${a.damage})`).join(", ")}` : ""}
+                </span>
+                {t.abilities.length ? <span className="row-sub">{t.abilities.map((a) => `${a.name}${a.recharge ? ` (Recharge ${rechargeText(a.recharge)})` : a.uses ? ` (${a.uses}/day)` : a.onDeath ? " (on death)" : ""}`).join(" · ")}</span> : null}
+                {t.dmNote ? <span className="row-sub">Note: {t.dmNote}</span> : null}
+              </button>
+              {!s.fight ? (
+                <span className="fx-add-row">
+                  <input className="fld fx-rounds" inputMode="numeric" aria-label={`How many ${t.name}`} value={counts[t.id] ?? "1"} onChange={(e) => setCounts({ ...counts, [t.id]: e.target.value.replace(/\D/g, "").slice(0, 2) })} />
+                  <button className="btn small primary" type="button" onClick={() => start(t)}>
+                    Fight
+                  </button>
+                </span>
+              ) : null}
+              <RowMenu label={t.name}>
+                <MenuItem onClick={() => setEditing(t.id)}>Edit</MenuItem>
+                <MenuItem danger onClick={() => window.confirm(`Delete ${t.name} from the library?`) && run({ type: "monster.remove", monsterId: t.id }, `${t.name} deleted.`)}>
                   Delete
-                </button>
-              </div>
-            </li>
-          ),
-        )}
+                </MenuItem>
+              </RowMenu>
+            </div>
+            {editing === t.id ? (
+              <Drawer title={t.name} subtitle="Monster template" onClose={() => setEditing(null)} closeLabel="Cancel">
+                <MonsterEditor id={t.id} draft={t} onDone={() => setEditing(null)} />
+              </Drawer>
+            ) : null}
+          </li>
+        ))}
       </ul>
       {!list.length && editing !== "new" ? <p className="note">No monsters yet.</p> : null}
 
