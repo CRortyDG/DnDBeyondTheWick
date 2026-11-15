@@ -8,6 +8,7 @@ import type { GameState, LedgerEntry } from "@/shared/types";
 import type { Env } from "./env";
 import { R2Presets } from "./presets";
 import type { PresetStore } from "@/server/presets";
+import { addUsage, USAGE_FIELDS, utcDay, ZERO_USAGE, type UsageCounts, type UsageReport } from "@/shared/hosting";
 
 /** A campaign idle this long is deleted, with its images. */
 const IDLE_DELETE_MS = 180 * 24 * 60 * 60 * 1000;
@@ -18,6 +19,11 @@ const MAX_SOCKETS = 100;
 /** A screen sends its key once per connection; a few retries are fine, a stream of messages is not. */
 const MAX_AUTHS = 5;
 const MAX_MESSAGE = 1024;
+/** Each screen sends a keep-alive "ping" this often (src/client/useGame.ts). */
+const PING_EVERY_MS = 25_000;
+/** Usage counts are saved at most this often (or after a write), so counting adds little of its own. */
+const USAGE_FLUSH_MS = 20_000;
+const USAGE_AFTER_WRITE_MS = 5_000;
 
 /** Images per campaign, counted as they are uploaded (they're never re-counted when a scene drops one). */
 export const UPLOAD_QUOTA_BYTES = 500 * 1024 * 1024;
@@ -31,10 +37,11 @@ interface Doc {
 }
 
 /** What each open connection is, kept on the socket so it survives hibernation. */
-type Attachment =
+type Attachment = (
   | { mode: "pending"; player: string; auths?: number }
   | { mode: "view"; player: string; key: string | null; auths?: number }
-  | { mode: "arrival"; token: string | null };
+  | { mode: "arrival"; token: string | null }
+) & { /** When the screen connected (ms), to count its keep-alive pings. */ at?: number };
 
 /**
  * One campaign. Holds the game document and the money ledger in SQLite (one
@@ -52,10 +59,31 @@ export class GameRoom extends DurableObject<Env> implements Store {
 
   readonly presets: PresetStore;
 
+  /** Usage since the last save (see the usage section below). Lost if the room sleeps first: the counts run a little low, never high. */
+  private meter: UsageCounts = { ...ZERO_USAGE };
+  private cursors: SqlStorageCursor<Record<string, SqlStorageValue>>[] = [];
+  private lastFlush = 0;
+  private prunedOn = "";
+
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
     this.presets = new R2Presets(env.FILES);
-    this.sql = ctx.storage.sql;
+    // Every query goes through here, so the rows it reads and writes are counted.
+    const raw = ctx.storage.sql;
+    const cursors = this.cursors;
+    this.sql = new Proxy(raw, {
+      get(target, prop) {
+        if (prop === "exec") {
+          return (query: string, ...bindings: unknown[]) => {
+            const c = target.exec(query, ...bindings);
+            cursors.push(c);
+            return c;
+          };
+        }
+        const v = Reflect.get(target, prop, target) as unknown;
+        return typeof v === "function" ? (v as (...a: unknown[]) => unknown).bind(target) : v;
+      },
+    });
     this.hasSchema = this.sql.exec("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'doc'").toArray().length > 0;
     // Keep-alive pings from the browser are answered without waking the room.
     ctx.setWebSocketAutoResponse(new WebSocketRequestResponsePair("ping", "pong"));
@@ -197,6 +225,19 @@ export class GameRoom extends DurableObject<Env> implements Store {
   // ---------------------------------------------------------------- HTTP and sockets
 
   async fetch(req: Request): Promise<Response> {
+    const path = new URL(req.url).pathname;
+    // A front-door request that reached this room. The internal ones are part of one the Worker already got,
+    // except the DM check (an upload) and create (a new campaign), which stand for the Worker request itself.
+    const worker = path.startsWith("/api/") || path === "/internal/dm-check" || path === "/internal/create" ? 1 : 0;
+    this.count({ events: 1, roomRequests: 1, workerRequests: worker });
+    try {
+      return await this.handle(req);
+    } finally {
+      this.flushUsage();
+    }
+  }
+
+  private async handle(req: Request): Promise<Response> {
     const url = new URL(req.url);
     if (url.pathname === "/internal/upload-reserve" && req.method === "POST") return this.reserveUpload(req, url);
     if (url.pathname === "/api/live") {
@@ -209,6 +250,7 @@ export class GameRoom extends DurableObject<Env> implements Store {
       const att: Attachment = url.searchParams.has("arrival")
         ? { mode: "arrival", token: isToken(t) ? t : null }
         : { mode: "pending", player: url.searchParams.get("player") ?? "" };
+      att.at = Date.now();
       server.serializeAttachment(att);
       if (att.mode === "arrival") await this.push(server);
       // Still a socket (so an open screen doesn't reconnect in a loop), but a guess at a code
@@ -238,11 +280,21 @@ export class GameRoom extends DurableObject<Env> implements Store {
       size,
       count,
     );
+    this.count({ uploads: count, uploadBytes: size });
     return json({ ok: true });
   }
 
   /** The browser's first message carries its key (a WebSocket can't send headers). */
   async webSocketMessage(ws: WebSocket, message: string | ArrayBuffer) {
+    this.count({ events: 1, socketMessages: 1 });
+    try {
+      await this.onMessage(ws, message);
+    } finally {
+      this.flushUsage();
+    }
+  }
+
+  private async onMessage(ws: WebSocket, message: string | ArrayBuffer) {
     // The only message a screen sends (besides the free "ping") is its key, once. Anything
     // else, or a stream of keys, is someone poking at the room: hang up on them.
     const hangUp = () => {
@@ -262,11 +314,14 @@ export class GameRoom extends DurableObject<Env> implements Store {
     const auths = (att.auths ?? 0) + 1;
     if (auths > MAX_AUTHS) return hangUp();
     const key = typeof msg.key === "string" && msg.key ? msg.key.slice(0, 200) : null;
-    ws.serializeAttachment({ mode: "view", player: att.player, key, auths } satisfies Attachment);
+    ws.serializeAttachment({ mode: "view", player: att.player, key, auths, at: att.at } satisfies Attachment);
     await this.push(ws);
   }
 
   async webSocketClose(ws: WebSocket, code: number, reason: string) {
+    const at = (ws.deserializeAttachment() as Attachment | null)?.at;
+    this.count({ events: 1, pings: at ? Math.floor(Math.max(0, Date.now() - at) / PING_EVERY_MS) : 0 });
+    this.flushUsage(true);
     try {
       ws.close(code, reason);
     } catch {}
@@ -299,11 +354,99 @@ export class GameRoom extends DurableObject<Env> implements Store {
     }
   }
 
+  // ---------------------------------------------------------------- usage
+  //
+  // What this campaign uses of Cloudflare, for the DM's Hosting costs box.
+  // Counted in memory and saved as one row per UTC day: after a write, or every
+  // USAGE_FLUSH_MS. A room that was never created (a guessed code) saves nothing.
+
+  private count(u: Partial<UsageCounts>) {
+    this.meter = addUsage(this.meter, u);
+  }
+
+  /** Add up the rows the finished queries read and wrote. */
+  private tallyRows() {
+    let read = 0;
+    let written = 0;
+    for (const c of this.cursors) {
+      read += c.rowsRead;
+      written += c.rowsWritten;
+    }
+    this.cursors.length = 0;
+    this.count({ rowsRead: read, rowsWritten: written });
+    return written;
+  }
+
+  private flushUsage(force = false) {
+    const wrote = this.tallyRows();
+    if (!this.hasSchema) {
+      this.meter = { ...ZERO_USAGE };
+      return;
+    }
+    const since = Date.now() - this.lastFlush;
+    if (!force && since < USAGE_FLUSH_MS && !(wrote > 0 && since >= USAGE_AFTER_WRITE_MS)) return;
+    const m = this.meter;
+    if (USAGE_FIELDS.every((k) => m[k] === 0)) return;
+    this.meter = { ...ZERO_USAGE };
+    this.lastFlush = Date.now();
+    const day = utcDay(this.lastFlush);
+    try {
+      this.sql.exec(`CREATE TABLE IF NOT EXISTS usage (day TEXT PRIMARY KEY, ${USAGE_FIELDS.map((k) => `${k} INTEGER NOT NULL DEFAULT 0`).join(", ")})`);
+      this.sql.exec(
+        `INSERT INTO usage (day, ${USAGE_FIELDS.join(", ")}) VALUES (?, ${USAGE_FIELDS.map(() => "?").join(", ")})
+         ON CONFLICT(day) DO UPDATE SET ${USAGE_FIELDS.map((k) => `${k} = ${k} + excluded.${k}`).join(", ")}`,
+        day,
+        ...USAGE_FIELDS.map((k) => Math.round(m[k])),
+      );
+      // Two years of days is plenty.
+      if (this.prunedOn !== day) {
+        this.prunedOn = day;
+        this.sql.exec("DELETE FROM usage WHERE day < ?", utcDay(this.lastFlush - 730 * 24 * 60 * 60 * 1000));
+      }
+    } catch (e) {
+      // Counting must never break the game.
+      console.error("usage flush failed", e);
+    }
+  }
+
+  async usage(_game: string): Promise<UsageReport> {
+    this.flushUsage(true);
+    const now = Date.now();
+    const today = utcDay(now);
+    const month = today.slice(0, 7);
+    const rows = this.hasSchema && this.sql.exec("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'usage'").toArray().length
+      ? this.sql.exec<Record<string, number | string>>("SELECT * FROM usage ORDER BY day").toArray()
+      : [];
+    const counts = (r: Record<string, number | string>): UsageCounts => Object.fromEntries(USAGE_FIELDS.map((k) => [k, Number(r[k]) || 0])) as unknown as UsageCounts;
+    const days = rows.map((r) => ({ day: String(r.day), counts: counts(r) }));
+    const byMonth = new Map<string, UsageCounts>();
+    for (const d of days) byMonth.set(d.day.slice(0, 7), addUsage(byMonth.get(d.day.slice(0, 7)) ?? ZERO_USAGE, d.counts));
+    const busy = days.filter((d) => d.day.startsWith(month)).sort((a, b) => b.counts.workerRequests + b.counts.roomRequests - (a.counts.workerRequests + a.counts.roomRequests))[0] ?? null;
+    const up = this.hasSchema && this.sql.exec("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'uploads'").toArray().length
+      ? this.sql.exec<{ bytes: number; files: number }>("SELECT bytes, files FROM uploads WHERE id = 1").toArray()[0]
+      : undefined;
+    this.tallyRows();
+    return {
+      month,
+      thisMonth: byMonth.get(month) ?? { ...ZERO_USAGE },
+      today,
+      todayCounts: days.find((d) => d.day === today)?.counts ?? { ...ZERO_USAGE },
+      busiestDay: busy,
+      months: [...byMonth].map(([m, c]) => ({ month: m, counts: c })),
+      storageBytes: this.sql.databaseSize,
+      imageBytes: up?.bytes ?? 0,
+      imageFiles: up?.files ?? 0,
+      since: days[0]?.day ?? null,
+    };
+  }
+
   // ---------------------------------------------------------------- cleanup
 
   /** Monthly: delete a campaign nobody has touched for six months, with its images. */
   async alarm() {
     if (!this.hasSchema) return;
+    this.count({ events: 1, roomRequests: 1 });
+    this.flushUsage(true);
     const row = this.sql.exec<{ touched_at: number; game: string | null }>("SELECT touched_at, game FROM doc WHERE id = 1").toArray()[0];
     if (row && Date.now() - row.touched_at > IDLE_DELETE_MS && this.ctx.getWebSockets().length === 0) {
       if (row.game) {
