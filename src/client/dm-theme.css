@@ -2721,3 +2721,27 @@ html[data-view="dm"] .ready-list li { display: flex; justify-content: space-betw
     width: 100%;
   }
 }
+
+/* ---------- Settings: Hosting costs ---------- */
+html[data-view="dm"] .hosting-costs summary { cursor: pointer; list-style-position: outside; }
+html[data-view="dm"] .hosting-costs summary h3 { display: inline; margin: 0; }
+html[data-view="dm"] .hosting-costs details[open] summary { margin-bottom: var(--dm-s3); }
+html[data-view="dm"] .hc-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; margin: 12px 0; }
+html[data-view="dm"] .hc-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; margin-bottom: 12px; }
+html[data-view="dm"] .hc-stats > div { display: grid; gap: 2px; padding: 10px 12px; border: 1px solid var(--dm-border); border-radius: var(--dm-r-md); background: var(--dm-bg-2); }
+html[data-view="dm"] .hc-big { font-size: 18px; font-weight: 600; color: var(--dm-gold); font-variant-numeric: tabular-nums; }
+html[data-view="dm"] .hc-table-wrap { overflow-x: auto; }
+html[data-view="dm"] .hc-table { width: 100%; border-collapse: collapse; font-size: 13.5px; font-variant-numeric: tabular-nums; }
+html[data-view="dm"] .hc-table th,
+html[data-view="dm"] .hc-table td { padding: 6px 8px; border-bottom: 1px solid var(--dm-border); text-align: right; white-space: nowrap; }
+html[data-view="dm"] .hc-table th:first-child { text-align: left; font-weight: 500; }
+html[data-view="dm"] .hc-table thead th { color: var(--dm-text-3); font-weight: 500; font-size: 12px; }
+html[data-view="dm"] .hc-sub { margin: 18px 0 0; font-size: 13.5px; font-weight: 600; }
+html[data-view="dm"] .hc-count { display: inline-flex; align-items: center; gap: 6px; color: var(--dm-text-2); }
+html[data-view="dm"] .hc-count input { width: 96px; }
+html[data-view="dm"] .hc-projection { margin: 0 0 8px; }
+html[data-view="dm"] .hc-small { font-size: 12px; margin-top: 10px; }
+@media (max-width: 520px) {
+  html[data-view="dm"] .hc-table th:nth-child(4),
+  html[data-view="dm"] .hc-table td:nth-child(4) { display: none; }
+}

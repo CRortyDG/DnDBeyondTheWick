@@ -9,6 +9,7 @@ import { EndSessionDialog } from "./Dues";
 import { PageHead } from "./PageHead";
 import { LinkIcon } from "../ui/icons";
 import { Field } from "./Field";
+import { HostingCosts } from "./HostingCosts";
 
 export function GamePanel() {
   const { view, run, ident, toast } = useDm();
@@ -150,6 +151,7 @@ export function GamePanel() {
         <p className="note">Your DM link is the only way into this campaign as the DM. Keep a copy in a password manager. A campaign nobody opens for six months is deleted, images and all.</p>
         <Snapshots />
       </section>
+      <HostingCosts />
       <section className="box danger-zone">
         <h3>Start fresh</h3>
         <p className="note">For after a test run. A safety snapshot is kept first, so you can go back from Backup above.</p>
