@@ -11,7 +11,7 @@ import { creditCp, duesFor, firstChargeCp, installmentCp, keepsStake, liveEffect
 import { shopVisibleTo } from "./projection";
 import { CHARACTER_MAX, CLIP_GIF_MAX, CLIP_VIDEO_MAX, STINGER_SCENE_ID, TABLE_SCENE_ID, WHY_MAX } from "./arrival";
 import { starterById } from "./starters";
-import { chapterSessionId, cleanTags, cleanText, defaultChapterId, NOTES_MAX, penName } from "./chronicle";
+import { chapterSessionId, cleanTags, cleanText, defaultChapterId, NEXT_CHAPTER, NOTES_MAX, penName } from "./chronicle";
 import { BOARD_SLOTS, jobsOf, jobTitle, pinnedCount, rankName, ranksOf, renownMet, renownNeeded, renownOf, shopOpenNow, tierOf, trustMet, trustText } from "./renown";
 import { LOG_MAX, PLAYER_ROLL_GAP_MS, rollPool, type RollTo } from "./dice";
 import { leadsOf, leadVisible, tally, voteClosed } from "./leads";
@@ -24,7 +24,9 @@ import { applyFight, isFightCommand, startFightFromBeat, type FightHelpers } fro
 import type { Notice, NotePlace } from "./types";
 import { beatSuggestions, entryRef, freeQuickKey, liveRef, QUICK_KEYS, quickOf, RECENT_MAX, refForScene, renameRefs, resolveRef, sceneSlug, uniqueSceneSlug } from "./assets";
 import { applyStory, isStoryCommand } from "./storyReducer";
+import { catchUp, materialize, partiesFor, partiesOf, PARTIES_MAX, PARTY_COLORS, partyById, presentIds, recordKnowledge, seedKnowledge, tableParty, tellTable, tidyLive, WORLD_EVENTS_MAX } from "./world";
 import { pendingPlacement, STORY_SECTION, syncStoryStatus } from "./episodeBuilder";
+import type { Flyer, Party, WorldEvent } from "./types";
 import type { Actor, Beat, BeatAction, Entry, EntryFact, Episode, FlyerText, Stage, GameState, Item, ItemTier, Job, Lead, LedgerEntry, LedgerKind, MapData, MapToken, Note, Pin, PinLink, Player, Scene, Session, SessionRun, Shop, StoryBlock, TradeRequest, Vote } from "./types";
 import type { z } from "zod";
 
@@ -69,6 +71,9 @@ export interface Result {
   sceneId?: string;
   /** Created token id. */
   tokenId?: string;
+  /** Created party / world event id. */
+  partyId?: string;
+  eventId?: string;
   /** A note for whoever sent the command ("2 approved, 1 still needs you"). */
   info?: string;
 }
@@ -81,7 +86,26 @@ export function isDmCommand(type: string): boolean {
   return !type.startsWith("me.") && !type.startsWith("system.");
 }
 
+/**
+ * In a shared world the game shows the table (see world.ts). A phone's own
+ * command runs against what that character knows, then the table is put back,
+ * and whatever the table learned goes into the memories of those present.
+ */
 export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
+  if (!input.world) return applyOne(input, cmd, ctx);
+  let base = input;
+  if (ctx.actor.role === "player" && cmd.type.startsWith("me.")) {
+    const pid = ctx.actor.playerId;
+    base = materialize(structuredClone(input), [pid]);
+    if (presentIds(input).includes(pid)) base.renown = input.renown;
+  }
+  const out = applyOne(base, cmd, ctx);
+  if (base !== input) materialize(out.state, presentIds(out.state));
+  recordKnowledge(input, out.state);
+  return out;
+}
+
+function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
   // Authorisation is checked again here so a wiring mistake can't let a player run DM commands.
   if (isDmCommand(cmd.type) && ctx.actor.role !== "dm") fail("Only the DM can do that.");
   if (cmd.type.startsWith("me.") && ctx.actor.role !== "player") fail("Only a player can do that.");
@@ -222,7 +246,7 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
    * Take stock, write the ledger, and do whatever this kind of item does:
    * place an order, start a rental or lessons, post a flyer. Checks are the caller's job.
    */
-  const fulfil = (p: Player, it: Item, qty: number, chargeCp: number, extra: Partial<LedgerEntry> = {}, more: { question?: string; flyer?: FlyerText } = {}) => {
+  const fulfil = (p: Player, it: Item, qty: number, chargeCp: number, extra: Partial<LedgerEntry> = {}, more: { question?: string; flyer?: FlyerText; rewardCp?: number } = {}) => {
     if (it.kind === "earned") fail(`${it.name} can't be bought. You grant it.`);
     if (it.kind === "project") fail(`${it.name} is a project: contribute to it instead.`);
     if (it.stock !== null) it.stock = Math.max(0, it.stock - qty);
@@ -253,7 +277,16 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
       if (more.flyer) {
         const up = boardHasRoom();
         const text = cleanFlyer(more.flyer, penName(p));
-        s.flyers.push({ id: nextId("fl"), playerId: p.id, ...text, postedAt: ctx.now, up, ...(up ? { pinnedAt: ctx.now, place: placeFor(s, { ...text }) } : {}) });
+        const fl: Flyer = { id: nextId("fl"), playerId: p.id, ...text, postedAt: ctx.now, up, ...(up ? { pinnedAt: ctx.now, place: placeFor(s, { ...text }) } : {}) };
+        // A shared world: signed with the poster's party, so other parties know who's asking.
+        const party = s.world ? (tableParty(s)?.memberIds.includes(p.id) ? tableParty(s) : partiesOf(s).find((x) => x.memberIds.includes(p.id))) : undefined;
+        if (party) fl.partyId = party.id;
+        // Their own gold as the reward: taken now and held until the DM pays it out or gives it back.
+        if (more.rewardCp) {
+          move(p, -more.rewardCp, `Reward held for your flyer: ${text.title}`, "charge", extra);
+          fl.rewardCp = more.rewardCp;
+        }
+        s.flyers.push(fl);
         if (!up) out.info = `The board is full (${BOARD_SLOTS} up), so the flyer is approved and waiting in the drawer. Put it up from the Board tab.`;
       }
     } else {
@@ -268,6 +301,10 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
   // ---------- the notice board ----------
   const jobs = (s.jobs ??= []);
   const job = (id: string): Job => jobs.find((j) => j.id === id) ?? fail("That job flyer doesn't exist.");
+  /** Shared world: a job someone takes is the playing party's. */
+  const takeForParty = (j: Job) => {
+    if (s.world && s.partyId) j.partyId = s.partyId;
+  };
   const boardHasRoom = () => pinnedCount(s) < BOARD_SLOTS;
   const needRoom = () => {
     if (!boardHasRoom()) fail(`The board is full (${BOARD_SLOTS} up). Take something down first.`);
@@ -315,11 +352,12 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
       const j = jobs.find((x) => x.id === r.jobId) ?? fail(`${r.jobTitle ?? "That job"} has come down. Decline it instead.`);
       if (j.status !== "open") fail(`${jobTitle(j)} is already ${j.status}.`, "recheck");
       if (!override && p.archived) fail(`${p.name} has left the table.`, "recheck");
-      // A job belongs to the whole party, whoever tapped the button.
+      // A job belongs to the whole party, whoever tapped the button (in a shared world, the party at the table).
       j.status = "taken";
       delete j.takenBy;
       j.takenAt = ctx.now;
-      if (j.pinned) announce(`The party took the job: ${jobTitle(j)}`);
+      takeForParty(j);
+      if (j.pinned) announce(`${s.world && tableParty(s) ? tableParty(s)!.name : "The party"} took the job: ${jobTitle(j)}`);
       // Nobody else needs to ask for it now.
       for (const o of s.requests) {
         if (o.id !== r.id && o.status === "pending" && o.kind === "job" && o.jobId === j.id) {
@@ -370,7 +408,9 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
       }
       const flyer = more.flyer ?? r.flyer;
       if (flyer) r.flyer = cleanFlyer(flyer, penName(p));
-      fulfil(p, item, r.qty, charge, { requestId: r.id }, { question: r.question, flyer: r.flyer });
+      const reward = r.flyer ? (r.rewardCp ?? 0) : 0;
+      if (reward && !override && p.balanceCp - charge < reward) fail(`${p.name} only has ${formatCp(p.balanceCp)} now, not ${formatCp(charge + reward)} with the reward.`, "recheck");
+      fulfil(p, item, r.qty, charge, { requestId: r.id }, { question: r.question, flyer: r.flyer, rewardCp: reward });
       r.chargedCp = charge;
       const answer = more.answer?.trim();
       if (answer) r.answer = answer;
@@ -413,6 +453,13 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
     s.players.push(p);
     out.playerId = p.id;
     markAttending(p.id);
+    // A shared world: a new character joins the party at the table and catches up on what it knows.
+    const party = s.world ? tableParty(s) : undefined;
+    if (party && party.memberIds.length < 50) {
+      catchUp(s, p.id, party);
+      party.memberIds.push(p.id);
+      p.renown = s.renown ?? 0;
+    }
     return p;
   };
 
@@ -581,14 +628,21 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
       startedAt: ctx.now,
       endedAt: null,
       attendeeIds: s.players.filter((p) => !p.archived && !p.away).map((p) => p.id),
+      ...(s.world && s.partyId ? { partyId: s.partyId } : {}),
     };
     s.sessions.push(sess);
     s.currentSessionId = sess.id;
-    // Notes written ahead on the next chapter's page belong to this session now.
-    for (const n of s.notes ?? []) if (n.sessionId === null) n.sessionId = sess.id;
+    // Notes written ahead on the next chapter's page belong to this session now (in a shared world, this party's).
+    for (const n of s.notes ?? []) {
+      if (n.sessionId !== null || n.world || (s.world && n.partyId && n.partyId !== s.partyId)) continue;
+      n.sessionId = sess.id;
+      delete n.partyId;
+    }
     showScene(homeScene());
     // Special orders due by this session arrive (whether started here or by run-game).
-    const due = s.orders.filter((o) => !o.arrived && o.arrivesAtSession <= number);
+    // In a shared world chapters count per party: only orders for someone at this table arrive.
+    const here = new Set(sess.attendeeIds);
+    const due = s.orders.filter((o) => !o.arrived && o.arrivesAtSession <= number && (!s.world || here.has(o.playerId)));
     for (const o of due) o.arrived = true;
     const log: string[] = due.map((o) => `Arrived: ${o.itemName} for ${s.players.find((p) => p.id === o.playerId)?.name ?? "someone"}`);
     if (due.length === 1) {
@@ -857,7 +911,11 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
     if (!t.trim()) fail("Write something first.");
     const notes = (s.notes ??= []);
     if (notes.length >= NOTES_MAX) fail("The Chronicle is full. Ask the DM to tidy up old notes.");
-    notes.push({ id: nextId("n"), sessionId: chapterOf(chapterId), authorId, authorName, text: t, tags: cleanTags(tags ?? []), createdAt: ctx.now });
+    const sessionId = chapterOf(chapterId);
+    const n: Note = { id: nextId("n"), sessionId, authorId, authorName, text: t, tags: cleanTags(tags ?? []), createdAt: ctx.now };
+    if (sessionId === null && s.world && s.partyId) n.partyId = s.partyId;
+    notes.push(n);
+    return n;
   };
   const editNote = (n: Note, patch: { text?: string; tags?: string[]; chapterId?: string }) => {
     let changed = false;
@@ -889,6 +947,57 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
   const dropFocus = (pinId: string) => {
     if (s.live.focus?.pinId === pinId) delete s.live.focus;
     if (s.live.banner?.pinId === pinId) delete s.live.banner;
+  };
+
+  // ---------- the shared world ----------
+  const partyOf = (id: string): Party => partyById(s, id) ?? fail("That party isn't in this world.");
+  /** Seat a party: its members are at the table, everyone else is away. Each party keeps its own fog. */
+  const playParty = (id: string) => {
+    const party = partyOf(id);
+    const was = s.partyId;
+    if (was !== party.id) {
+      for (const sc of s.scenes) {
+        const m = sc.map;
+        if (!m) continue;
+        const fogBy = (m.fogBy ??= {});
+        if (was && m.fog) fogBy[was] = m.fog;
+        const mine = fogBy[party.id];
+        // A party that hasn't been here starts under full fog where the map has fog set up.
+        if (mine) m.fog = mine;
+        else if (m.fog) m.fog = { ...m.fog, bits: emptyBits(m.fog.cols, m.fog.rows) };
+        delete fogBy[party.id];
+        if (!Object.keys(fogBy).length) delete m.fogBy;
+      }
+    }
+    s.partyId = party.id;
+    for (const p of s.players) if (!p.archived) p.away = !party.memberIds.includes(p.id);
+    if (was !== party.id) {
+      // The last table's moments aren't this table's.
+      delete s.recapCard;
+      delete s.discovery;
+      delete s.diceRoll;
+      delete s.renownMoment;
+      delete s.chosen;
+      s.banner = null;
+      delete s.live.recapSessionId;
+      s.live.leads = false;
+    }
+  };
+  /** News for every party: a line in every Chronicle and a moment on the TV. */
+  const worldNews = (text: string, tv: boolean) => {
+    if ((s.notes ?? []).length < NOTES_MAX) {
+      const n = addNote(DM_AUTHOR, "The DM", text, ["World news"], NEXT_CHAPTER);
+      n.world = true;
+      n.sessionId = null;
+      delete n.partyId;
+    }
+    if (s.world && tv) s.world.news = { n: ++s.seq, at: ctx.now, text };
+  };
+  const cleanEvent = (ev: { name: string; from: string; to: string; note: string }) => {
+    const name = cleanLine(ev.name);
+    if (!name) fail("Name the event.");
+    if (ev.to < ev.from) fail("The event ends before it starts.");
+    return { name, from: ev.from, to: ev.to, note: cleanLine(ev.note) };
   };
 
   // ---------- leads and votes ----------
@@ -1360,9 +1469,37 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
       if (up !== undefined) f.up = up;
       break;
     }
-    case "flyer.remove":
+    case "flyer.reward": {
+      const f = s.flyers.find((x) => x.id === cmd.flyerId) ?? fail("That flyer doesn't exist.");
+      const held = f.rewardCp ?? 0;
+      if (!held || f.rewardDone) fail("That flyer has no reward waiting.");
+      const poster = player(f.playerId);
+      if (cmd.to === "poster") {
+        move(poster, held, `Reward back from your flyer: ${f.title}`, "grant");
+        f.rewardDone = { at: ctx.now, to: "poster", paidCp: held };
+        break;
+      }
+      const ids = [...new Set(cmd.playerIds ?? [])];
+      if (!ids.length) fail("Pick who gets the reward.");
+      const each = Math.floor(held / ids.length);
+      const batchId = nextId("b");
+      ids.forEach((pid, i) => {
+        const cp = each + (i === 0 ? held - each * ids.length : 0);
+        if (cp > 0) move(player(pid), cp, `Reward from ${penName(poster)}'s flyer: ${f.title}`, "bounty", { batchId });
+      });
+      const party = s.world ? tableParty(s) : undefined;
+      f.rewardDone = { at: ctx.now, to: "party", paidCp: held, ...(party ? { partyId: party.id } : {}) };
+      chronicle(`${party ? party.name : "The party"} answered ${penName(poster)}'s flyer "${f.title}" and earned ${formatCp(held)}.`);
+      if (s.world && party && !partiesFor(s, poster.id).some((x) => x.id === party.id)) worldNews(`${party.name} answered ${penName(poster)}'s flyer: ${f.title}.`, false);
+      break;
+    }
+    case "flyer.remove": {
+      const f = s.flyers.find((x) => x.id === cmd.flyerId);
+      // Gold still held goes back to whoever put it up.
+      if (f?.rewardCp && !f.rewardDone && s.players.some((p) => p.id === f.playerId)) move(player(f.playerId), f.rewardCp, `Reward back from your flyer: ${f.title}`, "grant");
       s.flyers = s.flyers.filter((x) => x.id !== cmd.flyerId);
       break;
+    }
 
     // ---------- The dice tray ----------
     case "dice.roll": {
@@ -1450,7 +1587,11 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
         if (status === "open") {
           delete j.takenBy;
           delete j.takenAt;
-        } else j.takenAt ??= ctx.now;
+          delete j.partyId;
+        } else {
+          j.takenAt ??= ctx.now;
+          takeForParty(j);
+        }
       }
       cleanJob(j);
       break;
@@ -1546,6 +1687,7 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
       j.status = "done";
       j.doneAt = ctx.now;
       j.paidCp = total;
+      if (!j.partyId) takeForParty(j);
       if (j.pinned) announce(`Job done: ${jobTitle(j)}`);
       const amounts = new Set([...pay.values()].filter((cp) => cp > 0));
       const how = !total ? "" : amounts.size === 1 && paid.length > 1 ? ` Paid ${formatCp([...amounts][0])} each.` : ` Paid ${paid.join(", ")}.`;
@@ -1742,6 +1884,7 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
     // ---------- sessions ----------
     case "session.start": {
       if (s.currentSessionId) fail("A session is already running. End it first.");
+      if (cmd.partyId) playParty(cmd.partyId);
       startSession(cmd.title);
       // "You chose: …" for the lead the party voted to follow, once.
       const v = s.vote;
@@ -1772,7 +1915,7 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
     case "session.update": {
       const sess = s.sessions.find((x) => x.id === cmd.sessionId) ?? fail("That session doesn't exist.");
       if (cmd.patch.number !== undefined) {
-        const clash = s.sessions.find((x) => x.number === cmd.patch.number && x.id !== sess.id);
+        const clash = s.sessions.find((x) => x.number === cmd.patch.number && x.id !== sess.id && x.partyId === sess.partyId);
         if (clash) fail(`\u201c${clash.title}\u201d is already number ${clash.number}.`);
         // Keep a default title in step with its number.
         if (sess.title === `Session ${sess.number}`) sess.title = `Session ${cmd.patch.number}`;
@@ -1807,6 +1950,126 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
         if (p.archived) fail(`${p.name} has left the table.`);
         sess.noteTakerId = p.id;
       }
+      break;
+    }
+
+    // ---------- the shared world: parties ----------
+    case "party.add": {
+      const list = (s.parties ??= []);
+      if (list.length >= PARTIES_MAX) fail(`A world holds up to ${PARTIES_MAX} parties.`);
+      // The first new party turns the campaign into a shared world: everyone so far becomes the first party, and keeps what they know.
+      if (!s.world) {
+        seedKnowledge(s, ctx.now);
+        const first: Party = { id: nextId("pty"), name: cmd.firstName?.trim() || "The first party", color: PARTY_COLORS[0], memberIds: s.players.filter((p) => !p.archived).map((p) => p.id), createdAt: ctx.now };
+        list.push(first);
+        s.partyId = first.id;
+        for (const sess of s.sessions) sess.partyId = first.id;
+        for (const n of s.notes ?? []) if (n.sessionId === null) n.partyId = first.id;
+        for (const l of s.leads ?? []) l.partyId = first.id;
+        if (s.vote) s.vote.partyId = first.id;
+      }
+      const name = cmd.name.trim() || `Party ${list.length + 1}`;
+      if (list.some((x) => x.name.toLowerCase() === name.toLowerCase())) fail(`There's already a party called ${name}.`);
+      const party: Party = { id: nextId("pty"), name, color: PARTY_COLORS[list.length % PARTY_COLORS.length], memberIds: [], createdAt: ctx.now };
+      list.push(party);
+      out.partyId = party.id;
+      break;
+    }
+    case "party.update": {
+      const party = partyOf(cmd.partyId);
+      if (cmd.patch.name !== undefined) {
+        const name = cmd.patch.name.trim();
+        if (!name) fail("Give the party a name.");
+        if (partiesOf(s).some((x) => x.id !== party.id && x.name.toLowerCase() === name.toLowerCase())) fail(`There's already a party called ${name}.`);
+        party.name = name;
+      }
+      if (cmd.patch.color !== undefined) party.color = cmd.patch.color;
+      break;
+    }
+    case "party.remove": {
+      const party = partyOf(cmd.partyId);
+      if (s.partyId === party.id) fail("That party is at the table. Seat another party first.");
+      if (partiesOf(s).length <= 1) fail("Keep at least one party.");
+      s.parties = partiesOf(s).filter((x) => x.id !== party.id);
+      // Its chapters stay in the history; its open leads go with it.
+      s.leads = (s.leads ?? []).filter((l) => l.partyId !== party.id);
+      if (s.vote?.partyId === party.id) delete s.vote;
+      for (const sc of s.scenes) if (sc.map?.fogBy?.[party.id]) delete sc.map.fogBy[party.id];
+      break;
+    }
+    case "party.member": {
+      const party = partyOf(cmd.partyId);
+      const p = player(cmd.playerId);
+      const isIn = party.memberIds.includes(p.id);
+      if (cmd.member && !isIn) {
+        if (cmd.catchUp !== false) catchUp(s, p.id, party);
+        party.memberIds.push(p.id);
+        p.renown ??= s.renown ?? 0;
+        // Joining the party at the table seats them.
+        if (s.partyId === party.id && !s.currentSessionId) p.away = false;
+      } else if (!cmd.member && isIn) {
+        party.memberIds = party.memberIds.filter((x) => x !== p.id);
+        if (s.partyId === party.id && !s.currentSessionId) p.away = true;
+      }
+      break;
+    }
+    case "party.play":
+      if (s.currentSessionId) fail("End the session first, then seat the next party.");
+      playParty(cmd.partyId);
+      break;
+    case "entry.tell": {
+      if (!s.world) fail("Telling the table is for a shared world.");
+      const e = entry(cmd.entryId);
+      const from = player(cmd.playerId);
+      if (from.away || from.archived) fail(`${penName(from)} isn't at the table.`);
+      const told = tellTable(s, e, from.id, cmd.stage, cmd.factIds ?? [], ctx.now);
+      if (!told.length) {
+        out.info = (e.knownBy?.[from.id] ?? "hidden") === "hidden" ? `${penName(from)} doesn't know ${e.name}.` : "Everyone at the table already knows that.";
+        break;
+      }
+      // The table's view follows (the TV shows it once everyone present knows).
+      const before = e.stage;
+      materialize(s, presentIds(s));
+      if (isFound(e.stage) && !isFound(before) && (s.notes ?? []).length < NOTES_MAX) addNote(DM_AUTHOR, "The DM", `${penName(from)} told the party about ${e.name}.`, entryTags(s, e), undefined);
+      if (e.stage !== before && cmd.tv !== false) playMoment(e, before);
+      out.info = `Told ${told.length === 1 ? "1 person" : `${told.length} people`}.`;
+      break;
+    }
+
+    // ---------- the shared world: the calendar and news ----------
+    case "world.date": {
+      if (!s.world) fail("Make a second party first: the world clock is for a shared world.");
+      const was = s.world.date;
+      if (cmd.date === null) delete s.world.date;
+      else s.world.date = cmd.date;
+      if (!cmd.date || !was || cmd.date <= was) break;
+      // Events that begin between the old date and the new one: a moment for the TV and a line for every party.
+      const started = (s.world.events ?? []).filter((ev) => ev.from > was && ev.from <= cmd.date!);
+      for (const ev of started) worldNews(`${ev.name} begins.${ev.note.trim() ? " " + ev.note.trim() : ""}`, cmd.tv !== false);
+      break;
+    }
+    case "world.eventAdd": {
+      if (!s.world) fail("Make a second party first: world events are for a shared world.");
+      const events = (s.world.events ??= []);
+      if (events.length >= WORLD_EVENTS_MAX) fail("The calendar is full.");
+      const ev: WorldEvent = { id: nextId("we"), ...cleanEvent(cmd.event) };
+      events.push(ev);
+      out.eventId = ev.id;
+      break;
+    }
+    case "world.eventUpdate": {
+      const ev = (s.world?.events ?? []).find((x) => x.id === cmd.eventId) ?? fail("That event isn't on the calendar.");
+      Object.assign(ev, cleanEvent({ ...ev, ...cmd.patch }));
+      break;
+    }
+    case "world.eventRemove":
+      if (s.world?.events) s.world.events = s.world.events.filter((x) => x.id !== cmd.eventId);
+      break;
+    case "world.news": {
+      if (!s.world) fail("World news is for a shared world.");
+      const text = cleanLine(cmd.text);
+      if (!text) fail("Write the news first.");
+      worldNews(text, cmd.tv !== false);
       break;
     }
 
@@ -2058,6 +2321,11 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
       if (cmd.entryId) l.entryId = cmd.entryId;
       if (cmd.placeId) l.placeId = cmd.placeId;
       if (cmd.jobId) l.jobId = cmd.jobId;
+      // A shared world: the lead is the party's at the table unless the DM gives it to every party (null) or another one.
+      if (s.world) {
+        const pid = cmd.partyId === undefined ? s.partyId : cmd.partyId;
+        if (pid) l.partyId = partyOf(pid).id;
+      }
       list.push(l);
       out.leadId = l.id;
       break;
@@ -2081,6 +2349,10 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
       if (p.jobId !== undefined) {
         if (p.jobId) l.jobId = ((s.jobs ?? []).find((j) => j.id === p.jobId) ?? fail("That flyer isn't there any more.")).id;
         else delete l.jobId;
+      }
+      if (p.partyId !== undefined && s.world) {
+        if (p.partyId) l.partyId = partyOf(p.partyId).id;
+        else delete l.partyId;
       }
       break;
     }
@@ -2111,7 +2383,7 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
         if (!leadVisible(s, l)) fail(`Show "${l.text}" to the party first.`);
         if (l.status === "closed") fail(`"${l.text}" is closed.`);
       }
-      s.vote = { id: nextId("v"), leadIds: ids, openedAt: ctx.now, ballots: {}, ...(cmd.minutes ? { closesAt: ctx.now + cmd.minutes * 60_000 } : {}) };
+      s.vote = { id: nextId("v"), leadIds: ids, openedAt: ctx.now, ballots: {}, ...(cmd.minutes ? { closesAt: ctx.now + cmd.minutes * 60_000 } : {}), ...(s.world && s.partyId ? { partyId: s.partyId } : {}) };
       break;
     }
     case "vote.close": {
@@ -2143,6 +2415,7 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
     case "me.vote": {
       const p = me();
       const v = s.vote ?? fail("There's no vote right now.");
+      if (v.partyId && !partyOf(v.partyId).memberIds.includes(p.id)) fail("There's no vote right now.");
       if (voteClosed(v, ctx.now)) fail("The vote has closed.");
       if (!v.leadIds.includes(cmd.leadId)) fail("That isn't one of the choices.");
       v.ballots[p.id] = cmd.leadId;
@@ -2596,6 +2869,9 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
       const credit = creditCp(s, p.id, where.id);
       const avail = availableCp(s, p.id) + credit;
       if (totalCp > avail) fail(`That costs ${formatCp(totalCp)} and you have ${formatCp(Math.max(0, avail))} available${credit ? " (with your tab)" : ""}.`);
+      // A reward comes out of their own gold (never the tab).
+      const rewardCp = item.flyer && cmd.flyer ? (cmd.rewardCp ?? 0) : 0;
+      if (rewardCp && totalCp + rewardCp > availableCp(s, p.id)) fail(`With a ${formatCp(rewardCp)} reward that's ${formatCp(totalCp + rewardCp)}, and you have ${formatCp(Math.max(0, availableCp(s, p.id)))}.`);
       if (s.requests.filter((r) => r.status === "pending" && r.playerId === p.id).length >= 20) fail("You have 20 requests waiting. Let the DM catch up.");
       s.requests.push({
         id: nextId("rq"),
@@ -2614,6 +2890,7 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
         unitCp,
         ...(question ? { question } : {}),
         ...(item.flyer && cmd.flyer ? { flyer: cleanFlyer(cmd.flyer, penName(p)) } : {}),
+        ...(rewardCp ? { rewardCp } : {}),
       });
       break;
     }
@@ -2837,10 +3114,10 @@ export function curRunEpisode(s: Pick<GameState, "sessions" | "currentSessionId"
 }
 
 /** "Previously on…": the most recently ended session with a recap. */
-export function previousRecap(s: Pick<GameState, "sessions" | "currentSessionId">): Session | null {
+export function previousRecap(s: Pick<GameState, "sessions" | "currentSessionId"> & Partial<Pick<GameState, "world" | "partyId">>): Session | null {
   return (
     s.sessions
-      .filter((x) => x.id !== s.currentSessionId && x.endedAt !== null && x.recap?.trim())
+      .filter((x) => x.id !== s.currentSessionId && x.endedAt !== null && x.recap?.trim() && (!s.world || x.partyId === s.partyId))
       .sort((a, b) => (b.endedAt ?? 0) - (a.endedAt ?? 0))[0] ?? null
   );
 }
@@ -2858,8 +3135,10 @@ export function lowestFreeNumber(pins: Pick<Pin, "number">[]): number {
 }
 
 /** One more than the highest session number, so deleting old sessions never causes a clash. */
-export function nextSessionNumber(s: Pick<GameState, "sessions">): number {
-  return s.sessions.reduce((m, x) => Math.max(m, x.number), 0) + 1;
+export function nextSessionNumber(s: Pick<GameState, "sessions"> & Partial<Pick<GameState, "world" | "partyId">>): number {
+  // A shared world counts chapters per party.
+  const mine = s.world ? s.sessions.filter((x) => x.partyId === s.partyId) : s.sessions;
+  return mine.reduce((m, x) => Math.max(m, x.number), 0) + 1;
 }
 
 function tidyItem(it: Item): Item {
@@ -2907,6 +3186,8 @@ function cleanNotice(n: Notice): Notice {
 /** Trim a job flyer. A sealed envelope carries no text. */
 function cleanJob(j: Job): Job {
   if (!j.trust) delete j.trust;
+  if (j.parties) j.parties = [...new Set(j.parties)];
+  if (!j.parties?.length) delete j.parties;
   if (j.look) {
     j.look = cleanLook(j.look);
     if (!Object.keys(j.look).length) delete j.look;
