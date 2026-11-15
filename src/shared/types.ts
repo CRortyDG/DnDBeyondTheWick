@@ -1141,6 +1141,23 @@ export interface FightSummary {
   lootCp: number;
   items: string;
   noteId?: string;
+  /** Every foe who was in the fight (reinforcements too), for Run again. Missing on fights kept before it existed. */
+  foes?: FoeSetup[];
+  /** The map it was fought on, if it ended on one. Run again puts it back on the TV. */
+  mapSceneId?: string;
+}
+
+/** DM-ONLY: one foe of a past fight, enough to set the fight up again fresh. */
+export interface FoeSetup {
+  /** From the monster library: Run again rolls it fresh from the template. */
+  templateId?: string;
+  name: string;
+  displayName: string;
+  /** Used when there's no template (a quick add, or the template was deleted). */
+  maxHp: number;
+  ac?: number;
+  initBonus: number | null;
+  hidden: boolean;
 }
 
 // ---------- the storyboard (all DM-ONLY) ----------
