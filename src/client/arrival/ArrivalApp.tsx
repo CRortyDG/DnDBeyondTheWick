@@ -167,7 +167,7 @@ export function ArrivalApp({ code, game }: { code: string | null; game: string }
     if (!done && loading) return;
     const saved = readPos(posKey);
     if (done) setMode("seat");
-    else if (view?.look.intro === false) {
+    else if (view?.look?.intro === false) {
       setMode("seat");
       if (view.me && !view.me.finished) void post({ type: "finish" });
     } else {
@@ -184,7 +184,7 @@ export function ArrivalApp({ code, game }: { code: string | null; game: string }
     if (!view?.me) return;
     if (opensOnSeat(view.me, false) && mode === "intro" && !touched.current && !readPos(posKey)) setMode("seat");
     // A Reset from the DM: play it again as new.
-    if (!view.me.finished && !view.me.claimed && get(doneKey) === "1" && view.look.intro !== false) {
+    if (!view.me.finished && !view.me.claimed && get(doneKey) === "1" && view.look?.intro !== false) {
       set(doneKey, null);
       set(posKey, null);
       setStart({ panel: 0, step: 0 });
@@ -236,7 +236,7 @@ export function ArrivalApp({ code, game }: { code: string | null; game: string }
         onDone={finish}
         soundOn={soundOn}
         onToggleSound={toggleSound}
-        captain={view?.look.captain}
+        captain={view?.look?.captain}
       />
     );
   }
