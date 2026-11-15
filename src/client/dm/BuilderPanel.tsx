@@ -13,8 +13,9 @@ import { api, type Ident } from "../api";
 import { useDm } from "./context";
 import { Field } from "./Field";
 import { PageHead } from "./PageHead";
+import { ReviewMadeUp, reviewCount } from "./ReviewMadeUp";
 import { STAGES } from "@/shared/discovery";
-import type { Stage } from "@/shared/types";
+import type { GameState, Stage } from "@/shared/types";
 import { BUILDER_NOTES_MAX } from "@/shared/commands";
 
 /** A draft as /api/builder-admin/review sends it. */
@@ -276,7 +277,8 @@ export function usePendingDrafts(ident: Ident): [number, () => void] {
 
 export function BuilderPanel({ onCount }: { onCount?: () => void }) {
   const { view, run, ident, toast } = useDm();
-  const [part, setPart] = useState<"review" | "notes">("review");
+  const [part, setPart] = useState<"review" | "table" | "notes">("review");
+  const flagged = reviewCount(view.state as unknown as GameState);
   const [pending, setPending] = useState<ReviewDraft[] | null>(null);
   const [reviewed, setReviewed] = useState<Reviewed[]>([]);
   const [busy, setBusy] = useState(false);
@@ -345,18 +347,26 @@ export function BuilderPanel({ onCount }: { onCount?: () => void }) {
             <p>Approved entries go in Hidden (or the stage you pick above the list). Flyers and notes go in the drawer, not on the board. Players see things only when you reveal or pin them as usual.</p>
           </>
         }
-        stats={[{ label: "Waiting for review", value: pending?.length ?? "…", tone: pending?.length ? "gold" : "muted" }]}
+        stats={[
+          { label: "Waiting for review", value: pending?.length ?? "…", tone: pending?.length ? "gold" : "muted" },
+          { label: "Made at the table", value: flagged, tone: flagged ? "gold" : "muted" },
+        ]}
       />
       <div className="seg" role="group" aria-label="Worldbuilder">
         <button type="button" className={`btn small${part === "review" ? " on" : ""}`} aria-pressed={part === "review"} onClick={() => setPart("review")}>
           Review
+        </button>
+        <button type="button" className={`btn small${part === "table" ? " on" : ""}`} aria-pressed={part === "table"} onClick={() => setPart("table")}>
+          Made at the table{flagged ? ` (${flagged})` : ""}
         </button>
         <button type="button" className={`btn small${part === "notes" ? " on" : ""}`} aria-pressed={part === "notes"} onClick={() => setPart("notes")}>
           Builder notes
         </button>
       </div>
 
-      {part === "notes" ? (
+      {part === "table" ? (
+        <ReviewMadeUp />
+      ) : part === "notes" ? (
         <section className="box">
           <h3>Builder notes</h3>
           <p className="note">The style guide. Claude reads this first in every worldbuilding session. Tone, rules and things it must respect.</p>

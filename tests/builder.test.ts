@@ -340,7 +340,7 @@ describe("drafts", () => {
     expect(g.jobs!.find((x) => x.title === "Bell-ringer wanted")).toMatchObject({ pinned: false, reward: { kind: "each", cp: 2500 }, renown: 1 });
     expect(g.notices!.find((x) => x.title === "Chapel closed")!.up).toBe(false);
     expect(g.monsters!.find((x) => x.name === "Bell Wraith")!.madeBy?.label).toBe("Claude Desktop laptop");
-    expect(tablesOf(g)[0].rows).toEqual([
+    expect(tablesOf(g).find((x) => x.name === "Chapel rumors")!.rows).toEqual([
       { from: 1, to: 2, text: "A" },
       { from: 3, to: 4, text: "B" },
       { from: 5, to: 6, text: "C" },

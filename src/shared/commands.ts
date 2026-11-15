@@ -8,6 +8,7 @@ import { IMPORT_MAX } from "./bulkImport";
 import { SHOW_REF_RE } from "./assets";
 import { HANDOUT_BODY_MAX, HANDOUT_SIGN_MAX, HANDOUT_TITLE_MAX } from "./handout";
 import { storyDmCommands } from "./storySchema";
+import { offscriptDmCommands } from "./offscriptSchema";
 import { CLIP_URL_RE, CLIP_VIDEO_MAX, SLIDE_TEXT_MAX, SLIDES_MAX, WELCOME_MAX } from "./arrival";
 import type { TokenColor } from "./types";
 import { FOG_MAX_CELLS, TILE_URL_RE, TILES_MAX } from "./fog";
@@ -146,6 +147,8 @@ const entryFields = {
   wants: text(PERSON_NOTE_MAX),
   knows: text(PERSON_NOTE_MAX),
   voice: text(PERSON_NOTE_MAX),
+  look: text(PERSON_NOTE_MAX),
+  quirk: text(PERSON_NOTE_MAX),
 };
 const factText = text(FACT_MAX);
 
@@ -590,6 +593,9 @@ export const dmCommand = z.discriminatedUnion("type", [
 
   // The storyboard (DM-only planning).
   ...storyDmCommands,
+
+  // The off-script kit.
+  ...offscriptDmCommands,
 ]);
 
 /** Commands a player may send about themselves. */

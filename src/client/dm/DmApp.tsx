@@ -1,4 +1,6 @@
 
+import { reviewCount } from "./ReviewMadeUp";
+import { OffScriptButton } from "./OffScript";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement } from "react";
 import type { DmCommand } from "@/shared/commands";
 import type { DmView } from "@/shared/projection";
@@ -407,7 +409,9 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
   // What the TV sees, for the preview (hidden prices stay hidden here too).
   const tvView = projectTv(s as unknown as GameState, view.version);
   // Maps preview exactly what the TV gets: discovered pins only.
-  const previewScene = tvView.scenes.find((x) => x.id === live.id) ?? { ...live, map: undefined };
+  const baseScene = tvView.scenes.find((x) => x.id === live.id) ?? { ...live, map: undefined };
+  // An ambient scene stands in for the black screen, as on the TV.
+  const previewScene = tvView.live.ambient ? { ...baseScene, id: `ambient/${tvView.live.ambient.id}`, ambient: tvView.live.ambient } : baseScene;
   const session = s.sessions.find((x) => x.id === s.currentSessionId);
   const seated = s.world ? tableParty(s) : undefined;
   const liveShop = s.shops.find((x) => x.id === s.live.shopId);
@@ -453,6 +457,7 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
             <span className="key">/</span>
           </button>
           <RenownChip />
+          <OffScriptButton enabled={!runOpen && !finder && storyOpen === null && !editingMap} />
           <Inbox />
           {ending && session ? <EndSessionDialog session={session} onClose={() => setEnding(false)} /> : null}
           {ready && !session ? <ReadyDialog onClose={() => setReady(false)} onGo={(page) => setTab(page)} /> : null}
@@ -546,7 +551,7 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
               <div key={g.group} className="dm-nav">
                 <div className="dm-nav-h">{g.group}</div>
                 {g.items.map((it) => (
-                  <NavButton key={it.id} item={it} current={tab === it.id} onPick={setTab} count={it.id === "players" ? s.knocks.length : it.id === "builder" ? drafts : 0} />
+                  <NavButton key={it.id} item={it} current={tab === it.id} onPick={setTab} count={it.id === "players" ? s.knocks.length : it.id === "builder" ? drafts + reviewCount(s) : 0} />
                 ))}
               </div>
             ))}

@@ -3259,3 +3259,340 @@ html[data-view="dm"] .hc-small { font-size: 12px; margin-top: 10px; }
     overflow-x: auto;
   }
 }
+/* ---------- the off-script kit (src/client/dm/OffScript.tsx) ---------- */
+:where(html[data-view="dm"]) .offscript {
+  display: flex;
+  flex-direction: column;
+  gap: var(--dm-s3);
+}
+:where(html[data-view="dm"]) .offscript-tabs {
+  align-self: flex-start;
+}
+:where(html[data-view="dm"]) .offscript-sec {
+  display: flex;
+  flex-direction: column;
+  gap: var(--dm-s3);
+}
+:where(html[data-view="dm"]) .offscript-list h3 {
+  margin: 0 0 var(--dm-s1, 4px);
+  font-size: 0.95rem;
+}
+:where(html[data-view="dm"]) .offscript-list ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+:where(html[data-view="dm"]) .offscript-list li,
+:where(html[data-view="dm"]) .capture-list li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px;
+}
+:where(html[data-view="dm"]) .capture-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+:where(html[data-view="dm"]) .offscript-main {
+  font-weight: 600;
+}
+:where(html[data-view="dm"]) .offscript-act {
+  margin-left: auto;
+}
+:where(html[data-view="dm"]) .offscript-default {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--dm-s2);
+  padding: var(--dm-s2) var(--dm-s3);
+  border: 1px solid var(--dm-border);
+  border-radius: 8px;
+}
+:where(html[data-view="dm"]) .offscript-default > span {
+  flex: 1;
+  min-width: 12em;
+}
+:where(html[data-view="dm"]) .offscript-add {
+  display: flex;
+  gap: var(--dm-s2);
+}
+:where(html[data-view="dm"]) .offscript-add .fld {
+  flex: 1;
+}
+:where(html[data-view="dm"]) .here-pick {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+:where(html[data-view="dm"]) .here-chip.none {
+  opacity: 0.75;
+  font-style: italic;
+}
+:where(html[data-view="dm"]) .clue-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: var(--dm-s2) var(--dm-s3);
+  border: 1px solid var(--dm-border);
+  border-radius: 8px;
+  align-items: flex-start;
+}
+:where(html[data-view="dm"]) .clue-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+}
+:where(html[data-view="dm"]) .clue-deliver {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--dm-s2);
+  align-items: flex-end;
+  width: 100%;
+}
+:where(html[data-view="dm"]) .clue-deliver label {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+:where(html[data-view="dm"]) .clue-deliver label.check {
+  flex-direction: row;
+  align-items: center;
+}
+:where(html[data-view="dm"]) .clue-left .row,
+:where(html[data-view="dm"]) .note-draft .row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--dm-s2);
+  margin-top: 6px;
+}
+:where(html[data-view="dm"]) .note-draft {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: var(--dm-s2) 0 var(--dm-s3);
+  border-bottom: 1px solid var(--dm-border);
+}
+:where(html[data-view="dm"]) .note-draft .fld {
+  flex: 1;
+  min-width: 12em;
+}
+:where(html[data-view="dm"]) .note-draft-text {
+  font-style: italic;
+}
+:where(html[data-view="dm"]) .offscript-caption {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+:where(html[data-view="dm"]) .amb-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: var(--dm-s2);
+}
+:where(html[data-view="dm"]) .amb-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  border: 1px solid var(--dm-border);
+  border-radius: 8px;
+  padding: 4px;
+}
+:where(html[data-view="dm"]) .amb-tile.live {
+  border-color: var(--dm-accent, #d9a441);
+  box-shadow: 0 0 0 2px rgba(217, 164, 65, 0.35);
+}
+:where(html[data-view="dm"]) .amb-thumb {
+  position: relative;
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  overflow: hidden;
+  cursor: pointer;
+  background: #000;
+}
+:where(html[data-view="dm"]) .amb-thumb .ambient {
+  position: absolute;
+  inset: 0;
+}
+/* Eleven moving thumbnails would cost the DM's laptop for nothing: they hold still. */
+:where(html[data-view="dm"]) .amb-thumb .ambient * {
+  animation: none !important;
+}
+:where(html[data-view="dm"]) .amb-tile-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.85rem;
+}
+:where(html[data-view="dm"]) .amb-tile-foot .btn {
+  margin-left: auto;
+  font-size: 0.75rem;
+  padding: 2px 6px;
+}
+:where(html[data-view="dm"]) .capture-box {
+  position: fixed;
+  left: 50%;
+  bottom: 88px;
+  transform: translateX(-50%);
+  z-index: 60;
+  width: min(640px, calc(100vw - 32px));
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: var(--dm-s3);
+  background: var(--dm-bg-1);
+  border: 1px solid var(--dm-border-strong);
+  border-radius: 10px;
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.5);
+}
+:where(html[data-view="dm"]) .clue-editor {
+  display: flex;
+  flex-direction: column;
+  gap: var(--dm-s2);
+  margin: var(--dm-s3) 0;
+}
+:where(html[data-view="dm"]) .clue-editor h4 {
+  margin: 0;
+}
+:where(html[data-view="dm"]) .clue-edit-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+:where(html[data-view="dm"]) .clue-edit {
+  padding: 6px var(--dm-s3);
+  border: 1px solid var(--dm-border);
+  border-radius: 8px;
+}
+:where(html[data-view="dm"]) .clue-edit.status-dropped .clue-text,
+:where(html[data-view="dm"]) .clue-edit.status-delivered .clue-text {
+  opacity: 0.65;
+}
+:where(html[data-view="dm"]) .clue-edit-line {
+  display: flex;
+  align-items: center;
+  gap: var(--dm-s2);
+}
+:where(html[data-view="dm"]) .clue-fields {
+  display: flex;
+  flex-direction: column;
+  gap: var(--dm-s2);
+  margin-top: var(--dm-s2);
+}
+:where(html[data-view="dm"]) .clue-fields > label {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+:where(html[data-view="dm"]) .clue-fields .chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+}
+:where(html[data-view="dm"]) .clue-fields .chips .fld {
+  width: auto;
+}
+:where(html[data-view="dm"]) .clue-fields .row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--dm-s2);
+}
+:where(html[data-view="dm"]) .place-scene {
+  display: flex;
+  flex-direction: column;
+  gap: var(--dm-s2);
+}
+:where(html[data-view="dm"]) .place-scene label {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+/* the off-script generators */
+:where(html[data-view="dm"]) .gen-kinds {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+:where(html[data-view="dm"]) .gen-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--dm-s2, 8px);
+  padding: var(--dm-s3, 12px);
+  border: 1px solid var(--dm-border);
+  border-radius: var(--dm-r-md);
+  background: var(--dm-bg-1);
+}
+:where(html[data-view="dm"]) .gen-title {
+  margin: 0;
+  font-size: 1.25rem;
+  line-height: 1.3;
+}
+:where(html[data-view="dm"]) .gen-sub {
+  margin: 0;
+  font-style: italic;
+}
+:where(html[data-view="dm"]) .gen-detail {
+  margin: 0;
+}
+:where(html[data-view="dm"]) .gen-lines {
+  margin: 0;
+  display: grid;
+  gap: 4px;
+}
+:where(html[data-view="dm"]) .gen-lines div {
+  display: grid;
+  grid-template-columns: 4.5rem 1fr;
+  gap: 8px;
+}
+:where(html[data-view="dm"]) .gen-lines dt {
+  font-weight: 600;
+  color: var(--dm-text-2);
+}
+:where(html[data-view="dm"]) .gen-lines dd {
+  margin: 0;
+}
+:where(html[data-view="dm"]) .gen-rolled,
+:where(html[data-view="dm"]) .gen-done {
+  margin: 0;
+}
+:where(html[data-view="dm"]) .gen-acts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+:where(html[data-view="dm"]) .gen-card-tv {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.85rem;
+}
+:where(html[data-view="dm"]) .gen-edit {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+:where(html[data-view="dm"]) .gen-edit label {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+:where(html[data-view="dm"]) .gen-edit > .btn {
+  align-self: flex-start;
+}

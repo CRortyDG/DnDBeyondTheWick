@@ -13,6 +13,8 @@ import { VideoScene } from "../scenes/VideoScene";
 import type { TableView } from "@/shared/arrival";
 import type { HandoutSheet } from "@/shared/handout";
 import { HandoutOnStage } from "../scenes/HandoutSheet";
+import { AmbientScene } from "../scenes/Ambient";
+import { ambientById, type AmbientId } from "@/shared/ambient";
 
 export interface RenderableScene {
   id: string;
@@ -25,6 +27,8 @@ export interface RenderableScene {
   map?: PublicMap;
   /** Handouts: the words on the paper. */
   sheet?: HandoutSheet;
+  /** An ambient scene (shown over the black screen), with its caption. */
+  ambient?: { id: string; caption?: string };
 }
 
 
@@ -39,6 +43,8 @@ export function artSrc(art: Art | undefined, gated?: Record<string, string>): st
 /** One scene, filling its parent. */
 export function SceneView({ scene, gated, emptyHint, table, board, town = "Candlefair" }: { scene: RenderableScene; gated?: Record<string, string>; emptyHint?: string; table?: TableView; board?: BoardView; /** Shown on an empty image slot. */ town?: string }) {
   const src = artSrc(scene.art, gated);
+
+  if (scene.ambient && ambientById(scene.ambient.id)) return <AmbientScene id={scene.ambient.id as AmbientId} caption={scene.ambient.caption} />;
 
   if (scene.kind === "black") return <div className="scene-fill scene-black" />;
 

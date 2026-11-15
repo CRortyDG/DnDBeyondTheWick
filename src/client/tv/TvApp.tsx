@@ -35,7 +35,10 @@ export function TvApp({ ident }: { ident: Ident }) {
 }
 
 function TvScreen({ view, online }: { view: TvView; online: boolean }) {
-  const live = view.scenes.find((s) => s.id === view.live.sceneId) ?? view.scenes[0];
+  const base = view.scenes.find((s) => s.id === view.live.sceneId) ?? view.scenes[0];
+  // An ambient scene stands in for the black screen under it, as a scene of its own (so it fades in).
+  const amb = view.live.ambient;
+  const live = amb ? ({ id: `ambient/${amb.id}`, kind: "black", art: {}, ambient: amb } as PublicScene) : base;
   const layers = useCrossfade(live);
   usePreload(view.scenes);
   const { barVisible, idle, togglePinned } = useIdleBar();
