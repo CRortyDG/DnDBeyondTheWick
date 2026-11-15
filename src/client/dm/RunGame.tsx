@@ -18,6 +18,9 @@ import { useDm } from "./context";
 import { useAutosave } from "./useAutosave";
 import { LevelUpButton } from "./LevelUp";
 import { DiceButton } from "./DiceTray";
+import { ClueLeftovers, OffScriptPanel, QuickCapture, TurnNotesInto, useOffScriptKeys, type OffTab } from "./OffScript";
+import { hereOf } from "@/shared/offscript";
+import type { GameState } from "@/shared/types";
 
 export function actionLabel(a: BeatAction, g: AssetGame): string {
   if (a.type === "black") return "TV → black screen";
@@ -46,6 +49,14 @@ export function RunGame({ onExit, onFight }: { onExit: () => void; onFight?: () 
   const [bank, setBank] = useState(false);
   const [skip, setSkip] = useState<number[]>([]);
   const [finder, setFinder] = useState<{ pinTo?: number } | null>(null);
+  // The off-script kit: its panel (O) and the quick note box (N).
+  const [offOpen, setOffOpen] = useState(false);
+  const [offTab, setOffTab] = useState<OffTab>("here");
+  const [capturing, setCapturing] = useState(false);
+  const toggleOff = useCallback(() => setOffOpen((v) => !v), []);
+  const openCapture = useCallback(() => setCapturing(true), []);
+  useOffScriptKeys({ enabled: !finder && !bank && !capturing, panelOpen: offOpen, togglePanel: toggleOff, openCapture });
+  const here = hereOf(s as unknown as GameState);
 
   // Skips belong to the beat you're about to land on; reset them when you move.
   const where = r ? `${r.stage}:${r.beat}` : "";
@@ -148,6 +159,12 @@ export function RunGame({ onExit, onFight }: { onExit: () => void; onFight?: () 
           TV: {s.live.recapSessionId ? "Previously on…" : s.live.shopOpen ? "the shop" : (live?.label ?? "–")}
           {s.live.purseVisible ? " · purse" : ""}
         </span>
+        <button className={`btn small here-chip${here ? "" : " none"}`} type="button" title="Where the party is (opens the off-script panel)" onClick={() => (setOffTab("here"), setOffOpen(true))}>
+          {here ? `At ${here.name}` : "Where are they?"}
+        </button>
+        <button className={`btn small${offOpen ? " on" : ""}`} type="button" aria-pressed={offOpen} onClick={toggleOff}>
+          <span className="key">O</span> Off-script
+        </button>
         <Inbox />
         {s.fight && onFight ? (
           <button className="btn small primary" type="button" onClick={onFight}>
@@ -249,6 +266,8 @@ export function RunGame({ onExit, onFight }: { onExit: () => void; onFight?: () 
       </footer>
 
       {finder ? <Finder pinTo={finder.pinTo} onClose={() => setFinder(null)} /> : null}
+      {offOpen ? <OffScriptPanel tab={offTab} setTab={setOffTab} onClose={() => setOffOpen(false)} episodeId={ep.id} /> : null}
+      {capturing ? <QuickCapture onClose={() => setCapturing(false)} /> : null}
       {bank ? (
         <div className="run-overlay" role="dialog" aria-modal="true" aria-label="Bank">
           <div className="run-overlay-head">
@@ -471,6 +490,8 @@ function EndStep({ session, episode, onBank, onEnded }: { session: Session; epis
     <article className="run-beat">
       <h1 className="run-title">Session end</h1>
       <Leftovers episode={episode} />
+      <ClueLeftovers episodeId={episode.id} />
+      <TurnNotesInto sessionId={session.id} />
       <section className="run-section">
         <h2>Rent and lessons due</h2>
         <Dues session={session} />

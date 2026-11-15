@@ -54,14 +54,19 @@ export function writeHere(g: GameState, placeId: string | null, now: number): bo
   return true;
 }
 
-const lower = (t: string) => t.trim().toLowerCase();
+/** "The Docks", "Candlefair Docks" -> "docks" (the town's own name and a leading "the" don't count). */
+function areaKey(t: string, town: string): string {
+  const words = t.toLowerCase().replace(/[’']/g, "").split(/[^a-z0-9]+/).filter(Boolean);
+  const rest = words.filter((w, i) => !(i === 0 && w === "the") && w !== town);
+  return (rest.length ? rest : words).join(" ");
+}
 
-/** Entries that are in a place: linked either way, or listing it (by name) as an area. */
-function inPlace(place: Entry, e: Entry): boolean {
+/** Entries that are in a place: linked either way, or listing it as an area ("The Docks" for Candlefair Docks). */
+function inPlace(place: Entry, e: Entry, town: string): boolean {
   if (e.id === place.id) return false;
   if (e.links.includes(place.id) || place.links.includes(e.id)) return true;
-  const name = lower(place.name);
-  return e.areas.some((a) => lower(a) === name);
+  const key = areaKey(place.name, town);
+  return e.areas.some((a) => areaKey(a, town) === key);
 }
 
 export interface HereView {
@@ -83,8 +88,9 @@ function partyLead(g: Pick<GameState, "partyId" | "world">, l: Lead): boolean {
 export function hereView(g: GameState, place: Entry | undefined = hereOf(g)): HereView | null {
   if (!place) return null;
   const all = entriesOf(g);
-  const people = all.filter((e) => e.kind === "person" && inPlace(place, e));
-  const sites = all.filter((e) => (e.kind === "place" || e.kind === "shop") && inPlace(place, e));
+  const town = (g.town ?? "Candlefair").toLowerCase().replace(/[^a-z0-9]/g, "");
+  const people = all.filter((e) => e.kind === "person" && inPlace(place, e, town));
+  const sites = all.filter((e) => (e.kind === "place" || e.kind === "shop") && inPlace(place, e, town));
   const leads = leadsOf(g).filter((l) => l.status === "open" && l.placeId === place.id && partyLead(g, l));
   const tied = new Set([place.id, ...people.map((p) => p.id)]);
   const beats = storyOf(g).beats.filter(
