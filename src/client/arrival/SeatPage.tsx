@@ -129,7 +129,7 @@ export function SeatPage({
           </label>
           <label>
             <span>
-              {SEAT_PAGE.whyLabel} <em>(optional)</em>
+              {view?.look.intro === false ? SEAT_PAGE.whyLabelPlain : SEAT_PAGE.whyLabel} <em>(optional)</em>
             </span>
             <input value={why} onChange={(e) => setWhy(e.target.value)} maxLength={WHY_MAX} autoComplete="off" enterKeyHint="done" />
             <small className="count" aria-live="polite">

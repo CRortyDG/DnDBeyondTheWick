@@ -77,6 +77,8 @@ export const SEAT_PAGE = {
   question: "Who walked in?",
   nameLabel: "Your character’s name",
   whyLabel: "Why did you get on that boat?",
+  /** Without the boat intro. */
+  whyLabelPlain: "What brings you here?",
   takeSeat: "Take a seat",
   decideLater: "Decide later",
   /** Shown as their candle lights. */
