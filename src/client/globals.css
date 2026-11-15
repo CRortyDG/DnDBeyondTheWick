@@ -3219,9 +3219,10 @@ input.fld.inline-input {
 .tv-table {
   position: absolute;
   left: 50%;
-  top: 50%;
+  /* Up and a little smaller, so the bottom seat's name clears the title. */
+  top: 44%;
   width: 1920px;
-  height: 960px;
+  height: 820px;
   transform: translate(-50%, -50%);
 }
 .rt-name {
@@ -3268,7 +3269,7 @@ input.fld.inline-input {
   position: absolute;
   left: 0;
   right: 0;
-  bottom: 40px;
+  bottom: 28px;
   text-align: center;
   font-family: "IM Fell English SC", Georgia, serif;
   font-size: 84px;

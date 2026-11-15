@@ -382,7 +382,22 @@ export function seedGame(id: string, name = "Tales from the Flickering Candle", 
  */
 export function freshStart(g: GameState): GameState {
   const s = structuredClone(g);
-  for (const p of s.players) p.balanceCp = 0;
+  for (const p of s.players) {
+    p.balanceCp = 0;
+    // A test fight's damage and inspiration don't carry into the real session one.
+    delete p.hp;
+    p.inspired = false;
+  }
+  // No fight running, none in the history.
+  delete s.fight;
+  s.fights = [];
+  // Maps: the party's tokens and fight tokens come off, and fog covers everything again.
+  for (const sc of s.scenes) {
+    const m = sc.map;
+    if (!m) continue;
+    if (m.tokens) m.tokens = m.tokens.filter((t) => t.kind !== "player" && !t.combatantId);
+    if (m.fog) m.fog.bits = m.fog.bits.replace(/[^=]/g, "A");
+  }
   s.sessions = [];
   s.currentSessionId = null;
   s.knocks = [];
@@ -412,6 +427,16 @@ export function freshStart(g: GameState): GameState {
     // A place's pin goes back with it.
     const pin = e.pin && s.scenes.find((x) => x.id === e.pin!.sceneId)?.map?.pins.find((p) => p.id === e.pin!.pinId);
     if (pin) pin.discovered = e.stage !== "hidden";
+  }
+  // A shop is open to the party only if its Discover entry starts found (they stay in step).
+  for (const sh of s.shops) {
+    const e = s.entries.find((x) => x.shopId === sh.id);
+    if (!e) continue;
+    const found = e.stage === "found" || e.stage === "known";
+    if (!found) {
+      sh.visibility = "hidden";
+      sh.playerIds = [];
+    } else if (sh.visibility === "hidden") sh.visibility = "all";
   }
   // Leads open again; no vote, no "You chose".
   s.leads = (s.leads ?? []).map((l) => ({ ...l, status: "open" as const }));

@@ -12,7 +12,7 @@ import { heldCp, heldStock } from "./requests";
 import { projectTable, type TableView } from "./arrival";
 import { notesOf, penName, projectChronicle, type ChronicleView } from "./chronicle";
 import { discoveryView, PORTRAIT_ART, portraitArtAllowed, publicEntries, sceneSpoils, type DiscoveryView, type PublicEntry } from "./discovery";
-import { jobsOf, jobTitle, rankName, RENOWN, renownMet, renownNeeded, renownOf, shopOpenNow, tierOf, trustText } from "./renown";
+import { jobsOf, jobTitle, rankName, ranksOf, renownMet, renownNeeded, renownOf, shopOpenNow, tierOf, trustText } from "./renown";
 import { fightView, myFight, type FightView, type MyFight } from "./combat";
 import type { Art, Banner, Flyer, FlyerText, GameState, Job, JobStyle, Item, ItemCategory, ItemKind, LedgerEntry, LegendStyle, LiveState, NoteLook, NotePlace, Notice, Player, RequestStatus, Scene, Shop } from "./types";
 import { noticesOf } from "./board";
@@ -221,6 +221,8 @@ export interface PublicRenown {
   rank: number;
   name: string;
   meaning: string;
+  /** Every rank, for the phone's ladder. */
+  ladder: { name: string; pay: string }[];
 }
 
 /** One of my phone requests, as I see it. */
@@ -298,7 +300,7 @@ export interface TvView extends Common {
   /** The Renown plaque is off the board's frame. */
   plaqueHidden?: boolean;
   /** The last rank-up: the TV plays the moment when n changes. */
-  renownMoment?: { rank: number; name: string; n: number };
+  renownMoment?: { rank: number; name: string; raised: string; meaning: string; n: number };
   /** A reveal (a rumor, someone found, a fact): the TV plays it when n changes. */
   discovery?: DiscoveryView;
   /** The last roll on the TV: the TV plays it when n changes. name: the player who rolled (none: the DM). */
@@ -499,7 +501,7 @@ function publicItem(game: GameState, it: Item): PublicItem | null {
   }
   if (tier === "locked") out.reason = it.reason;
   const need = renownNeeded(game, it);
-  if (need !== null) out.needs = rankName(need);
+  if (need !== null) out.needs = rankName(need, game);
   const trust = it.tier === "sale" || it.tier === "locked" ? trustText(game, it.trust) : null;
   if (trust) out.goodwill = trust;
   if (it.priceLabel) out.priceLabel = it.priceLabel;
@@ -519,15 +521,16 @@ function common(game: GameState, version: number, viewer: Viewer): Common {
   const shops = game.shops.filter((sh) => shopVisibleTo(sh, viewer));
   const open = new Set(shops.filter((sh) => shopOpenNow(game, sh)).map((sh) => sh.id));
   const rank = renownOf(game);
+  const ladder = ranksOf(game);
   return {
     version,
     game: { id: game.id, name: game.name, town: townOf(game) },
     purse: game.players.filter((p) => !p.archived && !p.away).map((p) => ({ id: p.id, name: penName(p), balanceCp: p.balanceCp, inspired: !!p.inspired })),
-    shops: shops.map((x) => ({ id: x.id, name: x.name, subtitle: x.subtitle, closed: !!x.closed, ...(renownMet(game, x.renown) ? {} : { needs: rankName(x.renown ?? 0) }), ...(trustText(game, x.trust) ? { goodwill: trustText(game, x.trust)! } : {}) })),
+    shops: shops.map((x) => ({ id: x.id, name: x.name, subtitle: x.subtitle, closed: !!x.closed, ...(renownMet(game, x.renown) ? {} : { needs: rankName(x.renown ?? 0, game) }), ...(trustText(game, x.trust) ? { goodwill: trustText(game, x.trust)! } : {}) })),
     items: game.items.filter((it) => open.has(it.shopId)).map((it) => publicItem(game, it)).filter((x): x is PublicItem => x !== null),
     session: cur ? { number: cur.number, title: cur.title } : null,
     banner: game.banner ? { ...game.banner } : null,
-    renown: { rank, name: RENOWN[rank].name, meaning: RENOWN[rank].meaning },
+    renown: { rank, name: ladder[rank].name, meaning: ladder[rank].meaning, ladder: ladder.map((r) => ({ name: r.name, pay: r.pay })) },
   };
 }
 
@@ -550,13 +553,24 @@ export function projectTv(game: GameState, version: number): TvView {
     notices: noticesOf(game).filter((n) => n.up).map(publicNotice),
     ...(closeUpOf(game) ? { closeUp: closeUpOf(game) } : {}),
     ...(game.plaqueHidden ? { plaqueHidden: true } : {}),
-    ...(game.renownMoment ? { renownMoment: { rank: game.renownMoment.rank, name: rankName(game.renownMoment.rank), n: game.renownMoment.n } } : {}),
+    ...(game.renownMoment ? { renownMoment: { rank: game.renownMoment.rank, name: rankName(game.renownMoment.rank, game), raised: ranksOf(game)[game.renownMoment.rank]?.raised ?? "", meaning: ranksOf(game)[game.renownMoment.rank]?.meaning ?? "", n: game.renownMoment.n } } : {}),
     ...(discoveryView(game) ? { discovery: discoveryView(game) } : {}),
     ...(game.diceRoll
       ? { diceRoll: { n: game.diceRoll.n, groups: game.diceRoll.groups, plus: game.diceRoll.plus, total: game.diceRoll.total, ...(game.diceRoll.name ? { name: game.diceRoll.name } : {}) } }
       : {}),
     // Reveal scenes, and portraits of people the party hasn't found, only while they're live.
-    scenes: game.scenes.filter((sc) => sc.id === game.live.sceneId || (!sc.reveal && !sceneSpoils(game, sc))).map((sc) => publicScene(game, sc)),
+    // Scenes that aren't up yet go out without their words (so the TV can preload the pictures): names, titles and descriptions wait until they're shown.
+    scenes: game.scenes
+      .filter((sc) => sc.id === game.live.sceneId || (!sc.reveal && !sceneSpoils(game, sc)))
+      .map((sc) => {
+        const out = publicScene(game, sc);
+        if (sc.id !== game.live.sceneId) {
+          delete out.name;
+          delete out.title;
+          delete out.alt;
+        }
+        return out;
+      }),
     recap: publicRecap(game),
     ...(game.scenes.find((sc) => sc.id === game.live.sceneId)?.kind === "table" ? { table: projectTable(game) } : {}),
     fight: publicFight(game),
@@ -709,7 +723,7 @@ export function publicJob(game: GameState, j: Job): PublicJob {
   if (j.look && !sealed) out.look = structuredClone(j.look);
   else if (j.look?.pin) out.look = { pin: j.look.pin };
   if (j.place) out.place = { ...j.place };
-  if (!renownMet(game, j.renown)) out.needs = rankName(j.renown);
+  if (!renownMet(game, j.renown)) out.needs = rankName(j.renown, game);
   const trust = trustText(game, j.trust);
   if (trust) out.goodwill = trust;
   const when = jobWhen(game, j);

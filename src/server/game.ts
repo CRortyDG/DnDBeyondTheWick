@@ -39,10 +39,20 @@ export function identify(state: GameState | null, rawPlayer: string | null, key:
   if (lower === "tv") return { kind: "tv" };
   const handle = normaliseHandle(raw);
   if (!handle || isReservedHandle(handle)) return { kind: "invalid" };
-  const p = state?.players.find((x) => x.handle === handle);
+  const p = state?.players.find((x) => x.handle === handle) ?? byName(state, handle);
   if (!p) return { kind: "unknown", handle, name: displayNameFrom(raw) };
   if (!keyMatches(key, p.keyHash)) return { kind: "taken", handle };
   return { kind: "player", playerId: p.id };
+}
+
+/**
+ * A player the DM renamed keeps their old URL name (player1), so typing "Ana"
+ * on the front page finds Ana by her name, or her character's, instead of
+ * making a second Ana. Only when exactly one player at the table matches.
+ */
+function byName(state: GameState | null, handle: string) {
+  const hits = (state?.players ?? []).filter((x) => !x.archived && (normaliseHandle(x.name) === handle || (!!x.character && normaliseHandle(x.character) === handle)));
+  return hits.length === 1 ? hits[0] : undefined;
 }
 
 export function actorOf(who: Who): Actor {

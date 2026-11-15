@@ -15,6 +15,7 @@ import { BankPanel } from "./BankPanel";
 import { Inbox, isInboxOpen } from "./Inbox";
 import { Dues } from "./Dues";
 import { useDm } from "./context";
+import { useAutosave } from "./useAutosave";
 import { DiceButton } from "./DiceTray";
 
 export function actionLabel(a: BeatAction, g: AssetGame): string {
@@ -361,40 +362,6 @@ function BeatCard({ beat, onBeat, episodeId }: { beat: Beat; onBeat: string[]; e
   );
 }
 
-/** Saves a while after you stop typing, and when you leave the box or the beat. */
-function useAutosave(value: string, save: (v: string) => Promise<unknown>, delay = 800) {
-  const [text, setText] = useState(value);
-  const [state, setState] = useState<"saved" | "typing" | "saving">("saved");
-  const latest = useRef({ text, value, save });
-  latest.current = { text, value, save };
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const dirty = useRef(false);
-
-  const flush = useCallback(async () => {
-    if (timer.current) clearTimeout(timer.current);
-    timer.current = null;
-    if (!dirty.current) return;
-    dirty.current = false;
-    setState("saving");
-    await latest.current.save(latest.current.text);
-    setState(dirty.current ? "typing" : "saved");
-  }, []);
-
-  // Follow the server (another device) while we have nothing unsaved.
-  useEffect(() => {
-    if (!dirty.current) setText(value);
-  }, [value]);
-  useEffect(() => () => void flush(), [flush]);
-
-  const onChange = (v: string) => {
-    setText(v);
-    dirty.current = true;
-    setState("typing");
-    if (timer.current) clearTimeout(timer.current);
-    timer.current = setTimeout(() => void flush(), delay);
-  };
-  return { text, onChange, flush, state };
-}
 
 function QuickNotes({ beatId, value }: { beatId: string; value: string }) {
   const { run } = useDm();

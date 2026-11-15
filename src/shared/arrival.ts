@@ -27,6 +27,12 @@ export function seatName(p: Player): string {
   return p.character?.trim() || p.name;
 }
 
+/** For the DM, who knows both: "Thorn (Ana)", or just "Ana" before a character is picked. */
+export function bothNames(p: Pick<Player, "name" | "character">): string {
+  const c = p.character?.trim();
+  return c && c.toLowerCase() !== p.name.trim().toLowerCase() ? `${c} (${p.name})` : p.name;
+}
+
 /** The path of a player's private link. */
 export function arrivalPath(gameId: string, token: string): string {
   return `/arrive/${token}` + (gameId === "candlefair" ? "" : `?game=${encodeURIComponent(gameId)}`);
@@ -77,8 +83,28 @@ export interface ArrivalSeat {
   me: boolean;
 }
 
+/** How this campaign's Arrival page reads. */
+export interface ArrivalLook {
+  title: string;
+  captain: string;
+  /** false: the link opens straight on the seat page. */
+  intro: boolean;
+}
+
+/** The campaign's own words for the Arrival page and the TV Table, with Candlefair's as the default. */
+export function arrivalLook(g: Pick<GameState, "arrival" | "town" | "name">): ArrivalLook {
+  const a = g.arrival ?? {};
+  const candlefair = g.town === undefined || g.town.trim() === "Candlefair";
+  return {
+    title: a.title?.trim() || (candlefair ? "The Flickering Candle" : g.name.trim() || "The table"),
+    captain: a.captain?.trim() || "Orsa Dell",
+    intro: a.intro ?? candlefair,
+  };
+}
+
 export interface ArrivalView {
   version: number;
+  look: ArrivalLook;
   /** null on the generic link (or a link that no longer works). */
   me: {
     character: string;
@@ -97,20 +123,22 @@ export interface ArrivalView {
 
 export function projectArrival(g: GameState, version: number, token: string | null): ArrivalView {
   const p = token ? playerByToken(g, token) : null;
-  if (!p) return { version, me: null, seats: [], locked: !!g.arrival?.seatsLocked };
+  if (!p) return { version, look: arrivalLook(g), me: null, seats: [], locked: !!g.arrival?.seatsLocked };
   const a = p.arrival!;
   const q = new URLSearchParams();
   if (g.id !== "candlefair") q.set("game", g.id);
   q.set("player", p.handle);
   return {
     version,
+    look: arrivalLook(g),
     me: {
       character: p.character ?? "",
       why: a.why ?? "",
       pick: a.pick ?? "",
       claimed: !!a.claimedAt,
       finished: !!a.finishedAt,
-      tableHref: `/?${q}`,
+      // A name locked with this link: the link's code is the key, after the # so it never reaches a log.
+      tableHref: `/?${q}` + (a.keyed && p.keyHash ? `#key=${encodeURIComponent(p.arrival!.token)}` : ""),
     },
     seats: seatedPlayers(g).map((x) => ({ name: isClaimed(x) ? seatName(x) : null, lit: isClaimed(x), me: x.id === p.id })),
     locked: !!g.arrival?.seatsLocked,
@@ -129,6 +157,8 @@ export function opensOnSeat(me: ArrivalView["me"], finishedOnThisPhone: boolean)
 // What the TV gets while The Table is live.
 
 export interface TableView {
+  /** The finale line: "Tales from the Flickering Candle". */
+  title: string;
   seats: { name: string | null; lit: boolean }[];
   /** Unclaimed players' links for the corner QR code, with the name it's for. */
   qr: { name: string; path: string }[];
@@ -136,7 +166,9 @@ export interface TableView {
 
 export function projectTable(g: GameState): TableView {
   const seated = seatedPlayers(g);
+  const t = arrivalLook(g).title;
   return {
+    title: `Tales from ${t.replace(/^The /, "the ")}`,
     seats: seated.map((p) => ({ name: isClaimed(p) ? seatName(p) : null, lit: isClaimed(p) })),
     qr: seated.filter((p) => !isClaimed(p) && p.arrival?.token).map((p) => ({ name: p.name, path: arrivalPath(g.id, p.arrival!.token) })),
   };

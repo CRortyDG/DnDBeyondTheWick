@@ -41,7 +41,7 @@ export function TableScene({ table }: { table?: TableView }) {
         <div className="table-stage">
           <RoundTable seats={seats.map((s, i) => ({ ...s, flare: flares[i] ?? 0 }))} size="100%" wide={560} className="tv-table" />
           <div className={`table-title${finale ? " on" : ""}`} aria-hidden={!finale}>
-            Tales from the Flickering Candle
+            {table?.title ?? "Tales from the Flickering Candle"}
           </div>
           {!all && table?.qr.length ? <QrCorner qr={table.qr} /> : null}
         </div>

@@ -3,7 +3,6 @@
 // The bounty board on a phone: what's pinned up, and the party's Renown.
 import { useState } from "react";
 import type { PlayerView } from "@/shared/projection";
-import { RENOWN } from "@/shared/renown";
 import { JobCard, jobStatusLine } from "../scenes/Board";
 import { useConfirm } from "./Sheet";
 
@@ -28,13 +27,13 @@ export function Jobs({ view, send }: { view: PlayerView; send: Send }) {
         <summary>
           <span className="pl-renown-k">Renown</span>
           <span className="pl-renown-v">{view.renown.name}</span>
-          <span className="pl-renown-pay">jobs pay {RENOWN[rank]?.pay ?? "—"}</span>
+          <span className="pl-renown-pay">jobs pay {view.renown.ladder[rank]?.pay ?? "—"}</span>
         </summary>
         <p>
           {view.game.town || "The town"} knows the party as <b>{view.renown.name}</b>. <span className="note">{view.renown.meaning}.</span>
         </p>
         <ol className="renown-ladder">
-          {RENOWN.map((r, i) => (
+          {view.renown.ladder.map((r, i) => (
             <li key={r.name} className={i === rank ? "on" : i < rank ? "past" : undefined}>
               <span>{r.name}</span>
               <span className="note">jobs pay {r.pay}</span>

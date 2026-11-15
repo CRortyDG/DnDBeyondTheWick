@@ -3,7 +3,6 @@ import { formatCp } from "@/shared/money";
 import { installmentCp } from "@/shared/progress";
 import type { ItemCategory, ItemKind } from "@/shared/types";
 import { LockIcon } from "./icons";
-import { rankName } from "@/shared/renown";
 
 /**
  * What a card needs. A player's or the TV's item (rumored ones arrive as
@@ -24,6 +23,8 @@ export interface CardItem {
   goodwill?: string;
   /** The DM's item: the Renown it needs, as a rank number. */
   renown?: number;
+  /** DM cards: the name of the rank it needs. */
+  renownName?: string;
   hint?: string;
   hidePrice?: boolean;
   stock: number | null;
@@ -102,7 +103,7 @@ export function ItemCard({ item, children, dm, where }: { item: CardItem; childr
         <p className="card-lock card-renown">
           <LockIcon size={18} />{" "}
           <span>
-            Needs Renown: <b>{rankName(item.renown)}</b>
+            Needs Renown: <b>{item.renownName ?? `rank ${item.renown}`}</b>
             {item.reason ? <span className="card-lock-why">{item.reason}</span> : null}
           </span>
         </p>

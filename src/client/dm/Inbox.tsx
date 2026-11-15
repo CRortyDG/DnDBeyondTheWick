@@ -1,4 +1,5 @@
 "use client";
+import { bothNames } from "@/shared/arrival";
 
 // The DM's request inbox: purchases and gold transfers asked for from phones.
 // <Inbox /> is self-contained (badge, chime, drawer, the I key), so the run-game
@@ -238,7 +239,7 @@ function RequestRow({ r }: { r: TradeRequest }) {
   return (
     <li className="inbox-req">
       <div className="inbox-who">
-        <b>{r.playerName}</b>
+        <b>{p ? bothNames(p) : r.playerName}</b>
         {r.secret ? <span className="tag wax">secret</span> : null}
         <span className="note">{new Date(r.at).toLocaleTimeString(undefined, { timeStyle: "short" })}</span>
       </div>
@@ -450,7 +451,7 @@ function JobAsk({ r }: { r: TradeRequest }) {
       Asks for the party to take the job <b>{r.jobTitle}</b>
       {j ? (
         <div className="note">
-          {j.reward.kind === "hidden" ? "Reward hidden" : `${formatCp(j.reward.cp)} ${j.reward.kind === "each" ? "each" : "for the party"}`} · needs {rankName(j.renown)}
+          {j.reward.kind === "hidden" ? "Reward hidden" : `${formatCp(j.reward.cp)} ${j.reward.kind === "each" ? "each" : "for the party"}`} · needs {rankName(j.renown, view.state)}
           {j.dm.adventure ? ` · runs ${j.dm.adventure}` : ""}
         </div>
       ) : (

@@ -197,6 +197,8 @@ export interface PlayerArrival {
   why?: string;
   /** The starting point they picked for a first character (see starters.ts), if any. */
   pick?: string;
+  /** The player's name is locked with this link: "Go to your table" signs the phone in. */
+  keyed?: boolean;
 }
 
 /** Game-wide Arrival settings. */
@@ -205,6 +207,12 @@ export interface ArrivalSettings {
   template?: string;
   /** Once locked, players can no longer change their character name or line. */
   seatsLocked?: boolean;
+  /** The place on the seat page and the TV Table ("The Flickering Candle"). Read with arrivalLook(). */
+  title?: string;
+  /** The ship's captain in the intro. */
+  captain?: string;
+  /** Play the Candlefair boat intro. Missing: on for a Candlefair campaign, off for any other. */
+  intro?: boolean;
 }
 
 /**
@@ -930,6 +938,8 @@ export interface GameState {
   origin?: import("./presets").Origin;
   /** The town the shop and the players' phones name. Missing: Candlefair. "" on a blank campaign until the DM names it. Read with townOf(). */
   town?: string;
+  /** The DM's own wording for the five Renown ranks (blank fields keep the default). Read with ranksOf(). */
+  renownRanks?: Partial<{ name: string; meaning: string; pay: string; raised: string }>[];
   /** One-time content upgrades already applied to this game (see migrate.ts), so a later delete sticks. */
   upgrades?: string[];
   /** DM-ONLY: the storyboard (threads, story beats, planned session dates). Never copied into a TV or player view. Read with storyOf(). */
@@ -1059,6 +1069,8 @@ export interface Combatant {
   note?: string;
   /** Players: the concentration save they owe after the last hit, until the turn moves on. */
   concDc?: number;
+  /** A new initiative that came in after their turn this round: they move to it when the round ends. */
+  reslot?: boolean;
 }
 
 export type FightReminderKind = "info" | "recharge" | "death" | "concentration" | "expired";

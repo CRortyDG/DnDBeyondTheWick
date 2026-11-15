@@ -28,6 +28,8 @@ import { MapEditor } from "./MapEditor";
 import { TableMap } from "./TableMap";
 import { Inbox } from "./Inbox";
 import { EndSessionDialog } from "./Dues";
+import { ReadyDialog } from "./ReadyDialog";
+import { readiness } from "@/shared/readiness";
 import { duesFor } from "@/shared/progress";
 import { ArrivalPanel } from "./ArrivalPanel";
 import { ChroniclePanel } from "./ChroniclePanel";
@@ -92,9 +94,13 @@ function pageFromUrl(): Tab {
 function pageToUrl(tab: Tab) {
   try {
     const hash = new URLSearchParams(window.location.hash.replace(/^#/, ""));
-    if (hash.get("page") === tab) return;
+    const was = hash.get("page");
+    if (was === tab) return;
     hash.set("page", tab);
-    window.history.replaceState(null, "", window.location.pathname + window.location.search + "#" + hash.toString());
+    // A new history entry per page, so the browser's Back goes to the page before.
+    const url = window.location.pathname + window.location.search + "#" + hash.toString();
+    if (was) window.history.pushState(null, "", url);
+    else window.history.replaceState(null, "", url);
   } catch {}
 }
 
@@ -194,6 +200,11 @@ function useGatedArt(ident: Ident, names: string[]) {
 function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: Ident; online: boolean; send: (c: object) => Promise<string | null>; call: (c: object) => Promise<CallResult> }) {
   const [tab, setTab] = useState<Tab>(pageFromUrl);
   useEffect(() => pageToUrl(tab), [tab]);
+  useEffect(() => {
+    const back = () => setTab(pageFromUrl());
+    window.addEventListener("popstate", back);
+    return () => window.removeEventListener("popstate", back);
+  }, []);
   const [railOpen, setRailOpen] = useState(readRail);
   const toggleRail = useCallback(() => {
     setRailOpen((v) => {
@@ -234,6 +245,7 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
   const [storyOpen, setStoryOpen] = useState<string | null>(null);
   const closeStory = useCallback(() => setStoryOpen(null), []);
   const [ending, setEnding] = useState(false);
+  const [ready, setReady] = useState(false);
   const closeMap = useCallback(() => setEditingMap(null), []);
   const [tableMap, setTableMap] = useState<string | null>(null);
   const closeTable = useCallback(() => setTableMap(null), []);
@@ -425,6 +437,7 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
           </button>
           <Inbox />
           {ending && session ? <EndSessionDialog session={session} onClose={() => setEnding(false)} /> : null}
+          {ready && !session ? <ReadyDialog onClose={() => setReady(false)} onGo={(page) => setTab(page)} /> : null}
           {s.fight ? null : (
             <button className="btn icon-only" type="button" onClick={startFight} title="Start a fight: Roll initiative! on the TV and phones" aria-label="Start fight">
               <SwordIcon />
@@ -444,7 +457,7 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
           </button>
           <span className="dm-top-sep" aria-hidden="true" />
           {session ? (
-            <button className="btn" type="button" onClick={() => (duesFor(s, session.number).length ? setEnding(true) : void run({ type: "session.end" }, `${session.title} ended.`))}>
+            <button className="btn" type="button" onClick={() => setEnding(true)}>
               End session
             </button>
           ) : null}
@@ -469,7 +482,7 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
             </span>
           ) : null}
           {session ? null : (
-            <button className="btn primary" type="button" onClick={() => run({ type: "session.start" }, "Session started. The TV is back on the notice board.")}>
+            <button className="btn primary" type="button" onClick={() => (readiness(s).length ? setReady(true) : void run({ type: "session.start" }, "Session started. The TV is back on the notice board."))}>
               Start session {nextSessionNumber(s)}
             </button>
           )}

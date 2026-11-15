@@ -47,7 +47,7 @@ beforeEach(() => {
 
 describe("Renown", () => {
   it("starts as Strangers and shows on phones and the TV", () => {
-    expect(projectTv(g, 1).renown).toEqual({ rank: 0, name: "Strangers", meaning: "Fresh off the boat" });
+    expect(projectTv(g, 1).renown).toMatchObject({ rank: 0, name: "Strangers", meaning: "Fresh off the boat" });
     expect(projectPlayer(g, 1, "p1", []).renown.name).toBe("Strangers");
   });
 

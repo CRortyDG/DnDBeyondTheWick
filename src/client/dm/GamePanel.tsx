@@ -1,9 +1,11 @@
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { originOf, PRESET_NAME_MAX, townOf } from "@/shared/presets";
 import { deletePresetOnline, devicePresets, forgetPreset, rememberPreset, renamePresetOnline, type DevicePreset } from "../presets";
 import { absoluteHref, api, authHeaders, dmLink, rememberKey } from "../api";
 import { useDm } from "./context";
+import { downloadBackup, restoreBackup } from "./backup";
+import { EndSessionDialog } from "./Dues";
 import { PageHead } from "./PageHead";
 import { LinkIcon } from "../ui/icons";
 import { Field } from "./Field";
@@ -13,21 +15,7 @@ export function GamePanel() {
   const file = useRef<HTMLInputElement>(null);
   const s = view.state;
 
-  const download = async () => {
-    try {
-      const r = await fetch(`/api/export?game=${encodeURIComponent(ident.game)}`, { headers: authHeaders(ident), cache: "no-store" });
-      if (!r.ok) throw new Error("Couldn't make a backup.");
-      const blob = await r.blob();
-      const a = document.createElement("a");
-      a.href = URL.createObjectURL(blob);
-      a.download = `${ident.game}-backup-${new Date().toISOString().slice(0, 10)}.json`;
-      a.click();
-      setTimeout(() => URL.revokeObjectURL(a.href), 2000);
-      toast("Backup downloaded. Keep it somewhere safe.");
-    } catch (e) {
-      toast(e instanceof Error ? e.message : String(e));
-    }
-  };
+  const download = () => downloadBackup(ident, toast);
 
   const origin = originOf(s);
   const startLabel = origin.kind === "blank" ? "a blank campaign" : origin.kind === "candlefair" ? "the original Candlefair" : `the preset \u201c${origin.name}\u201d`;
@@ -48,9 +36,9 @@ export function GamePanel() {
 
   const restore = async (f: File | undefined) => {
     if (!f) return;
-    if (!confirm("Replace this whole game with the backup? Everything since the backup will be lost.")) return;
+    if (!confirm("Replace this whole game with the backup? A safety snapshot of right now is kept first.")) return;
     try {
-      await api("/api/import", ident, { method: "POST", body: await f.text() });
+      await restoreBackup(ident, f, toast);
       toast("Backup restored.");
     } catch (e) {
       toast(e instanceof Error ? e.message : String(e));
@@ -149,7 +137,7 @@ export function GamePanel() {
       <PresetsBox />
       <section className="box">
         <h3>Backup</h3>
-        <p className="note">Everything is saved online automatically. A backup now and then is still a good idea.</p>
+        <p className="note">Everything is saved online automatically. A backup now and then is still a good idea: it&rsquo;s a zip with the game, the ledger and every image you uploaded.</p>
         <div className="inline">
           <button className="btn" type="button" onClick={download}>
             Download backup
@@ -157,17 +145,19 @@ export function GamePanel() {
           <button className="btn" type="button" onClick={() => file.current?.click()}>
             Restore from a backup
           </button>
-          <input ref={file} type="file" accept="application/json,.json" hidden onChange={(e) => void restore(e.target.files?.[0])} />
+          <input ref={file} type="file" accept="application/json,.json,application/zip,.zip" hidden onChange={(e) => void restore(e.target.files?.[0])} />
         </div>
+        <p className="note">Your DM link is the only way into this campaign as the DM. Keep a copy in a password manager. A campaign nobody opens for six months is deleted, images and all.</p>
+        <Snapshots />
       </section>
       <section className="box danger-zone">
         <h3>Start fresh</h3>
-        <p className="note">For after a test run. Neither can be undone, so download a backup first if you might want it.</p>
+        <p className="note">For after a test run. A safety snapshot is kept first, so you can go back from Backup above.</p>
         <div className="form">
           <button className="btn danger" type="button" onClick={() => reset("play")}>
             Clear gold, ledger and sessions
           </button>
-          <p className="note">Keeps your players, scenes, images, shops and items. Every purse goes back to 0 gp, the Chronicle starts again on an empty Chapter 1, and the next session is Session 1.</p>
+          <p className="note">Keeps your players, their seats, scenes, images, shops and items. Every purse goes back to 0 gp, HP and inspiration are cleared, fights and the fight history go, the party&rsquo;s map tokens come off and fog covers every map again, shops follow Discover, the Chronicle starts again on an empty Chapter 1, and the next session is Session 1.</p>
           <button className="btn danger" type="button" onClick={() => reset("all")}>
             Reset everything to {startLabel}
           </button>
@@ -200,8 +190,11 @@ function SessionsBox() {
   const names = new Map(s.players.map((p) => [p.id, p.name]));
   const when = (t: number) => new Date(t).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
   const list = [...s.sessions].sort((a, b) => b.number - a.number);
+  const [ending, setEnding] = useState(false);
+  const current = s.sessions.find((x) => x.id === s.currentSessionId);
   return (
     <section className="box">
+      {ending && current ? <EndSessionDialog session={current} onClose={() => setEnding(false)} /> : null}
       <h3>Sessions</h3>
       {list.length === 0 ? <p className="note">No sessions yet. &ldquo;Start session 1&rdquo; is at the top of the page.</p> : null}
       <ol className="session-list">
@@ -229,7 +222,7 @@ function SessionsBox() {
               </p>
               <div className="inline">
                 {running ? (
-                  <button className="btn small" type="button" onClick={() => run({ type: "session.end" }, `${x.title} ended.`)}>
+                  <button className="btn small" type="button" onClick={() => setEnding(true)}>
                     End it
                   </button>
                 ) : !s.currentSessionId ? (
@@ -366,5 +359,58 @@ function PresetsBox() {
       )}
       <p className="note">Your presets are listed on this device. Share a code to start a campaign from it anywhere.</p>
     </section>
+  );
+}
+
+/** Safety snapshots the campaign keeps by itself: before a reset or restore, and at each session's end. */
+function Snapshots() {
+  const { view, ident, toast } = useDm();
+  const [list, setList] = useState<{ id: number; at: number; reason: string }[] | null>(null);
+  const [open, setOpen] = useState(false);
+  const load = async () => {
+    try {
+      setList((await api<{ snapshots: { id: number; at: number; reason: string }[] }>("/api/snapshots", ident)).snapshots);
+    } catch (e) {
+      toast(e instanceof Error ? e.message : String(e));
+    }
+  };
+  // Refresh while open, when the game changes (a new snapshot may have been taken).
+  const version = view.version;
+  useEffect(() => {
+    if (open) void load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, version]);
+  const back = async (x: { id: number; at: number; reason: string }) => {
+    if (!confirm(`Put the whole game back to ${new Date(x.at).toLocaleString()} (${x.reason})? A snapshot of right now is kept first.`)) return;
+    try {
+      await api("/api/snapshots/restore", ident, { method: "POST", body: JSON.stringify({ id: x.id }) });
+      toast("Back to that snapshot.");
+    } catch (e) {
+      toast(e instanceof Error ? e.message : String(e));
+    }
+  };
+  return (
+    <details className="snapshots" open={open} onToggle={(e) => setOpen((e.target as HTMLDetailsElement).open)}>
+      <summary>Safety snapshots</summary>
+      <p className="note">Kept by themselves before a reset, a restore or removing ledger lines, and at the end of each session. The newest 10 stay.</p>
+      {list === null ? (
+        <p className="note">Loading…</p>
+      ) : list.length === 0 ? (
+        <p className="note">None yet.</p>
+      ) : (
+        <ul className="snapshot-list">
+          {list.map((x) => (
+            <li key={x.id}>
+              <span>
+                <b>{x.reason}</b> <span className="note">{new Date(x.at).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })}</span>
+              </span>
+              <button className="btn small" type="button" onClick={() => void back(x)}>
+                Go back to this
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </details>
   );
 }
