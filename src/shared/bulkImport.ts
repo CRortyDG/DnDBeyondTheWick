@@ -145,7 +145,7 @@ function signed(v: string): number | null {
 
 const HP_RE = /^\s*(\d*d\d+\s*([+-]\s*\d+)?|\d+)\s*$/i;
 
-/** "Fire Breath (Recharge 5–6)", "Healing Touch (1/Day)", "Death Burst (on death)". */
+/** "Fire Breath (Recharge 5–6)", "Healing Touch (1/Day)", "Last Gasp (on death)". */
 function abilityOf(name: string, text: string): Omit<MonsterAbility, "id"> {
   let n = name;
   const out: Omit<MonsterAbility, "id"> = { name: "", text: text.trim() };
