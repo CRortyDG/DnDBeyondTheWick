@@ -5,6 +5,7 @@ import { FONT_IDS, LIST_MAX, NOTE_W_MAX, NOTE_W_MIN, PAPER_IDS, PIN_IDS, TITLE_S
 import { DIE_SIDES, diceCount, MAX_DICE, MAX_OF_ONE, MAX_PLUS } from "./dice";
 import { fightDmCommands, fightPlayerCommands } from "./combatSchema";
 import { SHOW_REF_RE } from "./assets";
+import { HANDOUT_BODY_MAX, HANDOUT_SIGN_MAX, HANDOUT_TITLE_MAX } from "./handout";
 import { storyDmCommands } from "./storySchema";
 import { CLIP_URL_RE, CLIP_VIDEO_MAX, SLIDE_TEXT_MAX, SLIDES_MAX, WELCOME_MAX } from "./arrival";
 import type { TokenColor } from "./types";
@@ -102,6 +103,16 @@ const scenePatch = z
     alt: text(300),
     dmNote: text(4000),
     slug: text(40),
+    sheet: z
+      .object({
+        title: text(HANDOUT_TITLE_MAX),
+        body: text(HANDOUT_BODY_MAX),
+        sign: text(HANDOUT_SIGN_MAX),
+        paper: z.enum(PAPER_IDS),
+        font: z.enum(FONT_IDS),
+        ink: z.enum(["red", "blue", "gold"]).optional(),
+      })
+      .nullable(),
   })
   .partial();
 

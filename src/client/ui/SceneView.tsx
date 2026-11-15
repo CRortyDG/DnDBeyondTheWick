@@ -11,6 +11,8 @@ import { TableScene } from "./TableScene";
 import { Stinger } from "../scenes/Stinger";
 import { VideoScene } from "../scenes/VideoScene";
 import type { TableView } from "@/shared/arrival";
+import type { HandoutSheet } from "@/shared/handout";
+import { HandoutOnStage } from "../scenes/HandoutSheet";
 
 export interface RenderableScene {
   id: string;
@@ -21,6 +23,8 @@ export interface RenderableScene {
   alt?: string;
   /** Map scenes: what the TV sees (discovered pins only). */
   map?: PublicMap;
+  /** Handouts: the words on the paper. */
+  sheet?: HandoutSheet;
 }
 
 
@@ -90,6 +94,16 @@ export function SceneView({ scene, gated, emptyHint, table, board, town = "Candl
         <div className="scene-fill scene-backdrop">
           <Stage w={816} h={1056}>
             <ArtumNotice />
+          </Stage>
+        </div>
+      );
+    }
+    const w = scene.sheet;
+    if (w && (w.title.trim() || w.body.trim() || w.sign.trim())) {
+      return (
+        <div className="scene-fill scene-backdrop">
+          <Stage w={1920} h={1080}>
+            <HandoutOnStage sheet={w} image={src} alt={scene.alt} />
           </Stage>
         </div>
       );

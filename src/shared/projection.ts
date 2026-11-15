@@ -16,6 +16,7 @@ import { jobsOf, jobTitle, progressOf, rankName, ranksOf, renownMet, renownNeede
 import { fightView, myFight, type FightView, type MyFight } from "./combat";
 import type { Art, Banner, Flyer, FlyerText, GameState, Job, JobStyle, Item, ItemCategory, ItemKind, LedgerEntry, LegendStyle, LiveState, NoteLook, NotePlace, Notice, Player, RequestStatus, Scene, Shop } from "./types";
 import { noticesOf } from "./board";
+import { hasWords, type HandoutSheet } from "./handout";
 import { partiesFor, partyName, playerLens, tableParty, tvLens, worldView, type WorldView } from "./world";
 
 export const GATED_ART = new Set(["merchant-sigil", ...PORTRAIT_ART]);
@@ -28,6 +29,8 @@ export interface PublicScene {
   title?: string;
   alt?: string;
   map?: PublicMap;
+  /** Handouts: the words, only while the handout is live. */
+  sheet?: HandoutSheet;
 }
 
 /** A discovered pin, as the TV sees it. Hidden pins, DM notes and links are never sent. */
@@ -428,6 +431,8 @@ function publicScene(game: GameState, sc: Scene): PublicScene {
   if (name !== undefined) out.name = name;
   if (title !== undefined) out.title = title;
   if (sc.alt !== undefined) out.alt = sc.alt;
+  // A handout's words are a spoiler like its picture: only once it's live (the TV list below drops them for scenes that aren't).
+  if (sc.kind === "handout" && sc.sheet && hasWords(sc) && game.live.sceneId === sc.id) out.sheet = { ...sc.sheet };
   if (sc.kind === "map" && sc.map) out.map = publicMap(game, sc);
   return out;
 }
@@ -599,6 +604,7 @@ export function projectTv(table: GameState, version: number): TvView {
           delete out.name;
           delete out.title;
           delete out.alt;
+          delete out.sheet;
         }
         return out;
       }),

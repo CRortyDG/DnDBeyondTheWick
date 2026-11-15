@@ -1141,8 +1141,13 @@ function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
     }
     case "scene.update": {
       const sc = scene(cmd.sceneId);
-      const { hotkey, slug, ...patch } = cmd.patch;
+      const { hotkey, slug, sheet, ...patch } = cmd.patch;
       const before = refForScene(s, sc);
+      if (sheet === null) delete sc.sheet;
+      else if (sheet) {
+        const { ink, ...rest } = sheet;
+        sc.sheet = { ...rest, title: rest.title.trim(), sign: rest.sign.trim(), body: rest.body.replace(/\s+$/, ""), ...(ink ? { ink } : {}) };
+      }
       if (patch.art?.url && !/^(https:\/\/|\/api\/files\/)/.test(patch.art.url)) fail("Images must be uploaded first.");
       Object.assign(sc, patch);
       if (patch.label !== undefined) sc.label = patch.label.trim() || sc.label;

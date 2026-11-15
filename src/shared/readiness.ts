@@ -4,6 +4,7 @@
 import { resolveRef, type AssetGame } from "./assets";
 import { findRef } from "./discovery";
 import type { GameState } from "./types";
+import { emptyHandout } from "./handout";
 
 export interface ReadyItem {
   /** "fix": likely to show up wrong at the table. "check": worth a glance. */
@@ -13,13 +14,15 @@ export interface ReadyItem {
   page: "scenes" | "episodes" | "players" | "arrival" | "game";
 }
 
-const NEEDS_PICTURE = new Set(["map", "image", "portrait", "handout"]);
+const NEEDS_PICTURE = new Set(["map", "image", "portrait"]);
 
 export function readiness(g: GameState): ReadyItem[] {
   const out: ReadyItem[] = [];
   // Scenes with nothing to show.
   const blank = g.scenes.filter((sc) => NEEDS_PICTURE.has(sc.kind) && !sc.art?.url && !sc.art?.builtin);
   for (const sc of blank) out.push({ level: "fix", text: `${sc.label || sc.name || "A scene"} has no picture, so the TV shows an empty board.`, page: "scenes" });
+  // Handouts can be words instead of a picture; one with neither is a blank sheet.
+  for (const sc of g.scenes.filter(emptyHandout)) out.push({ level: "fix", text: `${sc.label || "A handout"} has no words or picture, so the TV shows a blank sheet.`, page: "scenes" });
 
   // The episode that's likely next: beats that point at things that aren't there.
   const ids = new Set(g.scenes.map((x) => x.id));

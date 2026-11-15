@@ -3,6 +3,8 @@
 
 import type { DiceGroup, RollEntry } from "./dice";
 
+import type { HandoutSheet } from "./handout";
+
 export type SceneKind = "notice" | "portrait" | "handout" | "image" | "black" | "map" | "table" | "stinger" | "video";
 
 /** Built-in art. "merchant-sigil" is DM-only and served through a gated route. */
@@ -40,6 +42,8 @@ export interface Scene {
   shownAt?: number;
   /** Shared world: the characters who know this portrait or map. The table sees it only if everyone present does. */
   knownBy?: string[];
+  /** Handouts: words on the paper (see handout.ts). Sent out only once the handout is live. */
+  sheet?: HandoutSheet;
 }
 
 /** What a pin can open from the DM view: a shop on the TV, or another scene (a portrait or a map). DM-ONLY. */
