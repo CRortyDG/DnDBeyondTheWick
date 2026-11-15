@@ -94,9 +94,23 @@ export function MonstersPanel({ onFight }: { onFight: () => void }) {
             const sess = s.sessions.find((x) => x.id === h.sessionId);
             return (
               <li key={h.id}>
-                <b>{h.title}</b>
-                {h.where ? ` · ${h.where}` : ""} · {h.rounds} round{h.rounds === 1 ? "" : "s"}
-                {sess ? ` · ${sess.title}` : ""} · {new Date(h.endedAt).toLocaleDateString()}
+                <div className="fx-hist-row">
+                  <span>
+                    <b>{h.title}</b>
+                    {h.where ? ` · ${h.where}` : ""} · {h.rounds} round{h.rounds === 1 ? "" : "s"}
+                    {sess ? ` · ${sess.title}` : ""} · {new Date(h.endedAt).toLocaleDateString()}
+                  </span>
+                  <span className="spacer" />
+                  <button
+                    className="btn small"
+                    type="button"
+                    disabled={!!s.fight}
+                    title={s.fight ? "End the fight that's going first." : "The same foes and place, at full HP, with new initiative. The old fight's loot and Chronicle note stay as they are."}
+                    onClick={async () => (await run({ type: "fight.rerun", fightId: h.id }, "Run again: roll initiative!")) && onFight()}
+                  >
+                    Run again
+                  </button>
+                </div>
                 <div className="note">
                   {h.downed.length ? `Went down: ${h.downed.join(", ")}.` : "Nobody went down."}
                   {h.lootCp ? ` Loot: ${formatCp(h.lootCp)}.` : ""}

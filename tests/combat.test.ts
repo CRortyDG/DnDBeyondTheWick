@@ -469,3 +469,92 @@ describe("the Chronicle line", () => {
     expect(chronicleLine(g.fight!, "a ladle", 4000)).toBe("Fought 2 Pudding Gremlins in the feast hall. 1 round. Found: 40 gp, a ladle.");
   });
 });
+
+describe("running a past fight again", () => {
+  /** Begun, a goblin added by hand and hidden, Gremlin A hurt, then ended and closed with loot and a note. */
+  function closed(): GameState {
+    let g = begun();
+    ({ state: g } = run(g, [{ type: "fight.addQuick", name: "Goblin", init: 5, hp: 7, ac: 13 }]));
+    const gob = byName(g, "Goblin").id;
+    ({ state: g } = run(g, [
+      { type: "fight.patch", combatantIds: [gob], patch: { hidden: true } },
+      { type: "fight.hp", combatantIds: [byName(g, "Pudding Gremlin A").id], mode: "damage", amount: 3 },
+      { type: "fight.next" },
+      { type: "fight.end" },
+      { type: "fight.close", payouts: [{ playerId: "p1", cp: 500 }], items: "a ladle", note: "Fought them." },
+    ]));
+    return g;
+  }
+
+  it("sets the same foes up fresh, and never pays or writes the old fight's loot and Chronicle again", () => {
+    let g = closed();
+    const past = g.fights!.at(-1)!;
+    const notes = g.notes!.length;
+    const purse = g.players[0].balanceCp;
+    const r = run(g, [{ type: "fight.rerun", fightId: past.id }]);
+    g = r.state;
+    const f = g.fight!;
+    expect(r.ledger).toEqual([]);
+    expect(g.notes!.length).toBe(notes);
+    expect(g.players[0].balanceCp).toBe(purse);
+    expect(g.fights!.length).toBe(1);
+    expect(f.id).not.toBe(past.id);
+    expect(f.status).toBe("setup");
+    expect(f.round).toBe(0);
+    expect(f.title).toBe(past.title);
+    expect(names(g).sort()).toEqual(["Ash", "Brin", "Goblin", "Pudding Gremlin A", "Pudding Gremlin B"].sort());
+    for (const c of f.order) expect(c.init).toBeNull();
+    for (const c of f.order.filter((x) => x.kind === "monster")) {
+      expect(c.hp).toBe(c.maxHp);
+      expect(c.down).toBe(false);
+      expect(c.conditions).toEqual([]);
+    }
+    expect(byName(g, "Goblin")).toMatchObject({ hidden: true, maxHp: 7, ac: 13 });
+    expect(byName(g, "Pudding Gremlin A").templateId).toBe(GREMLIN);
+    // It ends and closes like any fight, into its own summary.
+    ({ state: g } = run(g, [{ type: "fight.rollInit" }, { type: "fight.begin" }, { type: "fight.end" }, { type: "fight.close", note: null }]));
+    expect(g.fights!.length).toBe(2);
+    expect(g.players[0].balanceCp).toBe(purse);
+  });
+
+  it("won't start over a fight that's going, or from a fight not in the history", () => {
+    const g = closed();
+    const id = g.fights!.at(-1)!.id;
+    const { state } = run(g, [{ type: "fight.rerun", fightId: id }]);
+    expect(() => run(state, [{ type: "fight.rerun", fightId: id }])).toThrow(/already going/i);
+    expect(() => run(g, [{ type: "fight.rerun", fightId: "nope" }])).toThrow(/history/i);
+    // Players can't.
+    expect(() => run(g, [[{ type: "fight.rerun", fightId: id }, as("p1")]])).toThrow();
+  });
+
+  it("a deleted template's monster comes back with its last numbers; fights kept before Run again match by name", () => {
+    let g = closed();
+    const id = g.fights!.at(-1)!.id;
+    ({ state: g } = run(g, [{ type: "monster.remove", monsterId: GREMLIN }, { type: "fight.rerun", fightId: id }]));
+    const a = byName(g, "Pudding Gremlin A");
+    expect(a.templateId).toBeUndefined();
+    expect(a.hp).toBe(a.maxHp);
+    expect(a.maxHp).toBeGreaterThan(0);
+
+    // An old summary: names only.
+    g = closed();
+    const old = g.fights!.at(-1)!;
+    delete old.foes;
+    ({ state: g } = run(g, [{ type: "fight.rerun", fightId: old.id }]));
+    expect(names(g).sort()).toEqual(["Ash", "Brin", "Pudding Gremlin A", "Pudding Gremlin B"].sort());
+    expect(g.fight!.reminders.some((r) => r.text.includes("“Goblin”"))).toBe(true);
+  });
+
+  it("a fight fought on a map goes back on that map, and returns to the scene from before", () => {
+    let g = game();
+    ({ state: g } = run(g, [{ type: "scene.show", sceneId: "s-map" }, { type: "fight.start", groups: [{ templateId: GREMLIN, count: 1 }] }, { type: "fight.begin" }, { type: "fight.end" }]));
+    ({ state: g } = run(g, [{ type: "fight.close", note: null }]));
+    const past = g.fights!.at(-1)!;
+    expect(past.mapSceneId).toBe("s-map");
+    ({ state: g } = run(g, [{ type: "scene.show", sceneId: "s-chef" }, { type: "fight.rerun", fightId: past.id }]));
+    expect(g.live.sceneId).toBe("s-map");
+    expect(g.fight!.returnSceneId).toBe("s-chef");
+    const tok = g.scenes.find((x) => x.id === "s-map")!.map!.tokens!.filter((t) => t.combatantId);
+    expect(tok.length).toBe(1);
+  });
+});

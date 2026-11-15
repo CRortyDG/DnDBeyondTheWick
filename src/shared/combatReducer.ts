@@ -31,7 +31,7 @@ import {
 } from "./combat";
 import { formatCp } from "./money";
 import { rollDice } from "./progress";
-import type { Combatant, Fight, FightGroup, FightMoment, FightReminder, FightReminderKind, GameState, LedgerEntry, LedgerKind, MonsterAbility, MonsterTemplate, Player } from "./types";
+import type { Combatant, Fight, FightGroup, FightSummary, FoeSetup, FightMoment, FightReminder, FightReminderKind, GameState, LedgerEntry, LedgerKind, MonsterAbility, MonsterTemplate, Player } from "./types";
 import { DM_AUTHOR } from "./types";
 import type { z } from "zod";
 import type { monsterBody } from "./combatSchema";
@@ -578,6 +578,8 @@ export function applyFight(s: GameState, cmd: FightCommand, h: FightHelpers): vo
         lootCp,
         items,
         ...(noteId ? { noteId } : {}),
+        foes: f.order.filter((c) => c.kind === "monster").map(foeSetup),
+        ...(s.scenes.find((x) => x.id === s.live.sceneId)?.kind === "map" ? { mapSceneId: s.live.sceneId } : {}),
       });
       if (hist.length > FIGHTS_KEPT) s.fights = hist.slice(-FIGHTS_KEPT);
       // Hit points stay with the players; death saves and conditions end with the fight.
@@ -593,11 +595,102 @@ export function applyFight(s: GameState, cmd: FightCommand, h: FightHelpers): vo
       if (s.scenes.some((x) => x.id === back) && s.live.sceneId !== back) h.showScene(back);
       break;
     }
+    case "fight.rerun": {
+      const past = (s.fights ?? []).find((x) => x.id === cmd.fightId) ?? fail("That fight isn't in the history.");
+      rerunFight(s, past, h);
+      break;
+    }
     default: {
       const never: never = cmd;
       fail(`Unknown command ${(never as { type: string }).type}`);
     }
   }
+}
+
+function foeSetup(c: Combatant): FoeSetup {
+  return {
+    ...(c.templateId ? { templateId: c.templateId } : {}),
+    name: c.name,
+    displayName: c.displayName,
+    maxHp: c.maxHp,
+    ...(c.ac !== undefined ? { ac: c.ac } : {}),
+    initBonus: c.initBonus,
+    hidden: c.hidden,
+  };
+}
+
+/** "Goblin B" -> "Goblin": the letter a fight gives each of several of the same monster. */
+const unlettered = (name: string) => name.replace(/ (?:[A-Z]|\d+)$/, "");
+
+/** Fights kept before Run again only have names: match the monsters back to the library, leaving the players out. */
+function legacyFoes(s: GameState, past: FightSummary): FoeSetup[] {
+  const people = new Set(s.players.flatMap((p) => [p.name, p.character ?? ""]).filter(Boolean).map((x) => x.toLowerCase()));
+  const list = monstersOf(s);
+  const out: FoeSetup[] = [];
+  for (const name of past.combatants) {
+    if (people.has(name.toLowerCase())) continue;
+    const t = templateByName(list, unlettered(name)) ?? templateByName(list, name);
+    out.push(t ? { templateId: t.id, name: t.name, displayName: t.displayName, maxHp: 0, initBonus: t.initBonus, hidden: false } : { name, displayName: name, maxHp: 0, initBonus: null, hidden: false });
+  }
+  return out;
+}
+
+/**
+ * Run a past fight again, fresh: everyone at the table now, the same foes at
+ * full HP (rolled again from their templates), no initiative yet, and the map
+ * it was fought on back on the TV. Nothing of the old fight is touched: its
+ * loot, Chronicle note and summary stay, and this one pays out only when it closes.
+ */
+export function rerunFight(s: GameState, past: FightSummary, h: FightHelpers): Fight {
+  if (s.fight) h.fail("A fight is already going. End it first.");
+  const before = s.live.sceneId;
+  const map = past.mapSceneId ? s.scenes.find((x) => x.id === past.mapSceneId && x.kind === "map") : undefined;
+  if (map && before !== map.id) h.showScene(map.id);
+  const f = startFight(s, [], past.where, h);
+  f.title = past.title;
+  f.returnSceneId = before;
+  const list = monstersOf(s);
+  const missing: string[] = [];
+  const noted = new Set<string>();
+  for (const foe of past.foes ?? legacyFoes(s, past)) {
+    if (f.order.length >= MAX_COMBATANTS) break;
+    const t = foe.templateId ? list.find((x) => x.id === foe.templateId) : undefined;
+    let c: Combatant;
+    if (t) {
+      [c] = monstersFrom(f, t, 1, () => h.nextId("c"), h.rand);
+      if (t.dmNote.trim() && !noted.has(t.id)) {
+        noted.add(t.id);
+        remind(f, h, "info", `${t.name}: ${t.dmNote.trim()}`);
+      }
+    } else if (foe.maxHp > 0) {
+      c = {
+        id: h.nextId("c"),
+        kind: "monster",
+        name: foe.name,
+        displayName: foe.displayName || foe.name,
+        revealed: !foe.displayName.trim() || foe.displayName === foe.name,
+        hidden: false,
+        init: null,
+        initBonus: foe.initBonus,
+        hp: foe.maxHp,
+        maxHp: foe.maxHp,
+        tempHp: 0,
+        ...(foe.ac !== undefined ? { ac: foe.ac } : {}),
+        conditions: [],
+        concentrating: false,
+        spent: {},
+        down: false,
+      };
+    } else {
+      const n = unlettered(foe.name);
+      if (!missing.includes(n)) missing.push(n);
+      continue;
+    }
+    c.hidden = foe.hidden;
+    f.order.push(c);
+  }
+  for (const name of missing) remind(f, h, "info", `No monster template called “${name}” any more. Add it under Monsters, then add it here.`);
+  return f;
 }
 
 /** "Fought 2 Goblins in the old mill. 4 rounds." Uses the names the table knows. */
