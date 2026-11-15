@@ -201,7 +201,7 @@ export function ShopPanel() {
               className="btn small danger"
               type="button"
               onClick={() => {
-                if (confirm(`Remove ${shop.name} and all its items?`)) void run({ type: "shop.remove", shopId: shop.id }, `Removed ${shop.name}.`);
+                if (confirm(`Remove ${shop.name}, all its items, and its entry in Discover?`)) void run({ type: "shop.remove", shopId: shop.id }, `Removed ${shop.name}.`);
               }}
             >
               Remove this shop

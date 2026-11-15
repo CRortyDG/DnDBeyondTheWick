@@ -15,7 +15,7 @@ import { chapterSessionId, cleanTags, cleanText, defaultChapterId, NOTES_MAX, pe
 import { BOARD_SLOTS, jobsOf, jobTitle, pinnedCount, rankName, RENOWN, renownMet, renownNeeded, renownOf, shopOpenNow, tierOf, trustMet, trustText } from "./renown";
 import { LOG_MAX, PLAYER_ROLL_GAP_MS, rollPool, type RollTo } from "./dice";
 import { leadsOf, leadVisible, tally, voteClosed } from "./leads";
-import { findRef, sessionRecap, stageRank, blankEntry, ENTRIES_MAX, LEADS_MAX, entriesForScene, entriesOf, entryFromScene, entryScene, entryTags, factSlug, FACTS_MAX, isFound, slugify, uniqueSlug } from "./discovery";
+import { findRef, sessionRecap, stageRank, blankEntry, ENTRIES_MAX, LEADS_MAX, entriesForScene, entriesOf, entryFromScene, entryScene, entryTags, factSlug, FACTS_MAX, isFound, shopEntry, slugify, syncShopEntries, uniqueSlug } from "./discovery";
 import { DM_AUTHOR } from "./types";
 import { boardNotes, cleanLook, cleanPlace, defaultWidth, NOTICES_MAX, placeFor, slugify as noteSlug, topZ } from "./board";
 import { decodeBits, emptyBits, encodeBits, fullBits } from "./fog";
@@ -549,6 +549,20 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
     }
     if (s.scenes.length >= 400) fail("There are too many pictures already.");
     showScene(ensurePicture(e).id);
+  };
+  const removeEntry = (id: string) => {
+    s.entries = entriesOf(s).filter((x) => x.id !== id);
+    for (const e of s.entries) if (e.links.includes(id)) e.links = e.links.filter((x) => x !== id);
+    if (s.discovery?.entryId === id) delete s.discovery;
+    pruneRefs();
+  };
+  const removeShop = (id: string) => {
+    if (!s.shops.some((x) => x.id === id)) fail("That shop doesn't exist.");
+    if (s.shops.length <= 1) fail("Keep at least one shop.");
+    s.shops = s.shops.filter((x) => x.id !== id);
+    s.items = s.items.filter((x) => x.shopId !== id);
+    for (const sc of s.scenes) for (const p of sc.map?.pins ?? []) if (p.link?.kind === "shop" && p.link.shopId === id) delete p.link;
+    if (s.live.shopId === id) s.live.shopId = s.shops[0].id;
   };
   /** Forget quick slots and recents that point at something deleted. */
   const pruneRefs = () => {
@@ -1603,6 +1617,10 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
       const sh = shop(cmd.shopId);
       if (cmd.patch.name !== undefined) sh.name = cmd.patch.name.trim() || sh.name;
       if (cmd.patch.subtitle !== undefined) sh.subtitle = cmd.patch.subtitle.trim();
+      // Its Discover entry reads the same name and tagline.
+      const se = shopEntry(s, sh.id);
+      if (se && cmd.patch.name !== undefined) se.name = cleanLine(sh.name) || se.name;
+      if (se && cmd.patch.subtitle !== undefined) se.title = cleanLine(sh.subtitle);
       if (cmd.patch.secretSales !== undefined) sh.secretSales = cmd.patch.secretSales || undefined;
       if (cmd.patch.renown !== undefined) {
         if (cmd.patch.renown) sh.renown = cmd.patch.renown;
@@ -1629,19 +1647,18 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
       sh.playerIds = cmd.visibility === "some" ? ids : [];
       if (cmd.visibility !== "all" && s.live.shopId === sh.id) s.live.shopOpen = false;
       if (cmd.visibility === "all" && !wasPublic && !cmd.quiet) announce(sh.closed ? `${sh.name} has come to town` : `Now open: ${sh.name}`);
-      // Its compendium entry: open means found. Hiding a storefront doesn't unfind it.
-      if (cmd.visibility !== "hidden") for (const e of entriesOf(s).filter((x) => x.shopId === sh.id && !isFound(x.stage))) setStage(e, "found", false);
+      // Its Discover entry follows: open to everyone means found, hidden means hidden
+      // (a Known shop stays in Discover). Shown to some players stays secret: no change.
+      for (const e of entriesOf(s).filter((x) => x.shopId === sh.id)) {
+        if (cmd.visibility === "all" && !isFound(e.stage)) setStage(e, "found", false);
+        else if (cmd.visibility === "hidden" && e.stage !== "known") setStage(e, "hidden", false);
+      }
       break;
     }
-    case "shop.remove": {
-      if (s.shops.length <= 1) fail("Keep at least one shop.");
-      if (!s.shops.some((x) => x.id === cmd.shopId)) fail("That shop doesn't exist.");
-      s.shops = s.shops.filter((x) => x.id !== cmd.shopId);
-      s.items = s.items.filter((x) => x.shopId !== cmd.shopId);
-      for (const sc of s.scenes) for (const p of sc.map?.pins ?? []) if (p.link?.kind === "shop" && p.link.shopId === cmd.shopId) delete p.link;
-      if (s.live.shopId === cmd.shopId) s.live.shopId = s.shops[0].id;
+    case "shop.remove":
+      removeShop(cmd.shopId);
+      for (const e of entriesOf(s).filter((x) => x.shopId === cmd.shopId)) removeEntry(e.id);
       break;
-    }
     case "item.add": {
       shop(cmd.item.shopId);
       const it = tidyItem({
@@ -1693,6 +1710,14 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
     }
     case "catalog.reset":
       s.shops = structuredClone(SEED_SHOPS);
+      // Shop entries that survive take the fresh shop's name and go back into hiding (a Known one stays).
+      for (const e of entriesOf(s)) {
+        const sh = e.shopId ? s.shops.find((x) => x.id === e.shopId) : undefined;
+        if (!sh) continue;
+        e.name = sh.name;
+        e.title = sh.subtitle;
+        if (e.stage !== "known") setStage(e, "hidden", false);
+      }
       s.items = structuredClone(SEED_ITEMS);
       s.live.shopOpen = false;
       s.live.shopId = s.shops[0].id;
@@ -1833,6 +1858,13 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
       // A portrait the table has already seen: they've met.
       if (sc?.known) setStage(e, "found", false);
       if (f.pin) linkPin(e, f.pin);
+      // A shop in Discover is a shop in Shops: a new, hidden storefront.
+      if (kind === "shop") {
+        const sh: Shop = { id: nextId("shop"), name: e.name, subtitle: e.title, visibility: "hidden", playerIds: [] };
+        s.shops.push(sh);
+        e.shopId = sh.id;
+        syncOut(e, e.stage);
+      }
       out.entryId = e.id;
       break;
     }
@@ -1846,6 +1878,7 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
         e.name = name;
       }
       if (p.kind !== undefined && p.kind !== e.kind) {
+        if (e.shopId) fail(`${e.name} is a shop in Shops, so it stays a shop here.`);
         e.kind = p.kind;
         e.slug = uniqueSlug(entriesOf(s), e.kind, e.slug, e.id);
       }
@@ -1883,10 +1916,19 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
       }
       if (p.pin === null) delete e.pin;
       else if (p.pin) linkPin(e, p.pin);
-      if (p.shopId !== undefined) {
-        if (p.shopId) e.shopId = shop(p.shopId).id;
-        else delete e.shopId;
+      if (p.shopId !== undefined && p.shopId !== (e.shopId ?? null)) {
+        if (!p.shopId) fail("Every shop keeps its entry here. Delete the shop to remove it.");
+        // One entry per shop: the one that had this storefront takes this entry's old one.
+        const to = shop(p.shopId).id;
+        const other = shopEntry(s, to);
+        if (other && e.shopId) other.shopId = e.shopId;
+        else if (other) delete other.shopId;
+        e.shopId = to;
       }
+      // Its storefront reads the same name and tagline.
+      const tiedShop = e.shopId ? s.shops.find((x) => x.id === e.shopId) : undefined;
+      if (tiedShop && !p.shopId && p.name !== undefined) tiedShop.name = e.name;
+      if (tiedShop && !p.shopId && p.title !== undefined) tiedShop.subtitle = e.title;
       if (p.templateId !== undefined) {
         if (p.templateId) e.templateId = ((s.monsters ?? []).find((x) => x.id === p.templateId) ?? fail("That monster isn't in the library.")).id;
         else delete e.templateId;
@@ -1922,11 +1964,10 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
       break;
     }
     case "entry.remove": {
-      entry(cmd.entryId);
-      s.entries = entriesOf(s).filter((x) => x.id !== cmd.entryId);
-      for (const e of s.entries) if (e.links.includes(cmd.entryId)) e.links = e.links.filter((x) => x !== cmd.entryId);
-      if (s.discovery?.entryId === cmd.entryId) delete s.discovery;
-      pruneRefs();
+      const e = entry(cmd.entryId);
+      // A shop's entry goes with its shop, both ways.
+      if (e.shopId && s.shops.some((x) => x.id === e.shopId)) removeShop(e.shopId);
+      removeEntry(e.id);
       break;
     }
     case "entry.move": {
@@ -2711,6 +2752,8 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
   if (/^(episode|beat|run)\./.test(cmd.type)) syncStoryStatus(s);
   // A fight a beat started, a map shown mid-fight, a player who left: tokens follow.
   syncFightTokens(s, nextId);
+  // Every shop has its entry in Discover (a new shop, a reset catalog).
+  syncShopEntries(s, ctx.now);
   return out;
 }
 
