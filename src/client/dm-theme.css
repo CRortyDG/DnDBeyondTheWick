@@ -2209,3 +2209,47 @@ html[data-view="dm"] {
   :where(html[data-view="dm"]) .pg-search { width: 100%; }
   :where(html[data-view="dm"]) .pg-inline-form { flex-wrap: wrap; }
 }
+
+/* ---------- Prep pages ---------- */
+
+:where(html[data-view="dm"]) .ep-switch {
+  flex-wrap: wrap;
+  align-self: flex-start;
+}
+:where(html[data-view="dm"]) .ep-live {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-left: 6px;
+  border-radius: 50%;
+  background: var(--dm-gold);
+  vertical-align: 1px;
+}
+:where(html[data-view="dm"]) .ep-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--dm-s2);
+  margin-bottom: var(--dm-s3);
+}
+:where(html[data-view="dm"]) .ep-head .row-menu {
+  align-self: center;
+}
+:where(html[data-view="dm"]) .ep-head .btn svg {
+  flex: none;
+}
+:where(html[data-view="dm"]) .chron-dm .btn.chron-post {
+  flex: 0 0 auto;
+  width: auto;
+  min-width: 140px;
+}
+:where(html[data-view="dm"]) .story-panel .box h3 .pg-count {
+  margin-left: 4px;
+  font-size: 12px;
+}
+:where(html[data-view="dm"]) .story-thread-list .chip-link {
+  font-weight: 600;
+}
+:where(html[data-view="dm"]) .settings-page > .panel-grid {
+  margin: 0;
+}
