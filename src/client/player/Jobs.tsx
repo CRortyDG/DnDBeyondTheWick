@@ -34,6 +34,7 @@ export function Jobs({ view, send, availableAt }: { view: PlayerView; send: Send
           <span className="pl-renown-k">Renown</span>
           <span className="pl-renown-v">{view.renown.name}</span>
           <span className="pl-renown-pay">jobs pay {view.renown.ladder[rank]?.pay ?? "—"}</span>
+          {view.renown.progress ? <RenownBar p={view.renown.progress} /> : null}
         </summary>
         <p>
           {view.game.town || "The town"} knows the party as <b>{view.renown.name}</b>. <span className="note">{view.renown.meaning}.</span>
@@ -111,5 +112,17 @@ export function Jobs({ view, send, availableAt }: { view: PlayerView; send: Send
         />
       ) : null}
     </>
+  );
+}
+
+/** The party's progress toward its next rank (only when the DM shows it). */
+function RenownBar({ p }: { p: NonNullable<PlayerView["renown"]["progress"]> }) {
+  return (
+    <span className="pl-renown-progress">
+      <span className="pl-renown-bar" role="progressbar" aria-label="Renown toward the next rank" aria-valuemin={p.floor} aria-valuemax={p.next ?? p.points} aria-valuenow={p.points}>
+        <span style={{ width: `${Math.round(p.frac * 100)}%` }} />
+      </span>
+      <span className="pl-renown-next">{p.next === null ? "The top rank" : `${p.points} / ${p.next} to ${p.nextName}`}</span>
+    </span>
   );
 }

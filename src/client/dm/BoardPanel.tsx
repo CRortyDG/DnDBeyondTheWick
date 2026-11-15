@@ -8,12 +8,12 @@ import { BoardCanvas, LookFields, useScrollIn } from "./BoardCanvas";
 import { useMemo, useState } from "react";
 import { cpToGpInput, formatCp, parseAmount } from "@/shared/money";
 import { jobWhen, type PublicJob } from "@/shared/projection";
-import { defaultPayout, jobsOf, jobTitle, payoutPlayers, rankName, ranksOf, renownOf } from "@/shared/renown";
+import { defaultPayout, jobPoints, jobsOf, jobTitle, payoutPlayers, rankName, ranksOf, RENOWN_POINTS, renownOf } from "@/shared/renown";
 import type { Job, JobReward, JobStatus, JobStyle, NoteLook, TrustNeed } from "@/shared/types";
 import { JobCard, STYLE_LABELS, whenLabel } from "../scenes/Board";
 import { useDm } from "./context";
 import { PageHead } from "./PageHead";
-import { RenownControl } from "./RenownControl";
+import { RenownControl, RenownHistory } from "./RenownControl";
 import { PlusIcon } from "./navIcons";
 
 const STATUS_LABELS: Record<JobStatus, string> = { open: "Open", taken: "Taken", done: "Done", expired: "Pulled" };
@@ -92,18 +92,22 @@ function RenownBox() {
   return (
     <section className="box">
       <h3>Renown</h3>
-      <p className="note">One rank for the whole party. Raising it plays a moment on the TV (untick the box to skip it), writes it in the Chronicle, and opens anything that was waiting on it. Lowering it is quiet, and those things lock again. You can also change it from the ❦ button in the top bar.</p>
+      <p className="note">One rank for the whole party. Finished jobs and your awards add Renown points; when the points reach the next rank, the rank goes up by itself. Raising it plays a moment on the TV (untick the box to skip it), writes it in the Chronicle, and opens anything that was waiting on it. Points never lower it: that stays your call with −, and lowering is quiet. You can also change it from the ❦ button in the top bar.</p>
       <ol className="renown-ladder">
         {ranks.map((r, i) => (
           <li key={r.name} className={i === rank ? "on" : i < rank ? "past" : undefined}>
             <span>
-              <b>{r.name}</b> <span className="note">· {r.meaning}</span>
+              <b>{r.name}</b> <span className="note">· {r.meaning}{i ? ` · ${r.points} points` : ""}</span>
             </span>
             <span className="note">{r.pay}</span>
           </li>
         ))}
       </ol>
       <RenownControl />
+      <label className="check">
+        <input type="checkbox" checked={!!view.state.renownProgress} onChange={(e) => void run({ type: "renown.progress", on: e.target.checked }, e.target.checked ? "Players now see the progress bar." : "Players see only the rank.")} /> Show Renown progress to players
+      </label>
+      <RenownHistory />
       <RankWords />
     </section>
   );
@@ -118,15 +122,20 @@ const RANK_FIELDS = [
 
 /** Reword the five ranks for this campaign. A blank box keeps the default text. */
 function RankWords() {
-  const { view, run } = useDm();
+  const { view, run, toast } = useDm();
   const s = view.state;
   const defaults = ranksOf({ town: s.town });
-  const [d, setD] = useState(() => defaults.map((_, i) => ({ ...(s.renownRanks?.[i] ?? {}) }) as Record<string, string | undefined>));
-  const save = () => run({ type: "game.renownRanks", ranks: d }, "Renown ranks saved.");
+  const [d, setD] = useState(() => defaults.map((_, i) => { const { points, ...words } = s.renownRanks?.[i] ?? {}; return { ...words, points: points === undefined ? "" : String(points) }; }) as Record<string, string | undefined>[]);
+  const typed = d.map((x, i) => (i === 0 || !x.points?.trim() ? RENOWN_POINTS[i] : /^\d{1,3}$/.test(x.points.trim()) ? Number(x.points.trim()) : NaN));
+  const badAt = typed.findIndex((n, i) => i > 0 && (Number.isNaN(n) || n <= typed[i - 1]));
+  const save = () => {
+    if (badAt > 0) return void toast(`${defaults[badAt].name} needs a whole number of points, more than ${defaults[badAt - 1].name}.`);
+    void run({ type: "game.renownRanks", ranks: d.map(({ points, ...words }, i) => ({ ...words, ...(i > 0 && points?.trim() ? { points: typed[i] } : {}) })) }, "Renown ranks saved.");
+  };
   return (
     <details className="rank-words">
       <summary>Reword the ranks for this campaign</summary>
-      <p className="note">Leave a box empty to keep the text shown in grey. Every campaign has five ranks.</p>
+      <p className="note">Leave a box empty to keep the text shown in grey. Every campaign has five ranks. &ldquo;Points to reach&rdquo; is the party&rsquo;s running total, so each rank needs more than the one before.</p>
       {defaults.map((r, i) => (
         <fieldset key={i} className="rank-words-row">
           <legend>Rank {i + 1}</legend>
@@ -142,6 +151,19 @@ function RankWords() {
               />
             </label>
           ))}
+          {i > 0 ? (
+            <label>
+              Points to reach
+              <input
+                className="fld amt"
+                inputMode="numeric"
+                placeholder={String(RENOWN_POINTS[i])}
+                value={d[i].points ?? ""}
+                onChange={(e) => setD((all) => all.map((x, j) => (j === i ? { ...x, points: e.target.value } : x)))}
+              />
+              {!Number.isNaN(typed[i]) && !Number.isNaN(typed[i - 1]) && typed[i] > typed[i - 1] ? <span className="note">{typed[i] - typed[i - 1]} more than {defaults[i - 1].name}</span> : <span className="note">Must be more than {defaults[i - 1].name}</span>}
+            </label>
+          ) : null}
         </fieldset>
       ))}
       <div className="inline">
@@ -232,6 +254,8 @@ interface Draft {
   rewardKind: JobReward["kind"];
   reward: string;
   renown: number;
+  /** Renown points when done, as typed. */
+  points: string;
   trust: TrustNeed | null;
   style: JobStyle;
   look: NoteLook;
@@ -249,6 +273,7 @@ function draftOf(j?: Job): Draft {
     rewardKind: j?.reward.kind ?? "each",
     reward: j && j.reward.kind !== "hidden" ? cpToGpInput(j.reward.cp) : "",
     renown: j?.renown ?? 0,
+    points: String(j ? jobPoints(j) : 1),
     trust: j?.trust ?? null,
     style: j?.style ?? "scrawl",
     look: structuredClone(j?.look ?? {}),
@@ -287,14 +312,17 @@ function JobEditor({ job, followUpOf, onClose }: { job?: Job; followUpOf?: Job; 
     at: 0,
   });
 
+  const pts = parsePoints(d.points);
   const save = async () => {
     if (rewardCp === null) return toast("Enter the reward, like 50 or 12 gp 5 sp.");
+    if (pts === null) return toast("Renown when done is a whole number from 0 to 10.");
     const body = {
       title: d.title,
       postedBy: d.postedBy,
       body: d.body,
       reward: { kind: d.rewardKind, cp: rewardCp },
       renown: d.renown,
+      renownPoints: pts,
       trust: d.trust,
       style: d.style,
       look: d.look,
@@ -347,8 +375,13 @@ function JobEditor({ job, followUpOf, onClose }: { job?: Job; followUpOf?: Job; 
               ))}
             </select>
           </label>
+          <label title="Renown points the party gets when you mark it done. You can change it then too.">
+            Renown when done
+            <input className="fld amt" inputMode="numeric" value={d.points} onChange={(e) => set("points", e.target.value)} placeholder="1" />
+          </label>
           <TrustSelect value={d.trust} onChange={(v) => set("trust", v)} />
         </div>
+        {pts === null ? <p className="note">Renown when done is a whole number from 0 to 10.</p> : null}
         {rewardCp === null ? <p className="note">That isn&rsquo;t an amount I can read.</p> : null}
       </div>
 
@@ -404,15 +437,19 @@ function PayoutForm({ job, onClose }: { job: Job; onClose: () => void }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [job.id]);
   const [amounts, setAmounts] = useState<Record<string, string>>(initial);
+  const [points, setPoints] = useState(() => String(jobPoints(job)));
+  const pts = parsePoints(points);
   const parsed = seated.map((p) => ({ playerId: p.id, name: p.name, cp: (amounts[p.id] ?? "").trim() ? parseAmount(amounts[p.id]) : 0 }));
   const bad = parsed.some((x) => x.cp === null);
   const total = parsed.reduce((a, x) => a + (x.cp ?? 0), 0);
 
   const confirmDone = async () => {
     if (bad) return toast("One of those amounts isn't one I can read.");
-    const r = await call({ type: "job.done", jobId: job.id, payouts: parsed.filter((x) => (x.cp ?? 0) > 0).map((x) => ({ playerId: x.playerId, cp: x.cp! })) });
+    if (pts === null) return toast("Renown is a whole number from 0 to 10.");
+    const r = await call({ type: "job.done", jobId: job.id, payouts: parsed.filter((x) => (x.cp ?? 0) > 0).map((x) => ({ playerId: x.playerId, cp: x.cp! })), renown: pts });
     if (r.error) return toast(r.error);
-    toast(total ? `Done. Paid ${formatCp(total)} into purses.` : "Marked done.");
+    const fame = pts ? ` +${pts} Renown.` : "";
+    toast(total ? `Done. Paid ${formatCp(total)} into purses.${fame}` : `Marked done.${fame}`);
     onClose();
   };
 
@@ -430,8 +467,15 @@ function PayoutForm({ job, onClose }: { job: Job; onClose: () => void }) {
           </label>
         ))}
       </div>
+      <div className="payout-grid payout-renown">
+        <label style={{ display: "contents" }}>
+          <span>Renown for the party</span>
+          <input className="fld amt" inputMode="numeric" value={points} onChange={(e) => setPoints(e.target.value)} placeholder="0" aria-label="Renown points for this job" />
+        </label>
+      </div>
+      <p className="note">The flyer gives {jobPoints(job)} Renown. Make it 2 for an outstanding job, or 0 if it went badly.</p>
       <div className="inline">
-        <button type="button" className="btn primary" onClick={() => void confirmDone()} disabled={bad}>
+        <button type="button" className="btn primary" onClick={() => void confirmDone()} disabled={bad || pts === null}>
           Mark done{total ? ` and pay ${formatCp(total)}` : ""}
         </button>
         <button type="button" className="btn" onClick={onClose}>
@@ -472,4 +516,13 @@ function PlayerFlyers() {
         ))}
     </section>
   );
+}
+
+/** "2" → 2; blank → 0; anything else (or above 10) → null. */
+function parsePoints(v: string): number | null {
+  const t = v.trim();
+  if (!t) return 0;
+  if (!/^\d{1,2}$/.test(t)) return null;
+  const n = Number(t);
+  return n <= 10 ? n : null;
 }

@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { CATEGORY_IDS, KIND_IDS } from "./progress";
-import { RENOWN_MAX } from "./renown";
+import { RENOWN_MAX, RENOWN_POINTS_MAX } from "./renown";
 import { FONT_IDS, LIST_MAX, NOTE_W_MAX, NOTE_W_MIN, PAPER_IDS, PIN_IDS, TITLE_SIZE_MAX, TITLE_SIZE_MIN } from "./board";
 import { DIE_SIDES, diceCount, MAX_DICE, MAX_OF_ONE, MAX_PLUS } from "./dice";
 import { fightDmCommands, fightPlayerCommands } from "./combatSchema";
@@ -141,6 +141,8 @@ const effect = z.discriminatedUnion("type", [
   z.object({ type: z.literal("credit"), limitCp: cp }),
 ]);
 const rank = z.number().int().min(0).max(RENOWN_MAX);
+/** Renown points a job gives when done. */
+const jobRenown = z.number().int().min(0).max(10);
 const flyerText = z.object({ title: text(60).min(1), body: text(400), signedBy: text(60) });
 
 const itemFields = {
@@ -213,6 +215,7 @@ const jobFields = {
   body: text(600),
   reward: z.object({ kind: z.enum(["each", "total", "hidden"]), cp }),
   renown: rank,
+  renownPoints: jobRenown,
   style: paper,
   dm: z.object({ adventure: text(300), loot: text(1000), twists: text(1000), notes: text(2000) }).partial(),
 };
@@ -322,6 +325,13 @@ export const dmCommand = z.discriminatedUnion("type", [
    * lowering it is quiet. A reason is written in the Chronicle either way.
    */
   z.object({ type: z.literal("renown.set"), rank, reason: text(200).optional(), tv: z.boolean().optional() }),
+  /**
+   * Award (or take away) Renown points, with a reason for the Chronicle. Crossing the next
+   * rank's threshold raises the rank like renown.set (tv as there); falling short never lowers it.
+   */
+  z.object({ type: z.literal("renown.points"), amount: z.number().int().min(-50).max(50).refine((n) => n !== 0, "Give or take at least one point."), reason: text(200).optional(), tv: z.boolean().optional() }),
+  /** Show the party's progress toward the next rank on phones. */
+  z.object({ type: z.literal("renown.progress"), on: z.boolean() }),
   /** secret: only the DM sees it (in the roll log); otherwise it plays on the TV. */
   z.object({ type: z.literal("dice.roll"), dice: diceAsk, plus: dicePlus, secret: z.boolean().optional() }),
   /** Empty the roll log (the DM's and the players' rolls). */
@@ -342,7 +352,8 @@ export const dmCommand = z.discriminatedUnion("type", [
   /** Show or hide the Renown plaque on the board's frame. */
   z.object({ type: z.literal("board.plaque"), shown: z.boolean() }),
   /** Mark it done and pay these amounts into purses, once. */
-  z.object({ type: z.literal("job.done"), jobId: id, payouts: z.array(z.object({ playerId: id, cp })).max(50) }),
+  /** renown: points the party gets for it (missing: the job's own "Renown when done"). */
+  z.object({ type: z.literal("job.done"), jobId: id, payouts: z.array(z.object({ playerId: id, cp })).max(50), renown: jobRenown.optional() }),
   z.object({ type: z.literal("job.expire"), jobId: id }),
   z.object({ type: z.literal("job.remove"), jobId: id }),
 
@@ -492,7 +503,7 @@ export const dmCommand = z.discriminatedUnion("type", [
   z.object({ type: z.literal("game.town"), town: text(60) }),
   z.object({
     type: z.literal("game.renownRanks"),
-    ranks: z.array(z.object({ name: text(40).optional(), meaning: text(120).optional(), pay: text(40).optional(), raised: text(80).optional() })).max(RENOWN_MAX + 1),
+    ranks: z.array(z.object({ name: text(40).optional(), meaning: text(120).optional(), pay: text(40).optional(), raised: text(80).optional(), points: z.number().int().min(0).max(RENOWN_POINTS_MAX).optional() })).max(RENOWN_MAX + 1),
   }),
 
   // Combat mode.

@@ -12,7 +12,7 @@ import { heldCp, heldStock } from "./requests";
 import { projectTable, type TableView } from "./arrival";
 import { notesOf, penName, projectChronicle, type ChronicleView } from "./chronicle";
 import { discoveryView, PORTRAIT_ART, portraitArtAllowed, publicEntries, sceneSpoils, type DiscoveryView, type PublicEntry } from "./discovery";
-import { jobsOf, jobTitle, rankName, ranksOf, renownMet, renownNeeded, renownOf, shopOpenNow, tierOf, trustText } from "./renown";
+import { jobsOf, jobTitle, progressOf, rankName, ranksOf, renownMet, renownNeeded, renownOf, shopOpenNow, tierOf, trustText } from "./renown";
 import { fightView, myFight, type FightView, type MyFight } from "./combat";
 import type { Art, Banner, Flyer, FlyerText, GameState, Job, JobStyle, Item, ItemCategory, ItemKind, LedgerEntry, LegendStyle, LiveState, NoteLook, NotePlace, Notice, Player, RequestStatus, Scene, Shop } from "./types";
 import { noticesOf } from "./board";
@@ -223,6 +223,8 @@ export interface PublicRenown {
   meaning: string;
   /** Every rank, for the phone's ladder. */
   ladder: { name: string; pay: string }[];
+  /** Only when the DM shows Renown progress to players: points toward the next rank. */
+  progress?: { points: number; floor: number; next: number | null; nextName: string | null; frac: number };
 }
 
 /** One of my phone requests, as I see it. */
@@ -530,8 +532,13 @@ function common(game: GameState, version: number, viewer: Viewer): Common {
     items: game.items.filter((it) => open.has(it.shopId)).map((it) => publicItem(game, it)).filter((x): x is PublicItem => x !== null),
     session: cur ? { number: cur.number, title: cur.title } : null,
     banner: game.banner ? { ...game.banner } : null,
-    renown: { rank, name: ladder[rank].name, meaning: ladder[rank].meaning, ladder: ladder.map((r) => ({ name: r.name, pay: r.pay })) },
+    renown: { rank, name: ladder[rank].name, meaning: ladder[rank].meaning, ladder: ladder.map((r) => ({ name: r.name, pay: r.pay })), ...(game.renownProgress ? { progress: publicProgress(game) } : {}) },
   };
+}
+
+function publicProgress(game: GameState): NonNullable<PublicRenown["progress"]> {
+  const p = progressOf(game);
+  return { points: p.points, floor: p.floor, next: p.next, nextName: p.nextName, frac: p.frac };
 }
 
 /** The shop on the TV, but only if the viewer can see it (never leak a hidden shop's id). */

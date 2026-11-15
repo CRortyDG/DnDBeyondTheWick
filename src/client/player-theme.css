@@ -2158,3 +2158,34 @@ html[data-view="player"] {
   overflow-y: auto;
   scrollbar-width: none;
 }
+
+/* Renown progress toward the next rank (when the DM shows it). */
+:where(html[data-view="player"]) .pl-renown summary:has(.pl-renown-progress) {
+  flex-wrap: wrap;
+  row-gap: 6px;
+}
+:where(html[data-view="player"]) .pl-renown-progress {
+  order: 10;
+  flex: 1 0 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+:where(html[data-view="player"]) .pl-renown-bar {
+  flex: 1;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--pl-bg-2, rgba(255, 255, 255, 0.08));
+  overflow: hidden;
+}
+:where(html[data-view="player"]) .pl-renown-bar > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--pl-gold);
+}
+:where(html[data-view="player"]) .pl-renown-next {
+  font-size: 12px;
+  color: var(--pl-text-3);
+  white-space: nowrap;
+}
