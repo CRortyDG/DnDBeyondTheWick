@@ -615,14 +615,14 @@ export function parseItems(text: string, shops: Pick<Shop, "id" | "name">[], ite
     if (it.dmNote) it.dmNote = it.dmNote.slice(0, 2000);
     if (!it.name.trim()) errors.push(`Line ${b.line}: an item needs a name after “##”.`);
     if (!shop) errors.push(`Line ${b.line}: say which shop sells ${it.name || "it"} (shop: The Docks), or put “# The Docks” above it.`);
-    if (!sawPrice && it.kind !== "earned") errors.push(`Line ${b.line}: ${it.name || "this item"} needs a price (price: 50 gp)${it.kind === "project" ? " or a goal" : ""}.`);
+    if (!sawPrice && it.kind !== "earned" && !errors.some((x) => x.includes("isn't a price"))) errors.push(`Line ${b.line}: ${it.name || "this item"} needs a price (price: 50 gp)${it.kind === "project" ? " or a goal" : ""}.`);
     const existingShop = shop ? shopByKey.get(nameKey(shop)) : undefined;
     if (shop && !existingShop && !newShops.some((s) => nameKey(s) === nameKey(shop))) newShops.push(shop.slice(0, 80));
     const key = `${existingShop?.id ?? `new:${nameKey(shop)}`}|${nameKey(it.name)}`;
     const duplicate = taken.has(key);
     if (duplicate) warnings.push(`Line ${b.line}: ${shop} already sells ${it.name}; skipped.`);
     taken.add(key);
-    rows.push({ line: b.line, name: it.name, ref: shop ? `${shop} · ${it.name}` : it.name, errors, warnings, ...(duplicate ? { duplicate } : {}), ...(!errors.length && !duplicate ? { body: { shop: shop.slice(0, 80), item: it } } : {}) });
+    rows.push({ line: b.line, name: it.name, ref: shop || "?", errors, warnings, ...(duplicate ? { duplicate } : {}), ...(!errors.length && !duplicate ? { body: { shop: shop.slice(0, 80), item: it } } : {}) });
   }
   // Only shops something will actually be added to.
   const used = new Set(rows.filter((r) => r.body).map((r) => nameKey(r.body!.shop)));
