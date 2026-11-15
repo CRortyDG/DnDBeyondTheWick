@@ -1833,6 +1833,24 @@ html[data-view="dm"] {
   flex-direction: column;
   gap: var(--dm-s3);
 }
+/* A page never grows wider than its column: at laptop widths the docked TV panel would cover the overflow. */
+:where(html[data-view="dm"]) .dm-main .pg {
+  min-width: 0;
+  grid-template-columns: minmax(0, 1fr);
+}
+:where(html[data-view="dm"]) .dm-main .pg > * {
+  min-width: 0;
+}
+:where(html[data-view="dm"]) .dm-main .grow {
+  min-width: 0;
+}
+:where(html[data-view="dm"]) .dm-main select.fld {
+  max-width: 100%;
+}
+:where(html[data-view="dm"]) .dm-main .grow > select.fld {
+  width: 100%;
+  min-width: 0;
+}
 :where(html[data-view="dm"]) .pg > .pg-head {
   margin-bottom: var(--dm-s1);
 }

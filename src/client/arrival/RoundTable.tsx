@@ -11,6 +11,22 @@ export interface TableSeat {
   flare?: number;
 }
 
+/**
+ * A seat name on one line, or two when it's long: "Sister Cass, Keeper of the Beacon"
+ * breaks after the comma, anything else at the last space that fits. Only a name
+ * that still won't fit on two lines is shortened.
+ */
+export function nameLines(name: string, max: number): string[] {
+  const t = name.trim();
+  if (t.length <= max) return [t];
+  const cut = (x: string) => (x.length > max ? x.slice(0, max - 1).trimEnd() + "\u2026" : x);
+  const comma = t.indexOf(", ");
+  if (comma > 0 && comma < max) return [t.slice(0, comma + 1), cut(t.slice(comma + 2).trim())];
+  const space = t.lastIndexOf(" ", max);
+  if (space > 0) return [t.slice(0, space), cut(t.slice(space + 1).trim())];
+  return [cut(t)];
+}
+
 export function RoundTable({ seats, names = true, size = 320, wide = 280, maxName = 22, className = "" }: { seats: TableSeat[]; names?: boolean; size?: number | string; wide?: number; maxName?: number; className?: string }) {
   const n = Math.max(seats.length, 1);
   const R = 150; // table
@@ -54,7 +70,12 @@ export function RoundTable({ seats, names = true, size = 320, wide = 280, maxNam
             </g>
             {names && s.name ? (
               <text x={nx} y={ny} textAnchor={vert ? "middle" : nx > 0 ? "start" : "end"} dominantBaseline="middle" className="rt-name">
-                {s.name.length > maxName ? s.name.slice(0, maxName - 1).trimEnd() + "\u2026" : s.name}
+                <title>{s.name}</title>
+                {nameLines(s.name, maxName).map((line, li, all) => (
+                  <tspan key={li} x={nx} dy={li === 0 ? `${-(all.length - 1) * 0.6}em` : "1.2em"}>
+                    {line}
+                  </tspan>
+                ))}
               </text>
             ) : null}
           </g>

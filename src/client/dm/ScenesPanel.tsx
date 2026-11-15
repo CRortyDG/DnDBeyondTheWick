@@ -1,5 +1,6 @@
 "use client";
 
+import { originOf } from "@/shared/presets";
 import { useRef, useState } from "react";
 import type { Scene, SceneKind } from "@/shared/types";
 import { SceneView } from "../ui/SceneView";
@@ -32,7 +33,8 @@ const PORTRAIT: [SceneKind, string] = ["portrait", "Picture card (name and title
 export function ScenesPanel() {
   const { view, run, openMap, openTable } = useDm();
   const s = view.state;
-  const hasSeedMaps = s.scenes.some((x) => x.kind === "map" && x.label === "Candlefair map") && s.scenes.some((x) => x.kind === "map" && x.label === "Sword Coast map");
+  // Only a Candlefair campaign is offered Candlefair's maps.
+  const hasSeedMaps = originOf(s).kind !== "candlefair" || s.scenes.some((x) => x.kind === "map" && x.label === "Candlefair map") && s.scenes.some((x) => x.kind === "map" && x.label === "Sword Coast map");
   const [openId, setOpenId] = useState<string | null>(null);
   const [newKind, setNewKind] = useState<SceneKind>("image");
   const [newLabel, setNewLabel] = useState("");

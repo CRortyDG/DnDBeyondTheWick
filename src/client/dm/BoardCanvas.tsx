@@ -11,6 +11,7 @@ import type { Flyer, GameState, Job, NoteLook, NotePlace, Notice, Paper } from "
 import { boardCards, FlyerCard, JobCard, NoteCard, placeStyle, type BoardView } from "../scenes/Board";
 import { NoticeBoard } from "../scenes/NoticeBoard";
 import { useDm } from "./context";
+import { townOf } from "@/shared/presets";
 import { Check } from "./Check";
 import { uploadImage } from "./upload";
 
@@ -467,7 +468,8 @@ function NoteEditor({ thing, onClose }: { thing: Thing; onClose: () => void }) {
 
 /** Paper, pin, type and the extra lines any note can have. Shared by notes, player flyers and job flyers. */
 export function LookFields({ style, setStyle, look, setLook, allowDefault }: { style: Paper | undefined; setStyle: (p: Paper) => void; look: NoteLook; setLook: (l: NoteLook) => void; allowDefault?: boolean }) {
-  const { ident, toast } = useDm();
+  const { ident, toast, view } = useDm();
+  const town = townOf(view.state);
   const [busy, setBusy] = useState(false);
   const set = <K extends keyof NoteLook>(k: K, v: NoteLook[K] | undefined) => {
     const next = { ...look };
@@ -551,7 +553,7 @@ export function LookFields({ style, setStyle, look, setLook, allowDefault }: { s
       </div>
       <label>
         Small line above the title
-        <input className="fld" value={look.kicker ?? ""} maxLength={80} onChange={(e) => set("kicker", e.target.value)} placeholder="Hear ye, good folk of Candlefair" />
+        <input className="fld" value={look.kicker ?? ""} maxLength={80} onChange={(e) => set("kicker", e.target.value)} placeholder={town ? `Hear ye, good folk of ${town}` : "Hear ye, hear ye"} />
       </label>
       <label>
         Line under the title
