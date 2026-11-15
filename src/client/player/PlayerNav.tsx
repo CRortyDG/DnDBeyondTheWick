@@ -57,7 +57,7 @@ export const NAV_ICONS = {
   ),
 };
 
-/** The phone's bottom tab bar. */
+/** The phone's bottom tab bar, or the tabs down the side on a computer. */
 export function PlayerNav({
   screen,
   onScreen,
@@ -65,6 +65,7 @@ export function PlayerNav({
   discoverCount,
   jobsCount,
   fight,
+  vertical,
 }: {
   screen: Screen;
   onScreen: (s: Screen) => void;
@@ -73,6 +74,7 @@ export function PlayerNav({
   jobsCount: number;
   /** A fight is on: its tab leads, and lights up when you're next or it's your turn. */
   fight: "on" | "next" | "turn" | null;
+  vertical?: boolean;
 }) {
   const tabs: Tab[] = [
     ...(fight ? [{ id: "fight" as const, label: "Fight", icon: NAV_ICONS.fight, alert: fight !== "on" }] : []),
@@ -83,8 +85,8 @@ export function PlayerNav({
     { id: "jobs", label: "Jobs", icon: NAV_ICONS.jobs, count: jobsCount },
   ];
   return (
-    <nav className="pl-nav" aria-label="Your page">
-      <div className="pl-nav-in" role="tablist" style={{ gridTemplateColumns: `repeat(${tabs.length}, 1fr)` }}>
+    <nav className={vertical ? "pl-side-nav" : "pl-nav"} aria-label="Your page">
+      <div className="pl-nav-in" role="tablist" aria-orientation={vertical ? "vertical" : undefined} style={vertical ? undefined : { gridTemplateColumns: `repeat(${tabs.length}, 1fr)` }}>
         {tabs.map((t) => (
           <button key={t.id} type="button" role="tab" aria-selected={screen === t.id} className={`pl-nav-tab${screen === t.id ? " on" : ""}${t.alert ? " alert" : ""}${t.id === "fight" ? " fight" : ""}`} onClick={() => onScreen(t.id)}>
             <span className="pl-nav-icon">
