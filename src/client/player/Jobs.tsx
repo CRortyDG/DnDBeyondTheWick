@@ -2,14 +2,20 @@
 
 // The bounty board on a phone: what's pinned up, and the party's Renown.
 import { useState } from "react";
+import { formatCp } from "@/shared/money";
 import type { PlayerView } from "@/shared/projection";
 import { JobCard, jobStatusLine } from "../scenes/Board";
+import { RequestSheet } from "./Requests";
 import { useConfirm } from "./Sheet";
 
 type Send = (c: object) => Promise<string | null>;
 
-export function Jobs({ view, send }: { view: PlayerView; send: Send }) {
+export function Jobs({ view, send, availableAt }: { view: PlayerView; send: Send; availableAt: (shopId: string) => number }) {
   const [msg, setMsg] = useState<string | null>(null);
+  const [writing, setWriting] = useState(false);
+  // Players post their own flyers through a shop service the DM marked "the player writes a flyer".
+  const shopName = new Map(view.shops.map((s) => [s.id, s.name]));
+  const flyerItem = view.items.find((i) => i.flyer && i.tier === "sale" && shopName.has(i.shopId));
   const [busy, setBusy] = useState<string | null>(null);
   const rank = view.renown.rank;
   const [confirmSheet, ask] = useConfirm();
@@ -56,6 +62,20 @@ export function Jobs({ view, send }: { view: PlayerView; send: Send }) {
             <p>Nothing pinned up yet. Keep an eye on the board at the Candle.</p>
           </div>
         ) : null}
+        {flyerItem ? (
+          <div className="pl-post-flyer">
+            <div>
+              <b>Post your own flyer</b>
+              <span className="note">
+                {flyerItem.priceCp ? `${formatCp(flyerItem.priceCp)} at ${shopName.get(flyerItem.shopId)}. ` : `At ${shopName.get(flyerItem.shopId)}. `}
+                The DM pins it up if it&rsquo;s decent.
+              </span>
+            </div>
+            <button type="button" className="btn" onClick={() => setWriting(true)}>
+              Write a flyer
+            </button>
+          </div>
+        ) : null}
         <div className="job-list">
           {view.jobs.map((j) => {
             const title = j.style === "sealed" ? "A sealed envelope" : j.title;
@@ -78,6 +98,18 @@ export function Jobs({ view, send }: { view: PlayerView; send: Send }) {
           })}
         </div>
       </section>
+      {writing && flyerItem ? (
+        <RequestSheet
+          item={flyerItem}
+          availableCp={availableAt(flyerItem.shopId)}
+          send={send}
+          onClose={() => setWriting(false)}
+          onDone={(m) => {
+            setWriting(false);
+            setMsg(m);
+          }}
+        />
+      ) : null}
     </>
   );
 }
