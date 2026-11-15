@@ -36,6 +36,8 @@ export interface Scene {
   /** Portraits: the players have met this NPC (set when first shown on the TV, or by the DM). Feeds the Chronicle's tag picker.
    *  Maps: players can open it on their phones (set when first shown on the TV, or by the DM). */
   known?: boolean;
+  /** Shared world: the characters who know this portrait or map. The table sees it only if everyone present does. */
+  knownBy?: string[];
 }
 
 /** What a pin can open from the DM view: a shop on the TV, or another scene (a portrait or a map). DM-ONLY. */
@@ -62,6 +64,8 @@ export interface Pin {
   y: number;
   /** DM-ONLY */
   link?: PinLink;
+  /** Shared world: the characters who have found this pin (for pins with no Discover place). */
+  knownBy?: string[];
 }
 
 export type LegendStyle = "numbers" | "names";
@@ -79,6 +83,8 @@ export interface MapData {
   grid?: MapGrid;
   /** Fog of war. Missing: never set up. */
   fog?: MapFog;
+  /** Shared world: each other party's fog, kept while another party is at the table (fog is the playing party's). */
+  fogBy?: Record<string, MapFog>;
 }
 
 /**
@@ -170,6 +176,10 @@ export interface Player {
   arrival?: PlayerArrival;
   /** Hit points for the table in combat mode (D&D Beyond stays the real sheet). Missing: not set yet. */
   hp?: PlayerHp;
+  /** Shared world: this character's own Renown rank. The table's is the best of those present. */
+  renown?: number;
+  /** Shared world: this character's own Renown points. Missing: their rank's threshold. */
+  renownPoints?: number;
 }
 
 /** A player's hit points, as they (or the DM) typed them. */
@@ -434,6 +444,12 @@ export interface Flyer {
   look?: NoteLook;
   /** Where it hangs. Missing: the next free spot when it goes up. */
   place?: NotePlace;
+  /** Shared world: the poster's party, when it went up. */
+  partyId?: string;
+  /** Gold the poster put up as the reward, taken from their purse and held until the DM pays it out or returns it. */
+  rewardCp?: number;
+  /** The reward went to this party (paid) or back to the poster (returned). */
+  rewardDone?: { at: number; to: "party" | "poster"; partyId?: string; paidCp: number };
 }
 
 // ---------- the notice board: everything on it is a note the DM places ----------
@@ -543,6 +559,10 @@ export interface Job {
   look?: NoteLook;
   /** Where it hangs. Missing: the next free spot when it goes up. */
   place?: NotePlace;
+  /** Shared world: only these parties see it. Missing or empty: every party. */
+  parties?: string[];
+  /** Shared world: the party that took (and did) it. */
+  partyId?: string;
 }
 
 /** DM-ONLY */
@@ -600,6 +620,8 @@ export interface TradeRequest {
   answer?: string;
   /** "Post on the notice board": the flyer as written (or as the DM edited it). */
   flyer?: FlyerText;
+  /** Gold the player puts up as the flyer's reward (held with the request, then taken when it's approved). */
+  rewardCp?: number;
   // job: "Take this job"
   jobId?: string;
   jobTitle?: string;
@@ -644,6 +666,8 @@ export interface Session {
   startLog?: string[];
   /** Rent and lessons were charged at this session's end. */
   duesCharged?: boolean;
+  /** Shared world: the party that played it. */
+  partyId?: string;
 }
 
 // ---------- the Chronicle (the table's shared story notes) ----------
@@ -666,6 +690,10 @@ export interface Note {
   hidden?: boolean;
   createdAt: number;
   editedAt?: number;
+  /** Shared world: the party whose next chapter it waits for (sessionId null). */
+  partyId?: string;
+  /** Shared world: news for every party (shown in every party's Chronicle). */
+  world?: boolean;
 }
 
 // ---------- Discovery: people, places, shops, monsters, mysteries ----------
@@ -693,6 +721,8 @@ export interface EntryFact {
   revealedAt?: number;
   /** The session it was learned in. */
   learnedIn?: string | null;
+  /** Shared world: who knows it, and when they learned it. */
+  knownBy?: Record<string, number>;
 }
 
 export interface Entry {
@@ -733,6 +763,8 @@ export interface Entry {
   relation?: Relation;
   /** People: how they feel about one player, where it differs. */
   relationBy?: Record<string, Relation>;
+  /** Shared world: how far each character has got with it. Missing: hidden. stage is the table's (everyone present). */
+  knownBy?: Record<string, Stage>;
   /** When its stage last changed. */
   stagedAt?: number;
   /** When it was found, and in which session. */
@@ -764,10 +796,14 @@ export interface Lead {
   createdAt: number;
   /** DM-ONLY */
   dmNote: string;
+  /** Shared world: the party it belongs to. Missing: every party. */
+  partyId?: string;
 }
 
 export interface Vote {
   id: string;
+  /** Shared world: the party voting. */
+  partyId?: string;
   /** 2 or 3 leads. */
   leadIds: string[];
   openedAt: number;
@@ -987,7 +1023,44 @@ export interface GameState {
   upgrades?: string[];
   /** DM-ONLY: the storyboard (threads, story beats, planned session dates). Never copied into a TV or player view. Read with storyOf(). */
   story?: Story;
+  /** The shared world: several parties in one campaign. Missing: one table, as before. Read with worldOn(). */
+  world?: WorldSettings;
+  /** Shared world: the parties playing in it. */
+  parties?: Party[];
+  /** Shared world: the party at the table now (whose session runs, whose fog the maps show). */
+  partyId?: string;
   seq: number;
+}
+
+// ---------- the shared world (several parties in one campaign) ----------
+
+export interface Party {
+  id: string;
+  name: string;
+  color: string;
+  /** Its characters (player ids). A character can be in several parties. */
+  memberIds: string[];
+  createdAt: number;
+}
+
+/** A dated event everyone in the world lives through ("Winterfest"). Days are YYYY-MM-DD. */
+export interface WorldEvent {
+  id: string;
+  name: string;
+  from: string;
+  to: string;
+  /** One line players read. */
+  note: string;
+}
+
+export interface WorldSettings {
+  /** When the campaign became a shared world (the second party was made). */
+  since: number;
+  /** Today in the world. Missing: no clock. */
+  date?: string;
+  events?: WorldEvent[];
+  /** The last world news or event moment on the TV and phones: plays when n changes. */
+  news?: { n: number; at: number; text: string };
 }
 
 /** DM-ONLY: one change to the party's Renown points. */
@@ -1008,6 +1081,9 @@ export interface RenownChange {
   total: number;
   rankFrom: number;
   rankTo: number;
+  /** Shared world: the party at the table, and who was there (they all got it). */
+  partyId?: string;
+  playerIds?: string[];
 }
 
 export type LedgerKind = "grant" | "charge" | "purchase" | "payAll" | "transfer" | "rent" | "contribution" | "income" | "bounty" | "loot";

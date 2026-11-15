@@ -7,6 +7,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { progressOf, ranksOf, renownOf } from "@/shared/renown";
 import type { RenownChange } from "@/shared/types";
+import { partyName } from "@/shared/world";
 import { useDm } from "./context";
 
 /** "Known in town: 4 / 8 points to Trusted" and a small bar. */
@@ -127,6 +128,7 @@ export function RenownHistory() {
                 <td>
                   {SOURCE[e.source]}
                   {e.label ? `: ${e.label}` : ""}
+                  {e.partyId ? <span className="note"> · {partyName(view.state, e.partyId) ?? "a past party"}</span> : null}
                 </td>
                 <td className={`num ${e.amount < 0 ? "neg" : "pos"}`}>{e.amount > 0 ? `+${e.amount}` : e.amount < 0 ? `−${-e.amount}` : "0"}</td>
                 <td>

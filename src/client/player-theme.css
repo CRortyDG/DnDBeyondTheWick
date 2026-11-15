@@ -1764,6 +1764,40 @@ html[data-view="player"] {
   }
 }
 
+/* The shared world: the date, what's coming, and my parties. */
+:where(html[data-view="player"]) .pl-world {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px var(--pl-s3);
+  padding: 6px 16px;
+  font-size: 13px;
+  color: var(--pl-text-2);
+  border-bottom: 1px solid var(--pl-border);
+  background: var(--pl-bg-1);
+}
+:where(html[data-view="player"]) .pl-world-when {
+  color: var(--pl-gold);
+}
+:where(html[data-view="player"]) .pl-world-parties {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  min-width: 0;
+}
+:where(html[data-view="player"]) .pl-party {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+}
+:where(html[data-view="player"]) .pl-party-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex: none;
+}
 /* ---------- a computer: tabs down the side, purse and dice on the right ----------
  *
  * PlayerApp renders this shell only at 1100px and wider (useWide), so none of

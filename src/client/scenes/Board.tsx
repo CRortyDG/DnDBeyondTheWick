@@ -88,11 +88,12 @@ export function whenLabel(w: JobWhen): string {
 }
 
 /** "Completed in Chapter 4" / "Taken by the party in Chapter 3". The party does jobs together, so no names. */
-export function jobStatusLine(j: Pick<PublicJob, "status" | "when">): string | null {
+export function jobStatusLine(j: Pick<PublicJob, "status" | "when" | "party">): string | null {
   const w = j.when;
   const on = w ? (w.chapter !== undefined ? ` in ${whenLabel(w)}` : ` on ${whenLabel(w)}`) : "";
-  if (j.status === "done") return `Completed${on}.`;
-  if (j.status === "taken") return `Taken by the party${on}.`;
+  // A shared world: which party took it.
+  if (j.status === "done") return j.party ? `Completed by ${j.party}${on}.` : `Completed${on}.`;
+  if (j.status === "taken") return `Taken by ${j.party ?? "the party"}${on}.`;
   return null;
 }
 
@@ -105,7 +106,7 @@ export function JobCard({ job: j, style, page }: { job: PublicJob; style?: CSSPr
     <div className={`job-stamp stamp-${j.status === "open" ? "locked" : j.status}`}>
       {stampText}
       {j.status === "open" && (j.needs || j.goodwill) ? <small>{j.needs ?? `Needs ${j.goodwill}`}</small> : null}
-      {j.status === "done" && j.when ? <small>{whenLabel(j.when)}</small> : null}
+      {j.status !== "open" && (j.party || (j.status === "done" && j.when)) ? <small>{[j.party, j.status === "done" && j.when ? whenLabel(j.when) : ""].filter(Boolean).join(" · ")}</small> : null}
     </div>
   ) : null;
   return <NoteCard face={{ style: j.style, title: j.title, body: j.body, sign: j.postedBy, look: j.look }} reward={reward} stamp={stamp} style={style} page={page} label={`${label}${stampText ? ` (${stampText})` : ""}`} />;
@@ -113,12 +114,16 @@ export function JobCard({ job: j, style, page }: { job: PublicJob; style?: CSSPr
 
 /** A player's flyer: handwriting on cheap paper, unless the DM picked another paper. */
 export function FlyerCard({ flyer: f, page }: { flyer: PublicFlyer; page?: boolean }) {
-  if (f.style) return <NoteCard face={{ style: f.style, title: f.title, body: f.body, sign: f.signedBy, look: { font: "hand", ...f.look } }} page={page} />;
+  // A shared world signs it with the poster's party; gold they put up shows as the reward.
+  const sign = f.party ? `${f.signedBy}, ${f.party}` : f.signedBy;
+  const reward = f.rewardCp ? `Reward: ${formatCp(f.rewardCp)}` : null;
+  if (f.style) return <NoteCard face={{ style: f.style, title: f.title, body: f.body, sign, look: { font: "hand", ...f.look } }} reward={reward} page={page} />;
   return (
     <div className={`flyer${page ? " flyer-page" : ""}`} role="figure" aria-label={f.title}>
       <div className="flyer-title">{f.title}</div>
       {f.body ? <div className="flyer-body">{f.body}</div> : null}
-      <div className="flyer-sign">{f.signedBy}</div>
+      {reward ? <div className="flyer-reward">{reward}</div> : null}
+      <div className="flyer-sign">{sign}</div>
     </div>
   );
 }

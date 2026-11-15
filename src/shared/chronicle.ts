@@ -89,7 +89,13 @@ export interface ChronicleChapter {
   noteTaker?: { id: string; name: string };
   /** Players: only once the session has ended. */
   recap?: string;
+  /** Shared world: the party that played it. The "World news" page has kind "world". */
+  party?: string;
+  kind?: "world";
 }
+
+/** The shared world's news page in every party's Chronicle. */
+export const WORLD_CHAPTER = "world";
 
 export interface ChronicleNote {
   id: string;
@@ -130,7 +136,11 @@ type Viewer = { dm: true } | { dm: false; playerId: string };
 
 export function projectChronicle(g: GameState, viewer: Viewer): ChronicleView {
   const names = new Map(g.players.map((p) => [p.id, p]));
-  const sessions = [...g.sessions].sort((a, b) => a.number - b.number);
+  // A shared world numbers chapters per party: story order is by when they were played.
+  const sessions = [...g.sessions].sort((a, b) => (g.world ? a.startedAt - b.startedAt : a.number - b.number));
+  const parties = new Map((g.parties ?? []).map((p) => [p.id, p.name]));
+  // The party name goes on a chapter when the viewer could mix them up: the DM, or anyone in more than one.
+  const label = !!g.world && (viewer.dm || new Set(sessions.map((x) => x.partyId)).size > 1);
   const episodes = g.episodes ?? [];
   const all = notesOf(g);
   const visible = viewer.dm ? all : all.filter((n) => !n.hidden);
@@ -151,13 +161,17 @@ export function projectChronicle(g: GameState, viewer: Viewer): ChronicleView {
     const nt = x.noteTakerId ? names.get(x.noteTakerId) : undefined;
     if (nt) c.noteTaker = { id: nt.id, name: penName(nt) };
     if (x.recap?.trim() && (viewer.dm || ended)) c.recap = x.recap;
+    const party = x.partyId ? parties.get(x.partyId) : undefined;
+    if (label && party) c.party = party;
     return c;
   };
   const chapters = sessions.map(chapter);
+  if (visible.some((n) => n.world)) chapters.unshift({ id: WORLD_CHAPTER, kind: "world", number: 0, title: "World news", startedAt: null, endedAt: null, running: false, attendees: [] });
   // The next chapter's empty page: before the first session (Chapter 1 of Episode 1),
   // or whenever someone has written ahead.
-  if (!sessions.length || visible.some((n) => n.sessionId === null)) {
-    const number = sessions.reduce((m, x) => Math.max(m, x.number), 0) + 1;
+  if (!sessions.length || visible.some((n) => n.sessionId === null && !n.world)) {
+    const mine = g.world ? sessions.filter((x) => x.partyId === g.partyId) : sessions;
+    const number = mine.reduce((m, x) => Math.max(m, x.number), 0) + 1;
     const next: ChronicleChapter = { id: NEXT_CHAPTER, number, title: `Chapter ${number}`, startedAt: null, endedAt: null, running: false, attendees: [] };
     if (viewer.dm && !sessions.length && episodes[0]) next.episode = episodes[0].title;
     chapters.push(next);
@@ -169,7 +183,7 @@ export function projectChronicle(g: GameState, viewer: Viewer): ChronicleView {
     const author = n.authorId === DM_AUTHOR ? "The DM" : p ? penName(p) : n.authorName;
     const out: ChronicleNote = {
       id: n.id,
-      chapterId: n.sessionId ?? NEXT_CHAPTER,
+      chapterId: n.world ? WORLD_CHAPTER : (n.sessionId ?? NEXT_CHAPTER),
       authorId: n.authorId,
       author,
       text: n.text,
@@ -247,7 +261,13 @@ export function formatTime(ms: number): string {
   return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
 }
 
-export function chapterHeading(c: Pick<ChronicleChapter, "number" | "title" | "episode">): string {
+export function chapterHeading(c: Pick<ChronicleChapter, "number" | "title" | "episode"> & Partial<Pick<ChronicleChapter, "kind" | "party">>): string {
+  if (c.kind === "world") return c.title;
+  const head = chapterHeadingOnly(c);
+  return c.party ? `${c.party} · ${head}` : head;
+}
+
+function chapterHeadingOnly(c: Pick<ChronicleChapter, "number" | "title" | "episode">): string {
   const named = c.title && c.title !== `Session ${c.number}` && c.title !== `Chapter ${c.number}` ? c.title : "";
   const sub = c.episode && c.episode !== named ? [named, c.episode].filter(Boolean).join(": ") : named;
   return sub ? `Chapter ${c.number} · ${sub}` : `Chapter ${c.number}`;
