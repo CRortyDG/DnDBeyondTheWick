@@ -1,5 +1,5 @@
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement } from "react";
 import type { DmCommand } from "@/shared/commands";
 import type { DmView } from "@/shared/projection";
 import { api, absoluteHref, authHeaders, hrefFor, rememberKey, type Ident } from "../api";
@@ -40,23 +40,70 @@ import { FightOverlay } from "../ui/FightOverlay";
 import { DiceButton, DiceTray, PlayerRollCards, TvDiceBar } from "./DiceTray";
 import { Finder, QuickBar, quickKey, typing } from "./QuickBar";
 import { quickOf } from "@/shared/assets";
+import { BoardIcon, BookIcon, CoinIcon, EyeIcon, GearIcon, ListIcon, MapIcon, PanelRightIcon, PeopleIcon, PinIcon, PlayIcon, QuillIcon, SearchIcon, ShipIcon, SkullIcon, StoreIcon, SwordIcon } from "./navIcons";
 
 type Tab = "bank" | "shop" | "board" | "scenes" | "discovery" | "leads" | "players" | "arrival" | "story" | "episodes" | "monsters" | "chronicle" | "game";
-const TABS: [Tab, string, string][] = [
-  ["bank", "Bank", "B"],
-  ["shop", "Shop", ""],
-  ["board", "Board", ""],
-  ["scenes", "Maps & props", ""],
-  ["discovery", "Discovery", ""],
-  ["leads", "Leads", ""],
-  ["players", "Players", ""],
-  ["arrival", "Arrival", ""],
-  ["story", "Story", ""],
-  ["episodes", "Episodes", ""],
-  ["monsters", "Monsters", ""],
-  ["chronicle", "Chronicle", ""],
-  ["game", "Game", ""],
+type NavItem = { id: Tab; label: string; icon: (p: { size?: number }) => ReactElement; key?: string };
+/** The DM pages, grouped by when you reach for them. */
+const NAV: { group: string; items: NavItem[] }[] = [
+  {
+    group: "At the table",
+    items: [
+      { id: "bank", label: "Bank", icon: CoinIcon, key: "B" },
+      { id: "players", label: "Players", icon: PeopleIcon },
+      { id: "shop", label: "Shop", icon: StoreIcon },
+    ],
+  },
+  {
+    group: "World",
+    items: [
+      { id: "discovery", label: "Discovery", icon: EyeIcon },
+      { id: "leads", label: "Leads", icon: PinIcon },
+      { id: "scenes", label: "Maps & props", icon: MapIcon },
+      { id: "board", label: "Notice board", icon: BoardIcon },
+      { id: "monsters", label: "Monsters", icon: SkullIcon },
+    ],
+  },
+  {
+    group: "Prep",
+    items: [
+      { id: "episodes", label: "Episodes", icon: ListIcon },
+      { id: "story", label: "Storyboard", icon: BookIcon },
+      { id: "arrival", label: "Arrival", icon: ShipIcon },
+      { id: "chronicle", label: "Chronicle", icon: QuillIcon },
+    ],
+  },
 ];
+const SETTINGS: NavItem = { id: "game", label: "Settings", icon: GearIcon };
+const ALL_TABS: Tab[] = [...NAV.flatMap((g) => g.items.map((i) => i.id)), SETTINGS.id];
+const PAGE_LABEL = Object.fromEntries([...NAV.flatMap((g) => g.items), SETTINGS].map((i) => [i.id, i.label])) as Record<Tab, string>;
+
+/** The page in the address (#page=discovery), so a reload keeps your place. */
+function pageFromUrl(): Tab {
+  try {
+    const p = new URLSearchParams(window.location.hash.replace(/^#/, "")).get("page");
+    return p && (ALL_TABS as string[]).includes(p) ? (p as Tab) : "bank";
+  } catch {
+    return "bank";
+  }
+}
+function pageToUrl(tab: Tab) {
+  try {
+    const hash = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+    if (hash.get("page") === tab) return;
+    hash.set("page", tab);
+    window.history.replaceState(null, "", window.location.pathname + window.location.search + "#" + hash.toString());
+  } catch {}
+}
+
+const RAIL_KEY = "candlefair-dm-rail";
+function readRail(): boolean {
+  try {
+    return localStorage.getItem(RAIL_KEY) !== "closed";
+  } catch {
+    return true;
+  }
+}
 
 export function DmApp({ ident: initial }: { ident: Ident }) {
   const [ident, setIdent] = useState(initial);
@@ -143,7 +190,17 @@ function useGatedArt(ident: Ident, names: string[]) {
 }
 
 function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: Ident; online: boolean; send: (c: object) => Promise<string | null>; call: (c: object) => Promise<CallResult> }) {
-  const [tab, setTab] = useState<Tab>("bank");
+  const [tab, setTab] = useState<Tab>(pageFromUrl);
+  useEffect(() => pageToUrl(tab), [tab]);
+  const [railOpen, setRailOpen] = useState(readRail);
+  const toggleRail = useCallback(() => {
+    setRailOpen((v) => {
+      try {
+        localStorage.setItem(RAIL_KEY, v ? "closed" : "open");
+      } catch {}
+      return !v;
+    });
+  }, []);
   const [toastMsg, setToastMsg] = useState<{ text: string; n: number } | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const s = view.state;
@@ -309,6 +366,19 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
     return () => window.removeEventListener("keydown", onKey);
   }, [s, s.scenes, s.shops, s.live.shopOpen, s.live.shopId, s.live.purseVisible, s.live.sceneId, s.live.focus, run, runOpen, fightOpen, finder, storyOpen]);
 
+  // Cmd+K / Ctrl+K opens the finder too (/ still does), from anywhere in the console.
+  useEffect(() => {
+    if (runOpen || storyOpen !== null) return;
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && !e.altKey && (e.key === "k" || e.key === "K")) {
+        e.preventDefault();
+        setFinder((f) => (f ? null : {}));
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [runOpen, storyOpen]);
+
   const live = s.scenes.find((x) => x.id === s.live.sceneId) ?? s.scenes[0];
   const purse = s.players.filter((p) => !p.archived && !p.away).map((p) => ({ id: p.id, name: p.name, balanceCp: p.balanceCp, inspired: !!p.inspired }));
   // What the TV sees, for the preview (hidden prices stay hidden here too).
@@ -333,42 +403,52 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
     ) : runOpen && session?.run ? (
       <RunGame onExit={leaveRun} onFight={openFight} />
     ) : (
-      <div className="dm-root">
+      <div className={`dm-root dm-shell${railOpen ? " rail-open" : ""}`}>
         <header className="dm-top">
           <div className="dm-brand">
-            <CandleIcon size={26} />
-            <div>
+            <CandleIcon size={22} />
+            <div className="dm-brand-text">
               <div className="dm-title">{s.name}</div>
-              <div className="dm-subtitle">DM view{session ? ` · ${session.title}, running` : " · between sessions"}</div>
+              <div className="dm-subtitle">{session ? `${session.title} · running` : "Between sessions"}</div>
             </div>
           </div>
           <span className={`conn${online ? " ok" : ""}`} role="status">
             {online ? "Live" : "Reconnecting"}
           </span>
           <span className="spacer" />
+          <button type="button" className="dm-find" onClick={() => setFinder({})} title="Find anything to show on the TV">
+            <SearchIcon />
+            <span className="dm-find-text">Find or show anything</span>
+            <span className="key">/</span>
+          </button>
           <Inbox />
           {ending && session ? <EndSessionDialog session={session} onClose={() => setEnding(false)} /> : null}
+          {s.fight ? null : (
+            <button className="btn icon-only" type="button" onClick={startFight} title="Start a fight: Roll initiative! on the TV and phones" aria-label="Start fight">
+              <SwordIcon />
+            </button>
+          )}
+          <DiceButton />
+          {s.vttUrl ? (
+            <a className="btn icon-only" href={s.vttUrl} target="_blank" rel="noopener noreferrer" title="Launch VTT" aria-label="Launch VTT">
+              <DiceIcon />
+            </a>
+          ) : null}
+          <button className="btn icon-only" type="button" onClick={openTv} title={`Open the TV window: ${absoluteHref(ident.game, "TV")}`} aria-label="Open TV window">
+            <TvIcon />
+          </button>
+          <button className={`btn icon-only${railOpen ? " on" : ""}`} type="button" onClick={toggleRail} aria-pressed={railOpen} title={railOpen ? "Hide the TV panel" : "Show the TV panel"} aria-label="TV panel">
+            <PanelRightIcon />
+          </button>
+          <span className="dm-top-sep" aria-hidden="true" />
           {session ? (
             <button className="btn" type="button" onClick={() => (duesFor(s, session.number).length ? setEnding(true) : void run({ type: "session.end" }, `${session.title} ended.`))}>
               End session
             </button>
-          ) : (
-            <button className="btn primary" type="button" onClick={() => run({ type: "session.start" }, "Session started. The TV is back on the notice board.")}>
-              Start session {nextSessionNumber(s)}
-            </button>
-          )}
-          {s.fight ? (
-            <button className="btn primary" type="button" onClick={openFight}>
-              Back to the fight
-            </button>
-          ) : (
-            <button className="btn" type="button" onClick={startFight} title="Roll initiative! on the TV and phones; add monsters on the fight screen">
-              Start fight
-            </button>
-          )}
+          ) : null}
           {runningEp ? (
-            <button className="btn primary" type="button" onClick={() => startRun(runningEp.id)}>
-              Resume run-game
+            <button className={`btn${s.fight ? "" : " primary"}`} type="button" onClick={() => startRun(runningEp.id)}>
+              <PlayIcon size={12} /> Resume {runningEp.title}
             </button>
           ) : chosenEp ? (
             <span className="run-pick">
@@ -381,119 +461,63 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
                   ))}
                 </select>
               ) : null}
-              <button className="btn" type="button" onClick={() => startRun(chosenEp.id)} title={`Run “${chosenEp.title}”`}>
-                Run game{episodes.length > 1 ? "" : `: ${chosenEp.title}`}
+              <button className={`btn${session && !s.fight ? " primary" : ""}`} type="button" onClick={() => startRun(chosenEp.id)} title={`Run “${chosenEp.title}”`}>
+                <PlayIcon size={12} /> Run{episodes.length > 1 ? "" : ` ${chosenEp.title}`}
               </button>
             </span>
           ) : null}
-          {s.vttUrl ? (
-            <a className="btn" href={s.vttUrl} target="_blank" rel="noopener noreferrer">
-              <DiceIcon /> Launch VTT
-            </a>
+          {session ? null : (
+            <button className="btn primary" type="button" onClick={() => run({ type: "session.start" }, "Session started. The TV is back on the notice board.")}>
+              Start session {nextSessionNumber(s)}
+            </button>
+          )}
+          {s.fight ? (
+            <button className="btn primary" type="button" onClick={openFight}>
+              <SwordIcon /> Back to the fight
+            </button>
           ) : null}
-          <DiceButton />
-          <button className="btn" type="button" onClick={openTv} title={absoluteHref(ident.game, "TV")}>
-            <TvIcon /> Open TV window
-          </button>
         </header>
 
         {s.knocks.length ? (
           <div className="dm-knocks" role="status">
             {s.knocks.map((k) => (
               <span key={k.id} className="knock">
-                <b>{k.handle}</b> is knocking.
-                <button className="btn small primary" type="button" onClick={() => run({ type: "knock.admit", knockId: k.id }, `Let ${k.handle} in.`)}>
-                  Let in
-                </button>
+                <span className="knock-tag">Knocking</span>
+                <span>
+                  <b>{k.handle}</b> wants a seat.
+                </span>
+                <span className="spacer" />
                 <button className="btn small" type="button" onClick={() => run({ type: "knock.dismiss", knockId: k.id })}>
                   Dismiss
+                </button>
+                <button className="btn small primary" type="button" onClick={() => run({ type: "knock.admit", knockId: k.id }, `Let ${k.handle} in.`)}>
+                  Let in
                 </button>
               </span>
             ))}
           </div>
         ) : null}
 
-        <div className="dm-grid">
-          <section className="dm-live box" aria-label="What the TV shows">
-            <div className="box-head">
-              <h2>On the TV</h2>
-              <span className="note">
-                {live.label}
-                {live.reveal ? " (reveal)" : ""}
-              </span>
-            </div>
-            <div className="preview" aria-label={`Preview: ${live.label}`}>
-              <SceneView town={tvView.game.town} scene={previewScene} gated={gated} table={tvView.table} board={tvView} emptyHint="No image yet. Add one under Maps & props." />
-              {s.live.shopOpen && liveShop ? (
-                <div className="preview-shop" aria-label={`Shop open on the TV: ${liveShop.name}`}>
-                  <Stage w={1920} h={1080}>
-                    <ShopBoard town={tvView.game.town} shops={tvView.shops} items={tvView.items} shopId={liveShop.id} size="tv" mode={s.live.shopCategory ? "category" : "shop"} category={s.live.shopCategory} />
-                  </Stage>
-                </div>
-              ) : null}
-              {tvView.fight ? (
-                <div className="preview-fight" aria-label="The fight on the TV">
-                  <Stage w={1920} h={1080}>
-                    <FightOverlay fight={tvView.fight} preview onMap={previewScene?.kind === "map" && !!previewScene.map?.tokens.length} />
-                  </Stage>
-                </div>
-              ) : null}
-              <div className="preview-purse">
-                <Purse players={purse} visible={s.live.purseVisible} size="small" />
+        <div className="dm-body">
+          <nav className="dm-side" aria-label="DM pages">
+            {NAV.map((g) => (
+              <div key={g.group} className="dm-nav">
+                <div className="dm-nav-h">{g.group}</div>
+                {g.items.map((it) => (
+                  <NavButton key={it.id} item={it} current={tab === it.id} onPick={setTab} count={it.id === "players" ? s.knocks.length : 0} />
+                ))}
               </div>
+            ))}
+            <div className="dm-nav dm-nav-foot">
+              <NavButton item={SETTINGS} current={tab === SETTINGS.id} onPick={setTab} />
             </div>
+          </nav>
 
-            {live.kind === "map" && live.map ? <LiveMapControls scene={live} /> : null}
-
-            <QuickBar onFind={(pinTo) => setFinder({ pinTo })} />
-
-            <div className="live-toggles">
-              <button type="button" className={`btn${s.live.shopOpen ? " on" : ""}`} aria-pressed={s.live.shopOpen} onClick={toggleShop}>
-                <span className="key">S</span> {s.live.shopOpen ? "Close the shop" : "Shop on TV"}
-              </button>
-              <button type="button" className={`btn${s.live.purseVisible ? " on" : ""}`} aria-pressed={s.live.purseVisible} onClick={() => run({ type: "live.purse", visible: !s.live.purseVisible })}>
-                <span className="key">P</span> Purse
-              </button>
+          <main className="dm-main" id={`panel-${tab}`} aria-label={PAGE_LABEL[tab]}>
+            <div className="dm-pagehead">
+              <h1>{PAGE_LABEL[tab]}</h1>
             </div>
-            <div className={`live-shops${s.live.shopOpen ? " open" : ""}`} role="group" aria-label="Which shop the TV shows">
-              <span className="note">{s.live.shopOpen ? "The TV is showing:" : "Open the shop on the TV at:"}</span>
-              {s.shops.filter((sh) => sh.visibility === "all").length === 0 ? (
-                <span className="note">Every shop is hidden. Open one to everyone under Shop first.</span>
-              ) : null}
-              {categoriesWith(tvView.items).map((c) => {
-                const on = s.live.shopOpen && s.live.shopCategory === c.id;
-                return (
-                  <button key={c.id} type="button" className={`btn small${on ? " on" : ""}`} aria-pressed={on} onClick={() => run({ type: "live.shop", open: true, category: c.id })}>
-                    {c.label}
-                  </button>
-                );
-              })}
-              {s.shops.filter((sh) => sh.visibility === "all").length ? <span className="note">or a storefront:</span> : null}
-              {s.shops.filter((sh) => sh.visibility === "all").map((sh) => {
-                const on = s.live.shopOpen && !s.live.shopCategory && sh.id === s.live.shopId;
-                return (
-                  <button key={sh.id} type="button" className={`btn small${on ? " on" : ""}`} aria-pressed={on} onClick={() => run({ type: "live.shop", open: true, shopId: sh.id })}>
-                    {sh.name}
-                  </button>
-                );
-              })}
-            </div>
-            <p className="note hint">
-              Keys: 0&ndash;9 the quick bar &middot; / find anything &middot; &larr; &rarr; step through the bar (or flip shops while the shop is open) &middot; S shop &middot; P purse &middot; B bank &middot; T The Table &middot; I requests &middot; L map legend &middot; Esc closes the shop or zooms the map out
-            </p>
-          </section>
-
-          <section className="dm-panels" aria-label="DM tools">
-            <div className="tabs" role="tablist" aria-label="DM tools">
-              {TABS.map(([id, label, key]) => (
-                <button key={id} type="button" role="tab" id={`tab-${id}`} aria-selected={tab === id} aria-controls={`panel-${id}`} className={`btn tab${tab === id ? " on" : ""}`} onClick={() => setTab(id)}>
-                  {key ? <span className="key">{key}</span> : null}
-                  {label}
-                  {id === "players" && s.knocks.length ? <span className="badge">{s.knocks.length}</span> : null}
-                </button>
-              ))}
-            </div>
-            <div role="tabpanel" id={`panel-${tab}`} aria-labelledby={`tab-${tab}`} className="panel">
+            <div className="panel">
               {tab === "bank" ? <BankPanel /> : null}
               {tab === "shop" ? <ShopPanel /> : null}
               {tab === "board" ? <BoardPanel /> : null}
@@ -508,7 +532,82 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
               {tab === "chronicle" ? <ChroniclePanel /> : null}
               {tab === "game" ? <GamePanel /> : null}
             </div>
-          </section>
+          </main>
+
+          {railOpen ? (
+            <aside className="dm-live dm-rail" aria-label="What the TV shows">
+              <div className="dm-rail-head">
+                <h2>On the TV</h2>
+                <span className="note">
+                  {live.label}
+                  {live.reveal ? " (reveal)" : ""}
+                </span>
+              </div>
+              <div className="preview" aria-label={`Preview: ${live.label}`}>
+                <SceneView town={tvView.game.town} scene={previewScene} gated={gated} table={tvView.table} board={tvView} emptyHint="No image yet. Add one under Maps & props." />
+                {s.live.shopOpen && liveShop ? (
+                  <div className="preview-shop" aria-label={`Shop open on the TV: ${liveShop.name}`}>
+                    <Stage w={1920} h={1080}>
+                      <ShopBoard town={tvView.game.town} shops={tvView.shops} items={tvView.items} shopId={liveShop.id} size="tv" mode={s.live.shopCategory ? "category" : "shop"} category={s.live.shopCategory} />
+                    </Stage>
+                  </div>
+                ) : null}
+                {tvView.fight ? (
+                  <div className="preview-fight" aria-label="The fight on the TV">
+                    <Stage w={1920} h={1080}>
+                      <FightOverlay fight={tvView.fight} preview onMap={previewScene?.kind === "map" && !!previewScene.map?.tokens.length} />
+                    </Stage>
+                  </div>
+                ) : null}
+                <div className="preview-purse">
+                  <Purse players={purse} visible={s.live.purseVisible} size="small" />
+                </div>
+              </div>
+
+              <div className="live-toggles">
+                <button type="button" className={`btn${s.live.shopOpen ? " on" : ""}`} aria-pressed={s.live.shopOpen} onClick={toggleShop}>
+                  <span className="key">S</span> {s.live.shopOpen ? "Close the shop" : "Shop on TV"}
+                </button>
+                <button type="button" className={`btn${s.live.purseVisible ? " on" : ""}`} aria-pressed={s.live.purseVisible} onClick={() => run({ type: "live.purse", visible: !s.live.purseVisible })}>
+                  <span className="key">P</span> Purse
+                </button>
+              </div>
+
+              {live.kind === "map" && live.map ? <LiveMapControls scene={live} /> : null}
+
+              <QuickBar onFind={(pinTo) => setFinder({ pinTo })} />
+
+              <div className={`live-shops${s.live.shopOpen ? " open" : ""}`} role="group" aria-label="Which shop the TV shows">
+                <span className="note">{s.live.shopOpen ? "The TV is showing:" : "Open the shop on the TV at:"}</span>
+                {s.shops.filter((sh) => sh.visibility === "all").length === 0 ? <span className="note">Every shop is hidden. Open one to everyone under Shop first.</span> : null}
+                {categoriesWith(tvView.items).map((c) => {
+                  const on = s.live.shopOpen && s.live.shopCategory === c.id;
+                  return (
+                    <button key={c.id} type="button" className={`btn small${on ? " on" : ""}`} aria-pressed={on} onClick={() => run({ type: "live.shop", open: true, category: c.id })}>
+                      {c.label}
+                    </button>
+                  );
+                })}
+                {s.shops.filter((sh) => sh.visibility === "all").length ? <span className="note">or a storefront:</span> : null}
+                {s.shops
+                  .filter((sh) => sh.visibility === "all")
+                  .map((sh) => {
+                    const on = s.live.shopOpen && !s.live.shopCategory && sh.id === s.live.shopId;
+                    return (
+                      <button key={sh.id} type="button" className={`btn small${on ? " on" : ""}`} aria-pressed={on} onClick={() => run({ type: "live.shop", open: true, shopId: sh.id })}>
+                        {sh.name}
+                      </button>
+                    );
+                  })}
+              </div>
+              <details className="dm-keys">
+                <summary>Keyboard shortcuts</summary>
+                <p className="note hint">
+                  0&ndash;9 the quick bar &middot; / find anything &middot; &larr; &rarr; step through the bar (or flip shops while the shop is open) &middot; S shop &middot; P purse &middot; B bank &middot; T The Table &middot; I requests &middot; L map legend &middot; Esc closes the shop or zooms the map out
+                </p>
+              </details>
+            </aside>
+          ) : null}
         </div>
 
         {editingMap ? <MapEditor sceneId={editingMap} onClose={closeMap} /> : null}
@@ -528,5 +627,16 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
         {toastMsg?.text}
       </div>
     </DmContext.Provider>
+  );
+}
+
+function NavButton({ item, current, onPick, count = 0 }: { item: NavItem; current: boolean; onPick: (t: Tab) => void; count?: number }) {
+  const Icon = item.icon;
+  return (
+    <button type="button" className={`dm-nav-item${current ? " on" : ""}`} aria-current={current ? "page" : undefined} onClick={() => onPick(item.id)} title={item.label}>
+      <Icon size={16} />
+      <span className="dm-nav-label">{item.label}</span>
+      {count ? <span className="badge">{count}</span> : item.key ? <span className="key">{item.key}</span> : null}
+    </button>
   );
 }

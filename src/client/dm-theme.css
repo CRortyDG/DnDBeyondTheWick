@@ -469,3 +469,394 @@ html[data-view="dm"] {
   font-size: 17px;
   line-height: 1.45;
 }
+
+/* ---------- the console shell: top bar, sidebar, page, TV rail ---------- */
+
+:where(html[data-view="dm"]) .dm-shell {
+  max-width: none;
+  margin: 0;
+  padding: 0;
+  min-height: 100vh;
+  --dm-top-h: 56px;
+}
+:where(html[data-view="dm"]) .dm-shell > .dm-top {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  flex-wrap: nowrap;
+  gap: var(--dm-s2);
+  min-height: var(--dm-top-h);
+  padding: 0 var(--dm-s4);
+  margin: 0;
+  background: var(--dm-bg-1);
+  border-bottom: 1px solid var(--dm-border);
+}
+:where(html[data-view="dm"]) .dm-shell .dm-brand {
+  min-width: 0;
+  flex: 0 1 auto;
+}
+:where(html[data-view="dm"]) .dm-brand-text {
+  min-width: 0;
+}
+:where(html[data-view="dm"]) .dm-shell .dm-title {
+  font-size: 17px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+:where(html[data-view="dm"]) .dm-shell .dm-subtitle {
+  font-size: 12px;
+  white-space: nowrap;
+}
+:where(html[data-view="dm"]) .dm-top .conn {
+  flex: none;
+}
+:where(html[data-view="dm"]) .dm-find {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--dm-s2);
+  height: 34px;
+  width: clamp(160px, 22vw, 280px);
+  padding: 0 6px 0 10px;
+  flex: 0 1 auto;
+  min-width: 0;
+  border-radius: var(--dm-r-sm);
+  border: 1px solid var(--dm-border);
+  background: var(--dm-bg-0);
+  color: var(--dm-text-3);
+  font: 400 13.5px var(--dm-font-ui);
+  cursor: pointer;
+  text-align: left;
+}
+:where(html[data-view="dm"]) .dm-find svg {
+  flex: none;
+}
+:where(html[data-view="dm"]) .dm-find:hover {
+  border-color: var(--dm-border-strong);
+  color: var(--dm-text-2);
+}
+:where(html[data-view="dm"]) .dm-find-text {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+:where(html[data-view="dm"]) .dm-top .btn {
+  flex: none;
+  white-space: nowrap;
+}
+:where(html[data-view="dm"]) .btn.icon-only {
+  width: var(--dm-control);
+  padding: 0;
+  background: transparent;
+  border-color: transparent;
+  color: var(--dm-text-2);
+}
+:where(html[data-view="dm"]) .btn.icon-only:hover:not(:disabled) {
+  background: var(--dm-bg-2);
+  color: var(--dm-text);
+}
+:where(html[data-view="dm"]) .btn.icon-only.on {
+  background: var(--dm-bg-3);
+  color: var(--dm-gold);
+  border-color: transparent;
+}
+:where(html[data-view="dm"]) .dm-top-sep {
+  width: 1px;
+  height: 24px;
+  background: var(--dm-border);
+  margin: 0 var(--dm-s1);
+  flex: none;
+}
+:where(html[data-view="dm"]) .dm-top .run-pick .fld {
+  min-height: var(--dm-control);
+  max-width: 180px;
+}
+
+/* Knocks: one quiet line under the top bar. */
+:where(html[data-view="dm"]) .dm-shell > .dm-knocks {
+  display: grid;
+  gap: var(--dm-s2);
+  margin: 0;
+  padding: var(--dm-s3) var(--dm-s4) 0;
+}
+:where(html[data-view="dm"]) .dm-shell .knock {
+  display: flex;
+  gap: var(--dm-s3);
+}
+:where(html[data-view="dm"]) .knock-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--dm-warn);
+  background: rgba(230, 164, 87, 0.14);
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+:where(html[data-view="dm"]) .knock-tag::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+/* Sidebar | page | TV rail */
+:where(html[data-view="dm"]) .dm-body {
+  display: grid;
+  grid-template-columns: 212px minmax(0, 1fr);
+  grid-template-areas: "side main";
+  align-items: start;
+}
+:where(html[data-view="dm"]) .rail-open .dm-body {
+  grid-template-columns: 212px minmax(0, 1fr) minmax(320px, 380px);
+  grid-template-areas: "side main rail";
+}
+:where(html[data-view="dm"]) .dm-side {
+  grid-area: side;
+  position: sticky;
+  top: var(--dm-top-h);
+  height: calc(100vh - var(--dm-top-h));
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--dm-s4);
+  padding: var(--dm-s3) var(--dm-s2);
+  background: var(--dm-bg-1);
+  border-right: 1px solid var(--dm-border);
+}
+:where(html[data-view="dm"]) .dm-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+:where(html[data-view="dm"]) .dm-nav-foot {
+  margin-top: auto;
+}
+:where(html[data-view="dm"]) .dm-nav-h {
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--dm-text-3);
+  padding: 0 10px 4px;
+}
+:where(html[data-view="dm"]) .dm-nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 32px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: var(--dm-r-sm);
+  background: transparent;
+  color: var(--dm-text-2);
+  font: 500 13.5px var(--dm-font-ui);
+  text-align: left;
+  cursor: pointer;
+}
+:where(html[data-view="dm"]) .dm-nav-item svg {
+  flex: none;
+  color: var(--dm-text-3);
+}
+:where(html[data-view="dm"]) .dm-nav-item:hover {
+  background: var(--dm-bg-2);
+  color: var(--dm-text);
+}
+:where(html[data-view="dm"]) .dm-nav-item.on {
+  background: var(--dm-bg-3);
+  color: var(--dm-text);
+}
+:where(html[data-view="dm"]) .dm-nav-item.on svg {
+  color: var(--dm-gold);
+}
+:where(html[data-view="dm"]) .dm-nav-label {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+:where(html[data-view="dm"]) .dm-nav-item .badge {
+  margin: 0;
+}
+
+:where(html[data-view="dm"]) .dm-main {
+  grid-area: main;
+  min-width: 0;
+  padding: var(--dm-s5) var(--dm-s6) 96px;
+}
+:where(html[data-view="dm"]) .dm-pagehead {
+  display: flex;
+  align-items: center;
+  gap: var(--dm-s3);
+  margin-bottom: var(--dm-s4);
+}
+:where(html[data-view="dm"]) .dm-pagehead h1 {
+  font-family: var(--dm-font-ui);
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--dm-text);
+  line-height: 1.2;
+}
+
+:where(html[data-view="dm"]) .dm-shell .dm-rail {
+  grid-area: rail;
+  position: sticky;
+  top: var(--dm-top-h);
+  max-height: calc(100vh - var(--dm-top-h));
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--dm-s3);
+  padding: var(--dm-s4);
+  background: var(--dm-bg-1);
+  border-left: 1px solid var(--dm-border);
+}
+:where(html[data-view="dm"]) .dm-rail > * {
+  flex: none;
+}
+:where(html[data-view="dm"]) .dm-rail-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--dm-s2);
+}
+:where(html[data-view="dm"]) .dm-rail-head h2 {
+  font-family: var(--dm-font-ui);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--dm-text-3);
+}
+:where(html[data-view="dm"]) .dm-rail-head .note {
+  margin: 0;
+  color: var(--dm-gold);
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+:where(html[data-view="dm"]) .dm-rail .live-toggles {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+}
+:where(html[data-view="dm"]) .dm-rail .live-shops .note:first-child {
+  font-size: 12px;
+}
+:where(html[data-view="dm"]) .dm-keys summary {
+  font-size: 12.5px;
+  color: var(--dm-text-3);
+  cursor: pointer;
+}
+:where(html[data-view="dm"]) .dm-keys summary:hover {
+  color: var(--dm-text-2);
+}
+
+/* Narrower laptops: the sidebar folds to icons. */
+@media (max-width: 1240px) {
+  :where(html[data-view="dm"]) .dm-body,
+  :where(html[data-view="dm"]) .rail-open .dm-body {
+    grid-template-columns: 60px minmax(0, 1fr);
+  }
+  :where(html[data-view="dm"]) .rail-open .dm-body {
+    grid-template-columns: 60px minmax(0, 1fr) minmax(300px, 340px);
+  }
+  :where(html[data-view="dm"]) .dm-side {
+    padding: var(--dm-s3) var(--dm-s2);
+  }
+  :where(html[data-view="dm"]) .dm-nav-h {
+    height: 1px;
+    padding: 0;
+    margin: 0 10px 4px;
+    background: var(--dm-border);
+    color: transparent;
+    overflow: hidden;
+  }
+  :where(html[data-view="dm"]) .dm-nav-item {
+    justify-content: center;
+    padding: 0;
+    min-height: 36px;
+    position: relative;
+  }
+  :where(html[data-view="dm"]) .dm-nav-label,
+  :where(html[data-view="dm"]) .dm-nav-item .key {
+    display: none;
+  }
+  :where(html[data-view="dm"]) .dm-nav-item .badge {
+    position: absolute;
+    top: 2px;
+    right: 4px;
+  }
+  :where(html[data-view="dm"]) .dm-main {
+    padding: var(--dm-s4) var(--dm-s4) 96px;
+  }
+}
+@media (max-width: 1100px) {
+  :where(html[data-view="dm"]) .dm-find-text,
+  :where(html[data-view="dm"]) .dm-shell .dm-subtitle {
+    display: none;
+  }
+  :where(html[data-view="dm"]) .dm-find {
+    width: auto;
+  }
+}
+
+/* Tablet portrait and phones: pages become a strip, the TV panel sits above the page. */
+@media (max-width: 900px) {
+  :where(html[data-view="dm"]) .dm-shell > .dm-top {
+    flex-wrap: wrap;
+    padding: var(--dm-s2) var(--dm-s3);
+    position: static;
+  }
+  :where(html[data-view="dm"]) .dm-body,
+  :where(html[data-view="dm"]) .rail-open .dm-body {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: "side" "rail" "main";
+  }
+  :where(html[data-view="dm"]) .dm-side {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    height: auto;
+    flex-direction: row;
+    overflow-x: auto;
+    gap: var(--dm-s1);
+    padding: var(--dm-s2);
+    border-right: 0;
+    border-bottom: 1px solid var(--dm-border);
+  }
+  :where(html[data-view="dm"]) .dm-nav {
+    flex-direction: row;
+    gap: var(--dm-s1);
+  }
+  :where(html[data-view="dm"]) .dm-nav-foot {
+    margin: 0;
+  }
+  :where(html[data-view="dm"]) .dm-nav-h {
+    display: none;
+  }
+  :where(html[data-view="dm"]) .dm-nav-item {
+    width: auto;
+    padding: 0 10px;
+    justify-content: flex-start;
+  }
+  :where(html[data-view="dm"]) .dm-nav-label {
+    display: inline;
+  }
+  :where(html[data-view="dm"]) .dm-nav-item .badge {
+    position: static;
+  }
+  :where(html[data-view="dm"]) .dm-shell .dm-rail {
+    position: static;
+    max-height: none;
+    border-left: 0;
+    border-bottom: 1px solid var(--dm-border);
+  }
+}
