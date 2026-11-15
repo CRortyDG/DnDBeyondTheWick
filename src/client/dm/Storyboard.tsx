@@ -35,7 +35,8 @@ import {
   type BeatFilter,
   type BoardColumn,
 } from "@/shared/story";
-import type { GameState, StoryBeat, StoryBeatType, StoryLink, StoryStatus, StoryThread } from "@/shared/types";
+import type { GameState, Story, StoryBeat, StoryBeatType, StoryLink, StoryStatus, StoryThread } from "@/shared/types";
+import { pendingPlacement } from "@/shared/episodeBuilder";
 import { DownIcon, UpIcon } from "../ui/icons";
 import { Field } from "./Field";
 import { useDm } from "./context";
@@ -53,6 +54,7 @@ export function Storyboard({ onClose, select }: { onClose: () => void; select?: 
   const [pick, setPick] = useState<Sel>(select ? { kind: "beat", id: select } : null);
   const [filter, setFilter] = useState<BeatFilter & { warn?: boolean }>({});
   const [over, setOver] = useState<string | null>(null);
+  const narrow = useNarrow();
 
   // Select a beat or thread as soon as it arrives from the server.
   const waitFor = useRef<{ kind: "beat" | "thread"; before: Set<string> } | null>(null);
@@ -141,6 +143,26 @@ export function Storyboard({ onClose, select }: { onClose: () => void; select?: 
   const card = (b: StoryBeat, showThread = false) => (
     <BeatCard key={b.id} beat={b} g={g} warns={warnings.get(b.id) ?? []} on={pick?.kind === "beat" && pick.id === b.id} onPick={() => setPick({ kind: "beat", id: b.id })} thread={showThread ? st.threads.find((t) => t.id === b.threadId) : undefined} />
   );
+
+  if (narrow)
+    return (
+      <MobileBoard
+        g={g}
+        today={today}
+        cols={cols}
+        pick={pick}
+        setPick={setPick}
+        filter={filter}
+        setFilter={setFilter}
+        warnings={warnings}
+        warnCount={warnCount}
+        shown={shown}
+        datesIn={datesIn}
+        addBeat={addBeat}
+        addThread={addThread}
+        onClose={onClose}
+      />
+    );
 
   const gridCols = `200px 210px repeat(${cols.length}, ${st.zoom === "month" ? "210px" : "300px"})`;
 
@@ -291,6 +313,291 @@ export function Storyboard({ onClose, select }: { onClose: () => void; select?: 
   );
 }
 
+/** True on a phone-width screen, where the board becomes a list. */
+function useNarrow(query = "(max-width: 700px)"): boolean {
+  const [on, setOn] = useState(() => typeof window !== "undefined" && typeof window.matchMedia === "function" && window.matchMedia(query).matches);
+  useEffect(() => {
+    if (typeof window.matchMedia !== "function") return;
+    const mq = window.matchMedia(query);
+    const up = () => setOn(mq.matches);
+    up();
+    mq.addEventListener("change", up);
+    return () => mq.removeEventListener("change", up);
+  }, [query]);
+  return on;
+}
+
+/**
+ * The storyboard on a phone. The grid needs a wide screen and a mouse to drag,
+ * so here it's a list: by time (one section per month or season) or by thread.
+ * Tap a card to edit it full-screen; its When and Thread fields move it, and
+ * "Place in an episode" stands in for dropping it on a session date.
+ */
+function MobileBoard({
+  g,
+  today,
+  cols,
+  pick,
+  setPick,
+  filter,
+  setFilter,
+  warnings,
+  warnCount,
+  shown,
+  datesIn,
+  addBeat,
+  addThread,
+  onClose,
+}: {
+  g: GameState;
+  today: string;
+  cols: BoardColumn[];
+  pick: Sel;
+  setPick: (p: Sel) => void;
+  filter: BeatFilter & { warn?: boolean };
+  setFilter: (f: BeatFilter & { warn?: boolean }) => void;
+  warnings: Map<string, { text: string }[]>;
+  warnCount: number;
+  shown: (b: StoryBeat) => boolean;
+  datesIn: (c: BoardColumn) => Story["dates"];
+  addBeat: (threadId: string, window: StoryBeat["window"] | null) => Promise<void>;
+  addThread: () => Promise<void>;
+  onClose: () => void;
+}) {
+  const { run } = useDm();
+  const st = storyOf(g);
+  const [mode, setMode] = useState<"time" | "thread">(() => {
+    try {
+      return localStorage.getItem("story-m-mode") === "thread" ? "thread" : "time";
+    } catch {
+      return "time";
+    }
+  });
+  const [showFilters, setShowFilters] = useState(false);
+  const [showEmpty, setShowEmpty] = useState(false);
+  const setModeKept = (m: "time" | "thread") => {
+    setMode(m);
+    try {
+      localStorage.setItem("story-m-mode", m);
+    } catch {
+      /* fine */
+    }
+  };
+  const filterCount = [filter.threadIds?.length, filter.types?.length, filter.statuses?.length, filter.entryId, filter.warn].filter(Boolean).length;
+  const threadOf = (b: StoryBeat) => st.threads.find((t) => t.id === b.threadId);
+  const card = (b: StoryBeat, showThread: boolean) => (
+    <BeatCard key={b.id} beat={b} g={g} warns={warnings.get(b.id) ?? []} on={pick?.kind === "beat" && pick.id === b.id} onPick={() => setPick({ kind: "beat", id: b.id })} thread={showThread ? threadOf(b) : undefined} />
+  );
+  const visibleThreads = st.threads.filter((t) => !filter.threadIds?.length || filter.threadIds.includes(t.id));
+  const inThreads = (b: StoryBeat) => visibleThreads.some((t) => t.id === b.threadId);
+  const order = [...cols.map((c) => c.id), "anytime", "floating"];
+  const byTime = (a: StoryBeat, b: StoryBeat) => order.indexOf(columnOf(a, cols)) - order.indexOf(columnOf(b, cols)) || (a.window && a.window !== "anytime" && b.window && b.window !== "anytime" ? a.window.from.localeCompare(b.window.from) : 0);
+  const nowCol = cols.find((c) => c.months.includes(monthOf(today)))?.id;
+  const newBeat = () => void addBeat(filter.threadIds?.[0] ?? st.threads[0].id, null);
+
+  const timeView = () => {
+    const sections: { id: string; label: string; sub?: string; beats: StoryBeat[]; col?: BoardColumn; window: StoryBeat["window"] | null }[] = [
+      ...cols.map((c) => ({ id: c.id, label: c.label, sub: c.sub, col: c, beats: st.beats.filter((b) => b.window && b.window !== "anytime" && columnOf(b, cols) === c.id), window: { from: c.months[0], to: c.months.at(-1)! } })),
+      { id: "anytime", label: "Anytime", sub: "No fixed time", beats: st.beats.filter((b) => b.window === "anytime"), window: "anytime" },
+      { id: "floating", label: "Floating", sub: "No window yet. Pick a When to place it.", beats: st.beats.filter((b) => !b.window), window: null },
+    ];
+    let hidden = 0;
+    const out = sections.map((s) => {
+      const beats = s.beats.filter((b) => shown(b) && inThreads(b)).sort(byTime);
+      const dates = s.col ? datesIn(s.col) : [];
+      const fest = s.col && st.festivals ? FESTIVALS.filter((f) => s.col!.months.includes(f.month)) : [];
+      if (!beats.length && !dates.length && !showEmpty && s.id !== nowCol) {
+        hidden++;
+        return null;
+      }
+      return (
+        <section key={s.id} className={`sm-sec${s.id === nowCol ? " now" : ""}`} aria-label={s.label}>
+          <header className="sm-sec-head">
+            <b>{s.label}</b>
+            {s.sub ? <span className="note">{s.sub}</span> : null}
+            <span className="grow" />
+            <span className="sm-count">{beats.length || ""}</span>
+          </header>
+          {fest.length || dates.length ? (
+            <div className="sm-chips">
+              {dates.map((d) => {
+                const ep = d.episodeId ? (g.episodes ?? []).find((e) => e.id === d.episodeId) : undefined;
+                return (
+                  <button key={d.id} type="button" className={`sess-marker${d.cancelled ? " cancelled" : ""}${d.date < today ? " past" : ""}`} onClick={() => setPick({ kind: "dates" })}>
+                    {dayLabel(d.date).replace(/, \d{4}$/, "")}
+                    {ep ? <span className="sess-ep">{ep.title}</span> : null}
+                  </button>
+                );
+              })}
+              {fest.map((f, i) => (
+                <span key={`f${i}`} className="festival" title={f.note}>
+                  {f.name}
+                </span>
+              ))}
+            </div>
+          ) : null}
+          <div className="sm-cards">
+            {beats.map((b) => card(b, true))}
+            {!beats.length ? <span className="note">Nothing planned.</span> : null}
+            {st.threads.length ? (
+              <button type="button" className="sm-add" onClick={() => void addBeat(filter.threadIds?.[0] ?? st.threads[0].id, s.window)}>
+                + Beat in {s.label}
+              </button>
+            ) : null}
+          </div>
+        </section>
+      );
+    });
+    return (
+      <>
+        {out}
+        {hidden || showEmpty ? (
+          <button type="button" className="btn small sm-empty" onClick={() => setShowEmpty(!showEmpty)}>
+            {showEmpty ? "Hide empty months" : `Show ${hidden} empty ${st.zoom === "season" ? "season" : "month"}${hidden === 1 ? "" : "s"}`}
+          </button>
+        ) : null}
+      </>
+    );
+  };
+
+  const threadView = () =>
+    visibleThreads.map((t) => {
+      const beats = st.beats.filter((b) => b.threadId === t.id && shown(b)).sort(byTime);
+      return (
+        <section key={t.id} className="sm-sec sm-thread" style={{ ["--thread" as string]: t.color }} aria-label={threadLabel(t, g.players)}>
+          <button type="button" className="sm-sec-head sm-thread-head" onClick={() => setPick({ kind: "thread", id: t.id })}>
+            <b>{threadLabel(t, g.players)}</b>
+            <span className="note">{t.goal ? `Goal: ${t.goal}` : THREAD_KINDS.find((k) => k.id === t.kind)?.label}</span>
+            <span className="sm-count">{beats.length || ""}</span>
+          </button>
+          <div className="sm-cards">
+            {beats.map((b) => card(b, false))}
+            <button type="button" className="sm-add" onClick={() => void addBeat(t.id, null)}>
+              + Beat in {threadLabel(t, g.players)}
+            </button>
+          </div>
+        </section>
+      );
+    });
+
+  return (
+    <div className="story-overlay story-m" role="dialog" aria-modal="true" aria-label="Storyboard">
+      <div className="story-head sm-head">
+        <h2>Storyboard</h2>
+        <span className="grow" />
+        <button type="button" className="btn small" onClick={onClose} aria-label="Close the storyboard">
+          Close
+        </button>
+      </div>
+      <div className="sm-bar">
+        <div className="seg" role="group" aria-label="Show by">
+          <button type="button" className={`btn small${mode === "time" ? " on" : ""}`} aria-pressed={mode === "time"} onClick={() => setModeKept("time")}>
+            By time
+          </button>
+          <button type="button" className={`btn small${mode === "thread" ? " on" : ""}`} aria-pressed={mode === "thread"} onClick={() => setModeKept("thread")}>
+            By thread
+          </button>
+        </div>
+        {mode === "time" ? (
+          <div className="seg" role="group" aria-label="Zoom">
+            <button type="button" className={`btn small${st.zoom === "month" ? " on" : ""}`} aria-pressed={st.zoom === "month"} onClick={() => run({ type: "story.board", zoom: "month" })}>
+              Months
+            </button>
+            <button type="button" className={`btn small${st.zoom === "season" ? " on" : ""}`} aria-pressed={st.zoom === "season"} onClick={() => run({ type: "story.board", zoom: "season" })}>
+              Seasons
+            </button>
+          </div>
+        ) : null}
+      </div>
+      <div className="sm-bar sm-scrollbar">
+        <button type="button" className={`btn small${showFilters || filterCount ? " on" : ""}`} aria-expanded={showFilters} onClick={() => setShowFilters(!showFilters)}>
+          Filters{filterCount ? ` (${filterCount})` : ""}
+        </button>
+        <button type="button" className={`btn small${filter.warn ? " on" : ""}`} aria-pressed={!!filter.warn} disabled={!warnCount && !filter.warn} onClick={() => setFilter({ ...filter, warn: !filter.warn })}>
+          ⚠ {warnCount}
+        </button>
+        <button type="button" className="btn small" onClick={() => setPick({ kind: "dates" })}>
+          Dates{st.dates.length ? ` (${st.dates.filter((d) => !d.cancelled).length})` : ""}
+        </button>
+        <button type="button" className="btn small" onClick={() => void addThread()}>
+          New thread
+        </button>
+      </div>
+      {showFilters ? (
+        <div className="sm-filters">
+          <Filters g={g} filter={filter} setFilter={setFilter} warnCount={warnCount} />
+          <label className="check">
+            <input type="checkbox" checked={st.festivals} onChange={(e) => void run({ type: "story.board", festivals: e.target.checked })} />
+            Show festivals
+          </label>
+        </div>
+      ) : null}
+
+      <div className="sm-list">
+        {mode === "time" ? timeView() : threadView()}
+        <p className="note sm-hint">Only you see this. Tap a card to edit it; change its When or Thread to move it.</p>
+      </div>
+
+      {st.threads.length ? (
+        <button type="button" className="btn primary sm-fab" onClick={newBeat}>
+          + New beat
+        </button>
+      ) : null}
+
+      {pick ? (
+        <aside className="story-side sm-sheet" aria-label="Editor">
+          {pick.kind === "beat" ? <BeatEditor key={pick.id} id={pick.id} g={g} today={today} onClose={() => setPick(null)} onPick={setPick} compact /> : null}
+          {pick.kind === "thread" ? <ThreadEditor key={pick.id} id={pick.id} g={g} onClose={() => setPick(null)} /> : null}
+          {pick.kind === "dates" ? <DatesEditor g={g} onClose={() => setPick(null)} /> : null}
+        </aside>
+      ) : null}
+    </div>
+  );
+}
+
+/** Phones can't drag a card onto a session date, so the editor places it instead. */
+function PlaceIn({ g, beat: b }: { g: GameState; beat: StoryBeat }) {
+  const { run } = useDm();
+  const eps = g.episodes ?? [];
+  const at = pendingPlacement(g, b.id);
+  if (!eps.length) return null;
+  return (
+    <div className="sm-place">
+      <h4>Episode</h4>
+      {at ? (
+        <div className="inline">
+          <span className="note">
+            Placed in <b>{at.episode.title}</b>
+            {at.beat.title !== "Story beats" ? ` (${at.beat.title})` : ""}.
+          </span>
+          <button type="button" className="btn small" onClick={() => void run({ type: "episode.unplaceStory", episodeId: at.episode.id, beatId: at.beat.id, storyBeatId: b.id }, "Taken out of the episode.")}>
+            Take it out
+          </button>
+        </div>
+      ) : (
+        <select
+          className="fld"
+          value=""
+          aria-label="Place in an episode"
+          onChange={(e) => {
+            const ep = eps.find((x) => x.id === e.target.value);
+            if (ep) void run({ type: "episode.placeStory", episodeId: ep.id, storyBeatId: b.id }, `Placed in ${ep.title}.`);
+          }}
+        >
+          <option value="">{b.plays.length && !b.repeat ? "Played. Mark it not played to place it again." : "Place in an episode…"}</option>
+          {b.plays.length && !b.repeat
+            ? null
+            : eps.map((ep) => (
+                <option key={ep.id} value={ep.id}>
+                  {ep.title}
+                </option>
+              ))}
+        </select>
+      )}
+    </div>
+  );
+}
+
 function ThreadRow({ t, g, on, onPick, children }: { t: StoryThread; g: GameState; cols: BoardColumn[]; on: boolean; onPick: () => void; children: React.ReactNode }) {
   return (
     <>
@@ -419,7 +726,7 @@ function windowValue(w: StoryBeat["window"]): string {
   return WINDOW_PRESETS.find((p) => p.range.from === w.from && p.range.to === w.to)?.id ?? "custom";
 }
 
-function BeatEditor({ id, g, today, onClose, onPick }: { id: string; g: GameState; today: string; onClose: () => void; onPick: (p: Sel) => void }) {
+function BeatEditor({ id, g, today, onClose, onPick, compact }: { id: string; g: GameState; today: string; onClose: () => void; onPick: (p: Sel) => void; compact?: boolean }) {
   const { run } = useDm();
   const st = storyOf(g);
   const b = st.beats.find((x) => x.id === id);
@@ -519,6 +826,8 @@ function BeatEditor({ id, g, today, onClose, onPick }: { id: string; g: GameStat
           Can happen again and again
         </label>
       </div>
+
+      {compact ? <PlaceIn g={g} beat={b} /> : null}
 
       <h4>Links</h4>
       <Links g={g} beat={b} onChange={(links) => void up({ links })} />
