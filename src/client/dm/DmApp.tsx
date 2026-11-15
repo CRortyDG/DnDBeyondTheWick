@@ -1,4 +1,6 @@
 
+import { reviewCount } from "./ReviewMadeUp";
+import { OffScriptButton } from "./OffScript";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement } from "react";
 import type { DmCommand } from "@/shared/commands";
 import type { DmView } from "@/shared/projection";
@@ -47,9 +49,11 @@ import { Finder, QuickBar, quickKey, typing } from "./QuickBar";
 import { quickOf } from "@/shared/assets";
 import { WorldPanel } from "./WorldPanel";
 import { partiesOf, tableParty } from "@/shared/world";
-import { BoardIcon, BookIcon, CoinIcon, EyeIcon, GearIcon, GlobeIcon, ListIcon, MapIcon, PanelRightIcon, PeopleIcon, PinIcon, PlayIcon, QuillIcon, SearchIcon, ShipIcon, SkullIcon, StoreIcon, SwordIcon } from "./navIcons";
+import { BuilderPanel, usePendingDrafts } from "./BuilderPanel";
+import { TablesPanel } from "./TablesPanel";
+import { DieIcon, SparkIcon, BoardIcon, BookIcon, CoinIcon, EyeIcon, GearIcon, GlobeIcon, ListIcon, MapIcon, PanelRightIcon, PeopleIcon, PinIcon, PlayIcon, QuillIcon, SearchIcon, ShipIcon, SkullIcon, StoreIcon, SwordIcon } from "./navIcons";
 
-type Tab = "world" | "bank" | "shop" | "board" | "scenes" | "discovery" | "leads" | "players" | "arrival" | "story" | "episodes" | "monsters" | "companions" | "chronicle" | "game";
+type Tab = "world" | "bank" | "shop" | "board" | "scenes" | "discovery" | "leads" | "players" | "arrival" | "story" | "episodes" | "monsters" | "companions" | "tables" | "chronicle" | "builder" | "game";
 type NavItem = { id: Tab; label: string; icon: (p: { size?: number }) => ReactElement; key?: string };
 /** The DM pages, grouped by when you reach for them. */
 const NAV: { group: string; items: NavItem[] }[] = [
@@ -71,6 +75,7 @@ const NAV: { group: string; items: NavItem[] }[] = [
       { id: "board", label: "Notice board", icon: BoardIcon },
       { id: "monsters", label: "Monsters", icon: SkullIcon },
       { id: "companions", label: "Companions", icon: PeopleIcon },
+      { id: "tables", label: "Random tables", icon: DieIcon },
     ],
   },
   {
@@ -80,13 +85,14 @@ const NAV: { group: string; items: NavItem[] }[] = [
       { id: "story", label: "Storyboard", icon: BookIcon },
       { id: "arrival", label: "Arrival", icon: ShipIcon },
       { id: "chronicle", label: "Chronicle", icon: QuillIcon },
+      { id: "builder", label: "Worldbuilder", icon: SparkIcon },
     ],
   },
 ];
 const SETTINGS: NavItem = { id: "game", label: "Settings", icon: GearIcon };
 const ALL_TABS: Tab[] = [...NAV.flatMap((g) => g.items.map((i) => i.id)), SETTINGS.id];
 /** Pages that draw their own header (with summary and buttons). */
-const OWN_HEAD = new Set<Tab>(["world", "bank", "players", "arrival", "shop", "discovery", "leads", "scenes", "board", "monsters", "companions", "episodes", "story", "chronicle", "game"]);
+const OWN_HEAD = new Set<Tab>(["world", "bank", "players", "arrival", "shop", "discovery", "leads", "scenes", "board", "monsters", "companions", "tables", "episodes", "story", "chronicle", "builder", "game"]);
 const PAGE_LABEL = Object.fromEntries([...NAV.flatMap((g) => g.items), SETTINGS].map((i) => [i.id, i.label])) as Record<Tab, string>;
 
 /** The page in the address (#page=discovery), so a reload keeps your place. */
@@ -256,6 +262,7 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
   );
 
   const gated = useGatedArt(ident, GATED_NAMES);
+  const [drafts, recountDrafts] = usePendingDrafts(ident);
   const [editingMap, setEditingMap] = useState<string | null>(null);
   /** The finder: open (optionally to pin onto one key) or closed. */
   const [finder, setFinder] = useState<{ pinTo?: number } | null>(null);
@@ -416,7 +423,9 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
   // What the TV sees, for the preview (hidden prices stay hidden here too).
   const tvView = projectTv(s as unknown as GameState, view.version);
   // Maps preview exactly what the TV gets: discovered pins only.
-  const previewScene = tvView.scenes.find((x) => x.id === live.id) ?? { ...live, map: undefined };
+  const baseScene = tvView.scenes.find((x) => x.id === live.id) ?? { ...live, map: undefined };
+  // An ambient scene stands in for the black screen, as on the TV.
+  const previewScene = tvView.live.ambient ? { ...baseScene, id: `ambient/${tvView.live.ambient.id}`, ambient: tvView.live.ambient } : baseScene;
   const session = s.sessions.find((x) => x.id === s.currentSessionId);
   const seated = s.world ? tableParty(s) : undefined;
   const liveShop = s.shops.find((x) => x.id === s.live.shopId);
@@ -463,6 +472,7 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
             <span className="key">/</span>
           </button>
           <RenownChip />
+          <OffScriptButton enabled={!runOpen && !finder && storyOpen === null && !editingMap} />
           <Inbox />
           {ending && session ? <EndSessionDialog session={session} onClose={() => setEnding(false)} /> : null}
           {ready && !session ? <ReadyDialog onClose={() => setReady(false)} onGo={(page) => setTab(page)} /> : null}
@@ -557,7 +567,7 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
               <div key={g.group} className="dm-nav">
                 <div className="dm-nav-h">{g.group}</div>
                 {g.items.map((it) => (
-                  <NavButton key={it.id} item={it} current={tab === it.id} onPick={setTab} count={it.id === "players" ? s.knocks.length : 0} />
+                  <NavButton key={it.id} item={it} current={tab === it.id} onPick={setTab} count={it.id === "players" ? s.knocks.length : it.id === "builder" ? drafts + reviewCount(s) : 0} />
                 ))}
               </div>
             ))}
@@ -587,6 +597,8 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
               {tab === "monsters" ? <MonstersPanel onFight={openFight} /> : null}
               {tab === "companions" ? <CompanionsPanel /> : null}
               {tab === "chronicle" ? <ChroniclePanel /> : null}
+              {tab === "tables" ? <TablesPanel /> : null}
+              {tab === "builder" ? <BuilderPanel onCount={recountDrafts} /> : null}
               {tab === "game" ? <GamePanel /> : null}
             </div>
           </main>

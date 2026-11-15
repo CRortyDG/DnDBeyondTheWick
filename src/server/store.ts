@@ -7,8 +7,10 @@ import { withSeedJobNotes } from "./seed-jobs";
 import { withSeedMonsters } from "./seed-monsters";
 import { withSeedCompanions } from "./seed-companions";
 import { withSeedStory } from "./seed-story";
+import { withSeedOffscript } from "./seed-offscript";
 import type { PresetStore } from "./presets";
 import type { UsageReport } from "@/shared/hosting";
+import { MemoryBuilderStore, type BuilderStore } from "./builderStore";
 
 /**
  * Where a game lives. One JSON document (state), a version number, an
@@ -51,6 +53,8 @@ export interface Store {
   practiceBase?(game: string): Promise<GameState | null>;
   /** Delete the practice copy and hang up its screens. */
   endPractice?(game: string): Promise<void>;
+  /** Worldbuilder keys, drafts and Activity, kept beside the game (never in it). Missing: no Worldbuilder. */
+  builder?: BuilderStore;
 }
 
 /** How many safety snapshots a campaign keeps. */
@@ -68,7 +72,7 @@ export interface SnapshotData {
 
 /** What a stored document looks like once read: migrated, with the seed run sheets and monsters added. */
 export function hydrate(state: GameState | null): GameState | null {
-  const out = withAssets(withSeedCompanions(withSeedStory(withSeedEntries(withSeedMonsters(withSeedJobNotes(withSeedEpisodes(state ? upgrade(state) : null)))))));
+  const out = withAssets(withSeedCompanions(withSeedOffscript(withSeedStory(withSeedEntries(withSeedMonsters(withSeedJobNotes(withSeedEpisodes(state ? upgrade(state) : null))))))));
   // Every shop gets its Discover entry (older games had none).
   return out ? syncShopEntries(out) : out;
 }
@@ -108,6 +112,8 @@ export class MemoryStore implements Store {
     this.games.delete(game);
     this.bases.delete(game);
   }
+  /** One campaign per test store is enough for the Worldbuilder tests. */
+  builder: MemoryBuilderStore = new MemoryBuilderStore();
 
   private load(game: string): MemoryGame {
     let g = this.games.get(game);

@@ -417,6 +417,14 @@ const COLLECTIONS: Collection[] = [
     [],
   ),
   simple(
+    "tables",
+    "Random table",
+    (g) => g.tables,
+    (g, v) => (g.tables = v as never),
+    (x) => String(x.name ?? ""),
+    [],
+  ),
+  simple(
     "companionTemplates",
     "Companion",
     (g) => g.companionTemplates,

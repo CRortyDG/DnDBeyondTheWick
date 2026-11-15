@@ -825,6 +825,10 @@ function BeatEditor({ id, g, today, onClose, onPick, compact }: { id: string; g:
           <input type="checkbox" checked={!!b.repeat} onChange={(e) => void up({ repeat: e.target.checked })} />
           Can happen again and again
         </label>
+        <label className="check" title="The off-script panel offers it wherever the party is">
+          <input type="checkbox" checked={!!b.anywhere} onChange={(e) => void up({ anywhere: e.target.checked })} />
+          Can happen anywhere
+        </label>
       </div>
 
       {compact ? <PlaceIn g={g} beat={b} /> : null}
@@ -951,7 +955,7 @@ function BeatEditor({ id, g, today, onClose, onPick, compact }: { id: string; g:
   );
 }
 
-function patchCmd(beatId: string, patch: { threadId?: string; title?: string; summary?: string; dmNotes?: string; type?: StoryBeatType; window?: StoryBeat["window"] | null; by?: string | null; links?: StoryLink[]; after?: string[]; repeat?: boolean }) {
+function patchCmd(beatId: string, patch: { threadId?: string; title?: string; summary?: string; dmNotes?: string; type?: StoryBeatType; window?: StoryBeat["window"] | null; by?: string | null; links?: StoryLink[]; after?: string[]; repeat?: boolean; anywhere?: boolean }) {
   return { type: "story.beatUpdate" as const, beatId, patch };
 }
 

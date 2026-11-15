@@ -10,11 +10,14 @@ import { IMPORT_MAX } from "./bulkImport";
 import { SHOW_REF_RE } from "./assets";
 import { HANDOUT_BODY_MAX, HANDOUT_SIGN_MAX, HANDOUT_TITLE_MAX } from "./handout";
 import { storyDmCommands } from "./storySchema";
+import { offscriptDmCommands } from "./offscriptSchema";
 import { CLIP_URL_RE, CLIP_VIDEO_MAX, SLIDE_TEXT_MAX, SLIDES_MAX, WELCOME_MAX } from "./arrival";
 import type { TokenColor } from "./types";
 import { FOG_MAX_CELLS, TILE_URL_RE, TILES_MAX } from "./fog";
 import { GRID_CELL_MAX, GRID_CELL_MIN, TOKEN_COLORS, TOKEN_SIZES } from "./tokens";
-import { AREAS_MAX, DM_TEXT_MAX, FACT_REF_RE, LEAD_MAX, REF_RE, FACT_MAX, HINT_MAX, LINKS_MAX, NAME_MAX, RELATION_IDS, STAGE_IDS, SUMMARY_MAX, TITLE_MAX } from "./discovery";
+import { TABLE_DICE, TABLE_KIND_IDS, TABLE_NAME_MAX, TABLE_ROW_MAX, TABLE_ROWS_MAX } from "./tables";
+import type { BuilderOp } from "./builderOps";
+import { AREAS_MAX, PERSON_NOTE_MAX, DM_TEXT_MAX, FACT_REF_RE, LEAD_MAX, REF_RE, FACT_MAX, HINT_MAX, LINKS_MAX, NAME_MAX, RELATION_IDS, STAGE_IDS, SUMMARY_MAX, TITLE_MAX } from "./discovery";
 
 const id = z.string().min(1).max(64);
 /** How many of which dice: d4 to d100, at most 20 of one and 30 in all. */
@@ -143,8 +146,28 @@ const entryFields = {
   start: stage,
   dmNote: text(DM_TEXT_MAX),
   secrets: text(DM_TEXT_MAX),
+  wants: text(PERSON_NOTE_MAX),
+  knows: text(PERSON_NOTE_MAX),
+  voice: text(PERSON_NOTE_MAX),
+  look: text(PERSON_NOTE_MAX),
+  quirk: text(PERSON_NOTE_MAX),
 };
 const factText = text(FACT_MAX);
+
+/** The Worldbuilder style guide's length. */
+export const BUILDER_NOTES_MAX = 8000;
+/** A random table. Rows without ranges are spread over the die (see tables.ts). */
+export const tableBody = z.object({
+  name: text(TABLE_NAME_MAX).min(1),
+  die: z.literal(TABLE_DICE),
+  kind: z.enum(TABLE_KIND_IDS),
+  rows: z
+    .array(z.object({ from: z.number().int().min(1).max(100).optional(), to: z.number().int().min(1).max(100).optional(), text: text(TABLE_ROW_MAX).min(1) }))
+    .min(1)
+    .max(TABLE_ROWS_MAX),
+  areas: z.array(text(40)).max(AREAS_MAX).default([]),
+  dmNote: text(DM_TEXT_MAX).default(""),
+});
 const updown = z.union([z.literal(1), z.literal(-1)]);
 
 const category = z.enum(CATEGORY_IDS);
@@ -562,6 +585,13 @@ export const dmCommand = z.discriminatedUnion("type", [
     ranks: z.array(z.object({ name: text(40).optional(), meaning: text(120).optional(), pay: text(40).optional(), raised: text(80).optional(), points: z.number().int().min(0).max(RENOWN_POINTS_MAX).optional() })).max(RENOWN_MAX + 1),
   }),
 
+  // Random tables (DM-only).
+  z.object({ type: z.literal("table.add"), table: tableBody }),
+  z.object({ type: z.literal("table.update"), tableId: id, table: tableBody }),
+  z.object({ type: z.literal("table.remove"), tableId: id }),
+  /** The Worldbuilder style guide. */
+  z.object({ type: z.literal("game.builderNotes"), text: text(BUILDER_NOTES_MAX) }),
+
   // Combat mode.
   ...fightDmCommands,
 
@@ -573,6 +603,9 @@ export const dmCommand = z.discriminatedUnion("type", [
 
   // Companions and hirelings.
   ...companionDmCommands,
+
+  // The off-script kit.
+  ...offscriptDmCommands,
 ]);
 
 /** Commands a player may send about themselves. */
@@ -615,7 +648,9 @@ export type SystemCommand =
   /** Lock an unlocked player's name with their Arrival link, so the link signs their phone in. */
   | { type: "system.arrivalKey"; playerId: string; keyHash: string }
   /** First sign-in with a key on a name nobody has locked yet: the name is now tied to that key (trust on first use). */
-  | { type: "system.autoLock"; playerId: string; keyHash: string };
+  | { type: "system.autoLock"; playerId: string; keyHash: string }
+  /** The DM approved Worldbuilder drafts (see builderOps.ts). Built by the server from stored drafts, never sent by a client. */
+  | { type: "system.builderApply"; ops: BuilderOp[] };
 
 export type DmCommand = z.infer<typeof dmCommand>;
 export type PlayerCommand = z.infer<typeof playerCommand>;

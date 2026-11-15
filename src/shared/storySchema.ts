@@ -33,6 +33,7 @@ const beatFields = z.object({
   links: z.array(link).max(LINKS_MAX),
   after: z.array(id).max(AFTER_MAX),
   repeat: z.boolean(),
+  anywhere: z.boolean(),
 });
 
 const threadFields = z.object({

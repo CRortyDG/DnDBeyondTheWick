@@ -6880,3 +6880,144 @@ input.fld.inline-input {
 .phone-banner.world-news {
   top: 60px;
 }
+
+/* ---------- ambient scenes (src/client/scenes/Ambient.tsx) ----------
+   Only transform and opacity move, so the TV composites them cheaply.
+   Reduce-motion: everything holds still. */
+
+.ambient {
+  background: #0b0d12;
+  overflow: hidden;
+}
+.ambient svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.ambient svg * {
+  transform-box: view-box;
+}
+.ambient-caption {
+  position: absolute;
+  left: 5%;
+  bottom: 7%;
+  max-width: 70%;
+  padding: 0.5em 1.1em 0.55em;
+  border-radius: 6px;
+  background: rgba(20, 14, 9, 0.62);
+  color: #f6ecd8;
+  font-family: var(--font-sc);
+  font-size: clamp(18px, 2.6vw, 48px);
+  letter-spacing: 0.04em;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.35);
+  animation: amb-caption 1.4s ease-out both;
+}
+@keyframes amb-caption {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: none; }
+}
+.amb-fall-slow { animation: amb-fall 2.6s linear infinite; }
+.amb-fall-fast { animation: amb-fall 1.5s linear infinite; }
+@keyframes amb-fall {
+  from { transform: translateY(0); }
+  to { transform: translateY(1080px); }
+}
+.amb-snow-slow { animation: amb-fall 22s linear infinite; }
+.amb-snow-fast { animation: amb-fall 13s linear infinite; }
+.amb-sway { animation: amb-sway 7s ease-in-out infinite alternate; }
+@keyframes amb-sway {
+  from { transform: translateX(-24px); }
+  to { transform: translateX(24px); }
+}
+.amb-drift { animation: amb-drift 90s linear infinite; }
+.amb-drift-back { animation: amb-drift 120s linear infinite reverse; }
+@keyframes amb-drift {
+  from { transform: translateX(0); }
+  to { transform: translateX(-1920px); }
+}
+.amb-twinkle { animation: amb-twinkle 3.6s ease-in-out infinite alternate; }
+@keyframes amb-twinkle {
+  from { opacity: 0.25; }
+  to { opacity: 1; }
+}
+.amb-firefly { animation: amb-firefly 6s ease-in-out infinite; }
+@keyframes amb-firefly {
+  0%, 100% { opacity: 0; transform: translate(0, 0); }
+  40% { opacity: 0.9; transform: translate(14px, -18px); }
+  70% { opacity: 0.5; transform: translate(-10px, -30px); }
+}
+.ambient .amb-flicker { transform-box: fill-box; transform-origin: 50% 100%; animation: amb-flicker 0.9s ease-in-out infinite alternate; }
+@keyframes amb-flicker {
+  0% { transform: scale(1, 1); opacity: 0.95; }
+  50% { transform: scale(0.94, 1.08); opacity: 1; }
+  100% { transform: scale(1.04, 0.92); opacity: 0.85; }
+}
+.ambient .amb-pulse { transform-box: fill-box; transform-origin: center; animation: amb-pulse 2.2s ease-in-out infinite alternate; }
+@keyframes amb-pulse {
+  from { opacity: 0.75; transform: scale(0.96); }
+  to { opacity: 1; transform: scale(1.04); }
+}
+.amb-glimmer { animation: amb-glimmer 4.5s ease-in-out infinite alternate; }
+@keyframes amb-glimmer {
+  from { opacity: 0.8; }
+  to { opacity: 1; }
+}
+.amb-spark { animation: amb-spark 3s ease-out infinite; }
+@keyframes amb-spark {
+  from { opacity: 1; transform: translate(0, 0); }
+  to { opacity: 0; transform: translate(20px, -260px); }
+}
+.amb-swing { animation: amb-swing 5s ease-in-out infinite alternate; }
+@keyframes amb-swing {
+  from { transform: rotate(-2.5deg); }
+  to { transform: rotate(2.5deg); }
+}
+.amb-bob { animation: amb-bob 3.2s ease-in-out infinite alternate; }
+@keyframes amb-bob {
+  from { transform: translateY(0); }
+  to { transform: translateY(-8px); }
+}
+.ambient .amb-bob { transform-box: fill-box; }
+.amb-wave { animation: amb-wave 9s linear infinite; }
+.amb-wave-back { animation: amb-wave 13s linear infinite reverse; }
+@keyframes amb-wave {
+  from { transform: translateX(0); }
+  to { transform: translateX(-160px); }
+}
+.amb-glide { animation: amb-glide 18s linear infinite; }
+@keyframes amb-glide {
+  0% { transform: translate(-300px, 20px); opacity: 0; }
+  10%, 90% { opacity: 1; }
+  100% { transform: translate(900px, -40px); opacity: 0; }
+}
+.amb-shimmer { animation: amb-glimmer 2.4s ease-in-out infinite alternate; }
+.amb-reed { animation: amb-swing 4s ease-in-out infinite alternate; }
+.amb-drip { animation: amb-drip 3.4s ease-in infinite; }
+@keyframes amb-drip {
+  0%, 30% { opacity: 0; transform: translateY(0); }
+  35% { opacity: 1; }
+  100% { opacity: 0; transform: translateY(520px); }
+}
+.amb-mote { animation: amb-mote 9s ease-in-out infinite alternate; }
+@keyframes amb-mote {
+  from { transform: translate(0, 0); opacity: 0.2; }
+  to { transform: translate(40px, -30px); opacity: 0.6; }
+}
+.amb-flap { animation: amb-swing 3.5s ease-in-out infinite alternate; }
+.amb-roll { animation: amb-roll 7s ease-in-out infinite alternate; }
+@keyframes amb-roll {
+  from { transform: rotate(-1.2deg) translateY(6px); }
+  to { transform: rotate(1.2deg) translateY(-6px); }
+}
+.amb-billow { animation: amb-billow 5s ease-in-out infinite alternate; }
+@keyframes amb-billow {
+  from { transform: scaleX(0.97); }
+  to { transform: scaleX(1.03); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ambient *,
+  .ambient-caption {
+    animation: none !important;
+  }
+}

@@ -300,7 +300,7 @@ interface Common {
 
 export interface TvView extends Common {
   role: "tv";
-  live: Pick<LiveState, "sceneId" | "shopOpen" | "shopId" | "purseVisible" | "shopCategory" | "leads">;
+  live: Pick<LiveState, "sceneId" | "shopOpen" | "shopId" | "purseVisible" | "shopCategory" | "leads" | "ambient">;
   /** Leads the party can see, the vote, and "You chose". */
   leads: LeadsView;
   /** "Tonight you met…" at the end of a session: the TV plays it when n changes. */
@@ -595,7 +595,7 @@ export function projectTv(table: GameState, version: number): TvView {
     ...(game.world ? { world: worldView(game, party ? [party] : []) } : {}),
     ...common(game, version, { tv: true }),
     role: "tv",
-    live: { sceneId: game.live.sceneId, ...liveShop(game, { tv: true }), purseVisible: game.live.purseVisible, ...(game.live.shopCategory ? { shopCategory: game.live.shopCategory } : {}), ...(game.live.leads ? { leads: true } : {}) },
+    live: { sceneId: game.live.sceneId, ...liveShop(game, { tv: true }), purseVisible: game.live.purseVisible, ...(game.live.shopCategory ? { shopCategory: game.live.shopCategory } : {}), ...(game.live.leads ? { leads: true } : {}), ...(game.live.ambient ? { ambient: { id: game.live.ambient.id, ...(game.live.ambient.caption ? { caption: game.live.ambient.caption } : {}) } } : {}) },
     leads: leadsView(game, Date.now()),
     ...(game.recapCard ? { recapCard: { n: game.recapCard.n, text: game.recapCard.text } } : {}),
     flyers: game.flyers.filter((f) => f.up).map((f) => publicFlyer(f, game)),

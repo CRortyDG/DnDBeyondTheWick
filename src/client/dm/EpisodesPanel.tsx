@@ -25,6 +25,7 @@ import { monstersOf } from "@/shared/combat";
 import { Field } from "./Field";
 import { actionLabel } from "./RunGame";
 import { AddStoryBeat, CastAndPrep, MentionTextarea, StoryBlocks } from "./EpisodeBuilder";
+import { CluesEditor } from "./OffScript";
 import { storyResolver } from "@/shared/runsheet";
 
 // A made-up example: the browser bundle must not carry any real episode text.
@@ -320,6 +321,7 @@ function EpisodeEditor({
       ) : null}
 
       <CastAndPrep ep={ep} />
+      <CluesEditor episodeId={ep.id} />
 
       <ol className="beat-list scene-list">
         {ep.beats.map((b, i) => (

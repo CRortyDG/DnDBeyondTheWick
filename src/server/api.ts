@@ -13,6 +13,9 @@ import { originOf, presetSetup } from "@/shared/presets";
 import { freshStart } from "@/shared/seed";
 import { deletePreset, presetInfo, renamePreset, savePreset, type PresetStore } from "./presets";
 import type { GameState, LedgerEntry } from "@/shared/types";
+import { handleBuilder } from "./builder";
+import { clearDrafts, handleBuilderAdmin } from "./builderAdmin";
+import { carriesBuilderKey } from "./builderKeys";
 
 /**
  * The game's HTTP API, as plain Request -> Response. In production it runs
@@ -113,7 +116,12 @@ export async function handleApi(req: Request, store: Store): Promise<Response> {
   const url = new URL(req.url);
   const path = url.pathname;
   const method = req.method;
+  // The Worldbuilder has its own door, its own key and its own allowlist (builder.ts).
+  if (path.startsWith("/api/builder/")) return handleBuilder(req, store);
   return guard(async () => {
+    // A builder key opens nothing else: not the DM's routes, not a player's.
+    if (carriesBuilderKey(req)) throw new HttpError(403, "A Worldbuilder key only works on the Worldbuilder API.", "wrong-door");
+
     const { game, player, key } = params(req);
 
     // A practice room answers only practice requests, and a live room never does (see practice.ts).
@@ -264,9 +272,16 @@ export async function handleApi(req: Request, store: Store): Promise<Response> {
         const o = originOf(state);
         next = await startingState(store, game, state.name, o.kind === "preset" ? `preset:${o.code}` : o.kind);
       } else next = freshStart(state);
+      if (body.mode === "all") await clearDrafts(store);
       const v = await store.overwrite(game, next, []);
       await store.publish(game, v);
       return json({ ok: true, version: v });
+    }
+
+    // DM only: Worldbuilder keys, the on/off switch, the review queue and Activity.
+    if (path.startsWith("/api/builder-admin/")) {
+      await requireDm(req, store, game);
+      return handleBuilderAdmin(req, store, game);
     }
 
     // DM only: the safety snapshots, newest first.
