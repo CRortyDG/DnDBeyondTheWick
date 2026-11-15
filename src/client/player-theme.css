@@ -355,3 +355,272 @@ html[data-view="player"] {
     transition: none;
   }
 }
+
+/* ---------- the shell: header, tab bar, dice button ---------- */
+
+:where(html[data-view="player"]) .player-root {
+  gap: var(--pl-s3);
+  padding-left: max(16px, env(safe-area-inset-left));
+  padding-right: max(16px, env(safe-area-inset-right));
+  /* Room for the tab bar and the dice button. */
+  padding-bottom: calc(150px + env(safe-area-inset-bottom));
+}
+
+/* One slim bar that stays put: name, renown and tonight's chapter, and gold. */
+:where(html[data-view="player"]) .pl-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--pl-s3);
+  margin: 0 calc(-1 * max(16px, env(safe-area-inset-right))) 0 calc(-1 * max(16px, env(safe-area-inset-left)));
+  padding: calc(10px + env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) 10px max(16px, env(safe-area-inset-left));
+  top: 0;
+  background: rgba(15, 11, 8, 0.86);
+  -webkit-backdrop-filter: blur(12px) saturate(1.2);
+  backdrop-filter: blur(12px) saturate(1.2);
+  border-bottom: 1px solid rgba(227, 182, 92, 0.12);
+  z-index: 20;
+}
+:where(html[data-view="player"]) .pl-who {
+  min-width: 0;
+}
+:where(html[data-view="player"]) .pl-top .player-name {
+  font-size: clamp(18px, 5.4vw, 22px);
+  line-height: 1.15;
+  color: var(--parchment);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+:where(html[data-view="player"]) .pl-sub {
+  margin: 2px 0 0;
+  display: flex;
+  gap: 6px;
+  align-items: baseline;
+  font-family: var(--pl-font-ui);
+  font-size: 12px;
+  color: var(--pl-text-3);
+  white-space: nowrap;
+  min-width: 0;
+}
+:where(html[data-view="player"]) .pl-sub .renown-line-v {
+  color: var(--pl-gold);
+  font-family: var(--pl-font-ui);
+  font-size: 12px;
+  letter-spacing: 0;
+  text-transform: none;
+}
+:where(html[data-view="player"]) .pl-sub-where {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+:where(html[data-view="player"]) .pl-coin {
+  flex: none;
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 40px;
+  padding: 6px 13px 6px 9px;
+  border-radius: 99px;
+  background: rgba(227, 182, 92, 0.1);
+  border: 1px solid rgba(227, 182, 92, 0.38);
+  color: var(--pl-gold);
+  cursor: pointer;
+  font: inherit;
+}
+:where(html[data-view="player"]) .pl-coin:active {
+  transform: scale(0.97);
+}
+:where(html[data-view="player"]) .pl-coin-face {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, #f6d98a, #b98a2c);
+  box-shadow: inset 0 0 0 1.5px rgba(90, 60, 10, 0.5);
+}
+:where(html[data-view="player"]) .pl-coin-amt {
+  font-family: var(--font-num);
+  font-size: 17px;
+  line-height: 1;
+  font-variant-numeric: lining-nums tabular-nums;
+  white-space: nowrap;
+}
+/* Some gold is held for an ask that's waiting on the DM. */
+:where(html[data-view="player"]) .pl-coin-held {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--pl-gold);
+  box-shadow: 0 0 0 2px var(--pl-bg-0);
+}
+:where(html[data-view="player"]) .pl-offline {
+  position: sticky;
+  top: calc(64px + env(safe-area-inset-top));
+  z-index: 19;
+  margin: 0;
+  text-align: center;
+  font-size: 13px;
+  padding: 6px 10px;
+  border-radius: 99px;
+  background: rgba(230, 164, 87, 0.12);
+  color: #e6a457;
+  justify-self: center;
+}
+
+/* The bottom tab bar. */
+:where(html[data-view="player"]) .pl-nav {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 30;
+  background: rgba(18, 14, 11, 0.94);
+  -webkit-backdrop-filter: blur(14px) saturate(1.2);
+  backdrop-filter: blur(14px) saturate(1.2);
+  border-top: 1px solid var(--pl-border);
+  padding: 0 env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+}
+:where(html[data-view="player"]) .pl-nav-in {
+  display: grid;
+  max-width: 720px;
+  margin: 0 auto;
+}
+:where(html[data-view="player"]) .pl-nav-tab {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  gap: 3px;
+  min-height: 60px;
+  padding: 8px 2px 6px;
+  border: 0;
+  background: none;
+  color: var(--pl-text-3);
+  font-family: var(--pl-font-ui);
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: color 0.12s;
+}
+:where(html[data-view="player"]) .pl-nav-tab.on {
+  color: var(--pl-gold);
+}
+:where(html[data-view="player"]) .pl-nav-tab.on::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  width: 28px;
+  height: 2px;
+  border-radius: 0 0 2px 2px;
+  background: var(--pl-gold);
+}
+:where(html[data-view="player"]) .pl-nav-tab:active .pl-nav-icon {
+  transform: scale(0.92);
+}
+:where(html[data-view="player"]) .pl-nav-icon {
+  position: relative;
+  display: grid;
+  transition: transform 0.08s;
+}
+:where(html[data-view="player"]) .pl-nav-count {
+  position: absolute;
+  top: -5px;
+  left: 15px;
+  min-width: 17px;
+  height: 17px;
+  padding: 0 4px;
+  border-radius: 99px;
+  background: var(--pl-wax);
+  color: #fff6ea;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 17px;
+  text-align: center;
+  box-shadow: 0 0 0 2px rgba(18, 14, 11, 0.94);
+}
+
+/* The d20: dice from any tab. */
+:where(html[data-view="player"]) .pl-fab {
+  position: fixed;
+  z-index: 29;
+  right: max(16px, calc(env(safe-area-inset-right) + 12px));
+  bottom: calc(76px + env(safe-area-inset-bottom));
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  color: #f6e7c9;
+  background: radial-gradient(circle at 35% 30%, #c4503d, #7a2a1f);
+  border: 1px solid rgba(255, 220, 180, 0.25);
+  box-shadow:
+    0 8px 24px rgba(0, 0, 0, 0.55),
+    0 0 0 4px rgba(122, 42, 31, 0.2);
+  cursor: pointer;
+  transition: transform 0.12s;
+}
+:where(html[data-view="player"]) .pl-fab:active {
+  transform: scale(0.94) rotate(-12deg);
+}
+/* On a wide screen the bar is centred, so keep the button by the content. */
+@media (min-width: 760px) {
+  :where(html[data-view="player"]) .pl-fab {
+    right: calc(50% - 360px + 16px);
+  }
+}
+
+/* ---------- purse and dice sheets ---------- */
+
+:where(html[data-view="player"]) .pl-wallet-big {
+  font-family: var(--font-num);
+  font-size: 40px;
+  line-height: 1.05;
+  color: var(--pl-gold);
+  font-variant-numeric: lining-nums tabular-nums;
+}
+:where(html[data-view="player"]) .pl-wallet-avail {
+  margin: -6px 0 0;
+  font-family: var(--pl-font-ui);
+  font-size: 13px;
+  color: var(--pl-ok);
+}
+:where(html[data-view="player"]) .pl-wallet-avail.held {
+  color: var(--pl-text-2);
+}
+:where(html[data-view="player"]) .pl-sheet-sub {
+  font-family: var(--pl-font-ui);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--pl-text-3);
+  margin: var(--pl-s2) 0 0;
+}
+:where(html[data-view="player"]) .pl-wallet-sheet .purse-list {
+  font-size: 17px;
+  gap: 0;
+}
+:where(html[data-view="player"]) .pl-wallet-sheet .purse-list li {
+  padding: 8px 0;
+  border-bottom: 1px solid var(--pl-border);
+  align-items: center;
+}
+:where(html[data-view="player"]) .pl-wallet-sheet .purse-list li.pl-purse-total {
+  border-bottom: 0;
+  font-family: var(--pl-font-ui);
+  font-size: 14px;
+  color: var(--pl-text-2);
+}
+:where(html[data-view="player"]) .pl-dice-sheet .pd-dice {
+  border: 0;
+  padding: 0;
+  background: none;
+}
+:where(html[data-view="player"]) .pl-dice-sheet .dt-head h2 {
+  display: none;
+}

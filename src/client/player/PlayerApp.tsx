@@ -17,6 +17,7 @@ import { Dice } from "./Dice";
 import { FightCard } from "./FightCard";
 import { Maps } from "./PhoneMap";
 import { Sheet, useConfirm } from "./Sheet";
+import { NAV_ICONS, PlayerNav, type Screen } from "./PlayerNav";
 import { askLabel, DecisionBanners, MyRequests, RequestSheet, SendGold, whyNot } from "./Requests";
 
 export function PlayerApp({ ident: initial }: { ident: Ident }) {
@@ -85,10 +86,15 @@ function PlayerScreen({ view, online, send, ident, setIdent }: { view: PlayerVie
   const pendingOrders = view.myOrders.filter((o) => !o.arrived);
   const [msg, setMsg] = useState<string | null>(null);
   const [locking, setLocking] = useState(false);
-  const [purseOpen, setPurseOpen] = useState(false);
+  const [walletOpen, setWalletOpen] = useState(false);
+  const [diceOpen, setDiceOpen] = useState(false);
   const [looking, setLooking] = useState<string | null>(null);
   // During a session the phone opens on the Chronicle, so a note is one tap away.
-  const [screenPick, setScreen] = useState<"map" | "chronicle" | "discovery" | "purse" | "jobs" | "dice">(view.map ? "map" : view.session ? "chronicle" : "purse");
+  const [screenPick, setScreenPick] = useState<Screen>(view.map ? "map" : view.session ? "chronicle" : "purse");
+  const setScreen = (s: Screen) => {
+    setScreenPick(s);
+    window.scrollTo({ top: 0 });
+  };
   // The map tab exists while a map is on the TV, or once the party knows a map.
   const hasMaps = !!view.map || view.maps.length > 0;
   const screen = screenPick === "map" && !hasMaps ? (view.session ? "chronicle" : "purse") : screenPick;
@@ -124,68 +130,90 @@ function PlayerScreen({ view, online, send, ident, setIdent }: { view: PlayerVie
   return (
     <div className="player-root">
       {locking ? <LockSheet onLock={lockWith} onClose={() => setLocking(false)} /> : null}
-      <header className="player-top">
-        <div>
-          <div className="player-hello">{view.game.name}</div>
+      <header className="player-top pl-top">
+        <div className="pl-who">
           <h1 className="player-name">{me.character ?? me.name}</h1>
-          <p className="renown-line" title={view.renown.meaning}>
-            <span className="renown-line-k">Party renown</span>
-            <span className="renown-line-v">{view.renown.name}</span>
+          <p className="pl-sub">
+            <span className="renown-line-v" title={view.renown.meaning}>
+              <span aria-hidden="true">❦ </span>
+              <span className="sr-only">Party renown: </span>
+              {view.renown.name}
+            </span>
+            <span aria-hidden="true">·</span>
+            <span className="pl-sub-where">{view.session ? `Chapter ${view.session.number}, tonight` : view.game.name}</span>
           </p>
         </div>
-        <div className="player-gold-wrap">
-          <div className="player-gold" aria-label={`Your gold: ${formatCp(me.balanceCp)}`}>
-            {formatCp(me.balanceCp)}
-          </div>
-          <div className={`player-avail${me.heldCp ? " held" : ""}`}>
-            {me.heldCp ? (
-              <>
-                <span className="purse-amt">{formatCp(availableCp)}</span> available
-              </>
-            ) : (
-              "all available"
-            )}
-          </div>
-          <button type="button" className="btn small purse-btn" aria-expanded={purseOpen} aria-controls="party-purse" onClick={() => setPurseOpen((o) => !o)}>
-            {purseOpen ? "Hide party purse" : "Party purse"}
-          </button>
-        </div>
+        <button type="button" className="pl-coin" aria-haspopup="dialog" aria-label={`Your gold: ${formatCp(me.balanceCp)}. Open your purse.`} onClick={() => setWalletOpen(true)}>
+          <span className="pl-coin-face" aria-hidden="true" />
+          <span className="pl-coin-amt">{coinLabel(me.balanceCp)}</span>
+          {me.heldCp ? <span className="pl-coin-held" aria-hidden="true" /> : null}
+        </button>
       </header>
+      {!online ? (
+        <p className="player-offline pl-offline" role="status">
+          Reconnecting&hellip;
+        </p>
+      ) : null}
       <DecisionBanners view={view} />
       {view.fight ? <FightCard view={view} send={send} /> : null}
       <BannerToast banner={view.banner} className="phone-banner" />
-      <div className="tabs player-screens" role="tablist" aria-label="Your page">
-        {hasMaps ? (
-          <button type="button" role="tab" aria-selected={screen === "map"} className={`btn tab${screen === "map" ? " on" : ""}`} onClick={() => setScreen("map")}>
-            {view.maps.length ? "Maps" : "Map"}
-          </button>
-        ) : null}
-        <button type="button" role="tab" aria-selected={screen === "chronicle"} className={`btn tab${screen === "chronicle" ? " on" : ""}`} onClick={() => setScreen("chronicle")}>
-          The Chronicle
-        </button>
-        <button type="button" role="tab" aria-selected={screen === "discovery"} className={`btn tab${screen === "discovery" ? " on" : ""}`} onClick={() => setScreen("discovery")}>
-          Discover{seen.newCount ? <span className="badge">{seen.newCount}</span> : null}
-        </button>
-        <button type="button" role="tab" aria-selected={screen === "purse"} className={`btn tab${screen === "purse" ? " on" : ""}`} onClick={() => setScreen("purse")}>
-          Gold &amp; shops
-        </button>
-        <button type="button" role="tab" aria-selected={screen === "jobs"} className={`btn tab${screen === "jobs" ? " on" : ""}`} onClick={() => setScreen("jobs")}>
-          Jobs{view.jobs.some((j) => j.canTake && !j.asked) ? <span className="badge">{view.jobs.filter((j) => j.canTake && !j.asked).length}</span> : null}
-        </button>
-        <button type="button" role="tab" aria-selected={screen === "dice"} className={`btn tab${screen === "dice" ? " on" : ""}`} onClick={() => setScreen("dice")}>
-          Dice
-        </button>
-      </div>
-      {!online ? (
-        <p className="player-offline" role="status">
-          Reconnecting&hellip;
-        </p>
+      <PlayerNav
+        screen={screen}
+        onScreen={setScreen}
+        hasMaps={hasMaps}
+        discoverCount={seen.newCount}
+        jobsCount={view.jobs.filter((j) => j.canTake && !j.asked).length}
+      />
+      <button type="button" className="pl-fab" aria-label="Roll dice" aria-haspopup="dialog" onClick={() => setDiceOpen(true)}>
+        {NAV_ICONS.d20}
+      </button>
+      {diceOpen ? (
+        <Sheet title="Dice" onClose={() => setDiceOpen(false)} className="pl-dice-sheet">
+          <Dice view={view} send={send} />
+        </Sheet>
+      ) : null}
+      {walletOpen ? (
+        <Sheet title="Your purse" onClose={() => setWalletOpen(false)} className="pl-wallet-sheet">
+          <div className="pl-wallet-big" aria-label={`Your gold: ${formatCp(me.balanceCp)}`}>
+            {formatCp(me.balanceCp)}
+          </div>
+          <p className={`pl-wallet-avail${me.heldCp ? " held" : ""}`}>
+            {me.heldCp ? (
+              <>
+                <span className="purse-amt">{formatCp(availableCp)}</span> available · {formatCp(me.heldCp)} held for your asks
+              </>
+            ) : (
+              "All of it is yours to spend"
+            )}
+          </p>
+          <h3 className="pl-sheet-sub">Party purse</h3>
+          <ul className="purse-list" id="party-purse">
+            {view.purse.map((p) => (
+              <li key={p.id} className={p.id === me.id ? "me" : undefined}>
+                <span>
+                  {p.inspired ? <InspirationIcon size={18} className="insp" role="img" aria-hidden={false} aria-label="Heroic Inspiration" /> : null}
+                  {p.name}
+                </span>
+                <span className="purse-amt">{formatCp(p.balanceCp)}</span>
+              </li>
+            ))}
+            <li className="pl-purse-total">
+              <span>Party total</span>
+              <span className="purse-amt">{formatCp(view.purse.reduce((a, p) => a + p.balanceCp, 0))}</span>
+            </li>
+          </ul>
+          <SendGold view={view} availableCp={availableCp} send={send} onMsg={(m) => (setMsg(m), setWalletOpen(false), setScreen("purse"))} />
+          {screen !== "purse" ? (
+            <button type="button" className="btn big" onClick={() => (setWalletOpen(false), setScreen("purse"))}>
+              Shops and your history
+            </button>
+          ) : null}
+        </Sheet>
       ) : null}
       {screen === "map" && hasMaps ? <Maps view={view} send={send} /> : null}
       {screen === "chronicle" ? <Chronicle view={view.chronicle} gameName={view.game.name} send={send} /> : null}
       {screen === "jobs" ? <Jobs view={view} send={send} /> : null}
       {screen === "discovery" ? <Discovery view={view} send={send} seen={seen} /> : null}
-      {screen === "dice" ? <Dice view={view} send={send} /> : null}
       {screen === "purse" ? (
       <>
       {me.balanceCp < 0 && view.mine.credit.length ? (
@@ -198,25 +226,6 @@ function PlayerScreen({ view, online, send, ident, setIdent }: { view: PlayerVie
         <p className="player-msg" role="status">
           {msg}
         </p>
-      ) : null}
-
-      {purseOpen ? (
-      <section className="box" id="party-purse">
-        <h2>Party purse</h2>
-        <ul className="purse-list">
-          {view.purse.map((p) => (
-            <li key={p.id} className={p.id === me.id ? "me" : undefined}>
-              <span>
-                {p.inspired ? <InspirationIcon size={18} className="insp" role="img" aria-hidden={false} aria-label="Heroic Inspiration" /> : null}
-                {p.name}
-              </span>
-              <span className="purse-amt">{formatCp(p.balanceCp)}</span>
-            </li>
-          ))}
-        </ul>
-        <p className="note">Party total: {formatCp(view.purse.reduce((a, p) => a + p.balanceCp, 0))}</p>
-        <SendGold view={view} availableCp={availableCp} send={send} onMsg={setMsg} />
-      </section>
       ) : null}
 
       <section className="box">
@@ -473,4 +482,9 @@ function LockSheet({ onLock, onClose }: { onLock: (key: string) => Promise<strin
       </form>
     </Sheet>
   );
+}
+
+/** The header's coin: whole gold pieces once there are any, so a long purse never squeezes the name. The sheet shows it all. */
+function coinLabel(cp: number): string {
+  return Math.abs(cp) >= 100 ? formatCp(cp - (cp % 100)) : formatCp(cp);
 }
