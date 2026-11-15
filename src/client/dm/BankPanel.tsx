@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { formatCp, formatDelta, parseAmount } from "@/shared/money";
 import type { LedgerEntry } from "@/shared/types";
+import { api } from "../api";
 import { useDm } from "./context";
 import { InspireToggle } from "./InspireToggle";
 import { PageHead } from "./PageHead";
@@ -24,7 +25,9 @@ const KIND_LABEL: Record<string, string> = {
 };
 
 export function BankPanel() {
-  const { view, run, toast } = useDm();
+  const { view, run, toast, ident } = useDm();
+  const [removing, setRemoving] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
   const s = view.state;
   const [amount, setAmount] = useState("25");
   const [note, setNote] = useState("");
@@ -71,15 +74,16 @@ export function BankPanel() {
 
   /** Rows for the list: a Pay-everyone batch folds into one line unless one player is picked. */
   const rows = useMemo(() => {
-    const out: { key: string; who: string; entry: LedgerEntry; count: number }[] = [];
+    const out: { key: string; who: string; entry: LedgerEntry; count: number; ids: string[] }[] = [];
     for (const l of ledger.slice(0, 300)) {
       const prev = out[out.length - 1];
       if (playerFilter === "all" && l.batchId && prev && prev.entry.batchId === l.batchId) {
         prev.count++;
+        prev.ids.push(l.id);
         prev.who = `${prev.count} players`;
         continue;
       }
-      out.push({ key: l.id, who: l.playerName, entry: l, count: 1 });
+      out.push({ key: l.id, who: l.playerName, entry: l, count: 1, ids: [l.id] });
     }
     return out;
   }, [ledger, playerFilter]);
@@ -89,6 +93,19 @@ export function BankPanel() {
     const d = new Date(at);
     const today = new Date().toDateString() === d.toDateString();
     return today ? d.toLocaleTimeString(undefined, { timeStyle: "short" }) : d.toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+  };
+
+  const removeLines = async (ids: string[], undo: boolean) => {
+    setBusy(true);
+    try {
+      await api("/api/ledger/remove", ident, { method: "POST", body: JSON.stringify({ ids, undo }) });
+      toast(undo ? "Removed, and the gold change is undone." : "Removed from the ledger. Purses are unchanged.");
+      setRemoving(null);
+    } catch (e) {
+      toast(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
   };
 
   const allPicked = payees.length === present.length;
@@ -236,8 +253,8 @@ export function BankPanel() {
         </div>
         {ledger.length === 0 ? <p className="note">Nothing yet. Every payment and purchase shows up here.</p> : null}
         <ul className="bank-ledger-list">
-          {rows.map(({ key, who, entry: l, count }) => (
-            <li key={key}>
+          {rows.map(({ key, who, entry: l, count, ids }) => (
+            <li key={key} className={removing === key ? "removing" : undefined}>
               <span className="bl-who">{who}</span>
               <span className="bl-what">
                 {l.note || KIND_LABEL[l.kind] || ""}
@@ -249,6 +266,25 @@ export function BankPanel() {
                 {formatDelta(l.amountCp)}
                 {count > 1 ? <span className="bl-each"> each</span> : null}
               </span>
+              <button className="bl-remove" type="button" aria-label={`Remove this ledger line (${who})`} title="Remove this line" onClick={() => setRemoving(removing === key ? null : key)}>
+                &times;
+              </button>
+              {removing === key ? (
+                <div className="bl-confirm">
+                  <span className="note">
+                    Remove {count > 1 ? `these ${count} lines` : "this line"}? Undoing the gold {l.amountCp >= 0 ? "takes" : "gives"} {formatCp(Math.abs(l.amountCp))} {l.amountCp >= 0 ? "back from" : "back to"} {count > 1 ? "each player" : who}{l.kind === "purchase" ? "; the item stays theirs" : ""}.
+                  </span>
+                  <button className="btn small danger" type="button" disabled={busy} onClick={() => void removeLines(ids, true)}>
+                    Remove and undo gold
+                  </button>
+                  <button className="btn small" type="button" disabled={busy} onClick={() => void removeLines(ids, false)}>
+                    Remove line only
+                  </button>
+                  <button className="btn small ghost" type="button" onClick={() => setRemoving(null)}>
+                    Cancel
+                  </button>
+                </div>
+              ) : null}
             </li>
           ))}
         </ul>

@@ -16,6 +16,8 @@ import type { Beat, BeatAction, Episode } from "@/shared/types";
 import { beatSuggestions, listAssets, resolveRef, type AssetGame } from "@/shared/assets";
 import { DownIcon, UpIcon } from "../ui/icons";
 import { useDm } from "./context";
+import { PageHead } from "./PageHead";
+import { PlayIcon, PlusIcon } from "./navIcons";
 import { Drawer } from "./Drawer";
 import { MenuItem, RowMenu } from "./RowMenu";
 import { monstersOf } from "@/shared/combat";
@@ -43,72 +45,72 @@ export function EpisodesPanel({
   const [openId, setOpenId] = useState<string | null>(episodes[0]?.id ?? null);
   const [newTitle, setNewTitle] = useState("");
   const [importing, setImporting] = useState(false);
+  const [adding, setAdding] = useState(false);
   const ep = episodes.find((e) => e.id === openId) ?? episodes[0];
 
+  const runningId = curRunEpisode(s);
+  const runningEp = episodes.find((e) => e.id === runningId);
+
   return (
-    <div className="episodes-panel panel">
-      <section className="box">
-        <div className="box-head">
-          <h3>Episodes</h3>
-          <span className="note">
-            Run sheets are DM-only. The TV only sees what their actions do.
-          </span>
-        </div>
-        <div className="tabs" role="group" aria-label="Episodes">
+    <div className="episodes-panel pg">
+      <PageHead
+        title="Episodes"
+        sub="Run sheets: beats, read-aloud, checks and what the TV does."
+        help={<p>Run sheets are DM-only. The TV only sees what their actions do. Import an episode written in Markdown (one beat per &ldquo;##&rdquo;), or build it beat by beat. Drag beats to reorder them.</p>}
+        actions={
+          <>
+            <button className={`btn${importing ? " on" : ""}`} type="button" aria-expanded={importing} onClick={() => setImporting((v) => !v)}>
+              Import Markdown
+            </button>
+            <button className="btn primary" type="button" onClick={() => setAdding((a) => !a)} aria-expanded={adding}>
+              <PlusIcon size={16} /> Episode
+            </button>
+          </>
+        }
+        stats={[
+          { label: "Episodes", value: episodes.length },
+          ...(ep ? [{ label: "Beats here", value: ep.beats.length }] : []),
+          ...(runningEp ? [{ label: "Running", value: runningEp.title, tone: "gold" as const }] : []),
+        ]}
+      />
+
+      {adding ? (
+        <form
+          className="pg-inline-form"
+          onSubmit={async (e) => {
+            e.preventDefault();
+            if (await run({ type: "episode.add", title: newTitle.trim() || "New episode" }, "Episode added.")) {
+              setNewTitle("");
+              setAdding(false);
+            }
+          }}
+        >
+          <input className="fld" autoFocus value={newTitle} placeholder="Episode 2: …" aria-label="New episode title" onChange={(e) => setNewTitle(e.target.value)} onKeyDown={(e) => e.key === "Escape" && setAdding(false)} />
+          <button className="btn primary" type="submit">
+            Add episode
+          </button>
+          <button className="btn ghost" type="button" onClick={() => setAdding(false)}>
+            Cancel
+          </button>
+        </form>
+      ) : null}
+
+      {importing ? (
+        <section className="box pg-card">
+          <ImportBox episode={ep} onDone={() => setImporting(false)} />
+        </section>
+      ) : null}
+
+      {episodes.length > 1 ? (
+        <div className="seg ep-switch" role="group" aria-label="Episodes">
           {episodes.map((e) => (
-            <button
-              key={e.id}
-              type="button"
-              className={`btn small${ep?.id === e.id ? " on" : ""}`}
-              aria-pressed={ep?.id === e.id}
-              onClick={() => setOpenId(e.id)}
-            >
+            <button key={e.id} type="button" className={`btn small${ep?.id === e.id ? " on" : ""}`} aria-pressed={ep?.id === e.id} onClick={() => setOpenId(e.id)}>
               {e.title}
+              {e.id === runningId ? <span className="ep-live" aria-label="running" /> : null}
             </button>
           ))}
         </div>
-        <form
-          className="inline"
-          style={{ marginTop: 12 }}
-          onSubmit={async (e) => {
-            e.preventDefault();
-            if (
-              await run(
-                {
-                  type: "episode.add",
-                  title: newTitle.trim() || "New episode",
-                },
-                "Episode added.",
-              )
-            )
-              setNewTitle("");
-          }}
-        >
-          <label className="grow">
-            New episode
-            <input
-              className="fld"
-              value={newTitle}
-              placeholder="Episode 2: …"
-              onChange={(e) => setNewTitle(e.target.value)}
-            />
-          </label>
-          <button className="btn" type="submit">
-            Add episode
-          </button>
-          <button
-            className="btn"
-            type="button"
-            aria-expanded={importing}
-            onClick={() => setImporting((v) => !v)}
-          >
-            Import Markdown
-          </button>
-        </form>
-        {importing ? (
-          <ImportBox episode={ep} onDone={() => setImporting(false)} />
-        ) : null}
-      </section>
+      ) : null}
 
       {ep ? (
         <EpisodeEditor
@@ -118,7 +120,7 @@ export function EpisodesPanel({
           running={curRunEpisode(s) === ep.id}
         />
       ) : (
-        <p className="note">No episodes yet.</p>
+        <p className="pg-empty">No episodes yet. Add one, or import one written in Markdown.</p>
       )}
     </div>
   );
@@ -248,64 +250,35 @@ function EpisodeEditor({
   const pending = ep.beats.filter((b) => beatSuggestions(s, b).suggested).length;
 
   return (
-    <section className="box">
-      <div className="box-head">
-        <h3>{ep.title}</h3>
-        <span className="note">{ep.beats.length} beats</span>
-      </div>
-      <div className="inline">
+    <section className="box ep-card">
+      <div className="ep-head">
         <div className="grow">
-          <Field
-            label="Title"
-            value={ep.title}
-            onCommit={(v) =>
-              v.trim()
-                ? run({ type: "episode.update", episodeId: ep.id, title: v })
-                : false
-            }
-          />
+          <Field label="Title" value={ep.title} onCommit={(v) => (v.trim() ? run({ type: "episode.update", episodeId: ep.id, title: v }) : false)} />
         </div>
-        <button
-          className="btn primary"
-          type="button"
-          onClick={() => onRun(ep.id)}
-        >
-          {running ? "Resume run-game" : "Run this episode"}
-        </button>
-        <button
-          className="btn"
-          type="button"
-          aria-expanded={exporting}
-          onClick={() => setExporting((v) => !v)}
-        >
-          Export Markdown
-        </button>
         {pending ? (
           <button className="btn" type="button" title="Each beat with no TV action shows the first thing it mentions" onClick={() => run({ type: "episode.acceptSuggestions", episodeId: ep.id })}>
-            Accept all suggestions ({pending})
+            Accept {pending} suggestion{pending === 1 ? "" : "s"}
           </button>
         ) : null}
+        <button className="btn primary" type="button" onClick={() => onRun(ep.id)}>
+          <PlayIcon size={14} /> {running ? "Resume" : "Run this episode"}
+        </button>
         {confirmDelete === ep.id ? (
-          <button
-            className="btn danger"
-            type="button"
-            onClick={() =>
-              run(
-                { type: "episode.remove", episodeId: ep.id },
-                "Episode deleted.",
-              )
-            }
-          >
-            Really delete the episode?
-          </button>
+          <>
+            <button className="btn" type="button" onClick={() => setConfirmDelete(null)}>
+              Keep it
+            </button>
+            <button className="btn danger" type="button" onClick={() => run({ type: "episode.remove", episodeId: ep.id }, "Episode deleted.")}>
+              Delete {ep.title}
+            </button>
+          </>
         ) : (
-          <button
-            className="btn danger"
-            type="button"
-            onClick={() => setConfirmDelete(ep.id)}
-          >
-            Delete episode
-          </button>
+          <RowMenu label={ep.title}>
+            <MenuItem onClick={() => setExporting((v) => !v)}>{exporting ? "Hide Markdown" : "Export as Markdown"}</MenuItem>
+            <MenuItem danger onClick={() => setConfirmDelete(ep.id)}>
+              Delete episode
+            </MenuItem>
+          </RowMenu>
         )}
       </div>
       {exporting ? (

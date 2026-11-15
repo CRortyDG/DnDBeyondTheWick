@@ -129,7 +129,7 @@ export function ShopPanel() {
         ) : null}
         {it.tier !== "sale" ? (
           <button className="btn small" type="button" onClick={() => run({ type: "item.update", itemId: it.id, patch: { tier: "sale" }, quiet }, quiet ? `${it.name} is for sale (quietly).` : `${it.name} is for sale.`)}>
-            Put on sale
+            {it.tier === "locked" ? "Unlock" : "Put on sale"}
           </button>
         ) : null}
         {compact ? null : (
@@ -408,6 +408,7 @@ function ShopVisibilityBox({ shop, quiet, onSettings }: { shop: Shop; quiet: boo
         </button>
       </div>
       <div className="vis-row">
+      <span className="vis-label">Who can see it</span>
       <div className="seg" role="group" aria-label="Who can see this shop">
         <button type="button" className={`btn small${shop.visibility === "hidden" ? " on" : ""}`} aria-pressed={shop.visibility === "hidden"} onClick={() => set("hidden")}>
           Hidden
