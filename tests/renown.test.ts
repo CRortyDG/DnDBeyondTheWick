@@ -112,6 +112,27 @@ describe("Renown", () => {
     expect(tvItem("c-tab")).toMatchObject({ tier: "locked", needs: "Known in town" });
   });
 
+  it("takes a reason for the Chronicle, either way", () => {
+    open("candle");
+    dm({ type: "renown.set", rank: KNOWN, reason: "Put out the harbour fire" });
+    expect(g.notes!.at(-1)!.text).toBe("Renown: the party is now Known in town. Put out the harbour fire");
+    const banner = g.banner;
+    dm({ type: "renown.set", rank: 0, reason: "Caught stealing from the temple" });
+    expect(g.notes!.at(-1)!.text).toBe("Renown: the party is now Strangers. Caught stealing from the temple");
+    expect(g.banner).toEqual(banner); // still quiet on the TV
+  });
+
+  it("can go up without the TV moment", () => {
+    open("candle");
+    const banner = g.banner;
+    dm({ type: "renown.set", rank: KNOWN, tv: false });
+    expect(g.renown).toBe(KNOWN);
+    expect(g.banner).toEqual(banner);
+    expect(projectTv(g, 1).renownMoment).toBeFalsy();
+    expect(g.notes!.at(-1)!.text).toMatch(/Known in town/);
+    expect(tvItem("c-backroom")).toMatchObject({ tier: "sale" });
+  });
+
   it("can lock a storefront: name and rank only, no goods", () => {
     open("docks");
     dm({ type: "shop.update", shopId: "docks", patch: { renown: TRUSTED } });

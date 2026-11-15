@@ -34,6 +34,7 @@ import { duesFor } from "@/shared/progress";
 import { ArrivalPanel } from "./ArrivalPanel";
 import { ChroniclePanel } from "./ChroniclePanel";
 import { BoardPanel } from "./BoardPanel";
+import { RenownChip } from "./RenownControl";
 import { FightScreen } from "./FightScreen";
 import { Storyboard } from "./Storyboard";
 import { StoryPanel } from "./StoryPanel";
@@ -435,6 +436,7 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
             <span className="dm-find-text">Find or show anything</span>
             <span className="key">/</span>
           </button>
+          <RenownChip />
           <Inbox />
           {ending && session ? <EndSessionDialog session={session} onClose={() => setEnding(false)} /> : null}
           {ready && !session ? <ReadyDialog onClose={() => setReady(false)} onGo={(page) => setTab(page)} /> : null}
