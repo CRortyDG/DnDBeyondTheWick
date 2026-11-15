@@ -927,6 +927,30 @@
   max-width: 76px;
   flex: 0 0 76px !important;
 }
+.fx-undo ol {
+  list-style: none;
+  margin: 0 0 6px;
+  padding: 0;
+  display: grid;
+  gap: 4px;
+}
+.fx-undo li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  font-size: 14px;
+  color: var(--muted, #b8ab93);
+}
+.fx-undo li span {
+  flex: 1;
+  min-width: 0;
+}
+.fx-undo li.newest {
+  color: inherit;
+  background: rgba(201, 154, 58, 0.1);
+}
 .fx-reminders ul {
   list-style: none;
   margin: 0;

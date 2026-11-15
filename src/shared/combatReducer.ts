@@ -32,7 +32,7 @@ import {
 } from "./combat";
 import { formatCp } from "./money";
 import { rollDice } from "./progress";
-import type { Combatant, Fight, FightGroup, FightSummary, FoeSetup, FightMoment, FightReminder, FightReminderKind, GameState, LedgerEntry, LedgerKind, MonsterAbility, MonsterTemplate, Player } from "./types";
+import type { Combatant, Fight, FightGroup, FightSummary, FoeSetup, FightMoment, FightReminder, FightReminderKind, FightUndo, GameState, LedgerEntry, LedgerKind, MonsterAbility, MonsterTemplate, Player } from "./types";
 import { DM_AUTHOR } from "./types";
 import type { z } from "zod";
 import type { monsterBody } from "./combatSchema";
@@ -142,7 +142,134 @@ function cleanMonster(m: z.infer<typeof monsterBody>, id: string, old?: MonsterT
   return t;
 }
 
+/** How many HP and condition changes Undo remembers per fight. */
+export const UNDO_KEPT = 10;
+
+type Undoable = Extract<FightCommand, { type: "fight.hp" | "fight.setHp" | "fight.condition" | "fight.uncondition" | "me.hp" }>;
+
+function isUndoable(cmd: FightCommand): cmd is Undoable {
+  return cmd.type === "fight.hp" || cmd.type === "fight.setHp" || cmd.type === "fight.condition" || cmd.type === "fight.uncondition" || cmd.type === "me.hp";
+}
+
+/** "Goblin A", "Goblin A and Brin", "Goblin A, Goblin B and 2 more". */
+function namesOf(list: string[]): string {
+  if (list.length <= 1) return list[0] ?? "Nobody";
+  if (list.length <= 3) return `${list.slice(0, -1).join(", ")} and ${list[list.length - 1]}`;
+  return `${list.slice(0, 2).join(", ")} and ${list.length - 2} more`;
+}
+
+function undoLabel(f: Fight, cmd: Undoable, touched: Combatant[]): string {
+  const names = namesOf(touched.map((c) => c.name));
+  const hpWords = (mode: "damage" | "heal" | "temp", amount: number, crit?: boolean) =>
+    mode === "damage" ? `took ${amount} damage${crit ? " (crit)" : ""}` : mode === "heal" ? `healed ${amount}` : `got ${amount} temp HP`;
+  switch (cmd.type) {
+    case "fight.hp":
+      return `${names} ${hpWords(cmd.mode, cmd.amount, cmd.crit)}`;
+    case "fight.setHp":
+      return `${names}: HP set`;
+    case "fight.condition":
+      return `${names}: ${cmd.name.trim()}`;
+    case "fight.uncondition": {
+      const cond = touched[0]?.conditions.find((x) => x.id === cmd.conditionId);
+      return `${names}: ${cond?.name ?? "condition"} removed`;
+    }
+    case "me.hp":
+      return cmd.mode && cmd.amount ? `${names} (phone) ${hpWords(cmd.mode, cmd.amount)}` : `${names} (phone) set HP`;
+  }
+  void f;
+}
+
+function snapCombatant(c: Combatant): FightUndo["combatants"][number] {
+  return structuredClone({ id: c.id, hp: c.hp, maxHp: c.maxHp, tempHp: c.tempHp, down: c.down, gone: c.gone, deathSaves: c.deathSaves, concDc: c.concDc, concentrating: c.concentrating, conditions: c.conditions });
+}
+
+/** Put one change back: the combatants, players' HP and the downed list as they were, minus the reminders it added. */
+function restore(s: GameState, f: Fight, u: FightUndo) {
+  for (const snap of u.combatants) {
+    const c = f.order.find((x) => x.id === snap.id);
+    if (!c) continue;
+    const { gone, deathSaves, concDc, ...rest } = structuredClone(snap);
+    Object.assign(c, rest);
+    if (gone) c.gone = gone;
+    else delete c.gone;
+    if (deathSaves) c.deathSaves = deathSaves;
+    else delete c.deathSaves;
+    if (concDc !== undefined) c.concDc = concDc;
+    else delete c.concDc;
+  }
+  for (const ps of u.players) {
+    const p = s.players.find((x) => x.id === ps.id);
+    if (!p) continue;
+    const tv = p.hp?.tv;
+    if (ps.hp) {
+      const { tv: _tv, ...hp } = ps.hp;
+      p.hp = tv === false ? { ...hp, tv } : hp;
+    } else delete p.hp;
+  }
+  f.downed = [...u.downed];
+  const added = new Set(u.reminders);
+  f.reminders = f.reminders.filter((r) => !added.has(r.id));
+}
+
 export function applyFight(s: GameState, cmd: FightCommand, h: FightHelpers): void {
+  if (cmd.type === "fight.undo") {
+    const f = s.fight ?? h.fail("There's no fight going.");
+    const list = f.history ?? [];
+    if (!list.length) h.fail("Nothing to undo.");
+    const at = cmd.undoId ? list.findIndex((u) => u.id === cmd.undoId) : list.length - 1;
+    if (at < 0) h.fail("That change can't be undone any more.");
+    // Newest first, so an older change never overwrites a newer one.
+    for (let i = list.length - 1; i >= at; i--) restore(s, f, list[i]);
+    f.history = list.slice(0, at);
+    return;
+  }
+  if (!isUndoable(cmd) || !s.fight) {
+    applyFightCore(s, cmd, h);
+    return;
+  }
+  const f = s.fight;
+  // Who this change could touch.
+  const ids = new Set<string>();
+  if (cmd.type === "fight.hp" || cmd.type === "fight.condition") cmd.combatantIds.forEach((x) => ids.add(x));
+  else if (cmd.type === "fight.setHp" || cmd.type === "fight.uncondition") ids.add(cmd.combatantId);
+  else {
+    const c = f.order.find((x) => x.kind === "player" && x.playerId === h.actorPlayerId);
+    if (c) ids.add(c.id);
+  }
+  const touched = f.order.filter((c) => ids.has(c.id));
+  const playerIds = new Set(touched.map((c) => c.playerId).filter((x): x is string => !!x));
+  if (cmd.type === "me.hp" && h.actorPlayerId) playerIds.add(h.actorPlayerId);
+  const before: FightUndo = {
+    id: h.nextId("u"),
+    label: undoLabel(f, cmd, touched),
+    at: h.now,
+    by: cmd.type === "me.hp" ? { playerId: h.actorPlayerId ?? "" } : "dm",
+    combatants: touched.map(snapCombatant),
+    players: [...playerIds].map((id) => {
+      const p = s.players.find((x) => x.id === id);
+      return p?.hp ? { id, hp: { ...p.hp } } : { id };
+    }),
+    downed: [...f.downed],
+    reminders: [],
+  };
+  const reminderIds = new Set(f.reminders.map((r) => r.id));
+  // The "show my HP on the TV" toggle isn't an HP change.
+  const hpOf = (id: string) => {
+    const hp = s.players.find((x) => x.id === id)?.hp;
+    return hp ? [hp.cur, hp.max, hp.temp] : null;
+  };
+  const shape = () => JSON.stringify([touched.map(snapCombatant), [...playerIds].map(hpOf), f.downed]);
+  const was = shape();
+  applyFightCore(s, cmd, h);
+  // Nothing changed (a player tweaking the TV toggle, a heal at full HP): nothing to undo.
+  if (!s.fight || shape() === was) return;
+  before.reminders = s.fight.reminders.filter((r) => !reminderIds.has(r.id)).map((r) => r.id);
+  const hist = (s.fight.history ??= []);
+  hist.push(before);
+  if (hist.length > UNDO_KEPT) s.fight.history = hist.slice(-UNDO_KEPT);
+}
+
+function applyFightCore(s: GameState, cmd: FightCommand, h: FightHelpers): void {
   const { fail } = h;
   const tpl = (id?: string) => (id ? monstersOf(s).find((t) => t.id === id) : undefined);
   const fight = (): Fight => s.fight ?? fail("There's no fight going.");
@@ -605,6 +732,8 @@ export function applyFight(s: GameState, cmd: FightCommand, h: FightHelpers): vo
       }
       break;
     }
+    case "fight.undo":
+      break; // handled in applyFight
     default: {
       const never: never = cmd;
       fail(`Unknown command ${(never as { type: string }).type}`);

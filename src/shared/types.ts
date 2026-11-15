@@ -1244,6 +1244,22 @@ export interface FightStep {
   gone: string[];
 }
 
+/** DM-ONLY: what one HP or condition change touched, so Undo can put it back exactly. */
+export interface FightUndo {
+  id: string;
+  /** "Goblin A took 7 damage". */
+  label: string;
+  at: number;
+  /** Who did it: the DM, or the player on their phone. */
+  by: "dm" | { playerId: string };
+  combatants: Pick<Combatant, "id" | "hp" | "maxHp" | "tempHp" | "down" | "gone" | "deathSaves" | "concDc" | "concentrating" | "conditions">[];
+  /** Players' own hit points (they live on Player.hp). Missing hp: not set before. */
+  players: { id: string; hp?: PlayerHp }[];
+  downed: string[];
+  /** Reminders the change added, taken away again on Undo. */
+  reminders: string[];
+}
+
 export interface Fight {
   id: string;
   /** setup: rolling initiative. over: the end card, then loot. */
@@ -1271,6 +1287,8 @@ export interface Fight {
   moment?: FightMoment;
   /** DM-ONLY: undo for Previous turn, newest last. */
   steps: FightStep[];
+  /** DM-ONLY: the last HP and condition changes, newest last, for Undo. Missing on fights from before it. */
+  history?: FightUndo[];
   /** Combatant ids of everyone who went down, in order (once each). */
   downed: string[];
   /** Set when the fight ends: won (every foe down), fallen (every player at 0 HP), or ended (stopped with both sides standing). */
