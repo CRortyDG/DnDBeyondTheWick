@@ -368,6 +368,9 @@ html[data-view="player"] {
 
 /* One slim bar that stays put: name, renown and tonight's chapter, and gold. */
 :where(html[data-view="player"]) .pl-top {
+  /* It bleeds past the page gutter to both screen edges, so lift the
+     "max-width: 100%" every top-level phone block gets in globals.css. */
+  max-width: none;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -766,6 +769,7 @@ html[data-view="player"] {
 
 /* The segmented control and chips stay under the header while you scroll. */
 :where(html[data-view="player"]) .pl-market-bar {
+  max-width: none;
   position: sticky;
   top: calc(61px + env(safe-area-inset-top));
   z-index: 10;
@@ -1050,6 +1054,10 @@ html[data-view="player"] {
   overflow-x: auto;
   scrollbar-width: none;
   gap: 6px;
+  /* Scroll edge to edge, so the last chip slides off the screen rather than
+     stopping short at the gutter. */
+  margin: 0 calc(-1 * max(16px, env(safe-area-inset-right))) 0 calc(-1 * max(16px, env(safe-area-inset-left)));
+  padding: 0 max(16px, env(safe-area-inset-right)) 0 max(16px, env(safe-area-inset-left));
 }
 :where(html[data-view="player"]) .chron-toggles::-webkit-scrollbar {
   display: none;
