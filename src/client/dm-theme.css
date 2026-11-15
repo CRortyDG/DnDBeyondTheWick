@@ -3455,3 +3455,70 @@ html[data-view="dm"] .hc-small { font-size: 12px; margin-top: 10px; }
   border-radius: 10px;
   box-shadow: 0 18px 50px rgba(0, 0, 0, 0.5);
 }
+:where(html[data-view="dm"]) .clue-editor {
+  display: flex;
+  flex-direction: column;
+  gap: var(--dm-s2);
+  margin: var(--dm-s3) 0;
+}
+:where(html[data-view="dm"]) .clue-editor h4 {
+  margin: 0;
+}
+:where(html[data-view="dm"]) .clue-edit-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+:where(html[data-view="dm"]) .clue-edit {
+  padding: 6px var(--dm-s3);
+  border: 1px solid var(--dm-border);
+  border-radius: 8px;
+}
+:where(html[data-view="dm"]) .clue-edit.status-dropped .clue-text,
+:where(html[data-view="dm"]) .clue-edit.status-delivered .clue-text {
+  opacity: 0.65;
+}
+:where(html[data-view="dm"]) .clue-edit-line {
+  display: flex;
+  align-items: center;
+  gap: var(--dm-s2);
+}
+:where(html[data-view="dm"]) .clue-fields {
+  display: flex;
+  flex-direction: column;
+  gap: var(--dm-s2);
+  margin-top: var(--dm-s2);
+}
+:where(html[data-view="dm"]) .clue-fields > label {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+:where(html[data-view="dm"]) .clue-fields .chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+}
+:where(html[data-view="dm"]) .clue-fields .chips .fld {
+  width: auto;
+}
+:where(html[data-view="dm"]) .clue-fields .row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--dm-s2);
+}
+:where(html[data-view="dm"]) .place-scene {
+  display: flex;
+  flex-direction: column;
+  gap: var(--dm-s2);
+}
+:where(html[data-view="dm"]) .place-scene label {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}

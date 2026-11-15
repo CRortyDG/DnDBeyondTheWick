@@ -3,6 +3,7 @@
 // The DM's Story tab: a summary of the storyboard and what needs attention.
 // The board itself opens full-screen.
 
+import { CluesEditor } from "./OffScript";
 import { beatWarnings, STATUSES, storyOf, threadLabel, todayOf } from "@/shared/story";
 import type { GameState } from "@/shared/types";
 import { useDm } from "./context";
@@ -49,6 +50,9 @@ export function StoryPanel({ onOpen }: { onOpen: (beatId?: string) => void }) {
           </ul>
         </section>
       ) : null}
+      <section className="box">
+        <CluesEditor episodeId={null} />
+      </section>
       <section className="box">
         <h3>
           Threads <span className="pg-count">{st.threads.length}</span>

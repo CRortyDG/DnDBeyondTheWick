@@ -6,6 +6,7 @@
 // name and picture, and each fact once you reveal it. Your notes and secrets
 // never leave this screen.
 
+import { PlaceSceneFields } from "./OffScript";
 import { useRef, useState } from "react";
 import { entriesOf, entryTags, FACT_MAX, kindInfo, KINDS, RELATIONS, stageLabel, STAGES, SUMMARY_MAX, isFound } from "@/shared/discovery";
 import type { Entry, EntryKind, Relation, Stage } from "@/shared/types";
@@ -358,6 +359,9 @@ function EntryEditor({ entry: e, tv }: { entry: Entry; tv: boolean }) {
                 )}
             </select>
           </label>
+        ) : null}
+        {e.kind === "place" ? (
+          <PlaceSceneFields place={e} />
         ) : null}
         {e.kind === "shop" ? (
           <label>

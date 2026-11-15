@@ -8,7 +8,7 @@
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { AMBIENT, ambientOfRef } from "@/shared/ambient";
-import { resolveRef } from "@/shared/assets";
+import { refForScene, resolveRef } from "@/shared/assets";
 import { entriesOf, kindInfo, stageLabel } from "@/shared/discovery";
 import { capturesOf, cluesOf, hereOf, hereView, readyClues } from "@/shared/offscript";
 import { storyOf } from "@/shared/story";
@@ -182,7 +182,7 @@ function DefaultScene({ place }: { place: Entry }) {
           </button>
         </>
       ) : (
-        <span className="note">{place.name} has no TV scene. Pick one under Scenes, or show something and press “Use for {place.name}”.</span>
+        <span className="note">{place.name} has no TV scene yet. Under Scenes, press “Use here” on one.</span>
       )}
     </div>
   );
@@ -588,4 +588,225 @@ export function useOffScriptKeys(opts: { enabled: boolean; panelOpen: boolean; t
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [enabled, panelOpen, togglePanel, openCapture, run, scene, caption]);
+}
+
+// ---------------------------------------------------------------------------
+// Prep: writing clues (the episode builder, and the pool on the Story page)
+
+/** The clues written for an episode, or the campaign pool (episodeId null). */
+export function CluesEditor({ episodeId }: { episodeId: string | null }) {
+  const { run } = useDm();
+  const g = useGame();
+  const list = cluesOf(g).filter((c) => c.episodeId === episodeId);
+  const [text, setText] = useState("");
+  const [open, setOpen] = useState<string | null>(null);
+  const ready = list.filter((c) => c.status === "ready").length;
+  const add = async () => {
+    if (!text.trim()) return;
+    if (await run({ type: "clue.add", clue: { text, episodeId } })) setText("");
+  };
+  return (
+    <section className="clue-editor" aria-label={episodeId ? "Clues for this episode" : "The clue pool"}>
+      <h4>
+        {episodeId ? "Clues" : "Clue pool"} <span className="note">· {ready} ready{episodeId ? " (aim for 5 to 10)" : ""}</span>
+      </h4>
+      <p className="note">{episodeId ? "Short secrets and clues not tied to any scene. In run-game mode you deliver them wherever the party is." : "Clues not tied to an episode. They show in run-game mode after the episode's own."}</p>
+      {list.length ? (
+        <ul className="clue-edit-list">
+          {list.map((c) => (
+            <li key={c.id} className={`clue-edit status-${c.status}`}>
+              <div className="clue-edit-line">
+                <span className="clue-text">{c.text}</span>
+                {c.status !== "ready" ? <span className="tag">{c.status}</span> : null}
+                <span className="offscript-act">
+                  <button type="button" className="btn small" aria-expanded={open === c.id} onClick={() => setOpen(open === c.id ? null : c.id)}>
+                    {open === c.id ? "Done" : "Edit"}
+                  </button>
+                </span>
+              </div>
+              {open === c.id ? <ClueFields clue={c} /> : null}
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      <div className="row offscript-add">
+        <input className="fld" value={text} maxLength={400} placeholder="The miller's daughter was seen at the crypt" onChange={(e) => setText(e.target.value)} onKeyDown={(e) => e.key === "Enter" && void add()} />
+        <button type="button" className="btn small" onClick={() => void add()}>
+          Add clue
+        </button>
+      </div>
+    </section>
+  );
+}
+
+function ClueFields({ clue }: { clue: Clue }) {
+  const { run } = useDm();
+  const g = useGame();
+  const all = entriesOf(g);
+  const st = storyOf(g);
+  const up = (patch: Extract<Parameters<typeof run>[0], { type: "clue.update" }>["patch"]) => void run({ type: "clue.update", clueId: clue.id, patch });
+  const [text, setText] = useState(clue.text);
+  const factValue = clue.fact ? `${clue.fact.entryId}|${clue.fact.factId}` : "";
+  const tagOptions = [...all.filter((e) => e.kind === "person" || e.kind === "place").map((e) => ({ id: e.id, label: e.name })), ...st.threads.map((t) => ({ id: t.id, label: `Thread: ${t.name || "Backstory"}` }))];
+  return (
+    <div className="clue-fields">
+      <label>
+        <span className="note">Clue</span>
+        <input className="fld" value={text} maxLength={400} onChange={(e) => setText(e.target.value)} onBlur={() => text.trim() && text !== clue.text && up({ text })} />
+      </label>
+      <label>
+        <span className="note">Reveals a fact</span>
+        <select
+          className="fld"
+          value={factValue}
+          onChange={(e) => {
+            const [entryId, factId] = e.target.value.split("|");
+            up({ fact: factId ? { entryId, factId } : null });
+          }}
+        >
+          <option value="">No fact</option>
+          {all
+            .filter((e) => e.facts.length)
+            .map((e) => (
+              <optgroup key={e.id} label={e.name}>
+                {e.facts.map((f) => (
+                  <option key={f.id} value={`${e.id}|${f.id}`}>
+                    {f.text.slice(0, 90)}
+                  </option>
+                ))}
+              </optgroup>
+            ))}
+        </select>
+      </label>
+      <label>
+        <span className="note">Moves a mystery (or anything) one stage forward</span>
+        <select className="fld" value={clue.entryId ?? ""} onChange={(e) => up({ entryId: e.target.value || null })}>
+          <option value="">Nothing</option>
+          {all.map((e) => (
+            <option key={e.id} value={e.id}>
+              {e.name} ({kindInfo(e.kind).label}, {stageLabel(e.kind, e.stage)})
+            </option>
+          ))}
+        </select>
+      </label>
+      {st.beats.length ? (
+        <label>
+          <span className="note">Plays a story beat</span>
+          <select className="fld" value={clue.storyBeatId ?? ""} onChange={(e) => up({ storyBeatId: e.target.value || null })}>
+            <option value="">No story beat</option>
+            {st.beats
+              .filter((b) => b.status !== "dropped")
+              .map((b) => (
+                <option key={b.id} value={b.id}>
+                  {b.title}
+                </option>
+              ))}
+          </select>
+        </label>
+      ) : null}
+      <div>
+        <span className="note">About (shows it in the Here section for these)</span>
+        <div className="chips">
+          {clue.tags.map((t) => (
+            <span key={t} className="chip">
+              {tagOptions.find((o) => o.id === t)?.label ?? "?"}
+              <button type="button" className="chip-x" aria-label="Remove" onClick={() => up({ tags: clue.tags.filter((x) => x !== t) })}>
+                ×
+              </button>
+            </span>
+          ))}
+          <select className="fld" value="" aria-label="Add who or where it's about" onChange={(e) => e.target.value && up({ tags: [...clue.tags, e.target.value] })}>
+            <option value="">+ person, place or thread</option>
+            {tagOptions
+              .filter((o) => !clue.tags.includes(o.id))
+              .map((o) => (
+                <option key={o.id} value={o.id}>
+                  {o.label}
+                </option>
+              ))}
+          </select>
+        </div>
+      </div>
+      <div className="row">
+        {clue.status !== "ready" ? (
+          <button type="button" className="btn small" onClick={() => void run({ type: "clue.settle", clueId: clue.id, to: "ready" })}>
+            Make it ready again
+          </button>
+        ) : (
+          <button type="button" className="btn small" onClick={() => void run({ type: "clue.settle", clueId: clue.id, to: "drop" })}>
+            Drop
+          </button>
+        )}
+        {clue.episodeId !== null ? (
+          <button type="button" className="btn small" onClick={() => void run({ type: "clue.update", clueId: clue.id, patch: { episodeId: null } })}>
+            Move to the pool
+          </button>
+        ) : null}
+        <button type="button" className="btn small danger" onClick={() => void run({ type: "clue.remove", clueId: clue.id }, "Clue removed.")}>
+          Remove
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/** A place's default TV scene and caption, in its Discover editor. */
+export function PlaceSceneFields({ place }: { place: Entry }) {
+  const { run } = useDm();
+  const g = useGame();
+  const [caption, setCaption] = useState(place.place?.caption ?? "");
+  const maps = g.scenes.filter((x) => x.kind === "map");
+  return (
+    <div className="place-scene">
+      <label>
+        Off-script TV scene (suggested when the party gets here)
+        <select className="fld" value={place.place?.scene ?? ""} onChange={(e) => void run({ type: "place.setup", entryId: place.id, scene: e.target.value || null })}>
+          <option value="">None</option>
+          <optgroup label="Ambient scenes">
+            {AMBIENT.map((a) => (
+              <option key={a.id} value={`ambient/${a.id}`}>
+                {a.label}
+              </option>
+            ))}
+          </optgroup>
+          {maps.length ? (
+            <optgroup label="Maps">
+              {maps.map((m) => (
+                <option key={m.id} value={refForScene(g, m)}>
+                  {m.label}
+                </option>
+              ))}
+            </optgroup>
+          ) : null}
+        </select>
+      </label>
+      {ambientOfRef(place.place?.scene) ? (
+        <label>
+          Caption on the TV
+          <input className="fld" value={caption} maxLength={80} placeholder="The coast road, dusk." onChange={(e) => setCaption(e.target.value)} onBlur={() => caption !== (place.place?.caption ?? "") && void run({ type: "place.setup", entryId: place.id, caption: caption.trim() || null })} />
+        </label>
+      ) : null}
+    </div>
+  );
+}
+
+/** The DM console's way in: a top-bar button, O for the panel and N for a quick note. */
+export function OffScriptButton({ enabled }: { enabled: boolean }) {
+  const [open, setOpen] = useState(false);
+  const [tab, setTab] = useState<OffTab>("here");
+  const [capturing, setCapturing] = useState(false);
+  const toggle = useMemo(() => () => setOpen((v) => !v), []);
+  const capture = useMemo(() => () => setCapturing(true), []);
+  useOffScriptKeys({ enabled: enabled && !capturing, panelOpen: open, togglePanel: toggle, openCapture: capture });
+  const g = useGame();
+  const run = g.sessions.find((x) => x.id === g.currentSessionId)?.run;
+  return (
+    <>
+      <button type="button" className={`btn small${open ? " on" : ""}`} aria-pressed={open} title="Off-script tools (O). N jots a quick note." onClick={toggle}>
+        <span className="key">O</span> Off-script
+      </button>
+      {open ? <OffScriptPanel tab={tab} setTab={setTab} onClose={() => setOpen(false)} episodeId={run?.episodeId} /> : null}
+      {capturing ? <QuickCapture onClose={() => setCapturing(false)} /> : null}
+    </>
+  );
 }

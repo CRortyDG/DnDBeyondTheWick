@@ -1,4 +1,5 @@
 
+import { OffScriptButton } from "./OffScript";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement } from "react";
 import type { DmCommand } from "@/shared/commands";
 import type { DmView } from "@/shared/projection";
@@ -455,6 +456,7 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
             <span className="key">/</span>
           </button>
           <RenownChip />
+          <OffScriptButton enabled={!runOpen && !finder && storyOpen === null && !editingMap} />
           <Inbox />
           {ending && session ? <EndSessionDialog session={session} onClose={() => setEnding(false)} /> : null}
           {ready && !session ? <ReadyDialog onClose={() => setReady(false)} onGo={(page) => setTab(page)} /> : null}
