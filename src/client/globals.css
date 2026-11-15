@@ -3039,6 +3039,37 @@ input.fld.inline-input {
   margin: 6px 0;
   padding-left: 1.2em;
 }
+.bulk-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+  margin: 8px 0;
+}
+.bulk-table th,
+.bulk-table td {
+  text-align: left;
+  vertical-align: top;
+  padding: 6px 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+.bulk-table td:first-child {
+  width: 3em;
+  opacity: 0.7;
+}
+.bulk-table tr.bad td {
+  background: rgba(166, 58, 44, 0.12);
+}
+.bulk-table tr.skip td {
+  opacity: 0.6;
+}
+.bulk-errors {
+  margin: 0;
+  padding-left: 1.1em;
+  color: #eaa596;
+}
+.bulk-import .import-warnings {
+  font-size: 13px;
+}
 @media (max-width: 420px) {
   .run-exit-text {
     display: none;

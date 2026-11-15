@@ -3,7 +3,8 @@ import { CATEGORY_IDS, KIND_IDS } from "./progress";
 import { RENOWN_MAX, RENOWN_POINTS_MAX } from "./renown";
 import { FONT_IDS, LIST_MAX, NOTE_W_MAX, NOTE_W_MIN, PAPER_IDS, PIN_IDS, TITLE_SIZE_MAX, TITLE_SIZE_MIN } from "./board";
 import { DIE_SIDES, diceCount, MAX_DICE, MAX_OF_ONE, MAX_PLUS } from "./dice";
-import { fightDmCommands, fightPlayerCommands } from "./combatSchema";
+import { fightDmCommands, fightPlayerCommands, monsterBody } from "./combatSchema";
+import { IMPORT_MAX } from "./bulkImport";
 import { SHOW_REF_RE } from "./assets";
 import { HANDOUT_BODY_MAX, HANDOUT_SIGN_MAX, HANDOUT_TITLE_MAX } from "./handout";
 import { storyDmCommands } from "./storySchema";
@@ -439,6 +440,15 @@ export const dmCommand = z.discriminatedUnion("type", [
 
   // Discovery. announce: play the reveal on the TV.
   z.object({ type: z.literal("entry.add"), entry: z.object(entryFields).partial(), facts: z.array(factText).max(40).optional() }),
+  /** Bulk import (see bulkImport.ts): every row goes through the same command as adding it by hand, all or nothing. Items name their shop; a shop that doesn't exist is made. */
+  z
+    .object({
+      type: z.literal("import.bulk"),
+      monsters: z.array(monsterBody).max(IMPORT_MAX).optional(),
+      entries: z.array(z.object({ entry: z.object(entryFields).partial(), facts: z.array(factText).max(40).optional() })).max(IMPORT_MAX).optional(),
+      items: z.array(z.object({ shop: text(80).min(1), item: z.object(itemFields).omit({ shopId: true }).partial().required({ name: true, priceCp: true }) })).max(IMPORT_MAX).optional(),
+    })
+    .refine((c) => (c.monsters?.length ?? 0) + (c.entries?.length ?? 0) + (c.items?.length ?? 0) <= IMPORT_MAX, `One import can add ${IMPORT_MAX} things.`),
   z.object({ type: z.literal("entry.update"), entryId: id, patch: z.object(entryFields).partial() }),
   /** A person's feelings about one player (null: same as the party). */
   z.object({ type: z.literal("entry.relationFor"), entryId: id, playerId: id, relation: relation.nullable() }),

@@ -110,11 +110,49 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
   return out;
 }
 
+/**
+ * Bulk import: each row runs as the same command the DM would use by hand
+ * (so slugs, limits and tidying match), one after another. Any failure throws,
+ * so nothing is half imported. The error says which one.
+ */
+function importBulk(input: GameState, cmd: Extract<Command, { type: "import.bulk" }>, ctx: Ctx): Result {
+  let state = input;
+  const ledger: LedgerEntry[] = [];
+  const step = (c: Command, what: string) => {
+    try {
+      const r = applyOne(state, c, ctx);
+      state = r.state;
+      ledger.push(...r.ledger);
+    } catch (e) {
+      if (e instanceof CommandError) fail(`${what}: ${e.message}`, e.code);
+      throw e;
+    }
+  };
+  const key = (x: string) => x.trim().toLowerCase().replace(/\s+/g, " ");
+  for (const m of cmd.monsters ?? []) step({ type: "monster.add", monster: m }, m.name);
+  for (const e of cmd.entries ?? []) {
+    step({ type: "entry.add", entry: e.entry, facts: e.facts }, e.entry.name ?? "An entry");
+    // A fresh campaign starts where its first fresh start would: rumored entries are rumors now. Quietly, no TV moment.
+    const made = state.entries?.at(-1);
+    if (made && made.start && made.start !== "hidden" && made.stage === "hidden") made.stage = made.start;
+  }
+  for (const it of cmd.items ?? []) {
+    let shop = state.shops.find((x) => key(x.name) === key(it.shop));
+    if (!shop) {
+      step({ type: "shop.add", name: it.shop.trim(), subtitle: "" }, it.shop);
+      shop = state.shops.at(-1)!;
+    }
+    step({ type: "item.add", item: { ...it.item, shopId: shop.id }, quiet: true }, it.item.name);
+  }
+  return { state, ledger };
+}
+
 function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
   // Authorisation is checked again here so a wiring mistake can't let a player run DM commands.
   if (isDmCommand(cmd.type) && ctx.actor.role !== "dm") fail("Only the DM can do that.");
   if (cmd.type.startsWith("me.") && ctx.actor.role !== "player") fail("Only a player can do that.");
   if (cmd.type.startsWith("system.") && ctx.actor.role !== "system") fail("Not allowed.");
+  if (cmd.type === "import.bulk") return importBulk(input, cmd, ctx);
 
   const s: GameState = structuredClone(input);
   // The server fills in the seed episode when it reads an older game (see withSeedEpisodes on the server).
