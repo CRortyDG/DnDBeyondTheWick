@@ -93,7 +93,15 @@ export function MonstersPanel({ onFight }: { onFight: () => void }) {
       </ul>
       {!list.length && editing !== "new" ? <p className="note">No monsters yet.</p> : null}
 
-      <h3 className="fx-hist-h">Past fights</h3>
+      <div className="fx-hist-row">
+        <h3 className="fx-hist-h">Past fights</h3>
+        <span className="spacer" />
+        {hist.length ? (
+          <button className="btn small danger" type="button" onClick={() => window.confirm(`Delete all ${hist.length} past fight${hist.length === 1 ? "" : "s"}? Loot paid and Chronicle notes stay.`) && run({ type: "fight.forget" }, "Past fights cleared.")}>
+            Clear all
+          </button>
+        ) : null}
+      </div>
       {hist.length ? (
         <ul className="fx-hist">
           {hist.map((h) => {
@@ -115,6 +123,9 @@ export function MonstersPanel({ onFight }: { onFight: () => void }) {
                     onClick={async () => (await run({ type: "fight.rerun", fightId: h.id }, "Run again: roll initiative!")) && onFight()}
                   >
                     Run again
+                  </button>
+                  <button className="btn small danger" type="button" onClick={() => window.confirm(`Delete “${h.title}” from past fights? Loot paid and its Chronicle note stay.`) && run({ type: "fight.forget", fightId: h.id }, "Fight deleted.")}>
+                    Delete
                   </button>
                 </div>
                 <div className="note">

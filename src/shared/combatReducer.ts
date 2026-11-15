@@ -600,6 +600,15 @@ export function applyFight(s: GameState, cmd: FightCommand, h: FightHelpers): vo
       rerunFight(s, past, h);
       break;
     }
+    case "fight.forget": {
+      if (!cmd.fightId) delete s.fights;
+      else {
+        const hist = s.fights ?? [];
+        if (!hist.some((x) => x.id === cmd.fightId)) fail("That fight isn't in the history.");
+        s.fights = hist.filter((x) => x.id !== cmd.fightId);
+      }
+      break;
+    }
     default: {
       const never: never = cmd;
       fail(`Unknown command ${(never as { type: string }).type}`);
