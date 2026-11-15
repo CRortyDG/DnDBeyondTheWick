@@ -22,6 +22,8 @@ export const SUMMARY_MAX = 1000;
 export const HINT_MAX = 300;
 export const FACT_MAX = 600;
 export const DM_TEXT_MAX = 4000;
+/** A person's wants, knows and voice notes. */
+export const PERSON_NOTE_MAX = 1000;
 export const AREAS_MAX = 8;
 export const LINKS_MAX = 20;
 export const LEAD_MAX = 300;

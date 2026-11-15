@@ -6,7 +6,7 @@ export function sha256(s: string): string {
   return createHash("sha256").update(s, "utf8").digest("hex");
 }
 
-function sameHash(a: string, b: string): boolean {
+export function sameHash(a: string, b: string): boolean {
   const x = Buffer.from(a, "hex");
   const y = Buffer.from(b, "hex");
   return x.length === y.length && timingSafeEqual(x, y);

@@ -5,3 +5,7 @@ dist/
 .env*
 !.env.example
 *.tsbuildinfo
+# Worldbuilder MCP: never commit a builder key or a local MCP config
+claude_desktop_config.json
+*.local.json
+*.local.mjs

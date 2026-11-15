@@ -221,7 +221,7 @@ function EntryRow({ entry: e, tv, first, last, open, onToggle }: { entry: Entry;
   );
 }
 
-type Patch = { name?: string; kind?: string; slug?: string; title?: string; summary?: string; nickname?: string; hint?: string; sceneId?: string | null; pin?: { sceneId: string; pinId: string } | null; shopId?: string | null; templateId?: string | null; silhouette?: string | null; areas?: string[]; links?: string[]; relation?: Relation | null; start?: Stage; dmNote?: string; secrets?: string };
+type Patch = { name?: string; kind?: string; slug?: string; title?: string; summary?: string; nickname?: string; hint?: string; sceneId?: string | null; pin?: { sceneId: string; pinId: string } | null; shopId?: string | null; templateId?: string | null; silhouette?: string | null; areas?: string[]; links?: string[]; relation?: Relation | null; start?: Stage; dmNote?: string; secrets?: string; wants?: string; knows?: string; voice?: string };
 
 function EntryEditor({ entry: e, tv }: { entry: Entry; tv: boolean }) {
   const { view, run, call, ident, toast, gated } = useDm();
@@ -517,6 +517,14 @@ function EntryEditor({ entry: e, tv }: { entry: Entry; tv: boolean }) {
       <div className="inline">
         <Field label="DM notes (only you see this)" value={e.dmNote} multiline onCommit={(v) => patch({ dmNote: v })} />
         <Field label="Secrets (only you see this)" value={e.secrets} multiline onCommit={(v) => patch({ secrets: v })} />
+        {e.kind === "person" ? (
+          <>
+            <Field label="Wants (only you see this)" value={e.wants ?? ""} multiline onCommit={(v) => patch({ wants: v })} />
+            <Field label="Knows (only you see this)" value={e.knows ?? ""} multiline onCommit={(v) => patch({ knows: v })} />
+            <Field label="Voice (only you see this)" value={e.voice ?? ""} placeholder="Slow and kind, never finishes a sentence" onCommit={(v) => patch({ voice: v })} />
+          </>
+        ) : null}
+        {e.madeBy ? <p className="note">Drafted by {e.madeBy.label}, approved {new Date(e.madeBy.at).toLocaleDateString()}.</p> : null}
       </div>
 
       {isFound(e.stage) ? (

@@ -8,6 +8,7 @@ import type { GameState, LedgerEntry } from "@/shared/types";
 import type { Env } from "./env";
 import { R2Presets } from "./presets";
 import type { PresetStore } from "@/server/presets";
+import type { BuilderRow, BuilderStore } from "@/server/builderStore";
 import { addUsage, USAGE_FIELDS, utcDay, ZERO_USAGE, type UsageCounts, type UsageReport } from "@/shared/hosting";
 
 /** A campaign idle this long is deleted, with its images. */
@@ -58,6 +59,9 @@ export class GameRoom extends DurableObject<Env> implements Store {
   private hasSchema: boolean;
 
   readonly presets: PresetStore;
+  /** Worldbuilder keys, drafts and Activity: their own table, never in the game document. */
+  readonly builder: BuilderStore;
+  private hasBuilder: boolean | null = null;
 
   /** Usage since the last save (see the usage section below). Lost if the room sleeps first: the counts run a little low, never high. */
   private meter: UsageCounts = { ...ZERO_USAGE };
@@ -85,6 +89,7 @@ export class GameRoom extends DurableObject<Env> implements Store {
       },
     });
     this.hasSchema = this.sql.exec("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'doc'").toArray().length > 0;
+    this.builder = this.builderStore();
     // Keep-alive pings from the browser are answered without waking the room.
     ctx.setWebSocketAutoResponse(new WebSocketRequestResponsePair("ping", "pong"));
   }
@@ -215,6 +220,65 @@ export class GameRoom extends DurableObject<Env> implements Store {
     this.snapSchema();
     const parts = this.sql.exec<{ body: string }>("SELECT body FROM snap_part WHERE snap_id = ? ORDER BY n", id).toArray();
     return parts.length ? (JSON.parse(parts.map((p) => p.body).join("")) as SnapshotData) : null;
+  }
+
+  // ---------------------------------------------------------------- Worldbuilder rows
+
+  private builderReady(create: boolean): boolean {
+    if (this.hasBuilder === null) this.hasBuilder = this.sql.exec("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'builder'").toArray().length > 0;
+    if (this.hasBuilder || !create) return this.hasBuilder;
+    // Only a real campaign gets the table: a guessed code never writes anything.
+    if (!this.load().state) return false;
+    this.sql.exec(
+      `CREATE TABLE IF NOT EXISTS builder (tbl TEXT NOT NULL, id TEXT NOT NULL, at INTEGER NOT NULL, tag TEXT NOT NULL, body TEXT NOT NULL, PRIMARY KEY (tbl, id));
+       CREATE INDEX IF NOT EXISTS builder_tag ON builder (tbl, tag, at);`,
+    );
+    this.hasBuilder = true;
+    return true;
+  }
+
+  private builderStore(): BuilderStore {
+    type Row = { id: string; at: number; tag: string; body: string };
+    return {
+      get: async (tbl, id) => {
+        if (!this.builderReady(false)) return null;
+        return this.sql.exec<Row>("SELECT id, at, tag, body FROM builder WHERE tbl = ? AND id = ?", tbl, id).toArray()[0] ?? null;
+      },
+      put: async (tbl, row: BuilderRow) => {
+        if (!this.builderReady(true)) return;
+        this.sql.exec(
+          "INSERT INTO builder (tbl, id, at, tag, body) VALUES (?, ?, ?, ?, ?) ON CONFLICT(tbl, id) DO UPDATE SET at = excluded.at, tag = excluded.tag, body = excluded.body",
+          tbl,
+          row.id,
+          row.at,
+          row.tag,
+          row.body,
+        );
+      },
+      del: async (tbl, id) => {
+        if (this.builderReady(false)) this.sql.exec("DELETE FROM builder WHERE tbl = ? AND id = ?", tbl, id);
+      },
+      list: async (tbl, opts = {}) => {
+        if (!this.builderReady(false)) return [];
+        const limit = opts.limit ?? 10_000;
+        return opts.tag === undefined
+          ? this.sql.exec<Row>("SELECT id, at, tag, body FROM builder WHERE tbl = ? ORDER BY at DESC, id DESC LIMIT ?", tbl, limit).toArray()
+          : this.sql.exec<Row>("SELECT id, at, tag, body FROM builder WHERE tbl = ? AND tag = ? ORDER BY at DESC, id DESC LIMIT ?", tbl, opts.tag, limit).toArray();
+      },
+      count: async (tbl, tag) => {
+        if (!this.builderReady(false)) return 0;
+        return tag === undefined
+          ? this.sql.exec<{ n: number }>("SELECT COUNT(*) AS n FROM builder WHERE tbl = ?", tbl).one().n
+          : this.sql.exec<{ n: number }>("SELECT COUNT(*) AS n FROM builder WHERE tbl = ? AND tag = ?", tbl, tag).one().n;
+      },
+      prune: async (tbl, keep, before) => {
+        if (!this.builderReady(false)) return;
+        this.sql.exec("DELETE FROM builder WHERE tbl = ? AND (at < ? OR id IN (SELECT id FROM builder WHERE tbl = ? ORDER BY at DESC, id DESC LIMIT -1 OFFSET ?))", tbl, before, tbl, keep);
+      },
+      clear: async (tbl) => {
+        if (this.builderReady(false)) this.sql.exec("DELETE FROM builder WHERE tbl = ?", tbl);
+      },
+    };
   }
 
   /** The game changed: push every open screen its own view. Outgoing messages are free. */

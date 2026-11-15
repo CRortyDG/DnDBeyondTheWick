@@ -31,6 +31,12 @@ import { pendingPlacement, STORY_SECTION, syncStoryStatus } from "./episodeBuild
 import type { Flyer, Party, WorldEvent } from "./types";
 import type { Actor, Beat, BeatAction, Entry, EntryFact, Episode, FlyerText, Stage, GameState, Item, ItemTier, Job, Lead, LedgerEntry, LedgerKind, MapData, MapToken, Note, Pin, PinLink, Player, RenownChange, Scene, Session, SessionRun, Shop, StoryBlock, TradeRequest, Vote } from "./types";
 import type { z } from "zod";
+import { currentValue, madeIndex, sameValue, SUGGEST_FIELDS, type BuilderOp, type BuilderRef } from "./builderOps";
+import { storyOf } from "./story";
+import { monstersOf } from "./combat";
+import { noticesOf } from "./board";
+import { fillRanges, TABLES_MAX, tablesOf } from "./tables";
+import type { MadeBy, RandomTable } from "./types";
 
 export class CommandError extends Error {
   /** "recheck": a phone request no longer works at approval time; the DM may override or decline. */
@@ -147,12 +153,197 @@ function importBulk(input: GameState, cmd: Extract<Command, { type: "import.bulk
   return { state, ledger };
 }
 
+/** A person's DM-only notes (the Worldbuilder writes these too). */
+const PERSON_NOTES = ["wants", "knows", "voice"] as const;
+
+/**
+ * Approved Worldbuilder drafts. Each op runs as the DM command that makes the
+ * same thing by hand, so slugs, limits and tidying match, and the result is
+ * tagged with madeBy (DM-only). All or nothing: any failure throws. An op whose
+ * draft is already in the game is skipped, so a retry can't make it twice.
+ * Nothing here pins, reveals or announces, except an entry the DM chose to
+ * approve at a stage past Hidden.
+ */
+function builderApply(input: GameState, ops: BuilderOp[], ctx: Ctx): Result {
+  const dm: Ctx = { ...ctx, actor: { role: "dm" } };
+  let state = input;
+  const ledger: LedgerEntry[] = [];
+  const made = madeIndex(input);
+  const ids = new Map<string, string>([...made].map(([d, x]) => [d, x.id]));
+  const step = (c: Command, what: string): Result => {
+    try {
+      const r = applyOne(state, c, dm);
+      state = r.state;
+      ledger.push(...r.ledger);
+      return r;
+    } catch (e) {
+      if (e instanceof CommandError) fail(`${what}: ${e.message}`, e.code);
+      throw e;
+    }
+  };
+  const resolve = (r: BuilderRef, what: string): string => {
+    if ("id" in r) return r.id;
+    return ids.get(r.draft) ?? fail(`${what}: approve the draft it belongs to first.`);
+  };
+  const tag = (op: BuilderOp): MadeBy => ({ label: op.label, at: ctx.now, draft: op.draft });
+  for (const op of ops) {
+    if (made.has(op.draft)) continue;
+    switch (op.kind) {
+      case "entry": {
+        const b = op.entry;
+        const r = step(
+          {
+            type: "entry.add",
+            entry: { kind: b.kind, name: b.name, title: b.title, summary: b.summary, nickname: b.nickname, hint: b.hint, areas: b.areas, dmNote: b.dmNote, secrets: b.secrets, wants: b.wants, knows: b.knows, voice: b.voice },
+            facts: b.facts,
+          },
+          b.name,
+        );
+        const e = entriesOf(state).find((x) => x.id === r.entryId)!;
+        e.madeBy = tag(op);
+        for (const f of e.facts) f.madeBy = tag(op);
+        ids.set(op.draft, e.id);
+        if (op.stage !== "hidden") step({ type: "entry.stage", entryId: e.id, stage: op.stage, announce: false }, b.name);
+        break;
+      }
+      case "fact": {
+        const entryId = resolve(op.entry, "A fact");
+        const r = step({ type: "entry.factAdd", entryId, text: op.text }, "A fact");
+        const f = entriesOf(state).find((x) => x.id === entryId)?.facts.find((x) => x.id === r.factId);
+        if (f) f.madeBy = tag(op);
+        if (r.factId) ids.set(op.draft, r.factId);
+        break;
+      }
+      case "link": {
+        const a = resolve(op.a, "A link");
+        const b = resolve(op.b, "A link");
+        const e = entriesOf(state).find((x) => x.id === a) ?? fail("A link: that entry isn't in the compendium any more.");
+        if (!entriesOf(state).some((x) => x.id === b)) fail("A link: that entry isn't in the compendium any more.");
+        if (!e.links.includes(b)) step({ type: "entry.update", entryId: a, patch: { links: [...e.links, b] } }, "A link");
+        break;
+      }
+      case "thread": {
+        const t = op.thread;
+        const r = step({ type: "story.threadAdd", thread: { name: t.name, description: t.description ?? "", goal: t.goal ?? "", kind: t.kind ?? "side" } }, t.name);
+        const th = storyOf(state).threads.find((x) => x.id === r.storyId);
+        if (th) th.madeBy = tag(op);
+        if (r.storyId) ids.set(op.draft, r.storyId);
+        break;
+      }
+      case "beat": {
+        const threadId = resolve(op.thread, op.beat.title);
+        const b = op.beat;
+        const r = step({ type: "story.beatAdd", beat: { threadId, title: b.title, summary: b.summary ?? "", dmNotes: b.dmNotes ?? "", type: b.type ?? "clue", window: b.window ?? null } }, b.title);
+        const sb = storyOf(state).beats.find((x) => x.id === r.storyId);
+        if (sb) sb.madeBy = tag(op);
+        if (r.storyId) ids.set(op.draft, r.storyId);
+        break;
+      }
+      case "flyer": {
+        const f = op.flyer;
+        if (f.board === "job") {
+          const r = step(
+            {
+              type: "job.add",
+              job: {
+                title: f.title,
+                postedBy: f.postedBy ?? "",
+                body: f.body ?? "",
+                reward: { kind: f.rewardKind ?? "each", cp: Math.round((f.rewardGp ?? 0) * 100) },
+                renown: f.renown ?? 0,
+                ...(f.renownPoints !== undefined ? { renownPoints: f.renownPoints } : {}),
+                dm: { adventure: f.dm?.adventure ?? "", loot: f.dm?.loot ?? "", twists: f.dm?.twists ?? "", notes: f.dm?.notes ?? "" },
+              },
+              pin: false,
+            },
+            f.title,
+          );
+          const j = jobsOf(state).find((x) => x.id === r.jobId);
+          if (j) j.madeBy = tag(op);
+          if (r.jobId) ids.set(op.draft, r.jobId);
+        } else {
+          const r = step({ type: "notice.add", notice: { title: f.title, body: f.body ?? "", sign: f.postedBy ?? "", dmNote: f.dmNote ?? "", up: false } }, f.title);
+          const n = noticesOf(state).find((x) => x.id === r.noticeId);
+          if (n) n.madeBy = tag(op);
+          if (r.noticeId) ids.set(op.draft, r.noticeId);
+        }
+        break;
+      }
+      case "monster": {
+        step({ type: "monster.add", monster: op.monster }, op.monster.name);
+        const m = state.monsters!.at(-1)!;
+        m.madeBy = tag(op);
+        ids.set(op.draft, m.id);
+        break;
+      }
+      case "table": {
+        const t = op.table;
+        step({ type: "table.add", table: { name: t.name, die: t.die, kind: t.kind, rows: t.rows, areas: t.areas ?? [], dmNote: t.dmNote ?? "" } }, t.name);
+        const made2 = state.tables!.at(-1)!;
+        made2.madeBy = tag(op);
+        ids.set(op.draft, made2.id);
+        break;
+      }
+      case "suggestion":
+        applySuggestion(op, state, step);
+        break;
+    }
+  }
+  return { state, ledger };
+}
+
+/** A suggested change, only if the field still holds what the suggestion was based on. */
+function applySuggestion(op: Extract<BuilderOp, { kind: "suggestion" }>, state: GameState, step: (c: Command, what: string) => Result) {
+  const t = op.target;
+  if (!SUGGEST_FIELDS[t.type].includes(op.field)) fail("That field can't be changed by a suggestion.");
+  const now = currentValue(state, t, op.field);
+  if (now === undefined) fail("A suggestion: what it changes isn't there any more.");
+  if (sameValue(now, op.value)) return;
+  if (!sameValue(now, op.before)) fail(`A suggestion: ${op.field} was changed after it was made. Reject it, or edit by hand.`);
+  const v = op.value as never;
+  const label = "A suggestion";
+  switch (t.type) {
+    case "entry":
+      step({ type: "entry.update", entryId: t.id, patch: { [op.field]: v } }, label);
+      break;
+    case "fact":
+      step({ type: "entry.factUpdate", entryId: t.entryId ?? "", factId: t.id, text: v }, label);
+      break;
+    case "beat":
+      step({ type: "story.beatUpdate", beatId: t.id, patch: { [op.field]: v } }, label);
+      break;
+    case "thread":
+      step({ type: "story.threadUpdate", threadId: t.id, patch: { [op.field]: v } }, label);
+      break;
+    case "monster": {
+      const m = monstersOf(state).find((x) => x.id === t.id)!;
+      const { id: _id, madeBy: _m, ...body } = m;
+      step({ type: "monster.update", monsterId: t.id, monster: { ...body, sceneId: m.sceneId ?? null, [op.field]: v } as never }, label);
+      break;
+    }
+    case "job": {
+      const [a, b] = op.field.split(".");
+      step({ type: "job.update", jobId: t.id, patch: b ? { dm: { [b]: v } } : { [a]: v } }, label);
+      break;
+    }
+    case "notice":
+      step({ type: "notice.update", noticeId: t.id, patch: { [op.field]: v } }, label);
+      break;
+    case "table": {
+      const tb = tablesOf(state).find((x) => x.id === t.id)!;
+      step({ type: "table.update", tableId: t.id, table: { name: tb.name, die: tb.die, kind: tb.kind, rows: v, areas: tb.areas, dmNote: tb.dmNote } }, label);
+      break;
+    }
+  }
+}
+
 function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
   // Authorisation is checked again here so a wiring mistake can't let a player run DM commands.
   if (isDmCommand(cmd.type) && ctx.actor.role !== "dm") fail("Only the DM can do that.");
   if (cmd.type.startsWith("me.") && ctx.actor.role !== "player") fail("Only a player can do that.");
   if (cmd.type.startsWith("system.") && ctx.actor.role !== "system") fail("Not allowed.");
   if (cmd.type === "import.bulk") return importBulk(input, cmd, ctx);
+  if (cmd.type === "system.builderApply") return builderApply(input, cmd.ops, ctx);
 
   const s: GameState = structuredClone(input);
   // The server fills in the seed episode when it reads an older game (see withSeedEpisodes on the server).
@@ -2279,6 +2470,10 @@ function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
         dmNote: (f.dmNote ?? "").trim(),
         secrets: (f.secrets ?? "").trim(),
       });
+      for (const k of PERSON_NOTES) {
+        const v = (f[k] ?? "").trim();
+        if (v) e[k] = v;
+      }
       if (f.slug && slugInput(f.slug)) e.slug = uniqueSlug(list, kind, slugInput(f.slug));
       for (const t of (cmd.facts ?? []).map(cleanLine).filter(Boolean).slice(0, FACTS_MAX)) e.facts.push({ id: nextId("f"), slug: factSlug(e.facts, t), text: t });
       if (sc) e.sceneId = sc.id;
@@ -2319,6 +2514,12 @@ function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
       if (p.hint !== undefined) e.hint = cleanLine(p.hint);
       if (p.dmNote !== undefined) e.dmNote = p.dmNote.trim();
       if (p.secrets !== undefined) e.secrets = p.secrets.trim();
+      for (const k of PERSON_NOTES) {
+        const v = p[k];
+        if (v === undefined) continue;
+        if (v.trim()) e[k] = v.trim();
+        else delete e[k];
+      }
       if (p.areas !== undefined) e.areas = cleanAreas(p.areas);
       if (p.links !== undefined) {
         const ids = new Set(entriesOf(s).map((x) => x.id));
@@ -2948,6 +3149,35 @@ function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
       break;
     case "game.town":
       s.town = cmd.town.replace(/\s+/g, " ").trim();
+      break;
+    case "game.builderNotes": {
+      const t = cmd.text.replace(/\r\n?/g, "\n").trim();
+      if (t) s.builderNotes = t;
+      else delete s.builderNotes;
+      break;
+    }
+    case "table.add":
+    case "table.update": {
+      const list = (s.tables ??= []);
+      const b = cmd.table;
+      const name = cleanLine(b.name);
+      if (!name) fail("Name the table.");
+      const filled = fillRanges(b.die, b.rows.map((r) => ({ ...r, text: cleanLine(r.text) })).filter((r) => r.text));
+      if ("error" in filled) fail(filled.error);
+      const fields = { name, die: b.die, kind: b.kind, rows: filled.rows, areas: cleanAreas(b.areas ?? []), dmNote: (b.dmNote ?? "").trim() };
+      if (cmd.type === "table.add") {
+        if (list.length >= TABLES_MAX) fail(`That's ${TABLES_MAX} tables. Remove some first.`);
+        const t: RandomTable = { id: nextId("rt"), ...fields, createdAt: ctx.now };
+        list.push(t);
+      } else {
+        const t = list.find((x) => x.id === cmd.tableId) ?? fail("That table is gone.");
+        Object.assign(t, fields);
+      }
+      break;
+    }
+    case "table.remove":
+      s.tables = tablesOf(s).filter((t) => t.id !== cmd.tableId);
+      if (!s.tables.length) delete s.tables;
       break;
     case "game.vtt": {
       const url = checkUrl(cmd.url);
