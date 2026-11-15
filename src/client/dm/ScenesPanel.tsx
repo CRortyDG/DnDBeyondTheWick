@@ -9,7 +9,8 @@ import { Drawer } from "./Drawer";
 import { MenuItem, RowMenu } from "./RowMenu";
 import { Field } from "./Field";
 import { Check } from "./Check";
-import { uploadImage } from "./upload";
+import { mb, uploadImage, uploadVideo } from "./upload";
+import { CLIP_VIDEO_MAX } from "@/shared/arrival";
 import { ShowControls } from "./QuickBar";
 import { PageHead } from "./PageHead";
 import { PlusIcon } from "./navIcons";
@@ -22,6 +23,7 @@ const KINDS: [SceneKind, string][] = [
   ["notice", "Notice board"],
   ["black", "Black screen"],
   ["table", "The Table (Arrival seats)"],
+  ["video", "Video clip (plays once, holds the last frame)"],
   ["stinger", "Episode one stinger (animated)"],
 ];
 const PORTRAIT: [SceneKind, string] = ["portrait", "Picture card (name and title)"];
@@ -175,12 +177,13 @@ function SceneEditor({ scene }: { scene: Scene }) {
   const patch = (p: Partial<Scene>) => run({ type: "scene.update", sceneId: scene.id, patch: p });
   const takesImage = scene.kind !== "black" && scene.kind !== "table" && scene.kind !== "stinger" && !(scene.art?.builtin === "candlefair-board" || scene.art?.builtin === "artum-notice");
 
+  const video = scene.kind === "video";
   const onFile = async (f: File | undefined) => {
     if (!f) return;
     setBusy(true);
     try {
-      const url = await uploadImage(ident, f);
-      if (await patch({ art: { url } })) toast("Image saved.");
+      const url = video ? await uploadVideo(ident, f, CLIP_VIDEO_MAX) : await uploadImage(ident, f);
+      if (await patch({ art: { url } })) toast(video ? "Video saved." : "Image saved.");
     } catch (e) {
       toast(e instanceof Error ? e.message : String(e));
     } finally {
@@ -251,15 +254,19 @@ function SceneEditor({ scene }: { scene: Scene }) {
         {takesImage ? (
           <div className="inline">
             <button className="btn" type="button" disabled={busy} onClick={() => file.current?.click()}>
-              {busy ? "Uploading…" : scene.art?.url || scene.art?.builtin ? "Replace image" : "Upload image"}
+              {busy ? "Uploading…" : scene.art?.url || scene.art?.builtin ? (video ? "Replace video" : "Replace image") : video ? "Upload video" : "Upload image"}
             </button>
             {scene.art?.url || scene.art?.builtin ? (
               <button className="btn small" type="button" onClick={() => patch({ art: {} })}>
-                Remove image
+                {video ? "Remove video" : "Remove image"}
               </button>
             ) : null}
-            <span className="note">or drop an image here. Maps from the settlement generator work too (download the .jpg).{scene.kind === "map" ? " Pins keep their spot on a new image." : ""}</span>
-            <input ref={file} type="file" accept="image/*" hidden onChange={(e) => void onFile(e.target.files?.[0])} />
+            {video ? (
+              <span className="note">or drop one here. MP4 plays on every TV browser. Up to {mb(CLIP_VIDEO_MAX)}. Put it on a beat with show: and it plays from the start each time.</span>
+            ) : (
+              <span className="note">or drop an image here. Maps from the settlement generator work too (download the .jpg).{scene.kind === "map" ? " Pins keep their spot on a new image." : ""}</span>
+            )}
+            <input ref={file} type="file" accept={video ? "video/mp4,video/webm,video/quicktime" : "image/*"} hidden onChange={(e) => void onFile(e.target.files?.[0])} />
           </div>
         ) : null}
 

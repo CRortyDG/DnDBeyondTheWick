@@ -9,7 +9,7 @@ import { availableCp, availableStock, boughtPhrase, heldStock, isSecretShop } fr
 import { candlefairMap, emptyProgress, SEED_ITEMS, SEED_SHOPS, STINGER_SCENE, swordCoastMap } from "./seed";
 import { creditCp, duesFor, firstChargeCp, installmentCp, keepsStake, liveEffects, priceOf, raisedCp, rollDice, sharesOf, splitByShare } from "./progress";
 import { shopVisibleTo } from "./projection";
-import { CHARACTER_MAX, STINGER_SCENE_ID, TABLE_SCENE_ID, WHY_MAX } from "./arrival";
+import { CHARACTER_MAX, CLIP_GIF_MAX, CLIP_VIDEO_MAX, STINGER_SCENE_ID, TABLE_SCENE_ID, WHY_MAX } from "./arrival";
 import { starterById } from "./starters";
 import { chapterSessionId, cleanTags, cleanText, defaultChapterId, NOTES_MAX, penName } from "./chronicle";
 import { BOARD_SLOTS, jobsOf, jobTitle, pinnedCount, rankName, ranksOf, renownMet, renownNeeded, renownOf, shopOpenNow, tierOf, trustMet, trustText } from "./renown";
@@ -2456,9 +2456,40 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
         if (v) a[k] = v;
         else delete a[k];
       }
-      if (cmd.intro !== undefined) a.intro = cmd.intro;
+      if (cmd.intro !== undefined) {
+        a.intro = cmd.intro;
+        a.introKind = cmd.intro ? "builtin" : "none";
+      }
+      if (cmd.introKind !== undefined) {
+        a.introKind = cmd.introKind;
+        a.intro = cmd.introKind === "builtin";
+      }
+      if (cmd.welcome !== undefined) {
+        const w = cmd.welcome.replace(/\s+/g, " ").trim();
+        if (w) a.welcome = w;
+        else delete a.welcome;
+      }
       // Locking the seats closes the door too: new names knock instead of walking in.
       if (cmd.seatsLocked) s.doorClosed = true;
+      break;
+    }
+    case "arrival.clip": {
+      const a = (s.arrival ??= {});
+      if (cmd.clip) {
+        if (cmd.clip.kind === "gif" ? cmd.clip.bytes > CLIP_GIF_MAX : cmd.clip.bytes > CLIP_VIDEO_MAX) fail("That clip is too big for phones.");
+        a.clip = { url: cmd.clip.url, kind: cmd.clip.kind, bytes: cmd.clip.bytes, ...(cmd.clip.poster ? { poster: cmd.clip.poster } : {}) };
+        a.introKind = "custom";
+        a.intro = false;
+      } else delete a.clip;
+      break;
+    }
+    case "arrival.slides": {
+      const a = (s.arrival ??= {});
+      const seen = new Set<string>();
+      a.slides = cmd.slides
+        .filter((x) => !seen.has(x.id) && seen.add(x.id))
+        .map((x) => ({ id: x.id, text: x.text.trim(), ...(x.image ? { image: x.image } : {}) }));
+      if (!a.slides.length) delete a.slides;
       break;
     }
     case "arrival.showTable":

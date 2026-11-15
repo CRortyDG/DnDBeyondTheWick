@@ -9,6 +9,7 @@ import { CloseUpNote, Pinned, type BoardView } from "../scenes/Board";
 import { Stage } from "./Stage";
 import { TableScene } from "./TableScene";
 import { Stinger } from "../scenes/Stinger";
+import { VideoScene } from "../scenes/VideoScene";
 import type { TableView } from "@/shared/arrival";
 
 export interface RenderableScene {
@@ -40,6 +41,8 @@ export function SceneView({ scene, gated, emptyHint, table, board, town = "Candl
   if (scene.kind === "stinger") return <Stinger />;
 
   if (scene.kind === "table") return <TableScene table={table} />;
+
+  if (scene.kind === "video") return <VideoScene src={src} emptyHint={emptyHint} />;
 
   if (scene.kind === "map") {
     return <MapView src={src ?? undefined} alt={scene.alt} map={scene.map ?? { pins: [], legend: { on: false, style: "names" }, sealScale: 1, tokens: [] }} emptyHint={emptyHint} />;

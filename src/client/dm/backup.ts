@@ -1,9 +1,9 @@
 import { readZip, writeZip, type ZipEntry } from "@/shared/zip";
 import { api, authHeaders, type Ident } from "../api";
 
-const FILE_URL = /\/api\/files\/[A-Za-z0-9/_.-]+\.(?:png|jpg|webp|gif|svg|avif)/g;
+const FILE_URL = /\/api\/files\/[A-Za-z0-9/_.-]+\.(?:png|jpg|webp|gif|svg|avif|mp4|webm|mov)/g;
 const TILE_TYPES: Record<string, string> = { webp: "image/webp", jpg: "image/jpeg", png: "image/png" };
-const OTHER_TYPES: Record<string, string> = { gif: "image/gif", svg: "image/svg+xml", avif: "image/avif" };
+const OTHER_TYPES: Record<string, string> = { gif: "image/gif", svg: "image/svg+xml", avif: "image/avif", mp4: "video/mp4", webm: "video/webm", mov: "video/quicktime" };
 
 /**
  * Save the whole campaign to this computer: a zip with backup.json (the game

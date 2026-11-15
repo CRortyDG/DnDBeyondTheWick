@@ -22,6 +22,8 @@ export interface Starter {
   /** Suggestions the player can keep or change. */
   sampleName: string;
   sampleWhy: string;
+  /** The same suggestion without Candlefair's story in it (no boat, Baldur's Gate or Winterfest). */
+  sampleWhyAnywhere: string;
 }
 
 export const STARTERS: Starter[] = [
@@ -34,6 +36,7 @@ export const STARTERS: Starter[] = [
     best: "Strength",
     sampleName: "Brannoc Hale",
     sampleWhy: "Done with soldiering. Looking for somewhere quiet.",
+    sampleWhyAnywhere: "Done with soldiering. Looking for somewhere quiet.",
   },
   {
     id: "sneak",
@@ -44,6 +47,7 @@ export const STARTERS: Starter[] = [
     best: "Dexterity",
     sampleName: "Pip Tallow",
     sampleWhy: "Left Baldur’s Gate in a hurry. Don’t ask.",
+    sampleWhyAnywhere: "Left the last town in a hurry. Don’t ask.",
   },
   {
     id: "spellcaster",
@@ -54,6 +58,7 @@ export const STARTERS: Starter[] = [
     best: "Intelligence",
     sampleName: "Ilvara Quen",
     sampleWhy: "Chasing a rare book someone swears went north.",
+    sampleWhyAnywhere: "Chasing a rare book someone swears ended up here.",
   },
   {
     id: "healer",
@@ -64,6 +69,7 @@ export const STARTERS: Starter[] = [
     best: "Wisdom",
     sampleName: "Dagna Stoutbraid",
     sampleWhy: "My temple sent me where help is needed.",
+    sampleWhyAnywhere: "My temple sent me where help is needed.",
   },
   {
     id: "wild",
@@ -74,6 +80,7 @@ export const STARTERS: Starter[] = [
     best: "Wisdom",
     sampleName: "Fennick Moss",
     sampleWhy: "The forest told me to go north. It was very insistent.",
+    sampleWhyAnywhere: "The forest told me to come here. It was very insistent.",
   },
   {
     id: "charmer",
@@ -84,6 +91,7 @@ export const STARTERS: Starter[] = [
     best: "Charisma",
     sampleName: "Lyra Vane",
     sampleWhy: "Heard Winterfest pays well for a good song.",
+    sampleWhyAnywhere: "Heard this place pays well for a good song.",
   },
 ];
 
@@ -107,4 +115,9 @@ export function quizPick(answers: readonly number[]): StarterId {
   }
   if (!magic) return care ? "charmer" : "sneak";
   return care ? "charmer" : "spellcaster";
+}
+
+/** The suggested line for a starter: Candlefair's, when the boat intro set the scene, or one that fits anywhere. */
+export function sampleWhy(s: Starter, boat: boolean): string {
+  return boat ? s.sampleWhy : s.sampleWhyAnywhere;
 }

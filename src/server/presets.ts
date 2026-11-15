@@ -37,7 +37,7 @@ export const presetFolder = (code: string) => `p/${code}/`;
 /** At most this many images per preset (a copy is two storage operations each). */
 export const MAX_PRESET_FILES = 300;
 
-const FILE_URL = /\/api\/files\/((?:p\/[a-z0-9]{10}|[a-z0-9-]{1,40})\/[0-9a-f]{24}\.(?:png|jpg|webp|gif|svg|avif))/g;
+const FILE_URL = /\/api\/files\/((?:p\/[a-z0-9]{10}|[a-z0-9-]{1,40})\/[0-9a-f]{24}\.(?:png|jpg|webp|gif|svg|avif|mp4|webm|mov))/g;
 
 function randomCode(n: number, alphabet: string): string {
   const bytes = new Uint8Array(n);

@@ -227,14 +227,14 @@ describe("a campaign of its own", () => {
 
   it("names the Arrival page and skips the boat intro away from Candlefair", async () => {
     let s = await state();
-    expect(arrivalLook(s)).toEqual({ title: "The Flickering Candle", captain: "Orsa Dell", intro: true });
+    expect(arrivalLook(s)).toEqual({ title: "The Flickering Candle", captain: "Orsa Dell", intro: true, kind: "builtin" });
     expect(projectTable(s).title).toBe("Tales from the Flickering Candle");
     await execute(store, G, DM, { type: "game.town", town: "Saltmere" });
     s = await state();
     expect(arrivalLook(s).intro).toBe(false);
     await execute(store, G, DM, { type: "arrival.settings", title: "The Drowned Lamp", captain: "Ness", intro: true });
     s = await state();
-    expect(arrivalLook(s)).toEqual({ title: "The Drowned Lamp", captain: "Ness", intro: true });
+    expect(arrivalLook(s)).toEqual({ title: "The Drowned Lamp", captain: "Ness", intro: true, kind: "builtin" });
     expect(projectTable(s).title).toBe("Tales from the Drowned Lamp");
     const v = (await phone("GET", s.players[0].arrival!.token)) as unknown as { look: { title: string } };
     expect(v.look.title).toBe("The Drowned Lamp");

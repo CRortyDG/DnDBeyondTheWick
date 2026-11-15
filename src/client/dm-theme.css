@@ -2369,3 +2369,126 @@ html[data-view="dm"] .ready-list li { display: flex; justify-content: space-betw
     display: none;
   }
 }
+
+/* ---------- Arrival: the Intro card ---------- */
+.intro-editor {
+  display: flex;
+  flex-direction: column;
+  gap: var(--dm-s3);
+}
+.intro-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--dm-s3);
+}
+.intro-head h3 {
+  margin: 0;
+  margin-right: auto;
+}
+.intro-editor .note {
+  margin: 0;
+}
+.intro-clip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--dm-s4);
+  align-items: flex-start;
+  padding: var(--dm-s3);
+  border: 1px solid var(--dm-border);
+  border-radius: var(--dm-r-md);
+  background: var(--dm-bg-1);
+}
+.intro-clip-preview {
+  width: 280px;
+  max-width: 100%;
+  aspect-ratio: 16 / 9;
+  border-radius: var(--dm-r-sm);
+  overflow: hidden;
+  background: #000;
+}
+.intro-clip-preview video,
+.intro-clip-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+.intro-clip-side,
+.intro-slides {
+  display: flex;
+  flex-direction: column;
+  gap: var(--dm-s2);
+  flex: 1 1 260px;
+  min-width: 0;
+}
+.intro-progress {
+  width: 100%;
+  max-width: 320px;
+  accent-color: var(--dm-gold);
+}
+.intro-slide-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--dm-s2);
+}
+.intro-slide {
+  display: grid;
+  grid-template-columns: 128px minmax(0, 1fr) auto;
+  gap: var(--dm-s3);
+  align-items: start;
+  padding: var(--dm-s2);
+  border: 1px solid var(--dm-border);
+  border-radius: var(--dm-r-md);
+  background: var(--dm-bg-1);
+}
+.intro-slide-thumb {
+  width: 128px;
+  aspect-ratio: 16 / 9;
+  border: 1px dashed var(--dm-border-strong);
+  border-radius: var(--dm-r-sm);
+  background: var(--dm-bg-2);
+  color: var(--dm-text-2);
+  display: grid;
+  place-items: center;
+  padding: 0;
+  overflow: hidden;
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+}
+.intro-slide-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.intro-slide-text label {
+  margin: 0;
+}
+.intro-slide-text textarea {
+  min-height: 64px;
+}
+.intro-slide-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--dm-s1);
+  justify-content: flex-end;
+  max-width: 180px;
+}
+@media (max-width: 640px) {
+  .intro-slide {
+    grid-template-columns: 96px minmax(0, 1fr);
+  }
+  .intro-slide-thumb {
+    width: 96px;
+  }
+  .intro-slide-tools {
+    grid-column: 1 / -1;
+    max-width: none;
+    justify-content: flex-start;
+  }
+}

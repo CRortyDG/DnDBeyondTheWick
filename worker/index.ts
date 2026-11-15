@@ -3,6 +3,8 @@ import { KEY_HEADER, makeCampaignCode, newDmKey, sha256 } from "@/server/auth";
 import { handlePresetApi, isPresetPath, json, MISS_HEADER } from "@/server/api";
 import { normaliseGameId } from "@/shared/handles";
 import { screenKey } from "@/server/limits";
+import { parseRange, rangeBounds } from "@/server/range";
+import { CLIP_VIDEO_MAX } from "@/shared/arrival";
 import type { Env } from "./env";
 import { R2Presets } from "./presets";
 import { GameRoom } from "./room";
@@ -28,7 +30,13 @@ const IMAGE_EXT: Record<string, string> = {
   "image/svg+xml": "svg",
   "image/avif": "avif",
 };
-const EXT_TYPE: Record<string, string> = Object.fromEntries(Object.entries(IMAGE_EXT).map(([t, e]) => [e, t]));
+/** Video clips (the Arrival intro, Video scenes on the TV). Capped lower than images: phones download them. */
+const VIDEO_EXT: Record<string, string> = {
+  "video/mp4": "mp4",
+  "video/webm": "webm",
+  "video/quicktime": "mov",
+};
+const EXT_TYPE: Record<string, string> = Object.fromEntries([...Object.entries(IMAGE_EXT), ...Object.entries(VIDEO_EXT)].map(([t, e]) => [e, t]));
 const MAX_UPLOAD = 25 * 1024 * 1024;
 
 function withHeaders(res: Response): Response {
@@ -151,13 +159,14 @@ async function upload(req: Request, env: Env, ctx: ExecutionContext, ip: string)
   }
   const len = Number(req.headers.get("Content-Length") ?? 0);
   if (!len) return json({ error: "Upload one image at a time." }, 411);
-  if (len > MAX_UPLOAD + 64 * 1024) return json({ error: "That image is over 25 MB." }, 413);
+  if (len > MAX_UPLOAD + 64 * 1024) return json({ error: "That file is over 25 MB." }, 413);
   const form = await req.formData().catch(() => null);
   const file = form?.get("file");
   if (!file || typeof file === "string") return json({ error: "No file." }, 400);
-  const ext = IMAGE_EXT[file.type];
-  if (!ext) return json({ error: "That isn't an image." }, 400);
+  const ext = IMAGE_EXT[file.type] ?? VIDEO_EXT[file.type];
+  if (!ext) return json({ error: "That isn't an image or a video (MP4, WebM or MOV)." }, 400);
   if (file.size > MAX_UPLOAD) return json({ error: "That image is over 25 MB." }, 413);
+  if (VIDEO_EXT[file.type] && file.size > CLIP_VIDEO_MAX) return json({ error: `That video is over ${CLIP_VIDEO_MAX / 1024 / 1024} MB. A minute of 720p fits.` }, 413);
   // Count it against the campaign's image space (and check the key again, in the room that holds it).
   const reserve = await room(env, game).fetch(
     new Request(`https://room/internal/upload-reserve?game=${encodeURIComponent(game)}&size=${file.size}`, { method: "POST", headers: { [KEY_HEADER]: key } }),
@@ -215,33 +224,116 @@ async function uploadTiles(req: Request, env: Env, ctx: ExecutionContext, ip: st
 
 const TILE_EXT: Record<string, string> = { "image/webp": "webp", "image/jpeg": "jpg", "image/png": "png" };
 
-/** Uploaded images. The names are random, so the link is the permission. */
+/** Uploaded images and clips. The names are random, so the link is the permission. */
 async function serveFile(req: Request, env: Env, path: string): Promise<Response> {
-  // A campaign's images are <code>/<random>; a preset's own copies are p/<preset code>/<random>.
-  const m = /^\/api\/files\/((?:p\/[a-z0-9]{10}|[a-z0-9-]{1,40})\/[0-9a-f]{24}\.(png|jpg|webp|gif|svg|avif))$/.exec(path);
+  // A campaign's files are <code>/<random>; a preset's own copies are p/<preset code>/<random>.
+  const m = /^\/api\/files\/((?:p\/[a-z0-9]{10}|[a-z0-9-]{1,40})\/[0-9a-f]{24}\.(png|jpg|webp|gif|svg|avif|mp4|webm|mov))$/.exec(path);
   if (!m) return new Response("Not found", { status: 404 });
-  const obj = await env.FILES.get(m[1]);
+  const headers: Record<string, string> = {
+    "Content-Type": EXT_TYPE[m[2]],
+    "Cache-Control": "public, max-age=31536000, immutable",
+    "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'",
+    "Accept-Ranges": "bytes",
+  };
+  // Phones play a video in pieces (iPhones won't play one at all without this).
+  const range = parseRange(req.headers.get("Range"));
+  if (range && req.method === "GET") {
+    // R2 refuses a range that starts past the end; answer that the way a browser expects.
+    const obj = await env.FILES.get(m[1], { range }).catch(() => undefined);
+    if (obj === undefined) {
+      const head = await env.FILES.head(m[1]);
+      if (!head) return new Response("Not found", { status: 404 });
+      return new Response(null, { status: 416, headers: { ...headers, "Content-Range": `bytes */${head.size}` } });
+    }
+    if (!obj) return new Response("Not found", { status: 404 });
+    const size = obj.size;
+    const b = rangeBounds(range, size);
+    if (!b) return new Response(null, { status: 416, headers: { ...headers, "Content-Range": `bytes */${size}` } });
+    const { start, end } = b;
+    return new Response(obj.body, {
+      status: 206,
+      headers: { ...headers, ETag: obj.httpEtag, "Content-Range": `bytes ${start}-${end}/${size}`, "Content-Length": String(end - start + 1) },
+    });
+  }
+  const obj = req.method === "HEAD" ? await env.FILES.head(m[1]) : await env.FILES.get(m[1]);
   if (!obj) return new Response("Not found", { status: 404 });
-  return new Response(obj.body, {
-    headers: {
-      "Content-Type": EXT_TYPE[m[2]],
-      "Cache-Control": "public, max-age=31536000, immutable",
-      "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'",
-      ETag: obj.httpEtag,
-    },
-  });
+  return new Response(req.method === "HEAD" ? null : (obj as R2ObjectBody).body, { headers: { ...headers, ETag: obj.httpEtag, "Content-Length": String(obj.size) } });
+}
+
+/** The link preview for a campaign that isn't Candlefair: its own name, and its own picture if it has one. */
+interface PreviewLook {
+  title: string;
+  description: string;
+  image: string;
+  alt: string;
+  /** The built-in card's size; an uploaded picture's isn't known. */
+  sized: boolean;
+}
+
+const NEUTRAL_PREVIEW: PreviewLook = { title: "Take your seat", description: "Your seat at the table is waiting.", image: "/arrival/og-table.jpg", alt: "A candle on a round table", sized: true };
+
+async function previewLook(req: Request, env: Env, ctx: ExecutionContext, game: string): Promise<PreviewLook> {
+  const ip = ipOf(req);
+  if (await lockedOut(ip)) return NEUTRAL_PREVIEW;
+  const res = await room(env, game).fetch(new Request(`https://room/api/arrival?game=${encodeURIComponent(game)}`));
+  // A made-up campaign code is a guess like any other.
+  if (res.headers.has(MISS_HEADER)) {
+    await noteMiss(env, ctx, ip);
+    return NEUTRAL_PREVIEW;
+  }
+  const view = (await res.json().catch(() => null)) as { look?: { title?: string; welcome?: string; clip?: { poster?: string }; slides?: { image?: string }[] } } | null;
+  const look = view?.look;
+  if (!look?.title) return NEUTRAL_PREVIEW;
+  const picture = look.clip?.poster ?? look.slides?.find((x) => x.image?.startsWith("/api/files/"))?.image;
+  return {
+    title: `Tales from ${look.title.replace(/^The /, "the ")}`,
+    description: look.welcome || "Your seat at the table is waiting.",
+    image: picture ?? NEUTRAL_PREVIEW.image,
+    alt: picture ? `The opening of ${look.title}` : NEUTRAL_PREVIEW.alt,
+    sized: !picture,
+  };
 }
 
 /** The Arrival page: its own small bundle. Link previews need an absolute image URL, so we fill in this site's address. */
-async function arrivalPage(req: Request, env: Env): Promise<Response> {
+async function arrivalPage(req: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
   const url = new URL(req.url);
   const page = await env.ASSETS.fetch(new Request(new URL("/arrive", url), { headers: req.headers }));
   const abs = (attr: string | null) => (attr && attr.startsWith("/") ? url.origin + attr : attr ?? "");
-  return new HTMLRewriter()
-    .on('meta[property="og:image"], meta[name="twitter:image"], meta[property="og:url"]', {
+  const game = normaliseGameId(url.searchParams.get("game"));
+  // Candlefair's preview is the one in arrive.html; any other campaign gets its own.
+  const look = game === "candlefair" ? null : await previewLook(req, env, ctx, game);
+  const rewriter = new HTMLRewriter().on('meta[property="og:image"], meta[name="twitter:image"], meta[property="og:url"]', {
+    element(el) {
+      const prop = el.getAttribute("property");
+      if (prop === "og:url") el.setAttribute("content", url.origin + "/arrive");
+      else el.setAttribute("content", abs(look ? look.image : el.getAttribute("content")));
+    },
+  });
+  if (!look) return rewriter.transform(page);
+  return rewriter
+    .on("title", {
       element(el) {
-        const prop = el.getAttribute("property");
-        el.setAttribute("content", prop === "og:url" ? url.origin + "/arrive" : abs(el.getAttribute("content")));
+        el.setInnerContent(look.title);
+      },
+    })
+    .on('meta[property="og:title"], meta[name="twitter:title"], meta[property="og:site_name"]', {
+      element(el) {
+        el.setAttribute("content", look.title);
+      },
+    })
+    .on('meta[name="description"], meta[property="og:description"], meta[name="twitter:description"]', {
+      element(el) {
+        el.setAttribute("content", look.description);
+      },
+    })
+    .on('meta[property="og:image:alt"]', {
+      element(el) {
+        el.setAttribute("content", look.alt);
+      },
+    })
+    .on('meta[property="og:image:width"], meta[property="og:image:height"]', {
+      element(el) {
+        if (!look.sized) el.remove();
       },
     })
     .transform(page);
@@ -253,7 +345,7 @@ export default {
     const path = url.pathname;
     try {
       // Images have random names and are cached by browsers; everything else in /api/ is limited per address.
-      if (path.startsWith("/api/files/") && req.method === "GET") return withHeaders(await serveFile(req, env, path));
+      if (path.startsWith("/api/files/") && (req.method === "GET" || req.method === "HEAD")) return withHeaders(await serveFile(req, env, path));
       if (path.startsWith("/api/")) {
         const ip = ipOf(req);
         if (await lockedOut(ip)) return withHeaders(slowDown("Too many wrong codes or links from here. Try again in 15 minutes."));
@@ -265,7 +357,7 @@ export default {
         const res = await room(env, normaliseGameId(url.searchParams.get("game"))).fetch(req);
         return withHeaders(await settle(res, env, ctx, ip));
       }
-      if (path === "/arrive" || path.startsWith("/arrive/")) return withHeaders(await arrivalPage(req, env));
+      if (path === "/arrive" || path.startsWith("/arrive/")) return withHeaders(await arrivalPage(req, env, ctx));
       return withHeaders(await env.ASSETS.fetch(req));
     } catch (e) {
       console.error(e);
