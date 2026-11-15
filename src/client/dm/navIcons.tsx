@@ -110,3 +110,14 @@ export const MenuIcon = (p: P) => (
     <path d="M4 7h16M4 12h16M4 17h16" />
   </svg>
 );
+export const InfoIcon = (p: P) => (
+  <svg {...base(p)}>
+    <circle cx="12" cy="12" r="9" />
+    <path d="M12 11v5.5M12 7.6v.2" />
+  </svg>
+);
+export const PlusIcon = (p: P) => (
+  <svg {...base(p)}>
+    <path d="M12 5v14M5 12h14" />
+  </svg>
+);
