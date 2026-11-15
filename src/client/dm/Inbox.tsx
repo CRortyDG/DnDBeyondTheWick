@@ -302,6 +302,7 @@ function RequestRow({ r }: { r: TradeRequest }) {
             Signed
             <input className="fld" value={flyer.signedBy} maxLength={60} onChange={(e) => setFlyer({ ...flyer, signedBy: e.target.value })} placeholder={r.playerName} />
           </label>
+          {r.rewardCp ? <p className="note">They&rsquo;re putting up {formatCp(r.rewardCp)} of their own as the reward. It&rsquo;s taken when you pin it up and held until you pay it out from the Notice board page.</p> : null}
         </div>
       ) : service ? (
         <label>

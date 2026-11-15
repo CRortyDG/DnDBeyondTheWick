@@ -2721,3 +2721,233 @@ html[data-view="dm"] .ready-list li { display: flex; justify-content: space-betw
     width: 100%;
   }
 }
+
+/* ---------- The shared world: parties and the world's calendar ---------- */
+:where(html[data-view="dm"]) .world-panel .world-section {
+  margin-top: var(--dm-s6);
+  display: flex;
+  flex-direction: column;
+  gap: var(--dm-s3);
+}
+:where(html[data-view="dm"]) .world-intro {
+  max-width: 680px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--dm-s3);
+  color: var(--dm-text-2);
+  line-height: 1.5;
+}
+:where(html[data-view="dm"]) .world-points {
+  margin: 0;
+  padding-left: 1.2em;
+  display: flex;
+  flex-direction: column;
+  gap: var(--dm-s1);
+}
+:where(html[data-view="dm"]) .world-make {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--dm-s3);
+  align-items: flex-end;
+  padding: var(--dm-s4);
+  border: 1px solid var(--dm-border);
+  border-radius: var(--dm-r-md);
+  background: var(--dm-bg-1);
+}
+:where(html[data-view="dm"]) .world-make label,
+:where(html[data-view="dm"]) .world-clock label,
+:where(html[data-view="dm"]) .world-event-form label {
+  display: flex;
+  flex-direction: column;
+  gap: var(--dm-s1);
+  font-size: 13px;
+  color: var(--dm-text-2);
+}
+:where(html[data-view="dm"]) .party-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: var(--dm-s3);
+}
+:where(html[data-view="dm"]) .party-card {
+  border: 1px solid var(--dm-border);
+  border-left-width: 4px;
+  border-radius: var(--dm-r-md);
+  background: var(--dm-bg-1);
+  padding: var(--dm-s3) var(--dm-s4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--dm-s2);
+}
+:where(html[data-view="dm"]) .party-card.seated {
+  background: var(--dm-bg-2);
+  box-shadow: 0 0 0 1px var(--dm-gold-line) inset;
+}
+:where(html[data-view="dm"]) .party-card header {
+  display: flex;
+  align-items: center;
+  gap: var(--dm-s2);
+}
+:where(html[data-view="dm"]) .party-card header form {
+  flex: 1;
+}
+:where(html[data-view="dm"]) .party-name {
+  flex: 1;
+  text-align: left;
+  background: none;
+  border: 0;
+  color: var(--dm-text);
+  font: inherit;
+  font-weight: 600;
+  font-size: 16px;
+  padding: 0;
+  cursor: text;
+}
+:where(html[data-view="dm"]) .party-members {
+  margin: 0;
+  color: var(--dm-text-2);
+  font-size: 14px;
+}
+:where(html[data-view="dm"]) .party-card .note {
+  margin: 0;
+}
+:where(html[data-view="dm"]) .party-dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  vertical-align: middle;
+  flex: none;
+}
+:where(html[data-view="dm"]) .party-dot.big {
+  width: 14px;
+  height: 14px;
+}
+:where(html[data-view="dm"]) .party-colors {
+  display: flex;
+  gap: 6px;
+}
+:where(html[data-view="dm"]) .party-colors .swatch {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  padding: 0;
+  cursor: pointer;
+}
+:where(html[data-view="dm"]) .party-colors .swatch.on {
+  border-color: var(--dm-text);
+}
+:where(html[data-view="dm"]) .party-actions {
+  display: flex;
+  gap: var(--dm-s2);
+  margin-top: auto;
+}
+:where(html[data-view="dm"]) .world-table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--dm-border);
+  border-radius: var(--dm-r-md);
+}
+:where(html[data-view="dm"]) .world-members {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 14px;
+}
+:where(html[data-view="dm"]) .world-members th,
+:where(html[data-view="dm"]) .world-members td {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--dm-border);
+  text-align: left;
+  white-space: nowrap;
+}
+:where(html[data-view="dm"]) .world-members thead th {
+  color: var(--dm-text-2);
+  font-weight: 500;
+  background: var(--dm-bg-1);
+}
+:where(html[data-view="dm"]) .world-members tbody tr:last-child > * {
+  border-bottom: 0;
+}
+:where(html[data-view="dm"]) .world-members tbody th {
+  font-weight: 500;
+}
+:where(html[data-view="dm"]) .world-clock {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--dm-s3);
+}
+:where(html[data-view="dm"]) .world-event-form {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr;
+  gap: var(--dm-s3);
+  padding: var(--dm-s3);
+  border: 1px solid var(--dm-border);
+  border-radius: var(--dm-r-md);
+  background: var(--dm-bg-1);
+  max-width: 760px;
+}
+:where(html[data-view="dm"]) .world-event-form .wide,
+:where(html[data-view="dm"]) .world-event-actions {
+  grid-column: 1 / -1;
+}
+:where(html[data-view="dm"]) .world-event-actions {
+  display: flex;
+  gap: var(--dm-s2);
+}
+:where(html[data-view="dm"]) .world-news-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: var(--dm-text-2);
+}
+@media (max-width: 640px) {
+  :where(html[data-view="dm"]) .world-event-form {
+    grid-template-columns: 1fr;
+  }
+}
+/* Who knows an entry, and telling the table. */
+:where(html[data-view="dm"]) .who-knows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--dm-s2);
+  padding: var(--dm-s3);
+  border: 1px solid var(--dm-border);
+  border-radius: var(--dm-r-md);
+  background: var(--dm-bg-1);
+}
+:where(html[data-view="dm"]) .who-knows-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+:where(html[data-view="dm"]) .who-knows-list .tag.here {
+  border-color: var(--dm-gold-line);
+}
+:where(html[data-view="dm"]) .who-knows .tell-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--dm-s2);
+  align-items: center;
+}
+:where(html[data-view="dm"]) .job-parties {
+  border: 1px solid var(--dm-border);
+  border-radius: var(--dm-r-md);
+  padding: var(--dm-s2) var(--dm-s3);
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--dm-s3);
+}
+:where(html[data-view="dm"]) .job-parties legend {
+  color: var(--dm-text-2);
+  font-size: 13px;
+  padding: 0 4px;
+}
+:where(html[data-view="dm"]) .reward-form {
+  margin-top: var(--dm-s2);
+  display: flex;
+  flex-direction: column;
+  gap: var(--dm-s2);
+}

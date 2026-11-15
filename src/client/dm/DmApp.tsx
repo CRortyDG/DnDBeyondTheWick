@@ -43,9 +43,11 @@ import { FightOverlay } from "../ui/FightOverlay";
 import { DiceButton, DiceTray, PlayerRollCards, TvDiceBar } from "./DiceTray";
 import { Finder, QuickBar, quickKey, typing } from "./QuickBar";
 import { quickOf } from "@/shared/assets";
-import { BoardIcon, BookIcon, CoinIcon, EyeIcon, GearIcon, ListIcon, MapIcon, PanelRightIcon, PeopleIcon, PinIcon, PlayIcon, QuillIcon, SearchIcon, ShipIcon, SkullIcon, StoreIcon, SwordIcon } from "./navIcons";
+import { WorldPanel } from "./WorldPanel";
+import { partiesOf, tableParty } from "@/shared/world";
+import { BoardIcon, BookIcon, CoinIcon, EyeIcon, GearIcon, GlobeIcon, ListIcon, MapIcon, PanelRightIcon, PeopleIcon, PinIcon, PlayIcon, QuillIcon, SearchIcon, ShipIcon, SkullIcon, StoreIcon, SwordIcon } from "./navIcons";
 
-type Tab = "bank" | "shop" | "board" | "scenes" | "discovery" | "leads" | "players" | "arrival" | "story" | "episodes" | "monsters" | "chronicle" | "game";
+type Tab = "world" | "bank" | "shop" | "board" | "scenes" | "discovery" | "leads" | "players" | "arrival" | "story" | "episodes" | "monsters" | "chronicle" | "game";
 type NavItem = { id: Tab; label: string; icon: (p: { size?: number }) => ReactElement; key?: string };
 /** The DM pages, grouped by when you reach for them. */
 const NAV: { group: string; items: NavItem[] }[] = [
@@ -60,6 +62,7 @@ const NAV: { group: string; items: NavItem[] }[] = [
   {
     group: "World",
     items: [
+      { id: "world", label: "Parties & world", icon: GlobeIcon },
       { id: "discovery", label: "Discovery", icon: EyeIcon },
       { id: "leads", label: "Leads", icon: PinIcon },
       { id: "scenes", label: "Maps & props", icon: MapIcon },
@@ -80,7 +83,7 @@ const NAV: { group: string; items: NavItem[] }[] = [
 const SETTINGS: NavItem = { id: "game", label: "Settings", icon: GearIcon };
 const ALL_TABS: Tab[] = [...NAV.flatMap((g) => g.items.map((i) => i.id)), SETTINGS.id];
 /** Pages that draw their own header (with summary and buttons). */
-const OWN_HEAD = new Set<Tab>(["bank", "players", "arrival", "shop", "discovery", "leads", "scenes", "board", "monsters", "episodes", "story", "chronicle", "game"]);
+const OWN_HEAD = new Set<Tab>(["world", "bank", "players", "arrival", "shop", "discovery", "leads", "scenes", "board", "monsters", "episodes", "story", "chronicle", "game"]);
 const PAGE_LABEL = Object.fromEntries([...NAV.flatMap((g) => g.items), SETTINGS].map((i) => [i.id, i.label])) as Record<Tab, string>;
 
 /** The page in the address (#page=discovery), so a reload keeps your place. */
@@ -401,6 +404,7 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
   // Maps preview exactly what the TV gets: discovered pins only.
   const previewScene = tvView.scenes.find((x) => x.id === live.id) ?? { ...live, map: undefined };
   const session = s.sessions.find((x) => x.id === s.currentSessionId);
+  const seated = s.world ? tableParty(s) : undefined;
   const liveShop = s.shops.find((x) => x.id === s.live.shopId);
 
   const openTv = () => {
@@ -424,7 +428,14 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
             <CandleIcon size={22} />
             <div className="dm-brand-text">
               <div className="dm-title">{s.name}</div>
-              <div className="dm-subtitle">{session ? `${session.title} · running` : "Between sessions"}</div>
+              <div className="dm-subtitle">
+                {seated ? (
+                  <>
+                    <span className="party-dot" style={{ background: seated.color }} aria-hidden="true" /> {seated.name} ·{" "}
+                  </>
+                ) : null}
+                {session ? `${session.title} · running` : "Between sessions"}
+              </div>
             </div>
           </div>
           <span className={`conn${online ? " ok" : ""}`} role="status">
@@ -483,6 +494,15 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
               </button>
             </span>
           ) : null}
+          {session || !s.world || partiesOf(s).length < 2 ? null : (
+            <select className="fld" aria-label="Party at the table" value={s.partyId ?? ""} onChange={(e) => e.target.value && void run({ type: "party.play", partyId: e.target.value }, "Seated.")} title="The party at the table">
+              {partiesOf(s).map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
+          )}
           {session ? null : (
             <button className="btn primary" type="button" onClick={() => (readiness(s).length ? setReady(true) : void run({ type: "session.start" }, "Session started. The TV is back on the notice board."))}>
               Start session {nextSessionNumber(s)}
@@ -537,6 +557,7 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
               </div>
             )}
             <div className="panel">
+              {tab === "world" ? <WorldPanel /> : null}
               {tab === "bank" ? <BankPanel /> : null}
               {tab === "shop" ? <ShopPanel /> : null}
               {tab === "board" ? <BoardPanel /> : null}
