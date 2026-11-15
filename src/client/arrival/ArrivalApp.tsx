@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { opensOnSeat, type ArrivalView } from "@/shared/arrival";
 import { PANELS } from "./content";
+import { CustomIntro } from "./CustomIntro";
 import { Intro, type Pos } from "./Intro";
 import { SeatPage } from "./SeatPage";
 import { setSoundPref, soundPref, Soundscape } from "./sound";
@@ -44,10 +45,10 @@ function useReducedMotion() {
  * The Arrival page. code: the player's private link code, or null on the generic link.
  * The intro starts straight away; the seat data loads alongside it.
  */
-export function ArrivalApp({ code, game }: { code: string | null; game: string }) {
+export function ArrivalApp({ code, game, preview = false }: { code: string | null; game: string; /** The DM's Preview: always from the start, nothing remembered. */ preview?: boolean }) {
   const q = `game=${encodeURIComponent(game)}${code ? `&t=${encodeURIComponent(code)}` : ""}`;
-  const posKey = `arrival:pos:${game}:${code ?? "guest"}`;
-  const doneKey = `arrival:done:${game}:${code ?? "guest"}`;
+  const posKey = preview ? "arrival:preview:pos" : `arrival:pos:${game}:${code ?? "guest"}`;
+  const doneKey = preview ? "arrival:preview:done" : `arrival:done:${game}:${code ?? "guest"}`;
 
   const [view, setView] = useState<ArrivalView | null>(null);
   const [loading, setLoading] = useState(true);
@@ -163,15 +164,19 @@ export function ArrivalApp({ code, game }: { code: string | null; game: string }
   // that waits for the seat data (or a failed load, which plays the intro as before).
   useEffect(() => {
     if (mode) return;
+    if (preview) {
+      set(doneKey, null);
+      set(posKey, null);
+    }
     const done = opensOnSeat(null, get(doneKey) === "1");
     if (!done && loading) return;
     const saved = readPos(posKey);
     if (done) setMode("seat");
-    else if (view?.look.intro === false) {
+    else if (view?.look?.intro === false || (!view && !preview && game !== "candlefair")) {
       setMode("seat");
-      if (view.me && !view.me.finished) void post({ type: "finish" });
+      if (view?.me && !view.me.finished) void post({ type: "finish" });
     } else {
-      if (saved) setStart(saved);
+      if (saved && view?.look?.kind !== "custom") setStart(saved);
       setMode("intro");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -184,7 +189,7 @@ export function ArrivalApp({ code, game }: { code: string | null; game: string }
     if (!view?.me) return;
     if (opensOnSeat(view.me, false) && mode === "intro" && !touched.current && !readPos(posKey)) setMode("seat");
     // A Reset from the DM: play it again as new.
-    if (!view.me.finished && !view.me.claimed && get(doneKey) === "1" && view.look.intro !== false) {
+    if (!view.me.finished && !view.me.claimed && get(doneKey) === "1" && view.look?.intro !== false) {
       set(doneKey, null);
       set(posKey, null);
       setStart({ panel: 0, step: 0 });
@@ -221,6 +226,10 @@ export function ArrivalApp({ code, game }: { code: string | null; game: string }
 
   if (!mode) return <div className="arrival-blank" />;
 
+  if (mode === "intro" && view?.look?.kind === "custom") {
+    return <CustomIntro key={introKey} look={view.look} onDone={finish} />;
+  }
+
   if (mode === "intro") {
     return (
       <Intro
@@ -236,7 +245,7 @@ export function ArrivalApp({ code, game }: { code: string | null; game: string }
         onDone={finish}
         soundOn={soundOn}
         onToggleSound={toggleSound}
-        captain={view?.look.captain}
+        captain={view?.look?.captain}
       />
     );
   }

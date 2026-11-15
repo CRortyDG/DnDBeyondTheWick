@@ -3,7 +3,7 @@
 
 import type { DiceGroup, RollEntry } from "./dice";
 
-export type SceneKind = "notice" | "portrait" | "handout" | "image" | "black" | "map" | "table" | "stinger";
+export type SceneKind = "notice" | "portrait" | "handout" | "image" | "black" | "map" | "table" | "stinger" | "video";
 
 /** Built-in art. "merchant-sigil" is DM-only and served through a gated route. */
 export type BuiltinArt = "candlefair-board" | "artum-notice" | "artum" | "mags-wick" | "chef" | "merchant-sigil";
@@ -211,8 +211,32 @@ export interface ArrivalSettings {
   title?: string;
   /** The ship's captain in the intro. */
   captain?: string;
-  /** Play the Candlefair boat intro. Missing: on for a Candlefair campaign, off for any other. */
+  /** Play the Candlefair boat intro. Missing: on for a Candlefair campaign, off for any other. Superseded by introKind once set. */
   intro?: boolean;
+  /** Which intro the link plays: none (straight to the seat page), the built-in boat, or the DM's own clip and/or slides. Read with arrivalLook(). */
+  introKind?: "none" | "builtin" | "custom";
+  /** The DM's own intro video or GIF. */
+  clip?: IntroClip;
+  /** The DM's own intro slides: a picture and a line or two each, after the clip if there is one. */
+  slides?: IntroSlide[];
+  /** A line at the top of the seat page ("Welcome to Saltmarsh. Take a seat."). */
+  welcome?: string;
+}
+
+export interface IntroClip {
+  /** /api/files/... (.mp4, .webm, .mov or .gif) */
+  url: string;
+  kind: "video" | "gif";
+  bytes: number;
+  /** A still of the first frame, for the link preview and while the clip loads. */
+  poster?: string;
+}
+
+export interface IntroSlide {
+  id: string;
+  /** An uploaded picture. Missing: the line on its own. */
+  image?: string;
+  text: string;
 }
 
 /**

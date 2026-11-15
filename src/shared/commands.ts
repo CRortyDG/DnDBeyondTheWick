@@ -6,6 +6,7 @@ import { DIE_SIDES, diceCount, MAX_DICE, MAX_OF_ONE, MAX_PLUS } from "./dice";
 import { fightDmCommands, fightPlayerCommands } from "./combatSchema";
 import { SHOW_REF_RE } from "./assets";
 import { storyDmCommands } from "./storySchema";
+import { CLIP_URL_RE, CLIP_VIDEO_MAX, SLIDE_TEXT_MAX, SLIDES_MAX, WELCOME_MAX } from "./arrival";
 import type { TokenColor } from "./types";
 import { FOG_MAX_CELLS, TILE_URL_RE, TILES_MAX } from "./fog";
 import { GRID_CELL_MAX, GRID_CELL_MIN, TOKEN_COLORS, TOKEN_SIZES } from "./tokens";
@@ -33,7 +34,7 @@ const artSchema = z.object({
   url: z.string().max(2048).optional(),
 });
 
-const SCENE_KINDS = ["notice", "portrait", "handout", "image", "black", "map", "table", "stinger"] as const;
+const SCENE_KINDS = ["notice", "portrait", "handout", "image", "black", "map", "table", "stinger", "video"] as const;
 const frac = z.number().min(0).max(1);
 export const SEAL_SCALE_MIN = 0.25;
 export const SEAL_SCALE_MAX = 2;
@@ -463,7 +464,26 @@ export const dmCommand = z.discriminatedUnion("type", [
   z.object({ type: z.literal("arrival.copied"), playerId: id }),
   /** Back to new: the intro plays again, the seat is unclaimed, the character name and line are cleared. The link stays the same. */
   z.object({ type: z.literal("arrival.reset"), playerId: id }),
-  z.object({ type: z.literal("arrival.settings"), template: text(300).optional(), seatsLocked: z.boolean().optional(), title: text(60).optional(), captain: text(40).optional(), intro: z.boolean().optional() }),
+  z.object({
+    type: z.literal("arrival.settings"),
+    template: text(300).optional(),
+    seatsLocked: z.boolean().optional(),
+    title: text(60).optional(),
+    captain: text(40).optional(),
+    intro: z.boolean().optional(),
+    introKind: z.enum(["none", "builtin", "custom"]).optional(),
+    welcome: text(WELCOME_MAX).optional(),
+  }),
+  /** The DM's own intro clip, or null to remove it. */
+  z.object({
+    type: z.literal("arrival.clip"),
+    clip: z.object({ url: z.string().max(300).regex(CLIP_URL_RE, "Upload the video first."), kind: z.enum(["video", "gif"]), bytes: z.number().int().min(0).max(CLIP_VIDEO_MAX), poster: imageUrl.optional() }).nullable(),
+  }),
+  /** The DM's own intro slides, the whole list in order. */
+  z.object({
+    type: z.literal("arrival.slides"),
+    slides: z.array(z.object({ id, image: imageUrl.optional(), text: text(SLIDE_TEXT_MAX) })).max(SLIDES_MAX),
+  }),
   /** Show The Table on the TV, adding the scene first if this game doesn't have it. */
   z.object({ type: z.literal("arrival.showTable") }),
 

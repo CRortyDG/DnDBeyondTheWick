@@ -12,6 +12,6 @@ const code = m && isToken(m[1]) ? m[1] : null;
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <ArrivalApp code={code} game={normaliseGameId(url.searchParams.get("game"))} />
+    <ArrivalApp code={code} game={normaliseGameId(url.searchParams.get("game"))} preview={url.searchParams.has("preview")} />
   </StrictMode>,
 );

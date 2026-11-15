@@ -4,11 +4,20 @@
 // What a phone gets is built here from an allow-list, like projection.ts: only
 // seat names and the player's own progress. Nothing else in the game is sent.
 
-import type { GameState, Player } from "./types";
+import type { GameState, IntroClip, IntroSlide, Player } from "./types";
 
 export const DEFAULT_TEMPLATE = "you’ve got a boat to catch \u{1F56F}️ {link}";
 export const CHARACTER_MAX = 40;
 export const WHY_MAX = 120;
+export const WELCOME_MAX = 120;
+export const SLIDES_MAX = 12;
+export const SLIDE_TEXT_MAX = 240;
+/** Every player downloads the intro on their phone, often on mobile data. */
+export const CLIP_VIDEO_MAX = 20 * 1024 * 1024;
+/** GIFs are 5 to 10 times bigger than a video of the same clip. */
+export const CLIP_GIF_MAX = 10 * 1024 * 1024;
+/** An uploaded intro clip in this site's file store. */
+export const CLIP_URL_RE = /^\/api\/files\/(?:p\/[a-z0-9]{10}|[a-z0-9-]{1,40})\/[0-9a-f]{24}\.(?:mp4|webm|mov|gif)$/;
 /** The Table's scene id in new games. Older games get one from the Arrival tab. */
 export const TABLE_SCENE_ID = "s-table";
 export const STINGER_SCENE_ID = "s-stinger";
@@ -89,16 +98,37 @@ export interface ArrivalLook {
   captain: string;
   /** false: the link opens straight on the seat page. */
   intro: boolean;
+  /** Which intro plays: the built-in boat, or the DM's own clip and slides. Missing on old servers: builtin. */
+  kind?: "builtin" | "custom";
+  clip?: IntroClip;
+  slides?: IntroSlide[];
+  welcome?: string;
+}
+
+export type IntroKind = "none" | "builtin" | "custom";
+
+/** Which intro the DM chose. Before the choice existed there was only the boat, on or off. */
+export function introKind(g: Pick<GameState, "arrival" | "town">): IntroKind {
+  const a = g.arrival ?? {};
+  if (a.introKind) return a.introKind;
+  const candlefair = g.town === undefined || g.town.trim() === "Candlefair";
+  return a.intro ?? candlefair ? "builtin" : "none";
 }
 
 /** The campaign's own words for the Arrival page and the TV Table, with Candlefair's as the default. */
 export function arrivalLook(g: Pick<GameState, "arrival" | "town" | "name">): ArrivalLook {
   const a = g.arrival ?? {};
   const candlefair = g.town === undefined || g.town.trim() === "Candlefair";
+  const kind = introKind(g);
+  // A custom intro with nothing in it yet plays nothing.
+  const slides = (a.slides ?? []).filter((s) => s.image || s.text.trim());
+  const custom = kind === "custom" && (!!a.clip || slides.length > 0);
   return {
     title: a.title?.trim() || (candlefair ? "The Flickering Candle" : g.name.trim() || "The table"),
     captain: a.captain?.trim() || "Orsa Dell",
-    intro: a.intro ?? candlefair,
+    intro: kind === "builtin" || custom,
+    ...(custom ? { kind: "custom" as const, ...(a.clip ? { clip: a.clip } : {}), ...(slides.length ? { slides } : {}) } : kind === "builtin" ? { kind: "builtin" as const } : {}),
+    ...(a.welcome?.trim() ? { welcome: a.welcome.trim() } : {}),
   };
 }
 

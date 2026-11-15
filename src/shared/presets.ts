@@ -105,7 +105,11 @@ export function presetSetup(g: GameState): GameState {
   delete s.fights;
   delete s.recent;
   delete s.vttUrl;
-  delete s.arrival;
+  // The Arrival's words and intro travel with the preset; whether seats were locked doesn't.
+  if (s.arrival) {
+    const { seatsLocked: _locked, ...look } = s.arrival;
+    s.arrival = look;
+  }
   delete s.origin;
   s.doorClosed = false;
   s.notices = (s.notices ?? []).map((n) => ({ ...n }));

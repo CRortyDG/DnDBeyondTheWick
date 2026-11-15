@@ -39,7 +39,7 @@ export function TableScene({ table }: { table?: TableView }) {
     <div className="scene-fill table-scene">
       <Stage w={1920} h={1080}>
         <div className="table-stage">
-          <RoundTable seats={seats.map((s, i) => ({ ...s, flare: flares[i] ?? 0 }))} size="100%" wide={560} className="tv-table" />
+          <RoundTable seats={seats.map((s, i) => ({ ...s, flare: flares[i] ?? 0 }))} size="100%" wide={560} maxName={30} className="tv-table" />
           <div className={`table-title${finale ? " on" : ""}`} aria-hidden={!finale}>
             {table?.title ?? "Tales from the Flickering Candle"}
           </div>

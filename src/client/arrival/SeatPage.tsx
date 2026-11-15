@@ -6,7 +6,7 @@ import { SEAT_PAGE } from "./content";
 import { SoundIcon } from "./Intro";
 import { RoundTable } from "./RoundTable";
 import { Starters } from "./Starters";
-import { starterById, type StarterId } from "@/shared/starters";
+import { sampleWhy, starterById, type StarterId } from "@/shared/starters";
 
 const CHARACTER_MAX = 40;
 const WHY_MAX = 120;
@@ -62,6 +62,8 @@ export function SeatPage({
 
   const starter = starterById(pick);
   const mine = starterById(me?.pick);
+  // The boat set the scene: its own question and suggestions. Older servers send no kind: the boat, unless the intro is off.
+  const boat = view?.look?.kind === "builtin" || (view?.look?.intro !== false && !view?.look?.kind);
 
   if (picking && me) {
     return (
@@ -72,7 +74,7 @@ export function SeatPage({
           // Fill in the suggestions, but never overwrite what they've written themselves.
           const prev = starterById(pick);
           if (!character.trim() || character === prev?.sampleName) setCharacter(s.sampleName);
-          if (!why.trim() || why === prev?.sampleWhy) setWhy(s.sampleWhy);
+          if (!why.trim() || (prev && (why === prev.sampleWhy || why === prev.sampleWhyAnywhere))) setWhy(sampleWhy(s, boat));
           setPick(s.id);
           setPicking(false);
           window.scrollTo(0, 0);
@@ -91,7 +93,8 @@ export function SeatPage({
         </button>
       </div>
       <header className="seat-header">
-        <h1>{view?.look.title ?? SEAT_PAGE.header}</h1>
+        <h1>{view?.look?.title ?? SEAT_PAGE.header}</h1>
+        {view?.look?.welcome ? <p className="seat-welcome">{view.look.welcome}</p> : null}
         <RoundTable seats={seats.length ? seats : [0, 1, 2, 3].map(() => ({ name: null, lit: false }))} names={false} size={180} className="seat-table" />
       </header>
 
@@ -129,7 +132,7 @@ export function SeatPage({
           </label>
           <label>
             <span>
-              {view?.look.intro === false ? SEAT_PAGE.whyLabelPlain : SEAT_PAGE.whyLabel} <em>(optional)</em>
+              {boat ? SEAT_PAGE.whyLabel : SEAT_PAGE.whyLabelPlain} <em>(optional)</em>
             </span>
             <input value={why} onChange={(e) => setWhy(e.target.value)} maxLength={WHY_MAX} autoComplete="off" enterKeyHint="done" />
             <small className="count" aria-live="polite">
@@ -198,7 +201,7 @@ export function SeatPage({
       ) : null}
 
       <nav className="seat-actions">
-        {view?.look.intro !== false ? (
+        {view?.look?.intro !== false ? (
           <button type="button" className="seat-btn" onClick={onReplay}>
             {SEAT_PAGE.replay}
           </button>

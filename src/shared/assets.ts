@@ -153,7 +153,7 @@ function pinLabel(p: Pin): string {
 }
 
 function propSub(sc: Scene): string {
-  const kind = sc.kind === "handout" ? "Handout" : sc.kind === "portrait" ? "Picture" : sc.kind === "notice" ? "Board" : "Image";
+  const kind = sc.kind === "handout" ? "Handout" : sc.kind === "portrait" ? "Picture" : sc.kind === "notice" ? "Board" : sc.kind === "video" ? "Video" : "Image";
   return sc.reveal ? `${kind} · reveal` : kind;
 }
 

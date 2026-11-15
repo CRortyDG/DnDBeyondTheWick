@@ -11,7 +11,7 @@ export interface TableSeat {
   flare?: number;
 }
 
-export function RoundTable({ seats, names = true, size = 320, wide = 280, className = "" }: { seats: TableSeat[]; names?: boolean; size?: number | string; wide?: number; className?: string }) {
+export function RoundTable({ seats, names = true, size = 320, wide = 280, maxName = 22, className = "" }: { seats: TableSeat[]; names?: boolean; size?: number | string; wide?: number; maxName?: number; className?: string }) {
   const n = Math.max(seats.length, 1);
   const R = 150; // table
   const rc = 118; // candles
@@ -54,7 +54,7 @@ export function RoundTable({ seats, names = true, size = 320, wide = 280, classN
             </g>
             {names && s.name ? (
               <text x={nx} y={ny} textAnchor={vert ? "middle" : nx > 0 ? "start" : "end"} dominantBaseline="middle" className="rt-name">
-                {s.name.length > 22 ? s.name.slice(0, 21) + "\u2026" : s.name}
+                {s.name.length > maxName ? s.name.slice(0, maxName - 1).trimEnd() + "\u2026" : s.name}
               </text>
             ) : null}
           </g>

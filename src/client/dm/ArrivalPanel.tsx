@@ -1,11 +1,11 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { arrivalLook, arrivalPath, arrivalStatus, arrivalText, DEFAULT_TEMPLATE, genericArrivalPath, seatedPlayers, type ArrivalStatus } from "@/shared/arrival";
+import { arrivalLook, arrivalPath, introKind, arrivalStatus, arrivalText, DEFAULT_TEMPLATE, genericArrivalPath, seatedPlayers, type ArrivalStatus } from "@/shared/arrival";
 import type { DmPlayer } from "@/shared/projection";
 import { starterById } from "@/shared/starters";
 import { useDm } from "./context";
-import { Check } from "./Check";
+import { IntroEditor } from "./IntroEditor";
 import { Field } from "./Field";
 import { PageHead } from "./PageHead";
 import { MenuItem, RowMenu } from "./RowMenu";
@@ -52,7 +52,7 @@ export function ArrivalPanel() {
         sub="Each player's private intro link, and how far they've got."
         help={
           <p>
-            Text each player their own link. It plays the intro once, then opens on their seat. The generic link <code>{origin + genericArrivalPath(s.id)}</code> plays the intro but can&rsquo;t claim a seat. Lock seats once everyone has claimed, so names and lines can&rsquo;t change. When the last seat is claimed (or you lock seats), the door closes by itself, so a new name knocks instead of walking in; open it again under Players.
+            Text each player their own link. It plays the intro once (if this campaign has one), then opens on their seat. Set the intro up in the Intro card: none, your own video or GIF and slides, or Candlefair&rsquo;s boat. The generic link <code>{origin + genericArrivalPath(s.id)}</code> plays the intro but can&rsquo;t claim a seat. Lock seats once everyone has claimed, so names and lines can&rsquo;t change. When the last seat is claimed (or you lock seats), the door closes by itself, so a new name knocks instead of walking in; open it again under Players.
           </p>
         }
         actions={
@@ -77,6 +77,8 @@ export function ArrivalPanel() {
         ]}
       />
 
+      <IntroEditor />
+
       <section className="box pg-card">
         <Field
           label="Message to copy ({link} is their link, {name} their name)"
@@ -86,10 +88,9 @@ export function ArrivalPanel() {
         <details className="arrival-look">
           <summary>How the page reads for this campaign</summary>
           <Field label="Place name on the seat page and the TV Table" value={s.arrival?.title ?? ""} placeholder={arrivalLook({ ...s, arrival: {} }).title} onCommit={(v) => run({ type: "arrival.settings", title: v }, "Saved.")} />
-          <Field label="Ship’s captain in the intro" value={s.arrival?.captain ?? ""} placeholder="Orsa Dell" onCommit={(v) => run({ type: "arrival.settings", captain: v }, "Saved.")} />
-          <Check checked={arrivalLook(s).intro} onChange={(v) => run({ type: "arrival.settings", intro: v }, v ? "The boat intro plays first." : "Links open straight on the seat page.")}>
-            Play the boat-to-Candlefair intro first (turn off for a campaign set somewhere else)
-          </Check>
+          {introKind(s) === "builtin" ? (
+            <Field label="Ship’s captain in the boat intro" value={s.arrival?.captain ?? ""} placeholder="Orsa Dell" onCommit={(v) => run({ type: "arrival.settings", captain: v }, "Saved.")} />
+          ) : null}
         </details>
       </section>
 

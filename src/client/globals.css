@@ -6745,3 +6745,24 @@ input.fld.inline-input {
   position: relative;
   flex: none;
 }
+
+/* ---------- a DM's own video clip on the TV ---------- */
+.scene-video video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+.scene-empty {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  text-align: center;
+  color: rgba(244, 220, 174, 0.7);
+  font-family: "IM Fell English", Georgia, serif;
+  font-size: clamp(14px, 2.4vw, 36px);
+}
