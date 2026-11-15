@@ -91,6 +91,11 @@ const createBody = z.object({
   from: z.union([z.enum(["blank", "candlefair"]), z.string().regex(/^preset:[a-z0-9]{10}$/)]).optional(),
 });
 
+const ledgerRemoveBody = z.object({
+  ids: z.array(z.string().max(64)).min(1).max(500),
+  undo: z.boolean().optional(),
+});
+
 const GATED: Record<string, string> = { "merchant-sigil": MERCHANT_SIGIL_SVG, artum: ARTUM_SVG, "mags-wick": MAGS_WICK_SVG, chef: CHEF_SVG };
 
 export async function handleApi(req: Request, store: Store): Promise<Response> {
@@ -185,6 +190,34 @@ export async function handleApi(req: Request, store: Store): Promise<Response> {
       const v = await store.overwrite(game, state, body.ledger);
       await store.publish(game, v);
       return json({ ok: true, version: v });
+    }
+
+    // DM only: take lines out of the ledger (say, test entries before session one).
+    // undo: also move their gold back out of (or into) each purse.
+    if (path === "/api/ledger/remove" && method === "POST") {
+      await requireDm(req, store, game);
+      const r = ledgerRemoveBody.safeParse(await readJson(req));
+      if (!r.success) throw new HttpError(400, "Choose which ledger lines to remove.");
+      const ids = new Set(r.data.ids);
+      for (let attempt = 0; attempt < 3; attempt++) {
+        const { state, version } = await store.read(game);
+        if (!state) throw new HttpError(404, "No game here yet.", "no-game");
+        const all = await store.ledger(game);
+        const gone = all.filter((l) => ids.has(l.id));
+        if (gone.length === 0) throw new HttpError(404, "Those lines are already gone.");
+        if (r.data.undo) {
+          for (const l of gone) {
+            const p = state.players.find((x) => x.id === l.playerId);
+            if (p) p.balanceCp -= l.amountCp;
+          }
+        }
+        // overwrite() doesn't check versions, so make sure nobody saved since we read.
+        if ((await store.version(game)) !== version) continue;
+        const v = await store.overwrite(game, state, all.filter((l) => !ids.has(l.id)));
+        await store.publish(game, v);
+        return json({ ok: true, version: v, removed: gone.length });
+      }
+      throw new HttpError(409, "The game changed while removing those lines. Try again.");
     }
 
     // DM only. mode "play": zero every purse, clear the ledger and sessions, keep
