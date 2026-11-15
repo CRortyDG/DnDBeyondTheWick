@@ -23,7 +23,7 @@ function load3D() {
 
 const TUMBLE_MS = 1400;
 const STAGGER_MS = 90;
-const HOLD_MS = 6500;
+const HOLD_MS = 4500;
 
 /**
  * The DM rolled on the TV: the dice tumble in over whatever is showing (fights too),
@@ -44,7 +44,8 @@ export function DiceRoll({ roll }: { roll: TvView["diceRoll"] }) {
     }
     if (n === seen.current) return;
     seen.current = n;
-    if (!roll) return;
+    // The DM cleared it: off the TV at once, even mid-tumble.
+    if (!roll) return setShown(null);
     setShown(roll);
     setLeaving(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps

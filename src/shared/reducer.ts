@@ -1361,6 +1361,9 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
     case "dice.clearLog":
       delete s.rolls;
       break;
+    case "dice.clearTv":
+      delete s.diceRoll;
+      break;
 
     // ---------- Renown and the bounty board ----------
     case "renown.set": {

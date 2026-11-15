@@ -37,7 +37,7 @@ import { Storyboard } from "./Storyboard";
 import { StoryPanel } from "./StoryPanel";
 import { MonstersPanel } from "./MonstersPanel";
 import { FightOverlay } from "../ui/FightOverlay";
-import { DiceButton, DiceTray, PlayerRollCards } from "./DiceTray";
+import { DiceButton, DiceTray, PlayerRollCards, TvDiceBar } from "./DiceTray";
 import { Finder, QuickBar, quickKey, typing } from "./QuickBar";
 import { quickOf } from "@/shared/assets";
 
@@ -523,6 +523,7 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
       {tableMap ? <TableMap sceneId={tableMap} onClose={closeTable} /> : null}
       <DiceTray />
       <PlayerRollCards />
+      <TvDiceBar />
       <div className={`toast${toastMsg ? " show" : ""}`} role="status" aria-live="polite">
         {toastMsg?.text}
       </div>

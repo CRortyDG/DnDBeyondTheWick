@@ -424,3 +424,25 @@
     animation: none;
   }
 }
+
+/* "On the TV: 17 · Clear TV", for a few seconds after a roll goes up. */
+.dt-tvbar {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  z-index: 69;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  max-width: calc(100vw - 32px);
+  background: var(--wood-2);
+  color: var(--parchment);
+  border: 1px solid var(--gold);
+  border-radius: 8px;
+  padding: 8px 10px 8px 14px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
+}
+.dt-tvbar b {
+  color: var(--gold-bright);
+  font-family: var(--font-num);
+}

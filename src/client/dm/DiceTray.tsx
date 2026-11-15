@@ -32,6 +32,37 @@ export function DiceButton({ small }: { small?: boolean }) {
 }
 
 /**
+ * A roll is up on the TV: a small bar for a few seconds with Clear (or Shift+D),
+ * so the DM can take it off the TV at once. The tray has the same button for as long as it's there.
+ */
+export function TvDiceBar() {
+  const { view, run } = useDm();
+  const roll = view.state.diceRoll;
+  const [fresh, setFresh] = useState<number | null>(null);
+  const seen = useRef(roll?.n);
+  useEffect(() => {
+    if (!roll || roll.n === seen.current) return;
+    seen.current = roll.n;
+    setFresh(roll.n);
+    const t = setTimeout(() => setFresh(null), 9000);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [roll?.n]);
+  if (!roll || fresh !== roll.n) return null;
+  return (
+    <div className="dt-tvbar" role="status">
+      <span>
+        On the TV: {roll.name ? `${roll.name} rolled ` : ""}
+        <b>{roll.total}</b>
+      </span>
+      <button type="button" className="btn small" onClick={() => run({ type: "dice.clearTv" })} title="Take the dice off the TV now (Shift+D)">
+        Clear TV
+      </button>
+    </div>
+  );
+}
+
+/**
  * A player rolled "for the DM only": a card that stays until the DM dismisses it
  * (or opens the dice tray), so it can't be missed the way a toast can.
  */
@@ -82,6 +113,8 @@ export function PlayerRollCards() {
  */
 export function DiceTray() {
   const { view, run, toast, diceOpen: open, toggleDice, seeDice } = useDm();
+  const onTv = !!view.state.diceRoll;
+  const clearTv = () => void run({ type: "dice.clearTv" });
   const setOpen = (v: boolean) => v !== open && toggleDice();
   const picks = useDicePicks(toast);
   const [busy, setBusy] = useState(false);
@@ -112,7 +145,9 @@ export function DiceTray() {
     if (open) panel.current?.querySelector<HTMLButtonElement>(".dt-add")?.focus();
   }, [open]);
 
-  // D opens and closes the tray anywhere in the DM view (but not while typing).
+  // D opens and closes the tray anywhere in the DM view (but not while typing); Shift+D clears the TV.
+  const clearRef = useRef(clearTv);
+  clearRef.current = clearTv;
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement | null;
@@ -120,7 +155,8 @@ export function DiceTray() {
       if (e.metaKey || e.ctrlKey || e.altKey) return;
       if (e.key !== "d" && e.key !== "D") return;
       e.preventDefault();
-      toggleDice();
+      if (e.shiftKey) clearRef.current();
+      else toggleDice();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -137,7 +173,8 @@ export function DiceTray() {
       onKeyDown={(e) => {
         // Keep the fight screen's and run-game's keys (Space, digits, Esc) out of the tray.
         e.stopPropagation();
-        if (e.key === "Escape" || e.key === "d" || e.key === "D") setOpen(false);
+        if ((e.key === "d" || e.key === "D") && e.shiftKey) clearTv();
+        else if (e.key === "Escape" || e.key === "d" || e.key === "D") setOpen(false);
       }}
     >
       <div className="dt-head">
@@ -159,6 +196,9 @@ export function DiceTray() {
         </button>
         <button type="button" className="btn" onClick={() => roll(true)} disabled={!picks.total || busy} title="Only you see it: nothing goes to the TV or phones">
           Roll secretly
+        </button>
+        <button type="button" className="btn" onClick={clearTv} disabled={!onTv} title="Take the dice off the TV now (Shift+D)">
+          Clear TV
         </button>
       </div>
 
