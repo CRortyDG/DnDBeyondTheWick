@@ -17,6 +17,7 @@ import { fightView, myFight, type FightView, type MyFight } from "./combat";
 import type { Art, Banner, Flyer, FlyerText, GameState, Job, JobStyle, Item, ItemCategory, ItemKind, LedgerEntry, LegendStyle, LiveState, NoteLook, NotePlace, Notice, Player, RequestStatus, Scene, Shop } from "./types";
 import { noticesOf } from "./board";
 import { hasWords, type HandoutSheet } from "./handout";
+import { characterName, sharedLevel } from "./levels";
 import { partiesFor, partyName, playerLens, tableParty, tvLens, worldView, type WorldView } from "./world";
 
 export const GATED_ART = new Set(["merchant-sigil", ...PORTRAIT_ART]);
@@ -315,6 +316,8 @@ export interface TvView extends Common {
   plaqueHidden?: boolean;
   /** The last rank-up: the TV plays the moment when n changes. */
   renownMoment?: { rank: number; name: string; raised: string; meaning: string; n: number };
+  /** The party levelled up: the TV plays it when n changes. level: everyone's, when they're all the same. */
+  levelMoment?: { n: number; level: number | null; who: { name: string; level: number }[] };
   /** A reveal (a rumor, someone found, a fact): the TV plays it when n changes. */
   discovery?: DiscoveryView;
   /** The last roll on the TV: the TV plays it when n changes. name: the player who rolled (none: the DM). */
@@ -353,7 +356,11 @@ export interface PlayerView extends Common {
     heldCp: number;
     /** My hit points for combat mode (not set: max 0). */
     hp: { cur: number; max: number; temp: number; tv: boolean };
+    /** My character's level, once the DM has set it. */
+    level?: number;
   };
+  /** I just levelled up: the phone says so when n changes. */
+  levelUp?: { n: number; level: number };
   /** The map that's on the TV, as the room sees it (fog, tokens and all). Missing: no map on the TV. */
   map?: PhoneMap;
   /** Other maps the party knows, to look at any time (same view as the TV would get). */
@@ -589,6 +596,7 @@ export function projectTv(table: GameState, version: number): TvView {
     notices: noticesOf(game).filter((n) => n.up).map(publicNotice),
     ...(closeUpOf(game) ? { closeUp: closeUpOf(game) } : {}),
     ...(game.plaqueHidden ? { plaqueHidden: true } : {}),
+    ...(game.levelMoment ? { levelMoment: tvLevelMoment(game, game.levelMoment) } : {}),
     ...(game.renownMoment ? { renownMoment: { rank: game.renownMoment.rank, name: rankName(game.renownMoment.rank, game), raised: ranksOf(game)[game.renownMoment.rank]?.raised ?? "", meaning: ranksOf(game)[game.renownMoment.rank]?.meaning ?? "", n: game.renownMoment.n } } : {}),
     ...(discoveryView(game) ? { discovery: discoveryView(game) } : {}),
     ...(game.diceRoll
@@ -612,6 +620,14 @@ export function projectTv(table: GameState, version: number): TvView {
     ...(game.scenes.find((sc) => sc.id === game.live.sceneId)?.kind === "table" ? { table: projectTable(game) } : {}),
     fight: publicFight(game),
   };
+}
+
+function tvLevelMoment(game: GameState, m: NonNullable<GameState["levelMoment"]>): NonNullable<TvView["levelMoment"]> {
+  const who = m.levels.flatMap((l) => {
+    const p = game.players.find((x) => x.id === l.playerId);
+    return p ? [{ name: characterName(p), level: l.level }] : [];
+  });
+  return { n: m.n, level: sharedLevel(m.levels), who };
 }
 
 /** The fight, for the TV and phones. Portrait art only from scenes the room may see. */
@@ -666,7 +682,12 @@ export function projectPlayer(table: GameState, version: number, playerId: strin
       archived: p.archived,
       heldCp: heldCp(game, p.id),
       hp: { cur: p.hp?.cur ?? 0, max: p.hp?.max ?? 0, temp: p.hp?.temp ?? 0, tv: p.hp?.tv !== false },
+      ...(p.level ? { level: p.level } : {}),
     },
+    ...(() => {
+      const mine = game.levelMoment?.levels.find((l) => l.playerId === p.id);
+      return mine ? { levelUp: { n: game.levelMoment!.n, level: mine.level } } : {};
+    })(),
     fight: publicFight(game),
     myFight: myFight(game, p.id),
     myRolls: (game.rolls ?? [])

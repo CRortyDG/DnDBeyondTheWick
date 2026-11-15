@@ -186,6 +186,8 @@ export interface Player {
   renown?: number;
   /** Shared world: this character's own Renown points. Missing: their rank's threshold. */
   renownPoints?: number;
+  /** Their character's level, 1-20. Missing: not set yet. */
+  level?: number;
 }
 
 /** A player's hit points, as they (or the DM) typed them. */
@@ -987,6 +989,8 @@ export interface GameState {
   renownProgress?: boolean;
   /** The last time Renown went up: the TV plays the moment when n changes. */
   renownMoment?: { rank: number; n: number; at: number };
+  /** The party levelled up: the TV moment, and each phone's "You're level 3!". */
+  levelMoment?: { n: number; at: number; levels: { playerId: string; level: number }[] };
   /** The last dice roll on the TV (the DM's or a player's): the TV plays it when n changes. Secret and DM-only rolls never get here. */
   diceRoll?: { n: number; at: number; groups: DiceGroup[]; plus: number; total: number; /** Set when a player rolled. */ name?: string };
   /** DM-ONLY: every roll, the DM's and the players', newest last (capped). Players see only their own. */

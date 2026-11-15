@@ -21,6 +21,7 @@ import { originOf } from "./presets";
 import { boardNotes, cleanLook, cleanPlace, defaultWidth, NOTICES_MAX, placeFor, slugify as noteSlug, topZ } from "./board";
 import { decodeBits, emptyBits, encodeBits, fullBits } from "./fog";
 import { addPartyTokens, freeSpot, snapToGrid, syncFightTokens, tokensOf, TOKENS_MAX } from "./tokens";
+import { levelLine } from "./levels";
 import { applyFight, isFightCommand, startFightFromBeat, type FightHelpers } from "./combatReducer";
 import type { Notice, NotePlace } from "./types";
 import { beatSuggestions, entryRef, freeQuickKey, liveRef, QUICK_KEYS, quickOf, RECENT_MAX, refForScene, renameRefs, resolveRef, sceneSlug, uniqueSceneSlug } from "./assets";
@@ -1030,6 +1031,7 @@ function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
       delete s.discovery;
       delete s.diceRoll;
       delete s.renownMoment;
+      delete s.levelMoment;
       delete s.chosen;
       s.banner = null;
       delete s.live.recapSessionId;
@@ -1796,6 +1798,26 @@ function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
     case "player.add": {
       const name = cmd.name.trim() || `Player ${s.players.length + 1}`;
       createPlayer(normaliseHandle(name), name, "dm");
+      break;
+    }
+    case "player.level": {
+      const p = player(cmd.playerId);
+      if (cmd.level === null) delete p.level;
+      else p.level = cmd.level;
+      break;
+    }
+    case "party.levelUp": {
+      const seen = new Set<string>();
+      const levels: { playerId: string; level: number }[] = [];
+      for (const l of cmd.levels) {
+        if (seen.has(l.playerId)) continue;
+        seen.add(l.playerId);
+        const p = player(l.playerId);
+        p.level = l.level;
+        levels.push({ playerId: p.id, level: l.level });
+      }
+      chronicle(levelLine(s, levels));
+      if (cmd.tv !== false) s.levelMoment = { n: ++s.seq, at: ctx.now, levels };
       break;
     }
     case "player.update": {

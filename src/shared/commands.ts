@@ -379,6 +379,10 @@ export const dmCommand = z.discriminatedUnion("type", [
   z.object({ type: z.literal("player.add"), name: text(32) }),
   z.object({ type: z.literal("player.update"), playerId: id, patch: z.object({ name: text(32), dndbUrl: text(300), away: z.boolean(), dropIn: z.boolean(), handle: text(40), character: text(40) }).partial() }),
   z.object({ type: z.literal("player.archive"), playerId: id, archived: z.boolean() }),
+  /** Set one character's level quietly (no moment), or clear it. */
+  z.object({ type: z.literal("player.level"), playerId: id, level: z.number().int().min(1).max(20).nullable() }),
+  /** Level up the party: each character's new level, then the TV moment, the Chronicle line and the phones. */
+  z.object({ type: z.literal("party.levelUp"), levels: z.array(z.object({ playerId: id, level: z.number().int().min(1).max(20) })).min(1).max(40), tv: z.boolean().optional() }),
   z.object({ type: z.literal("player.remove"), playerId: id }),
   z.object({ type: z.literal("player.clearKey"), playerId: id }),
   z.object({ type: z.literal("player.inspire"), playerId: id, on: z.boolean() }),
