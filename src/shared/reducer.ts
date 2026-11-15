@@ -1602,9 +1602,12 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
       s.players = s.players.filter((x) => x.id !== p.id);
       break;
     }
-    case "player.clearKey":
-      delete player(cmd.playerId).keyHash;
+    case "player.clearKey": {
+      const p = player(cmd.playerId);
+      delete p.keyHash;
+      if (p.arrival) delete p.arrival.keyed;
       break;
+    }
     case "player.inspire":
       player(cmd.playerId).inspired = cmd.on;
       break;
@@ -2698,6 +2701,14 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
       const a = arriving(cmd.playerId).arrival!;
       if (cmd.step === "open") a.openedAt ??= ctx.now;
       else a.finishedAt ??= ctx.now;
+      break;
+    }
+    case "system.arrivalKey": {
+      const p = arriving(cmd.playerId);
+      if (!p.keyHash) {
+        p.keyHash = cmd.keyHash;
+        p.arrival!.keyed = true;
+      }
       break;
     }
     case "system.arrivalClaim": {

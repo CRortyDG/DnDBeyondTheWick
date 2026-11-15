@@ -509,7 +509,9 @@ export type SystemCommand =
   | { type: "me.lockHashed"; keyHash: string }
   /** From /api/arrival: the server has already matched the link code to playerId. */
   | { type: "system.arrivalStep"; playerId: string; step: "open" | "finish" }
-  | { type: "system.arrivalClaim"; playerId: string; character: string; why: string; pick?: string | null };
+  | { type: "system.arrivalClaim"; playerId: string; character: string; why: string; pick?: string | null }
+  /** Lock an unlocked player's name with their Arrival link, so the link signs their phone in. */
+  | { type: "system.arrivalKey"; playerId: string; keyHash: string };
 
 export type DmCommand = z.infer<typeof dmCommand>;
 export type PlayerCommand = z.infer<typeof playerCommand>;

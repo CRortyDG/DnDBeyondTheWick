@@ -197,6 +197,8 @@ export interface PlayerArrival {
   why?: string;
   /** The starting point they picked for a first character (see starters.ts), if any. */
   pick?: string;
+  /** The player's name is locked with this link: "Go to your table" signs the phone in. */
+  keyed?: boolean;
 }
 
 /** Game-wide Arrival settings. */

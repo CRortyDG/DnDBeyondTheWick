@@ -110,7 +110,8 @@ export function projectArrival(g: GameState, version: number, token: string | nu
       pick: a.pick ?? "",
       claimed: !!a.claimedAt,
       finished: !!a.finishedAt,
-      tableHref: `/?${q}`,
+      // A name locked with this link: the link's code is the key, after the # so it never reaches a log.
+      tableHref: `/?${q}` + (a.keyed && p.keyHash ? `#key=${encodeURIComponent(p.arrival!.token)}` : ""),
     },
     seats: seatedPlayers(g).map((x) => ({ name: isClaimed(x) ? seatName(x) : null, lit: isClaimed(x), me: x.id === p.id })),
     locked: !!g.arrival?.seatsLocked,

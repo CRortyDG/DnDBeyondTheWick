@@ -147,8 +147,11 @@ export async function handleApi(req: Request, store: Store): Promise<Response> {
       const t = url.searchParams.get("t");
       const token = isToken(t) ? t : null;
       if (method === "GET") {
-        const { state, version } = await store.read(game);
+        let { state, version } = await store.read(game);
         if (!state) return miss(json({ version: 0, me: null, seats: [], locked: false }));
+        // The first visit locks an unlocked name with this link, so nobody else can play as them.
+        const p = token ? playerByToken(state, token) : null;
+        if (p && !p.keyHash) ({ state, version } = await execute(store, game, { role: "system" }, { type: "system.arrivalKey", playerId: p.id, keyHash: sha256(token!) }));
         const view = projectArrival(state, version, token);
         return token && !view.me ? miss(json(view)) : json(view);
       }
@@ -165,7 +168,10 @@ export async function handleApi(req: Request, store: Store): Promise<Response> {
           b.type === "claim"
             ? ({ type: "system.arrivalClaim", playerId: p.id, character: b.character, why: b.why, pick: b.pick } as const)
             : ({ type: "system.arrivalStep", playerId: p.id, step: b.type } as const);
-        const out = await execute(store, game, { role: "system" }, cmd);
+        let out = await execute(store, game, { role: "system" }, cmd);
+        if (!out.state.players.find((x) => x.id === p.id)?.keyHash) {
+          out = await execute(store, game, { role: "system" }, { type: "system.arrivalKey", playerId: p.id, keyHash: sha256(token) });
+        }
         return json(projectArrival(out.state, out.version, token));
       }
     }

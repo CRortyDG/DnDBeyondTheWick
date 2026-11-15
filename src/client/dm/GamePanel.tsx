@@ -167,7 +167,7 @@ export function GamePanel() {
           <button className="btn danger" type="button" onClick={() => reset("play")}>
             Clear gold, ledger and sessions
           </button>
-          <p className="note">Keeps your players, scenes, images, shops and items. Every purse goes back to 0 gp, the Chronicle starts again on an empty Chapter 1, and the next session is Session 1.</p>
+          <p className="note">Keeps your players, their seats, scenes, images, shops and items. Every purse goes back to 0 gp, HP and inspiration are cleared, fights and the fight history go, the party&rsquo;s map tokens come off and fog covers every map again, shops follow Discover, the Chronicle starts again on an empty Chapter 1, and the next session is Session 1.</p>
           <button className="btn danger" type="button" onClick={() => reset("all")}>
             Reset everything to {startLabel}
           </button>
