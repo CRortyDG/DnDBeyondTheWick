@@ -444,6 +444,9 @@ export const dmCommand = z.discriminatedUnion("type", [
   /** noteIds: starred Chronicle notes from that session to show under the recap. */
   z.object({ type: z.literal("live.recap"), sessionId: id.nullable(), noteIds: z.array(id).max(20).optional() }),
 
+  /** A long rest: every player (or these) back to full HP, temporary HP gone. */
+  z.object({ type: z.literal("party.longRest"), playerIds: z.array(id).min(1).max(40).optional() }),
+
   z.object({ type: z.literal("door.set"), closed: z.boolean() }),
   z.object({ type: z.literal("table.seats"), max: z.number().int().min(1).max(12) }),
   z.object({ type: z.literal("knock.admit"), knockId: id }),

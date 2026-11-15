@@ -12,7 +12,7 @@ import { rankName, ranksOf, tierOf } from "@/shared/renown";
 import { Field } from "./Field";
 import { Check } from "./Check";
 import { ContributeBox, GrantBox, KindFields, RunningBox } from "./ItemExtras";
-import { categoryLabel, CATEGORIES, creditCp, firstChargeCp, KINDS, raisedCp } from "@/shared/progress";
+import { categoryLabel, categoriesFor, creditCp, firstChargeCp, KINDS, raisedCp } from "@/shared/progress";
 import { PageHead } from "./PageHead";
 import { Drawer } from "./Drawer";
 import { MenuItem, RowMenu } from "./RowMenu";
@@ -281,7 +281,7 @@ export function ShopPanel() {
               {items.map((it) => {
                 const eff = tierOf(s, it);
                 const card = cards.find((c) => c.id === it.id) as (typeof cards)[number] & { raisedCp?: number; earnedBy?: string[] };
-                const bits = [categoryLabel(it.category), KIND_SHORT[it.kind], it.stock !== null ? (it.stock === 0 ? "sold out" : `${it.stock} left`) : "", it.description].filter(Boolean);
+                const bits = [categoryLabel(it.category, townOf(s)), KIND_SHORT[it.kind], it.stock !== null ? (it.stock === 0 ? "sold out" : `${it.stock} left`) : "", it.description].filter(Boolean);
                 return (
                   <li key={it.id} className={`scene-item list-row item-row tier-${eff}${editing === it.id ? " selected" : ""}`}>
                     <div className="scene-row">
@@ -649,7 +649,7 @@ function AddItem({ shopId, quiet, onAdded }: { shopId: string; quiet: boolean; o
         <label>
           Category
           <select className="fld" value={f.category} onChange={set("category")}>
-            {CATEGORIES.map((c) => (
+            {categoriesFor(townOf(view.state)).map((c) => (
               <option key={c.id} value={c.id}>
                 {c.label}
               </option>

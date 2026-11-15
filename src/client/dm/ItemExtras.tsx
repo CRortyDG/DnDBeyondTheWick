@@ -5,9 +5,10 @@
 
 import { useState } from "react";
 import { cpToGpInput, formatCp, parseAmount } from "@/shared/money";
-import { CATEGORIES, KINDS, raisedCp } from "@/shared/progress";
+import { categoriesFor, KINDS, raisedCp } from "@/shared/progress";
 import type { Effect, Item, ItemCategory, ItemKind } from "@/shared/types";
 import { useDm } from "./context";
+import { townOf } from "@/shared/presets";
 import { Field } from "./Field";
 import { Check } from "./Check";
 
@@ -15,13 +16,14 @@ type Patch = (p: Partial<Item>) => unknown;
 
 /** Category, kind and the settings each kind needs. Goes inside the item editor. */
 export function KindFields({ it, patch }: { it: Item; patch: Patch }) {
+  const { view } = useDm();
   return (
     <>
       <div className="inline">
         <label className="inline-label">
           Category
           <select className="fld" value={it.category} onChange={(e) => patch({ category: e.target.value as ItemCategory })}>
-            {CATEGORIES.map((c) => (
+            {categoriesFor(townOf(view.state)).map((c) => (
               <option key={c.id} value={c.id}>
                 {c.label}
               </option>
@@ -125,7 +127,7 @@ function EffectsEditor({ it, patch }: { it: Item; patch: Patch }) {
               <span>% off</span>
               <select className="fld" value={e.category ?? ""} onChange={(ev) => set(i, { ...e, category: (ev.target.value || undefined) as ItemCategory | undefined })} aria-label="Category">
                 <option value="">No category</option>
-                {CATEGORIES.map((c) => (
+                {categoriesFor(townOf(view.state)).map((c) => (
                   <option key={c.id} value={c.id}>
                     {c.label}
                   </option>

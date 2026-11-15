@@ -9,7 +9,8 @@ export const CATEGORIES: { id: ItemCategory; label: string }[] = [
   { id: "magic", label: "Magic" },
   { id: "travel", label: "Travel" },
   { id: "services", label: "Services" },
-  { id: "building", label: "Building Candlefair" },
+  // "Building <town>" once the campaign names its town (categoriesFor).
+  { id: "building", label: "Town projects" },
   { id: "trophies", label: "Trophies" },
 ];
 export const CATEGORY_IDS = CATEGORIES.map((c) => c.id) as [ItemCategory, ...ItemCategory[]];
@@ -24,8 +25,14 @@ export const KINDS: { id: ItemKind; label: string }[] = [
 ];
 export const KIND_IDS = KINDS.map((k) => k.id) as [ItemKind, ...ItemKind[]];
 
-export function categoryLabel(c: ItemCategory): string {
-  return CATEGORIES.find((x) => x.id === c)?.label ?? c;
+/** The categories as this campaign words them: "Building Candlefair" only where the town is Candlefair. */
+export function categoriesFor(town?: string): { id: ItemCategory; label: string }[] {
+  const t = town?.trim();
+  return CATEGORIES.map((c) => (c.id === "building" && t ? { ...c, label: `Building ${t}` } : c));
+}
+
+export function categoryLabel(c: ItemCategory, town?: string): string {
+  return categoriesFor(town).find((x) => x.id === c)?.label ?? c;
 }
 
 /** Discounts top out here, however many stack. */

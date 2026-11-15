@@ -15,8 +15,9 @@ import { chapterSessionId, cleanTags, cleanText, defaultChapterId, NOTES_MAX, pe
 import { BOARD_SLOTS, jobsOf, jobTitle, pinnedCount, rankName, ranksOf, renownMet, renownNeeded, renownOf, shopOpenNow, tierOf, trustMet, trustText } from "./renown";
 import { LOG_MAX, PLAYER_ROLL_GAP_MS, rollPool, type RollTo } from "./dice";
 import { leadsOf, leadVisible, tally, voteClosed } from "./leads";
-import { findRef, sessionRecap, stageRank, blankEntry, ENTRIES_MAX, LEADS_MAX, entriesForScene, entriesOf, entryFromScene, entryScene, entryTags, factSlug, FACTS_MAX, isFound, shopEntry, slugify, syncShopEntries, uniqueSlug } from "./discovery";
+import { findRef, sessionRecap, slugInput, stageRank, blankEntry, ENTRIES_MAX, LEADS_MAX, entriesForScene, entriesOf, entryFromScene, entryScene, entryTags, factSlug, FACTS_MAX, isFound, shopEntry, slugify, syncShopEntries, uniqueSlug } from "./discovery";
 import { DM_AUTHOR } from "./types";
+import { originOf } from "./presets";
 import { boardNotes, cleanLook, cleanPlace, defaultWidth, NOTICES_MAX, placeFor, slugify as noteSlug, topZ } from "./board";
 import { decodeBits, emptyBits, encodeBits, fullBits } from "./fog";
 import { addPartyTokens, freeSpot, snapToGrid, syncFightTokens, tokensOf, TOKENS_MAX } from "./tokens";
@@ -435,6 +436,8 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
     if (cur && !cur.attendeeIds.includes(playerId)) cur.attendeeIds.push(playerId);
   };
 
+  // Special orders come up from Baldur's Gate in Candlefair; anywhere else they just arrive.
+  const fromAfar = () => (originOf(s).kind === "candlefair" ? " from Baldur\u2019s Gate" : "");
   const homeScene = () => (s.scenes.find((x) => x.kind === "notice" && !x.reveal) ?? s.scenes.find((x) => !x.reveal) ?? s.scenes[0]).id;
 
   const showScene = (id: string) => {
@@ -449,6 +452,8 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
     delete s.live.focus;
     delete s.live.banner;
     delete s.live.note;
+    // The leads board sits over the scene; a new scene takes it down.
+    delete s.live.leads;
     if (shown) noteShown(refForScene(s, shown));
   };
   /** "Recently shown" on the DM's console. */
@@ -544,6 +549,7 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
       s.live.shopId = sh.id;
       s.live.shopOpen = true;
       delete s.live.recapSessionId;
+      delete s.live.leads;
       noteShown(entryRef(e));
       return;
     }
@@ -593,9 +599,9 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
     const log: string[] = due.map((o) => `Arrived: ${o.itemName} for ${s.players.find((p) => p.id === o.playerId)?.name ?? "someone"}`);
     if (due.length === 1) {
       const who = s.players.find((p) => p.id === due[0].playerId);
-      announce(`Arrived from Baldur\u2019s Gate: ${due[0].itemName} for ${who ? penName(who) : "someone"}`);
+      announce(`Arrived${fromAfar()}: ${due[0].itemName} for ${who ? penName(who) : "someone"}`);
     }
-    else if (due.length > 1) announce(`${due.length} special orders have arrived from Baldur\u2019s Gate`);
+    else if (due.length > 1) announce(`${due.length} special orders have arrived${fromAfar()}`);
     // Income: roll for each live income effect and pay the owners by share.
     for (const { item: it, effect } of liveEffects(s, "income")) {
       const owners = [...sharesOf(s, it.id)].filter(([pid]) => s.players.some((p) => p.id === pid && !p.archived));
@@ -984,7 +990,7 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
       if (patch.art?.url && !/^(https:\/\/|\/api\/files\/)/.test(patch.art.url)) fail("Images must be uploaded first.");
       Object.assign(sc, patch);
       if (patch.label !== undefined) sc.label = patch.label.trim() || sc.label;
-      if (slug !== undefined) sc.slug = uniqueSceneSlug(s.scenes, slug.trim() || sceneSlug({ ...sc, slug: undefined }), sc.id);
+      if (slug !== undefined) sc.slug = uniqueSceneSlug(s.scenes, slugInput(slug) || sceneSlug({ ...sc, slug: undefined }), sc.id);
       else if (!sc.slug) sc.slug = uniqueSceneSlug(s.scenes, sceneSlug(sc), sc.id);
       // Pins survive a kind change, so switching to Image and back loses nothing.
       if (sc.kind === "map") sc.map ??= emptyMap();
@@ -1186,6 +1192,7 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
       break;
     }
     case "map.addSeedMaps": {
+      if (originOf(s).kind !== "candlefair") fail("Those maps belong to the Candlefair campaign.");
       // Turn the old empty "Town map" image scene into the Candlefair map (keeping any image), then add the Sword Coast.
       let cf = s.scenes.find((x) => x.id === "s-map");
       if (cf && cf.kind === "image") {
@@ -1227,7 +1234,10 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
       if (cmd.open && s.live.shopCategory && !s.shops.some((x) => x.visibility === "all" && !x.closed)) fail("No storefront is open to everyone yet.");
       s.live.shopId = target.id;
       s.live.shopOpen = cmd.open;
-      if (cmd.open) delete s.live.recapSessionId;
+      if (cmd.open) {
+        delete s.live.recapSessionId;
+        delete s.live.leads;
+      }
       break;
     }
     case "live.purse":
@@ -1376,7 +1386,10 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
       delete s.rolls;
       break;
     case "dice.clearTv":
+      // "Clear TV" takes down anything sitting over the scene.
       delete s.diceRoll;
+      delete s.live.leads;
+      delete s.live.note;
       break;
 
     // ---------- Renown and the bounty board ----------
@@ -1486,7 +1499,7 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
         createdAt: ctx.now,
       };
       cleanNotice(n);
-      n.slug = freeSlug(slug || n.title || n.body.slice(0, 30));
+      n.slug = freeSlug((slug && slugInput(slug)) || n.title || n.body.slice(0, 30));
       if (n.up) {
         needRoom();
         n.place = goingUp({ ...n, place: undefined }, place);
@@ -1503,7 +1516,7 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
       cleanNotice(n);
       if (slug !== undefined) {
         const before = n.slug;
-        n.slug = freeSlug(slug || n.title, n.id);
+        n.slug = freeSlug((slug && slugInput(slug)) || n.title, n.id);
         if (before && before !== n.slug) renameRefs(s, `note/${before}`, `note/${n.slug}`);
       }
       if (up && !n.up) {
@@ -1617,6 +1630,17 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
     case "player.inspire":
       player(cmd.playerId).inspired = cmd.on;
       break;
+    case "party.longRest": {
+      if (s.fight && s.fight.status !== "over") fail("A fight is still open. End it first.");
+      const who = cmd.playerIds ? cmd.playerIds.map(player) : s.players.filter((p) => !p.archived);
+      for (const p of who) {
+        // Nobody has set HP yet: nothing to fill.
+        if (!p.hp || p.hp.max <= 0) continue;
+        p.hp.cur = p.hp.max;
+        p.hp.temp = 0;
+      }
+      break;
+    }
 
     // ---------- shops ----------
     case "shop.add":
@@ -1706,7 +1730,7 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
       const o = s.orders.find((x) => x.id === cmd.orderId) ?? fail("That order doesn't exist.");
       if (!o.arrived) {
         o.arrived = true;
-        announce(`Arrived from Baldur\u2019s Gate: ${o.itemName} for ${penName(player(o.playerId))}`);
+        announce(`Arrived${fromAfar()}: ${o.itemName} for ${penName(player(o.playerId))}`);
       }
       break;
     }
@@ -1861,7 +1885,7 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
         dmNote: (f.dmNote ?? "").trim(),
         secrets: (f.secrets ?? "").trim(),
       });
-      if (f.slug?.trim()) e.slug = uniqueSlug(list, kind, f.slug);
+      if (f.slug && slugInput(f.slug)) e.slug = uniqueSlug(list, kind, slugInput(f.slug));
       for (const t of (cmd.facts ?? []).map(cleanLine).filter(Boolean).slice(0, FACTS_MAX)) e.facts.push({ id: nextId("f"), slug: factSlug(e.facts, t), text: t });
       if (sc) e.sceneId = sc.id;
       if (f.relation) e.relation = f.relation;
@@ -1894,7 +1918,7 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
         e.kind = p.kind;
         e.slug = uniqueSlug(entriesOf(s), e.kind, e.slug, e.id);
       }
-      if (p.slug !== undefined) e.slug = uniqueSlug(entriesOf(s), e.kind, p.slug.trim() || e.name, e.id);
+      if (p.slug !== undefined) e.slug = uniqueSlug(entriesOf(s), e.kind, slugInput(p.slug) || e.name, e.id);
       if (p.title !== undefined) e.title = cleanLine(p.title);
       if (p.summary !== undefined) e.summary = p.summary.trim();
       if (p.nickname !== undefined) e.nickname = cleanLine(p.nickname);
@@ -2401,6 +2425,7 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
       const sess = session(cmd.sessionId);
       if (!sess.recap?.trim()) fail("That session has no recap yet.");
       s.live.recapSessionId = sess.id;
+      delete s.live.leads;
       // Only starred, visible notes from that chapter can go up with it.
       const picked = (cmd.noteIds ?? []).filter((nid) => (s.notes ?? []).some((n) => n.id === nid && n.sessionId === sess.id && n.starred && !n.hidden));
       if (picked.length) s.live.recapNoteIds = [...new Set(picked)];

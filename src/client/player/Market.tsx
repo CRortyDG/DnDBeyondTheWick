@@ -41,7 +41,7 @@ export function Market({
   const title = view.game.town ? `${view.game.town} Market` : "The Market";
   const shopName = new Map(shops.map((s) => [s.id, s.name]));
   const mine = items.filter((i) => shopName.has(i.shopId));
-  const cats = categoriesWith(mine);
+  const cats = categoriesWith(mine, view.game.town);
   const byCategory = mode === "category" && cats.length > 0;
   const cat = cats.find((c) => c.id === category) ?? cats[0];
   const shop = shops.find((s) => s.id === shopId) ?? shops[0];
