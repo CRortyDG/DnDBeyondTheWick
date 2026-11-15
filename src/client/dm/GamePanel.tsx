@@ -4,6 +4,8 @@ import { originOf, PRESET_NAME_MAX, townOf } from "@/shared/presets";
 import { deletePresetOnline, devicePresets, forgetPreset, rememberPreset, renamePresetOnline, type DevicePreset } from "../presets";
 import { absoluteHref, api, authHeaders, dmLink, rememberKey } from "../api";
 import { useDm } from "./context";
+import { PageHead } from "./PageHead";
+import { LinkIcon } from "../ui/icons";
 import { Field } from "./Field";
 
 export function GamePanel() {
@@ -77,6 +79,26 @@ export function GamePanel() {
   };
 
   return (
+    <div className="pg settings-page">
+      <PageHead
+        title="Settings"
+        sub="The campaign, sessions, links, presets and backups."
+        actions={
+          <>
+            <button className="btn" type="button" onClick={download}>
+              Download a backup
+            </button>
+            <button className="btn" type="button" onClick={copyDmLink}>
+              <LinkIcon size={16} /> Copy my DM link
+            </button>
+          </>
+        }
+        stats={[
+          { label: "Campaign code", value: s.id, tone: "gold" },
+          { label: "Sessions", value: s.sessions.length },
+          { label: "Players", value: s.players.filter((p) => !p.archived).length },
+        ]}
+      />
     <div className="panel-grid">
       <section className="box">
         <h3>The campaign</h3>
@@ -96,9 +118,6 @@ export function GamePanel() {
             hint="Titles the shop on the TV and phones (“Candlefair Market”) and the players’ Renown line."
             onCommit={(v) => run({ type: "game.town", town: v }, v.trim() ? "Town name saved." : "Town name cleared.")}
           />
-          <p className="note">
-            Campaign code: <code>{s.id}</code>. Sessions so far: {s.sessions.length}.
-          </p>
         </div>
       </section>
       <SessionsBox />
@@ -168,6 +187,7 @@ export function GamePanel() {
           </p>
         </div>
       </section>
+    </div>
     </div>
   );
 }

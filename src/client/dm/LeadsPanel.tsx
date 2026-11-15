@@ -10,7 +10,9 @@ import { entriesOf, kindInfo } from "@/shared/discovery";
 import { leadsOf, leadVisible, tally, voteClosed } from "@/shared/leads";
 import type { Lead, LeadStatus } from "@/shared/types";
 import { penName } from "@/shared/chronicle";
-import { DownIcon, UpIcon } from "../ui/icons";
+import { DownIcon, TvIcon, UpIcon } from "../ui/icons";
+import { PageHead } from "./PageHead";
+import { PlusIcon } from "./navIcons";
 import { Field } from "./Field";
 import { useDm } from "./context";
 
@@ -36,35 +38,86 @@ export function LeadsPanel() {
   const [text, setText] = useState("");
   const [picked, setPicked] = useState<string[]>([]);
   const [minutes, setMinutes] = useState("");
+  const [adding, setAdding] = useState(false);
   const now = useNow();
   const v = s.vote;
   const voteOpen = !!v && !voteClosed(v, now);
   const name = (id?: string) => (id ? leads.find((l) => l.id === id)?.text ?? "?" : "?");
 
-  return (
-    <div className="people-panel leads-panel">
-      <p className="note">
-        Players see a lead once you show it and whatever it&rsquo;s about isn&rsquo;t hidden. Leads are grouped by the place they point to. Your notes never leave this screen.
-      </p>
-      <div className="inline">
-        <label className="check">
-          <input type="checkbox" checked={!!s.live.leads} onChange={(e) => void run({ type: "live.leads", on: e.target.checked })} />
-          Leads board on the TV
-        </label>
-      </div>
+  const count = (st: LeadStatus) => leads.filter((l) => l.status === st).length;
+  const shown = leads.filter((l) => l.shown).length;
 
-      <section className="box">
-        <h3>The vote</h3>
-        {v ? (
-          <VoteBox now={now} />
-        ) : (
+  return (
+    <div className="people-panel leads-panel pg">
+      <PageHead
+        title="Leads"
+        sub="Threads the party can pull on, and votes on where to go next."
+        help={
+          <p>
+            Players see a lead once you show it and whatever it&rsquo;s about isn&rsquo;t hidden. Leads are grouped by the place they point to. Your notes never leave this screen. To let the table choose, tick two or three shown leads and open a vote; everyone sees the count as it comes in.
+          </p>
+        }
+        actions={
           <>
-            <p className="note">Tick two or three shown leads below, then open a vote. Everyone sees the count as it comes in.</p>
-            <div className="inline">
-              <label>
-                Closes in (minutes, optional)
-                <input className="fld" inputMode="numeric" value={minutes} onChange={(e) => setMinutes(e.target.value.replace(/\D/g, ""))} placeholder="No time limit" />
+            <button className={`btn${s.live.leads ? " on" : ""}`} type="button" aria-pressed={!!s.live.leads} onClick={() => void run({ type: "live.leads", on: !s.live.leads })}>
+              <TvIcon /> {s.live.leads ? "Leads board is on the TV" : "Leads board on the TV"}
+            </button>
+            <button className="btn primary" type="button" onClick={() => setAdding((a) => !a)} aria-expanded={adding}>
+              <PlusIcon size={16} /> Lead
+            </button>
+          </>
+        }
+        stats={[
+          { label: "Open", value: count("open"), tone: "gold" },
+          { label: "Followed", value: count("followed"), tone: "ok" },
+          { label: "Closed", value: count("closed"), tone: "muted" },
+          { label: "Shown to players", value: shown, tone: "muted" },
+        ]}
+      />
+
+      {adding ? (
+        <form
+          className="pg-inline-form wide"
+          onSubmit={async (ev) => {
+            ev.preventDefault();
+            if (!text.trim()) return;
+            const ok = await run({ type: "lead.add", text, shown: false }, "Added as a draft. Tick Shown when the party learns of it.");
+            if (ok) {
+              setText("");
+              setAdding(false);
+            }
+          }}
+        >
+          <input className="fld" autoFocus value={text} onChange={(e) => setText(e.target.value)} placeholder="Who’s buying up all the lantern oil?" aria-label="New lead" onKeyDown={(e) => e.key === "Escape" && setAdding(false)} />
+          <button className="btn primary" type="submit" disabled={!text.trim()}>
+            Add as draft
+          </button>
+          <button className="btn ghost" type="button" onClick={() => setAdding(false)}>
+            Cancel
+          </button>
+        </form>
+      ) : null}
+
+      {v ? (
+        <section className="box pg-card vote-card">
+          <h3>The vote</h3>
+          <VoteBox now={now} />
+          {!voteOpen && v.winnerId ? <p className="note">Chosen: {name(v.winnerId)}. The TV shows it at the start of the next session.</p> : null}
+        </section>
+      ) : (
+        <div className={`pg-toolbar vote-bar${picked.length ? " active" : ""}`}>
+          <span className="note">{picked.length ? `${picked.length} picked for a vote.` : "Tick two or three shown leads to put them to a vote."}</span>
+          <span className="grow" />
+          {picked.length ? (
+            <>
+              <label className="pg-toolbar-field">
+                Closes in
+                <input className="fld amt" inputMode="numeric" value={minutes} onChange={(e) => setMinutes(e.target.value.replace(/\D/g, ""))} placeholder="no limit" aria-label="Closes in minutes" />
+                min
               </label>
+              <button className="btn small ghost" type="button" onClick={() => setPicked([])}>
+                Clear
+              </button>
               <button
                 type="button"
                 className="btn primary"
@@ -74,13 +127,12 @@ export function LeadsPanel() {
                   if (ok) setPicked([]);
                 }}
               >
-                Open a vote on {picked.length || "no"} lead{picked.length === 1 ? "" : "s"}
+                Open the vote
               </button>
-            </div>
-          </>
-        )}
-        {v && !voteOpen && v.winnerId ? <p className="note">Chosen: {name(v.winnerId)}. The TV shows it at the start of the next session.</p> : null}
-      </section>
+            </>
+          ) : null}
+        </div>
+      )}
 
       <ol className="scene-list people-list">
         {leads.map((l, i) => (
@@ -96,26 +148,7 @@ export function LeadsPanel() {
         ))}
       </ol>
 
-      <form
-        className="box form"
-        onSubmit={async (ev) => {
-          ev.preventDefault();
-          if (!text.trim()) return;
-          const ok = await run({ type: "lead.add", text, shown: false }, "Added as a draft. Tick Shown when the party learns of it.");
-          if (ok) setText("");
-        }}
-      >
-        <h3>Add a lead</h3>
-        <div className="inline">
-          <label className="grow">
-            Lead
-            <input className="fld" value={text} onChange={(e) => setText(e.target.value)} placeholder="Who’s buying up all the lantern oil?" />
-          </label>
-          <button className="btn primary" type="submit" disabled={!text.trim()}>
-            Add
-          </button>
-        </div>
-      </form>
+      {leads.length === 0 ? <p className="pg-empty">No leads yet. Add one when the party hears a rumor worth chasing.</p> : null}
     </div>
   );
 }

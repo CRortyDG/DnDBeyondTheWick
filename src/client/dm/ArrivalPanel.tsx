@@ -4,9 +4,10 @@ import { useEffect, useRef, useState } from "react";
 import { arrivalPath, arrivalStatus, arrivalText, DEFAULT_TEMPLATE, genericArrivalPath, seatedPlayers, type ArrivalStatus } from "@/shared/arrival";
 import type { DmPlayer } from "@/shared/projection";
 import { starterById } from "@/shared/starters";
-import { Check } from "./Check";
 import { useDm } from "./context";
 import { Field } from "./Field";
+import { PageHead } from "./PageHead";
+import { MenuItem, RowMenu } from "./RowMenu";
 
 const STEPS: [ArrivalStatus, string][] = [
   ["copied", "Link copied"],
@@ -40,26 +41,42 @@ export function ArrivalPanel() {
   const claimed = seated.filter((p) => p.arrival?.claimedAt).length;
   const origin = typeof window === "undefined" ? "" : window.location.origin;
 
+  const opened = seated.filter((p) => p.arrival?.openedAt || p.arrival?.finishedAt || p.arrival?.claimedAt).length;
+  const sent = seated.filter((p) => p.arrival?.copiedAt || p.arrival?.openedAt).length;
+
   return (
-    <div className="arrival-panel">
-      <section className="box">
-        <div className="box-head">
-          <h3>Arrival</h3>
-          <span className="note">
-            {claimed} of {seated.length} seats claimed
-          </span>
-        </div>
-        <p className="note">
-          Text each player their own link. It plays the intro once, then opens on their seat. The generic link <code>{origin + genericArrivalPath(s.id)}</code> plays the intro but can&rsquo;t claim a seat.
-        </p>
-        <div className="inline">
-          <button className="btn primary" type="button" onClick={() => run({ type: "arrival.showTable" }, "The Table is on the TV.")}>
-            Show The Table on the TV <span className="key">T</span>
-          </button>
-          <Check checked={!!s.arrival?.seatsLocked} onChange={(v) => run({ type: "arrival.settings", seatsLocked: v }, v ? "Seats locked. Names and lines can't change now." : "Seats unlocked.")}>
-            Lock seats
-          </Check>
-        </div>
+    <div className="arrival-panel pg">
+      <PageHead
+        title="Arrival"
+        sub="Each player's private intro link, and how far they've got."
+        help={
+          <p>
+            Text each player their own link. It plays the intro once, then opens on their seat. The generic link <code>{origin + genericArrivalPath(s.id)}</code> plays the intro but can&rsquo;t claim a seat. Lock seats once everyone has claimed, so names and lines can&rsquo;t change.
+          </p>
+        }
+        actions={
+          <>
+            <button
+              className={`btn${s.arrival?.seatsLocked ? " on" : ""}`}
+              type="button"
+              aria-pressed={!!s.arrival?.seatsLocked}
+              onClick={() => run({ type: "arrival.settings", seatsLocked: !s.arrival?.seatsLocked }, !s.arrival?.seatsLocked ? "Seats locked. Names and lines can't change now." : "Seats unlocked.")}
+            >
+              {s.arrival?.seatsLocked ? "Seats locked" : "Lock seats"}
+            </button>
+            <button className="btn primary" type="button" onClick={() => run({ type: "arrival.showTable" }, "The Table is on the TV.")}>
+              Show The Table <span className="key">T</span>
+            </button>
+          </>
+        }
+        stats={[
+          { label: "Seats claimed", value: `${claimed} of ${seated.length}`, tone: seated.length && claimed === seated.length ? "ok" : "gold" },
+          { label: "Opened the intro", value: opened },
+          { label: "Links sent", value: sent, tone: "muted" },
+        ]}
+      />
+
+      <section className="box pg-card">
         <Field
           label="Message to copy ({link} is their link, {name} their name)"
           value={s.arrival?.template ?? DEFAULT_TEMPLATE}
@@ -67,23 +84,21 @@ export function ArrivalPanel() {
         />
       </section>
 
-      <div className="arrival-list">
+      <ol className="scene-list pg-list">
         {seated.map((p) => (
           <ArrivalRow key={p.id} p={p} />
         ))}
-      </div>
+        {seated.length === 0 ? <li className="pg-empty">Nobody at the table yet. Add a player below and their link is ready.</li> : null}
+      </ol>
 
       <form
-        className="inline"
+        className="pg-inline-form"
         onSubmit={async (e) => {
           e.preventDefault();
           if (await run({ type: "player.add", name }, `Added ${name || "a player"}. Their link is ready.`)) setName("");
         }}
       >
-        <label>
-          Someone not here yet?
-          <input className="fld" value={name} onChange={(e) => setName(e.target.value)} placeholder="Player name" />
-        </label>
+        <input className="fld" value={name} onChange={(e) => setName(e.target.value)} placeholder="Someone not here yet? Their name" aria-label="New player's name" />
         <button className="btn" type="submit">
           Add player
         </button>
@@ -111,39 +126,39 @@ function ArrivalRow({ p }: { p: DmPlayer }) {
       () => toast(text),
     );
 
+  const sub = [p.character || (a?.claimedAt ? "No character name yet" : ""), starter ? `${starter.title} (${starter.dnd.cls})` : ""].filter(Boolean).join(" · ");
+
   return (
-    <section className="box arrival-row">
-      <div className="box-head">
-        <h3>{p.name}</h3>
-        <span className={`arrival-character${p.character ? "" : " none"}`}>{p.character || (a?.claimedAt ? "No name yet" : "")}</span>
-      </div>
-      {a?.why ? <p className="arrival-why">&ldquo;{a.why}&rdquo;</p> : null}
-      {starter ? (
-        <p className="arrival-pick">
-          Picked: <strong>{starter.title}</strong> ({starter.dnd.cls} · {starter.dnd.species} · {starter.dnd.background})
-        </p>
-      ) : null}
-      <ol className="arrival-steps" aria-label={`${p.name}'s progress`}>
-        {STEPS.map(([k, label]) => {
-          // A later step implies the earlier ones, except copying (they may have got the link another way).
-          const done = !!times[k] || (k !== "copied" && ORDER.indexOf(k) <= reached);
-          return (
-            <li key={k} className={done ? "done" : ""} title={when(times[k])}>
-              <span aria-hidden="true">{done ? "✓" : "·"}</span> {label}
-              {times[k] ? <small> {when(times[k])}</small> : null}
-            </li>
-          );
-        })}
-      </ol>
-      <div className="inline">
-        <button className="btn small primary" type="button" disabled={!link} onClick={() => link && copy(arrivalText(view.state.arrival?.template, link, p.name), `Copied the text for ${p.name}.`, true)}>
-          Copy text
-        </button>
-        <button className="btn small" type="button" disabled={!link} onClick={() => link && copy(link, `Copied ${p.name}'s link.`, true)}>
-          Copy link
-        </button>
+    <li className={`scene-item list-row arrival-row status-${status}`}>
+      <div className="scene-row">
+        <span className="pg-avatar" aria-hidden="true">
+          {p.name.trim().charAt(0).toUpperCase() || "?"}
+        </span>
+        <div className="row-main as-text">
+          <span className="row-title">{p.name}</span>
+          <span className="row-sub" title={a?.why ? `“${a.why}”` : undefined}>
+            {sub || "Not started"}
+            {a?.why ? <span className="arrival-why-inline"> &middot; &ldquo;{a.why}&rdquo;</span> : null}
+          </span>
+        </div>
+        <ol className="pg-steps" aria-label={`${p.name}'s progress`}>
+          {STEPS.map(([k, label]) => {
+            // A later step implies the earlier ones, except copying (they may have got the link another way).
+            const done = !!times[k] || (k !== "copied" && ORDER.indexOf(k) <= reached);
+            return (
+              <li key={k} className={done ? "done" : ""} title={times[k] ? `${label}: ${when(times[k])}` : label}>
+                <span className="dot" aria-hidden="true" />
+                <span className="lbl">{label}</span>
+                <span className="sr-only">{done ? " (done)" : " (not yet)"}</span>
+              </li>
+            );
+          })}
+        </ol>
         {confirming ? (
           <>
+            <button className="btn small" type="button" onClick={() => setConfirming(false)}>
+              Keep
+            </button>
             <button
               className="btn small danger"
               type="button"
@@ -152,18 +167,25 @@ function ArrivalRow({ p }: { p: DmPlayer }) {
                 void run({ type: "arrival.reset", playerId: p.id }, `${p.name} is back to new. Same link.`);
               }}
             >
-              Yes, reset {p.name}
-            </button>
-            <button className="btn small" type="button" onClick={() => setConfirming(false)}>
-              Cancel
+              Reset {p.name}
             </button>
           </>
         ) : (
-          <button className="btn small" type="button" disabled={status === "new" && !p.character} onClick={() => setConfirming(true)}>
-            Reset
-          </button>
+          <>
+            <button className="btn small" type="button" disabled={!link} onClick={() => link && copy(link, `Copied ${p.name}'s link.`, true)}>
+              Copy link
+            </button>
+            <button className={`btn small${status === "new" ? " primary" : ""}`} type="button" disabled={!link} onClick={() => link && copy(arrivalText(view.state.arrival?.template, link, p.name), `Copied the text for ${p.name}.`, true)}>
+              Copy text
+            </button>
+            <RowMenu label={p.name}>
+              <MenuItem disabled={status === "new" && !p.character} title="Back to new. The link stays the same." onClick={() => setConfirming(true)}>
+                Reset progress
+              </MenuItem>
+            </RowMenu>
+          </>
         )}
       </div>
-    </section>
+    </li>
   );
 }

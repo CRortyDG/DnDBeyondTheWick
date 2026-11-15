@@ -76,6 +76,8 @@ const NAV: { group: string; items: NavItem[] }[] = [
 ];
 const SETTINGS: NavItem = { id: "game", label: "Settings", icon: GearIcon };
 const ALL_TABS: Tab[] = [...NAV.flatMap((g) => g.items.map((i) => i.id)), SETTINGS.id];
+/** Pages that draw their own header (with summary and buttons). */
+const OWN_HEAD = new Set<Tab>(["bank", "players", "arrival", "shop", "discovery", "leads", "scenes", "board", "monsters", "episodes", "story", "chronicle", "game"]);
 const PAGE_LABEL = Object.fromEntries([...NAV.flatMap((g) => g.items), SETTINGS].map((i) => [i.id, i.label])) as Record<Tab, string>;
 
 /** The page in the address (#page=discovery), so a reload keeps your place. */
@@ -514,9 +516,11 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
           </nav>
 
           <main className="dm-main" id={`panel-${tab}`} aria-label={PAGE_LABEL[tab]}>
-            <div className="dm-pagehead">
-              <h1>{PAGE_LABEL[tab]}</h1>
-            </div>
+            {OWN_HEAD.has(tab) ? null : (
+              <div className="dm-pagehead">
+                <h1>{PAGE_LABEL[tab]}</h1>
+              </div>
+            )}
             <div className="panel">
               {tab === "bank" ? <BankPanel /> : null}
               {tab === "shop" ? <ShopPanel /> : null}
