@@ -3612,37 +3612,151 @@ html[data-view="tv"] .practice-stripe .practice-tag {
   display: inline;
   margin: 0;
 }
-:where(html[data-view="dm"]) .rtable {
+/* Random tables page */
+:where(html[data-view="dm"]) .rt-filter {
   margin-bottom: var(--dm-s3);
+  flex-wrap: wrap;
 }
-:where(html[data-view="dm"]) .rtable h3 {
-  margin: 0;
+:where(html[data-view="dm"]) .rt-row .row-title {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+:where(html[data-view="dm"]) .rt-caret {
+  display: inline-block;
+  width: 10px;
+  color: var(--dm-text-3);
+  font-size: 11px;
+  transition: transform 0.12s;
+}
+:where(html[data-view="dm"]) .rt-caret.open {
+  transform: rotate(90deg);
+}
+:where(html[data-view="dm"]) .rt-result {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--dm-s3);
+  margin: var(--dm-s2) 0 var(--dm-s1) 16px;
+  padding: var(--dm-s2) var(--dm-s3);
+  border-radius: var(--dm-r-md);
+  background: var(--dm-gold-soft);
+  border: 1px solid rgba(227, 182, 92, 0.35);
+  animation: rt-in 0.25s ease-out;
+}
+@keyframes rt-in {
+  from {
+    opacity: 0;
+    transform: translateY(-3px);
+  }
+}
+:where(html[data-view="dm"]) .rt-result-n {
+  flex: none;
+  min-width: 2ch;
+  font-size: 26px;
+  line-height: 1.1;
+  font-weight: 600;
+  color: var(--dm-gold);
+  font-variant-numeric: tabular-nums;
+}
+:where(html[data-view="dm"]) .rt-result-body {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+:where(html[data-view="dm"]) .rt-result-body p {
+  margin: 4px 0 0;
+  font-size: 16px;
+  color: var(--dm-text);
+}
+:where(html[data-view="dm"]) .rt-fight {
+  margin-top: var(--dm-s2);
+  align-items: center;
+}
+:where(html[data-view="dm"]) .rt-result-x {
+  flex: none;
+  color: var(--dm-text-3);
+}
+:where(html[data-view="dm"]) .rt-body {
+  margin: var(--dm-s1) 0 var(--dm-s2) 16px;
+}
+:where(html[data-view="dm"]) .rt-body > .note {
+  margin: var(--dm-s2) 0;
 }
 :where(html[data-view="dm"]) .rtable-rows {
   list-style: none;
   padding: 0;
-  margin: var(--dm-s2) 0 0;
+  margin: 0 0 var(--dm-s2);
 }
 :where(html[data-view="dm"]) .rtable-rows li {
-  padding: 2px var(--dm-s2);
+  display: flex;
+  gap: var(--dm-s2);
+  padding: 3px var(--dm-s2);
   border-radius: var(--dm-r-sm);
+  font-size: 13.5px;
+}
+:where(html[data-view="dm"]) .rtable-rows li:nth-child(even) {
+  background: rgba(255, 255, 255, 0.02);
 }
 :where(html[data-view="dm"]) .rtable-rows li.on {
   background: var(--dm-gold-soft);
   color: var(--dm-gold);
 }
 :where(html[data-view="dm"]) .rtable-range {
-  display: inline-block;
-  min-width: 3.5em;
+  flex: none;
+  min-width: 3.2em;
   color: var(--dm-text-3);
   font-variant-numeric: tabular-nums;
 }
-:where(html[data-view="dm"]) .rtable-roll {
-  font-size: 18px;
-  margin: var(--dm-s2) 0 0;
+:where(html[data-view="dm"]) .rt-empty .inline {
+  justify-content: center;
+  flex-wrap: wrap;
 }
-:where(html[data-view="dm"]) .rtable-roll b {
-  color: var(--dm-gold);
+:where(html[data-view="dm"]) .rt-editor {
+  display: flex;
+  flex-direction: column;
+  gap: var(--dm-s3);
+}
+:where(html[data-view="dm"]) .rt-editor .fld-row .note {
+  margin: 2px 0 0;
+}
+:where(html[data-view="dm"]) .rt-examples {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--dm-s2);
+  padding-bottom: var(--dm-s3);
+  border-bottom: 1px solid var(--dm-border);
+}
+:where(html[data-view="dm"]) .rt-two {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--dm-s3);
+}
+:where(html[data-view="dm"]) .rt-rows-fld {
+  font-variant-numeric: tabular-nums;
+  line-height: 1.5;
+}
+:where(html[data-view="dm"]) .rt-hint {
+  margin: calc(-1 * var(--dm-s2)) 0 0;
+}
+:where(html[data-view="dm"]) .rt-preview {
+  padding: var(--dm-s2);
+  border: 1px solid var(--dm-border);
+  border-radius: var(--dm-r-sm);
+  max-height: 240px;
+  overflow: auto;
+}
+:where(html[data-view="dm"]) .rt-preview > .note {
+  display: block;
+  margin: 0 0 var(--dm-s1) var(--dm-s2);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-size: 11px;
+}
+@media (max-width: 640px) {
+  :where(html[data-view="dm"]) .rt-result,
+  :where(html[data-view="dm"]) .rt-body {
+    margin-left: 0;
+  }
 }
 @media (max-width: 640px) {
   :where(html[data-view="dm"]) .diff-cols,
