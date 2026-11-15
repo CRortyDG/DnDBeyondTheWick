@@ -316,8 +316,11 @@ export const dmCommand = z.discriminatedUnion("type", [
   z.object({ type: z.literal("flyer.update"), flyerId: id, patch: flyerText.partial().extend({ up: z.boolean().optional(), style: paper.optional(), look: noteLook.optional(), place: notePlace.optional() }) }),
   z.object({ type: z.literal("flyer.remove"), flyerId: id }),
 
-  /** The party's Renown. Raising it is announced on the TV and written in the Chronicle; lowering it is quiet. */
-  z.object({ type: z.literal("renown.set"), rank }),
+  /**
+   * The party's Renown. Raising it plays the TV moment (unless tv is false) and goes in the Chronicle;
+   * lowering it is quiet. A reason is written in the Chronicle either way.
+   */
+  z.object({ type: z.literal("renown.set"), rank, reason: text(200).optional(), tv: z.boolean().optional() }),
   /** secret: only the DM sees it (in the roll log); otherwise it plays on the TV. */
   z.object({ type: z.literal("dice.roll"), dice: diceAsk, plus: dicePlus, secret: z.boolean().optional() }),
   /** Empty the roll log (the DM's and the players' rolls). */

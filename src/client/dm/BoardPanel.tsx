@@ -13,6 +13,7 @@ import type { Job, JobReward, JobStatus, JobStyle, NoteLook, TrustNeed } from "@
 import { JobCard, STYLE_LABELS, whenLabel } from "../scenes/Board";
 import { useDm } from "./context";
 import { PageHead } from "./PageHead";
+import { RenownControl } from "./RenownControl";
 import { PlusIcon } from "./navIcons";
 
 const STATUS_LABELS: Record<JobStatus, string> = { open: "Open", taken: "Taken", done: "Done", expired: "Pulled" };
@@ -88,11 +89,10 @@ function RenownBox() {
   const { view, run } = useDm();
   const rank = renownOf(view.state);
   const ranks = ranksOf(view.state);
-  const next = ranks[rank + 1];
   return (
     <section className="box">
       <h3>Renown</h3>
-      <p className="note">One rank for the whole party. Raising it plays a moment on the TV, writes it in the Chronicle, and opens anything that was waiting on it. Lowering it is quiet, and those things lock again.</p>
+      <p className="note">One rank for the whole party. Raising it plays a moment on the TV (untick the box to skip it), writes it in the Chronicle, and opens anything that was waiting on it. Lowering it is quiet, and those things lock again. You can also change it from the ❦ button in the top bar.</p>
       <ol className="renown-ladder">
         {ranks.map((r, i) => (
           <li key={r.name} className={i === rank ? "on" : i < rank ? "past" : undefined}>
@@ -103,23 +103,7 @@ function RenownBox() {
           </li>
         ))}
       </ol>
-      <div className="inline">
-        {next ? (
-          <button type="button" className="btn primary" onClick={() => run({ type: "renown.set", rank: rank + 1 }, `The party is now ${next.name}.`)}>
-            Raise to {next.name}
-          </button>
-        ) : null}
-        <label>
-          Set to
-          <select className="fld" value={rank} onChange={(e) => run({ type: "renown.set", rank: Number(e.target.value) })}>
-            {ranks.map((r, i) => (
-              <option key={r.name} value={i}>
-                {r.name}
-              </option>
-            ))}
-          </select>
-        </label>
-      </div>
+      <RenownControl />
       <RankWords />
     </section>
   );

@@ -1386,11 +1386,17 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
       // What the room could see before, so the rank-up can say what opened.
       const before = gateSnapshot();
       s.renown = cmd.rank;
-      if (cmd.rank < was) break; // quiet: things just lock again
       const r = ranksOf(s)[cmd.rank];
+      const why = cmd.reason?.trim();
+      if (cmd.rank < was) {
+        // Quiet: things just lock again. Only a reason goes in the Chronicle.
+        if (why) chronicle(`Renown: the party is now ${r.name}. ${why}`);
+        break;
+      }
+      chronicle(`Renown: the party is now ${r.name}. ${why || `${r.meaning}.`}`);
+      if (cmd.tv === false) break;
       announce(r.raised);
       s.renownMoment = { rank: cmd.rank, n: ++s.seq, at: ctx.now };
-      chronicle(`Renown: the party is now ${r.name}. ${r.meaning}.`);
       announceOpened(before);
       break;
     }
