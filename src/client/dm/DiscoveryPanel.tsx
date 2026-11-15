@@ -315,9 +315,9 @@ function EntryEditor({ entry: e, tv }: { entry: Entry; tv: boolean }) {
         ) : null}
         {e.kind === "shop" ? (
           <label>
-            Its storefront (opens when found)
+            Its shop (opens when found)
             <select className="fld" value={e.shopId ?? ""} onChange={(ev) => void patch({ shopId: ev.target.value || null })}>
-              <option value="">No storefront</option>
+              {e.shopId ? null : <option value="">No storefront</option>}
               {s.shops.map((sh) => (
                 <option key={sh.id} value={sh.id}>
                   {sh.name}
@@ -491,7 +491,7 @@ function EntryEditor({ entry: e, tv }: { entry: Entry; tv: boolean }) {
         className="btn small danger"
         type="button"
         onClick={() => {
-          if (confirm(`Delete ${e.name}? Notes about it stay in the Chronicle.`)) void run({ type: "entry.remove", entryId: e.id }, "Deleted.");
+          if (confirm(e.shopId && s.shops.some((x) => x.id === e.shopId) ? `Delete ${e.name}? Its shop in Shops and all its items go too. Notes stay in the Chronicle.` : `Delete ${e.name}? Notes about it stay in the Chronicle.`)) void run({ type: "entry.remove", entryId: e.id }, "Deleted.");
         }}
       >
         Delete {e.name}

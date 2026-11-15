@@ -391,6 +391,72 @@ describe("places, shops and monsters", () => {
     expect(ent(id).stage).toBe("found");
   });
 
+  it("every shop has one entry in Discover, hidden until the shop is open to everyone", () => {
+    const shopEntries = () => g.entries!.filter((e) => e.shopId);
+    expect(shopEntries().map((e) => e.shopId).sort()).toEqual(g.shops.map((x) => x.id).sort());
+    const smith = g.entries!.find((e) => e.shopId === "smith")!;
+    expect(smith).toMatchObject({ kind: "shop", name: "The Smithy", title: "Steel, leather, and things that shoot", stage: "hidden" });
+    // Hidden shops stay out of the phone's Discover.
+    expect(phoneJson()).not.toContain("The Smithy");
+    // Reading the game again adds nothing new.
+    const before = JSON.stringify(g.entries);
+    g = hydrate(g)!;
+    expect(JSON.stringify(g.entries)).toBe(before);
+  });
+
+  it("an older game's shops get entries, reusing an untied shop entry of the same name", () => {
+    const old = seedGame("t");
+    old.shops.find((x) => x.id === "candle")!.visibility = "all";
+    old.entries = [{ id: "e-mine", kind: "shop", slug: "the-smithy", stage: "rumored", name: "The smithy", title: "", summary: "My notes", nickname: "", hint: "", areas: [], links: [], facts: [], dmNote: "", secrets: "" }];
+    g = hydrate(old)!;
+    expect(g.entries!.filter((e) => e.shopId === "smith").map((e) => e.id)).toEqual(["e-mine"]);
+    expect(ent("e-mine").stage).toBe("rumored");
+    expect(g.entries!.find((e) => e.shopId === "candle")!.stage).toBe("found");
+    expect(g.entries!.filter((e) => e.kind === "shop").length).toBe(g.shops.length);
+  });
+
+  it("adding, renaming and deleting a shop changes its entry, and the other way round", () => {
+    dm({ type: "shop.add", name: "The Bakery", subtitle: "Warm bread" });
+    const sh = g.shops.at(-1)!;
+    const e = () => g.entries!.find((x) => x.shopId === sh.id);
+    expect(e()).toMatchObject({ kind: "shop", name: "The Bakery", title: "Warm bread", stage: "hidden" });
+    dm({ type: "shop.update", shopId: sh.id, patch: { name: "Bolla's Bakery", subtitle: "Hot buns" } });
+    expect(e()).toMatchObject({ name: "Bolla's Bakery", title: "Hot buns" });
+    dm({ type: "entry.update", entryId: e()!.id, patch: { name: "The Oven", title: "Smells good" } });
+    expect(g.shops.find((x) => x.id === sh.id)).toMatchObject({ name: "The Oven", subtitle: "Smells good" });
+    // Hiding and opening the shop moves its entry; showing it to some players stays secret.
+    dm({ type: "shop.visibility", shopId: sh.id, visibility: "some", playerIds: [g.players[0].id] });
+    expect(e()!.stage).toBe("hidden");
+    dm({ type: "shop.visibility", shopId: sh.id, visibility: "all" });
+    expect(e()!.stage).toBe("found");
+    expect(pub(e()!.id)?.name).toBe("The Oven");
+    dm({ type: "shop.visibility", shopId: sh.id, visibility: "hidden" });
+    expect(e()!.stage).toBe("hidden");
+    expect(pub(e()!.id)).toBeUndefined();
+    // Deleting the shop deletes its entry.
+    const id = e()!.id;
+    dm({ type: "shop.remove", shopId: sh.id });
+    expect(g.entries!.some((x) => x.id === id)).toBe(false);
+
+    // A shop added in Discover is a hidden shop in Shops; deleting the entry deletes the shop.
+    const nid = dm({ type: "entry.add", entry: { kind: "shop", name: "The Tannery" } }).entryId!;
+    const tan = g.shops.find((x) => x.id === ent(nid).shopId)!;
+    expect(tan).toMatchObject({ name: "The Tannery", visibility: "hidden" });
+    expect(g.entries!.filter((x) => x.shopId === tan.id).length).toBe(1);
+    expect(fails(DM, { type: "entry.update", entryId: nid, patch: { kind: "person" } })).toContain("stays a shop");
+    expect(fails(DM, { type: "entry.update", entryId: nid, patch: { shopId: null } })).toContain("keeps its entry");
+    dm({ type: "entry.remove", entryId: nid });
+    expect(g.shops.some((x) => x.id === tan.id)).toBe(false);
+  });
+
+  it("tying an entry to another shop swaps entries, so no shop is left without one", () => {
+    const a = g.entries!.find((x) => x.shopId === "smith")!.id;
+    const b = g.entries!.find((x) => x.shopId === "docks")!.id;
+    dm({ type: "entry.update", entryId: a, patch: { shopId: "docks" } });
+    expect(ent(a).shopId).toBe("docks");
+    expect(ent(b).shopId).toBe("smith");
+  });
+
   it("a monster becomes a rumor under its TV name when a fight ends, then encountered once revealed", () => {
     const tpl = g.monsters![0];
     dm({ type: "fight.start", groups: [{ templateId: tpl.id, count: 2 }] });
