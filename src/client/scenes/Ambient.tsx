@@ -45,11 +45,17 @@ function Glow({ id, color }: { id: string; color: string }) {
 }
 
 function Stars({ n, seed, h = 520 }: { n: number; seed: number; h?: number }) {
+  const all = scatter(n, seed, 1920, h);
+  // Most stars are one still path; every fifth twinkles on its own.
+  const still = all.filter((_, i) => i % 5).map(([x, y]) => `M${x} ${y}h0`).join("");
   return (
     <g>
-      {scatter(n, seed, 1920, h).map(([x, y, k], i) => (
-        <circle key={i} className={i % 3 ? undefined : "amb-twinkle"} cx={x} cy={y} r={1 + k * 1.6} fill="#eef0ff" opacity={0.5 + k * 0.5} style={delay(k * 4)} />
-      ))}
+      <path d={still} stroke="#eef0ff" strokeWidth={2.4} strokeLinecap="round" opacity={0.7} />
+      {all
+        .filter((_, i) => i % 5 === 0)
+        .map(([x, y, k], i) => (
+          <circle key={i} className="amb-twinkle" cx={x} cy={y} r={1.4 + k * 1.4} fill="#eef0ff" style={delay(k * 4)} />
+        ))}
     </g>
   );
 }
@@ -57,17 +63,11 @@ function Stars({ n, seed, h = 520 }: { n: number; seed: number; h?: number }) {
 /** Two layers of rain falling: each layer is drawn twice, one screen apart, and slides down one screen. */
 function Rain({ n = 46, seed = 7, slant = -10 }: { n?: number; seed?: number; slant?: number }) {
   const drops = scatter(n, seed);
-  const layer = (cls: string, part: [number, number, number][], len: number, op: number) => (
-    <g className={cls}>
-      {[0, -1080].map((dy) => (
-        <g key={dy} transform={`translate(0 ${dy})`}>
-          {part.map(([x, y], i) => (
-            <line key={i} x1={x} y1={y} x2={x + slant} y2={y + len} stroke="#b9c8e6" strokeWidth={2} strokeLinecap="round" opacity={op} />
-          ))}
-        </g>
-      ))}
-    </g>
-  );
+  // One path per layer (each drop a short stroke), drawn twice: a screen apart.
+  const layer = (cls: string, part: [number, number, number][], len: number, op: number) => {
+    const d = [0, -1080].flatMap((dy) => part.map(([x, y]) => `M${x} ${y + dy}l${slant} ${len}`)).join("");
+    return <path className={cls} d={d} stroke="#b9c8e6" strokeWidth={2} strokeLinecap="round" opacity={op} fill="none" />;
+  };
   return (
     <g>
       {layer("amb-fall-slow", drops.slice(0, n / 2), 34, 0.35)}
@@ -78,17 +78,11 @@ function Rain({ n = 46, seed = 7, slant = -10 }: { n?: number; seed?: number; sl
 
 function Snow({ n = 60, seed = 11 }: { n?: number; seed?: number }) {
   const flakes = scatter(n, seed);
-  const layer = (cls: string, part: [number, number, number][], r: number, op: number) => (
-    <g className={cls}>
-      {[0, -1080].map((dy) => (
-        <g key={dy} transform={`translate(0 ${dy})`}>
-          {part.map(([x, y, k], i) => (
-            <circle key={i} cx={x} cy={y} r={r + k * 2} fill="#ffffff" opacity={op} />
-          ))}
-        </g>
-      ))}
-    </g>
-  );
+  // Each flake is a dot (a round cap on a zero-length stroke), one path per layer, drawn twice a screen apart.
+  const layer = (cls: string, part: [number, number, number][], r: number, op: number) => {
+    const d = [0, -1080].flatMap((dy) => part.map(([x, y]) => `M${x} ${y + dy}h0`)).join("");
+    return <path className={cls} d={d} stroke="#ffffff" strokeWidth={r * 2} strokeLinecap="round" opacity={op} fill="none" />;
+  };
   return (
     <g className="amb-sway">
       {layer("amb-snow-slow", flakes.slice(0, n / 2), 2.5, 0.55)}
@@ -232,7 +226,9 @@ const SCENES: Record<AmbientId, () => ReactNode> = {
       <rect x="958" y="560" width="10" height="340" fill="#0b0e15" />
       <circle cx="963" cy="560" r="160" fill="url(#amb-lamp)" className="amb-pulse" />
       <rect x="940" y="530" width="46" height="56" rx="8" fill="#ffd98a" />
-      <ellipse cx="963" cy="960" rx="220" ry="18" fill="#ffcf7a" opacity="0.18" className="amb-glimmer" />
+      <g opacity="0.18">
+        <ellipse cx="963" cy="960" rx="220" ry="18" fill="#ffcf7a" className="amb-glimmer" />
+      </g>
       <Rain />
     </>
   ),
