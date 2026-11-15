@@ -4,6 +4,8 @@ import { originOf, PRESET_NAME_MAX, townOf } from "@/shared/presets";
 import { deletePresetOnline, devicePresets, forgetPreset, rememberPreset, renamePresetOnline, type DevicePreset } from "../presets";
 import { absoluteHref, api, authHeaders, dmLink, rememberKey } from "../api";
 import { useDm } from "./context";
+import { downloadBackup } from "./backup";
+import { EndSessionDialog } from "./Dues";
 import { PageHead } from "./PageHead";
 import { LinkIcon } from "../ui/icons";
 import { Field } from "./Field";
@@ -13,21 +15,7 @@ export function GamePanel() {
   const file = useRef<HTMLInputElement>(null);
   const s = view.state;
 
-  const download = async () => {
-    try {
-      const r = await fetch(`/api/export?game=${encodeURIComponent(ident.game)}`, { headers: authHeaders(ident), cache: "no-store" });
-      if (!r.ok) throw new Error("Couldn't make a backup.");
-      const blob = await r.blob();
-      const a = document.createElement("a");
-      a.href = URL.createObjectURL(blob);
-      a.download = `${ident.game}-backup-${new Date().toISOString().slice(0, 10)}.json`;
-      a.click();
-      setTimeout(() => URL.revokeObjectURL(a.href), 2000);
-      toast("Backup downloaded. Keep it somewhere safe.");
-    } catch (e) {
-      toast(e instanceof Error ? e.message : String(e));
-    }
-  };
+  const download = () => downloadBackup(ident, toast);
 
   const origin = originOf(s);
   const startLabel = origin.kind === "blank" ? "a blank campaign" : origin.kind === "candlefair" ? "the original Candlefair" : `the preset \u201c${origin.name}\u201d`;
@@ -200,8 +188,11 @@ function SessionsBox() {
   const names = new Map(s.players.map((p) => [p.id, p.name]));
   const when = (t: number) => new Date(t).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
   const list = [...s.sessions].sort((a, b) => b.number - a.number);
+  const [ending, setEnding] = useState(false);
+  const current = s.sessions.find((x) => x.id === s.currentSessionId);
   return (
     <section className="box">
+      {ending && current ? <EndSessionDialog session={current} onClose={() => setEnding(false)} /> : null}
       <h3>Sessions</h3>
       {list.length === 0 ? <p className="note">No sessions yet. &ldquo;Start session 1&rdquo; is at the top of the page.</p> : null}
       <ol className="session-list">
@@ -229,7 +220,7 @@ function SessionsBox() {
               </p>
               <div className="inline">
                 {running ? (
-                  <button className="btn small" type="button" onClick={() => run({ type: "session.end" }, `${x.title} ended.`)}>
+                  <button className="btn small" type="button" onClick={() => setEnding(true)}>
                     End it
                   </button>
                 ) : !s.currentSessionId ? (

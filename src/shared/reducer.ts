@@ -1747,6 +1747,9 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
     }
     case "session.end": {
       const cur = s.sessions.find((x) => x.id === s.currentSessionId) ?? fail("No session is running.");
+      // A fight left open would keep every phone asking for initiative after everyone has gone home.
+      if (s.fight && s.fight.status !== "over") fail("A fight is still open. End it or cancel it first.");
+      delete s.fight;
       // What the party discovered tonight: a card on the TV and a line in the Chronicle.
       const recap = sessionRecap(s, cur.id);
       if (recap) {

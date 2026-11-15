@@ -13,6 +13,7 @@ import {
   fightOutcome,
   groupTitle,
   insertSorted,
+  reslotCombatant,
   markDeathSave,
   MAX_COMBATANTS,
   monstersFrom,
@@ -269,9 +270,7 @@ export function applyFight(s: GameState, cmd: FightCommand, h: FightHelpers): vo
       c.init = cmd.init;
       if (cmd.bonus !== undefined) c.initBonus = cmd.bonus;
       // Re-slot by the new number; everyone else keeps their place (manual drags survive).
-      f.order = f.order.filter((x) => x.id !== c.id);
-      if (c.init === null) f.order.push(c);
-      else insertSorted(f.order, c);
+      reslotCombatant(f, c);
       break;
     }
     case "fight.rollInit": {
@@ -279,8 +278,7 @@ export function applyFight(s: GameState, cmd: FightCommand, h: FightHelpers): vo
       const targets = cmd.combatantIds?.length ? cmd.combatantIds.map((id) => who(f, id)) : f.order.filter((c) => c.kind === "monster" && c.init === null);
       for (const c of targets) {
         c.init = rollInitiative(c.initBonus ?? 0, h.rand);
-        f.order = f.order.filter((x) => x.id !== c.id);
-        insertSorted(f.order, c);
+        reslotCombatant(f, c);
       }
       break;
     }
@@ -415,9 +413,7 @@ export function applyFight(s: GameState, cmd: FightCommand, h: FightHelpers): vo
       const { f, c } = myCombatant();
       if (f.status === "over") fail("The fight is over.");
       c.init = cmd.init;
-      f.order = f.order.filter((x) => x.id !== c.id);
-      if (c.init === null) f.order.push(c);
-      else insertSorted(f.order, c);
+      reslotCombatant(f, c);
       break;
     }
 

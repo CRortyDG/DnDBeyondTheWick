@@ -1061,6 +1061,8 @@ export interface Combatant {
   note?: string;
   /** Players: the concentration save they owe after the last hit, until the turn moves on. */
   concDc?: number;
+  /** A new initiative that came in after their turn this round: they move to it when the round ends. */
+  reslot?: boolean;
 }
 
 export type FightReminderKind = "info" | "recharge" | "death" | "concentration" | "expired";

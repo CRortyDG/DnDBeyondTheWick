@@ -207,6 +207,33 @@ function sortUnrolledLast(order: Combatant[]): Combatant[] {
   return [...order.filter((c) => c.init !== null), ...order.filter((c) => c.init === null)];
 }
 
+/**
+ * A new initiative for someone in a fight. Before it starts: straight to their
+ * place. Once it's running, nobody's turn is lost or doubled: someone still to
+ * act this round moves within the rest of the round; someone who has acted (or
+ * is acting) keeps their spot and moves when the round ends.
+ */
+export function reslotCombatant(f: Fight, c: Combatant) {
+  const without = f.order.filter((x) => x.id !== c.id);
+  if (f.status !== "running") {
+    f.order = without;
+    if (c.init === null) f.order.push(c);
+    else insertSorted(f.order, c);
+    return;
+  }
+  const cur = f.order.findIndex((x) => x.id === f.currentId);
+  const at = f.order.indexOf(c);
+  if (cur < 0 || at <= cur) {
+    c.reslot = true;
+    return;
+  }
+  const head = f.order.slice(0, cur + 1);
+  const tail = without.slice(cur + 1);
+  if (c.init === null) tail.push(c);
+  else insertSorted(tail, c);
+  f.order = [...head, ...tail];
+}
+
 /** Next turn: end-of-turn countdowns, wrap the round (clearing the defeated), start-of-turn countdowns. */
 export function nextTurn(f: Fight, h: TurnHooks, tpl: (id?: string) => MonsterTemplate | undefined): boolean {
   const i = f.order.findIndex((c) => c.id === f.currentId);
@@ -223,7 +250,17 @@ export function nextTurn(f: Fight, h: TurnHooks, tpl: (id?: string) => MonsterTe
       }
     }
   }
-  const c = f.order[nx.index];
+  let c = f.order[nx.index];
+  // Initiatives that came in late take their place now, at the top of the new round.
+  if (nx.wrapped && f.order.some((x) => x.reslot)) {
+    for (const x of f.order.filter((y) => y.reslot)) {
+      delete x.reslot;
+      f.order = f.order.filter((y) => y.id !== x.id);
+      if (x.init === null) f.order.push(x);
+      else insertSorted(f.order, x);
+    }
+    c = f.order.find(canAct) ?? c;
+  }
   f.currentId = c.id;
   startTurn(f, c, step, h, tpl);
   f.steps.push(step);

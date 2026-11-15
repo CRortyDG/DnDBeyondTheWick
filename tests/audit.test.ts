@@ -99,3 +99,39 @@ describe("Clear gold, ledger and sessions", () => {
     expect(s.shops[0].visibility).toBe("hidden");
   });
 });
+
+describe("late initiative", () => {
+  it("never skips anyone's turn when initiatives come in after Begin", async () => {
+    const s0 = await state();
+    const tpl = s0.monsters![0].id;
+    await execute(store, G, DM, { type: "fight.start", groups: [{ templateId: tpl, count: 2 }] });
+    await execute(store, G, DM, { type: "fight.begin" });
+    let f = (await state()).fight!;
+    const first = f.currentId;
+    // Everyone else answers late, all higher than the one acting.
+    for (const c of f.order.filter((x) => x.id !== first)) await execute(store, G, DM, { type: "fight.init", combatantId: c.id, init: 15 });
+    await execute(store, G, DM, { type: "fight.init", combatantId: first!, init: 10 });
+    const seen = new Set<string>([first!]);
+    f = (await state()).fight!;
+    while (f.round === 1) {
+      await execute(store, G, DM, { type: "fight.next" });
+      f = (await state()).fight!;
+      if (f.round === 1) seen.add(f.currentId!);
+    }
+    expect(seen.size).toBe(f.order.length);
+    // From round 2 the order follows the numbers.
+    expect(f.order.map((c) => c.init)).toEqual([...f.order.map((c) => c.init)].sort((a, b) => (b ?? -99) - (a ?? -99)));
+    expect(f.order.some((c) => c.reslot)).toBe(false);
+  });
+});
+
+describe("ending a session", () => {
+  it("won't leave a fight open on everyone's phones", async () => {
+    await execute(store, G, DM, { type: "session.start" });
+    await execute(store, G, DM, { type: "fight.start", groups: [{ templateId: (await state()).monsters![0].id, count: 1 }] });
+    await expect(execute(store, G, DM, { type: "session.end" })).rejects.toThrow(/fight is still open/);
+    await execute(store, G, DM, { type: "fight.cancel" });
+    await execute(store, G, DM, { type: "session.end" });
+    expect((await state()).currentSessionId).toBeNull();
+  });
+});

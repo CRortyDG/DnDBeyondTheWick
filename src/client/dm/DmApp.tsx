@@ -444,7 +444,7 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
           </button>
           <span className="dm-top-sep" aria-hidden="true" />
           {session ? (
-            <button className="btn" type="button" onClick={() => (duesFor(s, session.number).length ? setEnding(true) : void run({ type: "session.end" }, `${session.title} ended.`))}>
+            <button className="btn" type="button" onClick={() => setEnding(true)}>
               End session
             </button>
           ) : null}

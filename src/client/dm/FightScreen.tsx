@@ -284,7 +284,12 @@ function FightConsole({ f, onExit, run, toast }: { f: Fight; onExit: () => void;
               <button className="btn run-nav" type="button" onClick={() => run({ type: "fight.rollInit" })} disabled={!f.order.some((c) => c.kind === "monster" && c.init === null)}>
                 Roll monsters&rsquo; initiative
               </button>
-              <button className="btn primary run-nav" type="button" onClick={() => run({ type: "fight.begin" })} disabled={!f.order.length}>
+              <button className="btn primary run-nav" type="button" onClick={() => {
+                  // Anyone still without an initiative goes last this round; say so first.
+                  const missing = f.order.filter((c) => c.init === null && !c.hidden).map((c) => c.name);
+                  if (missing.length && !confirm(`Still no initiative for ${missing.join(", ")}. Begin anyway? They go last this round and move to their place from round 2.`)) return;
+                  void run({ type: "fight.begin" });
+                }} disabled={!f.order.length}>
                 Begin ›
               </button>
             </>

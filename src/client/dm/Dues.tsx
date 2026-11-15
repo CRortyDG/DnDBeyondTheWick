@@ -8,6 +8,8 @@ import { formatCp } from "@/shared/money";
 import { creditCp, duesFor, type Due } from "@/shared/progress";
 import type { Session } from "@/shared/types";
 import { useDm } from "./context";
+import { downloadBackup } from "./backup";
+import { useAutosave } from "./useAutosave";
 
 export function useDues(session: Session | undefined): Due[] {
   const { view } = useDm();
@@ -77,26 +79,77 @@ export function Dues({ session, onCharged }: { session: Session; onCharged?: () 
   );
 }
 
-/** Before "End session" in the DM view: charge what's due first, or end anyway. */
+/**
+ * "End session" in the DM view: a short wrap-up first. An open fight, asks still
+ * waiting, rent and lessons due, the recap for next time's "Previously on", and a
+ * backup. Nothing here is required; it's what's easy to forget at the end of a night.
+ */
 export function EndSessionDialog({ session, onClose }: { session: Session; onClose: () => void }) {
-  const { run } = useDm();
+  const { view, run, ident, toast } = useDm();
+  const s = view.state;
   const due = useDues(session);
+  const recap = useAutosave(session.recap ?? "", (text) => run({ type: "run.recap", sessionId: session.id, text }));
+  const waiting = s.requests.filter((r) => r.status === "pending").length;
+  const fight = s.fight;
+  const [saved, setSaved] = useState(false);
   const end = async () => {
+    await recap.flush();
     if (await run({ type: "session.end" }, `${session.title} ended.`)) onClose();
   };
   return (
     <div className="inbox-backdrop" onClick={onClose}>
-      <aside className="inbox-drawer" role="dialog" aria-label="Rent and lessons due" onClick={(e) => e.stopPropagation()}>
+      <aside className="inbox-drawer wrapup" role="dialog" aria-label={`Wrap up ${session.title}`} onClick={(e) => e.stopPropagation()}>
         <div className="box-head">
-          <h2>Rent and lessons due</h2>
+          <h2>Wrap up {session.title}</h2>
           <button type="button" className="btn small" onClick={onClose}>
             Not yet
           </button>
         </div>
-        <Dues session={session} />
-        <button type="button" className={`btn${due.length ? "" : " primary"}`} onClick={end}>
+        {fight ? (
+          <section className="wrapup-step warn">
+            <h3>A fight is still open</h3>
+            <p className="note">{fight.status === "over" ? "Its end card is up. Finish it (loot and the Chronicle) or close it here." : "Phones are still showing it. End it from the fight screen, or cancel it here."}</p>
+            <button type="button" className="btn small" onClick={() => run({ type: "fight.cancel" }, "Fight closed.")}>
+              {fight.status === "over" ? "Close it without loot" : "Cancel the fight"}
+            </button>
+          </section>
+        ) : null}
+        {waiting ? (
+          <section className="wrapup-step warn">
+            <h3>
+              {waiting} {waiting === 1 ? "ask is" : "asks are"} still waiting
+            </h3>
+            <p className="note">Their gold stays held until you decide. Open Requests (press I) to approve or decline.</p>
+          </section>
+        ) : null}
+        <section className="wrapup-step">
+          <h3>Rent and lessons due</h3>
+          <Dues session={session} />
+        </section>
+        <section className="wrapup-step">
+          <h3>Recap</h3>
+          <label>
+            <span className="note">A few lines for next time&rsquo;s &ldquo;Previously on&hellip;&rdquo;. Players see it in the Chronicle once the session ends. {recap.state === "saved" ? "" : recap.state === "saving" ? "Saving…" : "…"}</span>
+            <textarea className="fld" rows={5} value={recap.text} onChange={(e) => recap.onChange(e.target.value)} onBlur={() => void recap.flush()} placeholder="What happened tonight, in the party's words" />
+          </label>
+        </section>
+        <section className="wrapup-step">
+          <h3>Backup</h3>
+          <p className="note">Everything saves online by itself. A copy on this computer is still worth having.</p>
+          <button
+            type="button"
+            className={`btn small${saved ? " on" : ""}`}
+            onClick={async () => {
+              if (await downloadBackup(ident, toast)) setSaved(true);
+            }}
+          >
+            {saved ? "Backup downloaded" : "Download a backup"}
+          </button>
+        </section>
+        <button type="button" className="btn primary" onClick={end} disabled={!!fight && fight.status !== "over"}>
           {due.length ? `End ${session.title} without charging the rest` : `End ${session.title}`}
         </button>
+        {fight && fight.status !== "over" ? <p className="note">End or cancel the fight first.</p> : null}
       </aside>
     </div>
   );
