@@ -1,8 +1,13 @@
 import type { GameRoom } from "./room";
+import type { LibraryRoom } from "./library";
 
 export interface Env {
   /** One Durable Object per campaign, named by its code. */
   ROOMS: DurableObjectNamespace<GameRoom>;
+  /** The shared preset library: one instance, named "library". */
+  LIBRARY: DurableObjectNamespace<LibraryRoom>;
+  /** The site owner's key for /library/admin (a dashboard secret, 16+ characters). Missing: no admin page. */
+  LIBRARY_ADMIN_KEY?: string;
   /** Images the DM uploads, stored as <campaign code>/<random>.<ext>. */
   FILES: R2Bucket;
   /** The built app (Vite output). */

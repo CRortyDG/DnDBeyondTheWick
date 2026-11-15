@@ -44,14 +44,21 @@ function JoinForm() {
   );
 }
 
+/** ?preset=<code>: arrived from the library's "Start a campaign from it". */
+function presetFromUrl(): string {
+  const c = new URLSearchParams(window.location.search).get("preset")?.trim().toLowerCase() ?? "";
+  return /^[a-z0-9]{10}$/.test(c) ? c : "";
+}
+
 function StartForm({ onCreated }: { onCreated: (c: { game: string; key: string }) => void }) {
-  const [open, setOpen] = useState(false);
+  const [wanted] = useState(presetFromUrl);
+  const [open, setOpen] = useState(!!wanted);
   const [name, setName] = useState("");
   const [code, setCode] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   // "blank", "candlefair", or a preset code.
-  const [from, setFrom] = useState("blank");
+  const [from, setFrom] = useState(wanted ? wanted : "blank");
   const mine = devicePresets();
   if (!open) {
     return (
@@ -59,6 +66,8 @@ function StartForm({ onCreated }: { onCreated: (c: { game: string; key: string }
         <button className="btn" type="button" onClick={() => setOpen(true)}>
           I&rsquo;m a DM: start a new campaign
         </button>
+        <br />
+        <a href="/library">Browse campaigns other DMs shared</a>
       </p>
     );
   }
@@ -95,7 +104,7 @@ function StartForm({ onCreated }: { onCreated: (c: { game: string; key: string }
         Campaign name
         <input className="fld" value={name} onChange={(e) => setName(e.target.value)} maxLength={80} placeholder={from === "candlefair" ? "Tales from the Flickering Candle" : "A new campaign"} />
       </label>
-      <StartFrom from={from} onFrom={setFrom} mine={mine} />
+      <StartFrom from={from} onFrom={setFrom} mine={mine} initialCode={wanted && !mine.some((p) => p.code === wanted) ? wanted : ""} />
       <label>
         Campaign code (optional)
         <input className="fld" value={code} onChange={(e) => setCode(e.target.value)} maxLength={40} autoCapitalize="none" spellCheck={false} placeholder="Blank for a random one, or 8+ letters" />
@@ -112,8 +121,8 @@ function StartForm({ onCreated }: { onCreated: (c: { game: string; key: string }
  * What the campaign starts with: nothing (the default), the built-in Candlefair
  * setup, a preset this device saved, or a preset code someone gave you.
  */
-function StartFrom({ from, onFrom, mine }: { from: string; onFrom: (f: string) => void; mine: { code: string; name: string }[] }) {
-  const [typed, setTyped] = useState("");
+function StartFrom({ from, onFrom, mine, initialCode = "" }: { from: string; onFrom: (f: string) => void; mine: { code: string; name: string }[]; initialCode?: string }) {
+  const [typed, setTyped] = useState(initialCode);
   const [found, setFound] = useState<PresetInfo | null>(null);
   const [lookErr, setLookErr] = useState<string | null>(null);
   const clean = typed.trim().toLowerCase();
@@ -152,7 +161,9 @@ function StartFrom({ from, onFrom, mine }: { from: string; onFrom: (f: string) =
         <input type="radio" name="from" checked={usingTyped} onChange={() => onFrom(found ? found.code : "")} />
         <span>
           <b>A preset code</b>
-          <span className="note">Someone gave you one, or you saved it on another device.</span>
+          <span className="note">
+            Someone gave you one, you saved it on another device, or you found it in the <a href="/library">preset library</a>.
+          </span>
           {usingTyped ? (
             <>
               <input className="fld" value={typed} onChange={(e) => setTyped(e.target.value)} maxLength={10} autoCapitalize="none" spellCheck={false} placeholder="10 letters and numbers" aria-label="Preset code" />

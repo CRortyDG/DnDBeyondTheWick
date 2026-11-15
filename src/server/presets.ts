@@ -11,8 +11,17 @@ import type { GameState } from "@/shared/types";
  * delete it. In production the files live in R2 (worker/presets.ts).
  */
 
+/**
+ * The preset file format. Files saved before formats were numbered are format 1.
+ * Each step in PRESET_STEPS turns one format into the next; loading always runs
+ * the chain and then the usual campaign upgrade, so an old code keeps working.
+ */
+export const PRESET_FORMAT = 2;
+
 export interface PresetRecord {
   v: 1;
+  /** Missing: format 1. */
+  format?: number;
   name: string;
   savedAt: number;
   /** sha256 of the owner token. */
@@ -38,6 +47,24 @@ export const presetFolder = (code: string) => `p/${code}/`;
 export const MAX_PRESET_FILES = 300;
 
 const FILE_URL = /\/api\/files\/((?:p\/[a-z0-9]{10}|[a-z0-9-]{1,40})\/[0-9a-f]{24}\.(?:png|jpg|webp|gif|svg|avif|mp4|webm|mov))/g;
+
+/** format n -> n + 1. Add a step here whenever the stored shape changes. */
+const PRESET_STEPS: Record<number, (r: PresetRecord) => PresetRecord> = {
+  // 1 -> 2: the format is numbered from now on. The setup itself goes through upgrade() below.
+  1: (r) => ({ ...r, format: 2 }),
+};
+
+/** Any stored preset file, brought up to today's format (setup upgraded too). Throws if it's newer than this code knows. */
+export function migratePreset(raw: PresetRecord): PresetRecord {
+  let rec = { ...raw };
+  let f = rec.format ?? 1;
+  if (f > PRESET_FORMAT) throw new HttpError(409, "This preset was saved by a newer version of the app. Reload the page and try again.");
+  while (f < PRESET_FORMAT) {
+    rec = PRESET_STEPS[f](rec);
+    f = rec.format ?? f + 1;
+  }
+  return { ...rec, format: PRESET_FORMAT, setup: upgrade(rec.setup) };
+}
 
 function randomCode(n: number, alphabet: string): string {
   const bytes = new Uint8Array(n);
@@ -104,7 +131,7 @@ export async function savePreset(presets: PresetStore, setup: GameState, opts: {
   }
   const own = await withOwnFiles(setup, code, presets);
   if (JSON.stringify(own).length > MAX_STATE_CHARS) throw new HttpError(413, "That campaign is too big to save as a preset.");
-  await presets.put(code, { v: 1, name, savedAt: now, ownerHash: sha256(token), setup: own });
+  await presets.put(code, { v: 1, format: PRESET_FORMAT, name, savedAt: now, ownerHash: sha256(token), setup: own });
   return { code, token, name, savedAt: now };
 }
 
@@ -113,10 +140,10 @@ export async function loadPreset(presets: PresetStore, rawCode: unknown): Promis
   const code = checkCode(rawCode);
   const rec = await presets.get(code);
   if (!rec) throw new HttpError(404, "There's no preset with that code. It may have been deleted.", "no-preset");
-  return { code, name: rec.name, setup: upgrade(rec.setup) };
+  return { code, name: rec.name, setup: migratePreset(rec).setup };
 }
 
-function owned(rec: PresetRecord | null, token: unknown): rec is PresetRecord {
+export function owned(rec: PresetRecord | null, token: unknown): rec is PresetRecord {
   return !!rec && typeof token === "string" && sha256(token) === rec.ownerHash;
 }
 

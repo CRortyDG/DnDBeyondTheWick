@@ -4,6 +4,8 @@ import { hasGameInUrl, readIdent, type Ident } from "./api";
 import { DmApp } from "./dm/DmApp";
 import { Home } from "./Home";
 import { Landing } from "./Landing";
+import { LibraryAdmin } from "./library/LibraryAdmin";
+import { LibraryPage } from "./library/LibraryPage";
 import { PlayerApp } from "./player/PlayerApp";
 import { TvApp } from "./tv/TvApp";
 
@@ -18,6 +20,9 @@ export function App() {
   }, []);
 
   if (!ident) return null;
+  const path = window.location.pathname.replace(/\/+$/, "");
+  if (path === "/library") return <LibraryPage />;
+  if (path === "/library/admin") return <LibraryAdmin />;
   const role = (ident.player ?? "").trim().toLowerCase();
   if (!role) return hasGameInUrl() ? <Landing game={ident.game} /> : <Home />;
   if (role === "tv") return <TvApp ident={ident} />;
