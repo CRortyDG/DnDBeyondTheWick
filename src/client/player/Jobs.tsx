@@ -5,6 +5,7 @@ import { useState } from "react";
 import type { PlayerView } from "@/shared/projection";
 import { RENOWN } from "@/shared/renown";
 import { JobCard, jobStatusLine } from "../scenes/Board";
+import { useConfirm } from "./Sheet";
 
 type Send = (c: object) => Promise<string | null>;
 
@@ -12,8 +13,9 @@ export function Jobs({ view, send }: { view: PlayerView; send: Send }) {
   const [msg, setMsg] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const rank = view.renown.rank;
+  const [confirmSheet, ask] = useConfirm();
   const take = async (jobId: string, title: string) => {
-    if (!confirm(`Ask the DM if the party can take “${title}”?`)) return;
+    if (!(await ask({ title: "Take this job?", body: `Ask the DM if the party can take “${title}”.`, yes: "Ask the DM" }))) return;
     setBusy(jobId);
     const err = await send({ type: "me.takeJob", jobId, note: "" });
     setBusy(null);
@@ -21,6 +23,7 @@ export function Jobs({ view, send }: { view: PlayerView; send: Send }) {
   };
   return (
     <>
+      {confirmSheet}
       <section className="box" aria-label="Renown">
         <h2>Renown</h2>
         <p>

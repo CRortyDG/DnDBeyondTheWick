@@ -16,6 +16,7 @@ import { Discovery, useDiscoverySeen } from "./Discovery";
 import { Dice } from "./Dice";
 import { FightCard } from "./FightCard";
 import { Maps } from "./PhoneMap";
+import { Sheet, useConfirm } from "./Sheet";
 import { askLabel, DecisionBanners, MyRequests, RequestSheet, SendGold, whyNot } from "./Requests";
 
 export function PlayerApp({ ident: initial }: { ident: Ident }) {
@@ -83,6 +84,7 @@ function PlayerScreen({ view, online, send, ident, setIdent }: { view: PlayerVie
   const [shopId, setShopId] = useState(view.live.shopOpen ? view.live.shopId : view.shops[0]?.id);
   const pendingOrders = view.myOrders.filter((o) => !o.arrived);
   const [msg, setMsg] = useState<string | null>(null);
+  const [locking, setLocking] = useState(false);
   const [purseOpen, setPurseOpen] = useState(false);
   const [looking, setLooking] = useState<string | null>(null);
   // During a session the phone opens on the Chronicle, so a note is one tap away.
@@ -108,18 +110,20 @@ function PlayerScreen({ view, online, send, ident, setIdent }: { view: PlayerVie
     );
   }
 
-  const lock = async () => {
-    const key = prompt("Pick a key to lock your name. You'll need it on any new phone or browser.");
-    if (!key || key.length < 4) return setMsg("Keys need at least 4 characters.");
+  const lock = () => setLocking(true);
+  const lockWith = async (key: string): Promise<string | null> => {
     const err = await send({ type: "me.lock", key });
-    if (err) return setMsg(err);
+    if (err) return err;
     rememberKey(ident, key);
     setIdent({ ...ident, key });
+    setLocking(false);
     setMsg("Your name is locked to this key. It's saved on this device.");
+    return null;
   };
 
   return (
     <div className="player-root">
+      {locking ? <LockSheet onLock={lockWith} onClose={() => setLocking(false)} /> : null}
       <header className="player-top">
         <div>
           <div className="player-hello">{view.game.name}</div>
@@ -341,9 +345,11 @@ function PlayerScreen({ view, online, send, ident, setIdent }: { view: PlayerVie
 /** What I have going: rentals, lessons, shares, titles and honours. */
 function Yours({ view, send, onMsg }: { view: PlayerView; send: (c: object) => Promise<string | null>; onMsg: (m: string) => void }) {
   const { rentals, trainings, stakes, awards, credit } = view.mine;
+  const [confirmSheet, ask] = useConfirm();
   if (!rentals.length && !trainings.length && !stakes.length && !awards.length && !credit.length) return null;
   return (
     <section className="box" aria-label="Yours">
+      {confirmSheet}
       <h2>Yours</h2>
       <ul className="mine-list">
         {awards.map((a) => (
@@ -370,7 +376,7 @@ function Yours({ view, send, onMsg }: { view: PlayerView; send: (c: object) => P
               type="button"
               className="btn small"
               onClick={async () => {
-                if (!confirm(`Give up ${r.itemName}? Rent stops from now on.`)) return;
+                if (!(await ask({ title: `Give up ${r.itemName}?`, body: "Rent stops from now on.", yes: "Give it up", no: "Keep it", danger: true }))) return;
                 onMsg((await send({ type: "me.cancelRental", rentalId: r.id })) ?? `You gave up ${r.itemName}.`);
               }}
             >
@@ -431,5 +437,40 @@ function CharacterLink({ current, onSave }: { current?: string; onSave: (url: st
         Save link
       </button>
     </form>
+  );
+}
+
+/** Pick a key that locks this name, so only this player can spend from it. */
+function LockSheet({ onLock, onClose }: { onLock: (key: string) => Promise<string | null>; onClose: () => void }) {
+  const [key, setKey] = useState("");
+  const [err, setErr] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  return (
+    <Sheet title="Lock your name" onClose={onClose}>
+      <form
+        className="form"
+        onSubmit={async (e) => {
+          e.preventDefault();
+          if (key.trim().length < 4) return setErr("Keys need at least 4 characters.");
+          setBusy(true);
+          setErr(await onLock(key.trim()));
+          setBusy(false);
+        }}
+      >
+        <p className="note">Pick a key. Only someone with it can open your name and ask to spend your gold. You&rsquo;ll need it on any new phone or browser; this one remembers it.</p>
+        <label>
+          Your key
+          <input className="fld" type="password" autoComplete="new-password" value={key} onChange={(e) => setKey(e.target.value)} autoFocus />
+        </label>
+        {err ? (
+          <p className="error-text" role="alert">
+            {err}
+          </p>
+        ) : null}
+        <button type="submit" className="btn primary big" disabled={busy}>
+          Lock my name
+        </button>
+      </form>
+    </Sheet>
   );
 }
