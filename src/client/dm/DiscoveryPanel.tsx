@@ -15,6 +15,8 @@ import { PersonNotes, notesAbout } from "../ui/PersonNotes";
 import { artSrc } from "../ui/SceneView";
 import { Field } from "./Field";
 import { useDm } from "./context";
+import { Drawer } from "./Drawer";
+import { MenuItem, RowMenu } from "./RowMenu";
 import { uploadImage } from "./upload";
 import { makeSilhouette } from "./silhouette";
 import { ShowControls } from "./QuickBar";
@@ -121,23 +123,26 @@ function EntryRow({ entry: e, tv, first, last, open, onToggle }: { entry: Entry;
   const known = e.facts.filter((f) => f.revealedAt !== undefined).length;
   const notes = notesAbout(view.chronicle, entryTags(s, e)).length;
   const sc = e.sceneId ? s.scenes.find((x) => x.id === e.sceneId) : undefined;
+  const sub = [e.nickname ? `“${e.nickname}”` : "", e.title ?? ""].filter(Boolean).join(" · ");
   return (
-    <li className={`scene-item person-item stage-${e.stage}`}>
+    <li className={`scene-item list-row person-item stage-${e.stage}${open ? " selected" : ""}`}>
       <div className="scene-row">
         <Portrait art={sc?.art} gated={gated} name={e.name} kind={e.kind} silhouette={e.silhouette} rumored={!sc?.art?.url && !(sc?.art?.builtin && gated[sc.art.builtin]) && e.stage === "rumored"} className="person-face small" />
-        <span className="scene-label">
-          {e.name}
-          {e.nickname ? <span className="note"> · &ldquo;{e.nickname}&rdquo;</span> : null}
-          {e.title ? <span className="note"> · {e.title}</span> : null}
-          <span className="tag">{kindInfo(e.kind).label}</span>
+        <button type="button" className="row-main" onClick={onToggle} aria-expanded={open} title={`Edit ${e.name}`}>
+          <span className="row-title">{e.name}</span>
+          <span className="row-sub">
+            {kindInfo(e.kind).label}
+            {sub ? ` · ${sub}` : ""}
+          </span>
+        </button>
+        <span className="row-meta">
           {e.facts.length ? (
-            <span className="tag">
+            <span className="tag" title="Facts the party knows">
               {known}/{e.facts.length} facts
             </span>
           ) : null}
           {notes ? <span className="tag">{notes === 1 ? "1 note" : `${notes} notes`}</span> : null}
         </span>
-        <span className="spacer" />
         <label className="stage-pick">
           <span className="sr-only">Stage of {e.name}</span>
           <select className={`fld stage-select stage-${e.stage}`} value={e.stage} onChange={(ev) => void run({ type: "entry.stage", entryId: e.id, stage: ev.target.value as Stage, announce: tv }, ev.target.value === "hidden" ? `${e.name} is hidden again.` : undefined)}>
@@ -148,21 +153,25 @@ function EntryRow({ entry: e, tv, first, last, open, onToggle }: { entry: Entry;
             ))}
           </select>
         </label>
-        <button className="btn small icon" type="button" aria-label={`Move ${e.name} up`} disabled={first} onClick={() => run({ type: "entry.move", entryId: e.id, dir: -1 })}>
-          <UpIcon />
-        </button>
-        <button className="btn small icon" type="button" aria-label={`Move ${e.name} down`} disabled={last} onClick={() => run({ type: "entry.move", entryId: e.id, dir: 1 })}>
-          <DownIcon />
-        </button>
         <ShowControls refName={entryRef(e)} label={e.name} title={isFound(e.stage) ? undefined : "Shows it and finds it"} />
-        <button className="btn small" type="button" disabled={e.stage === "hidden"} title="Play its card on the TV (New face, Rumor, a new fact)" onClick={() => run({ type: "entry.show", entryId: e.id }, "On the TV.")}>
-          Announce
-        </button>
-        <button className="btn small" type="button" aria-expanded={open} onClick={onToggle}>
-          {open ? "Done" : "Edit"}
-        </button>
+        <RowMenu label={e.name}>
+          <MenuItem disabled={e.stage === "hidden"} title="Play its card on the TV (New face, Rumor, a new fact)" onClick={() => run({ type: "entry.show", entryId: e.id }, "On the TV.")}>
+            Announce on the TV
+          </MenuItem>
+          <MenuItem onClick={onToggle}>{open ? "Close the editor" : "Edit"}</MenuItem>
+          <MenuItem disabled={first} onClick={() => run({ type: "entry.move", entryId: e.id, dir: -1 })}>
+            Move up
+          </MenuItem>
+          <MenuItem disabled={last} onClick={() => run({ type: "entry.move", entryId: e.id, dir: 1 })}>
+            Move down
+          </MenuItem>
+        </RowMenu>
       </div>
-      {open ? <EntryEditor entry={e} tv={tv} /> : null}
+      {open ? (
+        <Drawer title={e.name} subtitle={`${kindInfo(e.kind).label} · ${stageLabel(e.kind, e.stage)}`} onClose={onToggle}>
+          <EntryEditor entry={e} tv={tv} />
+        </Drawer>
+      ) : null}
     </li>
   );
 }

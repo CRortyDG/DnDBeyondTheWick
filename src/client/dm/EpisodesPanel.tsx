@@ -16,6 +16,8 @@ import type { Beat, BeatAction, Episode } from "@/shared/types";
 import { beatSuggestions, listAssets, resolveRef, type AssetGame } from "@/shared/assets";
 import { DownIcon, UpIcon } from "../ui/icons";
 import { useDm } from "./context";
+import { Drawer } from "./Drawer";
+import { MenuItem, RowMenu } from "./RowMenu";
 import { monstersOf } from "@/shared/combat";
 import { Field } from "./Field";
 import { actionLabel } from "./RunGame";
@@ -334,11 +336,11 @@ function EpisodeEditor({
 
       <CastAndPrep ep={ep} />
 
-      <ol className="beat-list">
+      <ol className="beat-list scene-list">
         {ep.beats.map((b, i) => (
           <li
             key={b.id}
-            className={`scene-item beat-item${dragId === b.id ? " dragging" : ""}`}
+            className={`scene-item list-row beat-item${dragId === b.id ? " dragging" : ""}${editing === b.id ? " selected" : ""}`}
             draggable={editing !== b.id}
             onDragStart={(e) => {
               setDragId(b.id);
@@ -363,95 +365,46 @@ function EpisodeEditor({
             }}
           >
             <div className="scene-row">
-              <span
-                className="drag-handle"
-                aria-hidden="true"
-                title="Drag to reorder"
-              >
+              <span className="drag-handle" aria-hidden="true" title="Drag to reorder">
                 ⠿
               </span>
-              <span className="key">{i + 1}</span>
-              <span className="scene-label">{b.title}</span>
-              <span className="note beat-summary">
-                {[
-                  b.readAloud?.length ? "read-aloud" : "",
-                  b.checks.length
-                    ? `${b.checks.length} check${b.checks.length === 1 ? "" : "s"}`
-                    : "",
-                  ...b.actions.map((a) => actionLabel(a, s)),
-                ]
-                  .filter(Boolean)
-                  .join(" · ")}
-              </span>
-              <span className="spacer" />
-              <button
-                className="btn small icon"
-                type="button"
-                aria-label={`Move ${b.title} up`}
-                disabled={i === 0}
-                onClick={() =>
-                  run({
-                    type: "beat.move",
-                    episodeId: ep.id,
-                    beatId: b.id,
-                    to: i - 1,
-                  })
-                }
-              >
-                <UpIcon />
-              </button>
-              <button
-                className="btn small icon"
-                type="button"
-                aria-label={`Move ${b.title} down`}
-                disabled={i === ep.beats.length - 1}
-                onClick={() =>
-                  run({
-                    type: "beat.move",
-                    episodeId: ep.id,
-                    beatId: b.id,
-                    to: i + 1,
-                  })
-                }
-              >
-                <DownIcon />
-              </button>
-              <button
-                className="btn small"
-                type="button"
-                aria-expanded={editing === b.id}
-                onClick={() => setEditing(editing === b.id ? null : b.id)}
-              >
-                {editing === b.id ? "Close" : "Edit"}
+              <span className="beat-num">{i + 1}</span>
+              <button type="button" className="row-main" aria-expanded={editing === b.id} onClick={() => setEditing(editing === b.id ? null : b.id)} title={`Edit ${b.title}`}>
+                <span className="row-title">{b.title}</span>
+                <span className="row-sub">
+                  {[b.readAloud?.length ? "Read-aloud" : "", b.checks.length ? `${b.checks.length} check${b.checks.length === 1 ? "" : "s"}` : ""].filter(Boolean).join(" · ")}
+                </span>
               </button>
               {confirmDelete === b.id ? (
-                <button
-                  className="btn small danger"
-                  type="button"
-                  onClick={() =>
-                    run({ type: "beat.remove", episodeId: ep.id, beatId: b.id })
-                  }
-                >
-                  Really delete?
-                </button>
-              ) : (
-                <button
-                  className="btn small danger"
-                  type="button"
-                  onClick={() => setConfirmDelete(b.id)}
-                >
+                <>
+                  <button className="btn small" type="button" onClick={() => setConfirmDelete(null)}>
+                    Keep it
+                  </button>
+                  <button className="btn small danger" type="button" onClick={() => run({ type: "beat.remove", episodeId: ep.id, beatId: b.id })}>
+                    Delete {b.title}
+                  </button>
+                </>
+              ) : null}
+              <RowMenu label={b.title}>
+                <MenuItem onClick={() => setEditing(editing === b.id ? null : b.id)}>{editing === b.id ? "Close the editor" : "Edit"}</MenuItem>
+                <MenuItem disabled={i === 0} onClick={() => run({ type: "beat.move", episodeId: ep.id, beatId: b.id, to: i - 1 })}>
+                  Move up
+                </MenuItem>
+                <MenuItem disabled={i === ep.beats.length - 1} onClick={() => run({ type: "beat.move", episodeId: ep.id, beatId: b.id, to: i + 1 })}>
+                  Move down
+                </MenuItem>
+                <MenuItem danger onClick={() => setConfirmDelete(b.id)}>
                   Delete
-                </button>
-              )}
+                </MenuItem>
+              </RowMenu>
             </div>
             {editing !== b.id ? <StoryBlocks episodeId={ep.id} beat={b} /> : null}
             {editing === b.id ? (
-              <BeatEditor
-                episodeId={ep.id}
-                beat={b}
-                onDone={() => setEditing(null)}
-              />
-            ) : (
+              <Drawer title={b.title} subtitle={`Beat ${i + 1} of ${ep.title}`} onClose={() => setEditing(null)} closeLabel="Close" wide>
+                <BeatEditor episodeId={ep.id} beat={b} onDone={() => setEditing(null)} />
+              </Drawer>
+            ) : null}
+            {editing === b.id ? null : (
               <ActionsPicker
                 actions={b.actions}
                 beat={b}
@@ -472,10 +425,11 @@ function EpisodeEditor({
       </ol>
       <AddStoryBeat ep={ep} />
       {editing === "__new__" ? (
-        <div className="scene-item beat-item">
+        <Drawer title="New beat" subtitle={ep.title} onClose={() => setEditing(null)} closeLabel="Cancel" wide>
           <BeatEditor episodeId={ep.id} onDone={() => setEditing(null)} />
-        </div>
-      ) : (
+        </Drawer>
+      ) : null}
+      {editing === "__new__" ? null : (
         <button
           className="btn"
           type="button"

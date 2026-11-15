@@ -151,9 +151,6 @@ export function ShowControls({ refName, label, disabled, title }: { refName: str
   const mine = quickKeyOf(s, refName);
   return (
     <>
-      <button className="btn small" type="button" disabled={disabled} title={title} onClick={() => run({ type: "show", ref: refName })}>
-        Show
-      </button>
       <select
         className="fld small-select quick-key-select"
         aria-label={`Number key for ${label}`}
@@ -166,7 +163,7 @@ export function ShowControls({ refName, label, disabled, title }: { refName: str
           } else void run({ type: "quick.set", key: Number(v), ref: refName });
         }}
       >
-        <option value="">Key –</option>
+        <option value="">No key</option>
         {QUICK_KEYS.map((k) => {
           const other = q[k] && q[k] !== refName ? resolveRef(s, q[k])?.label : undefined;
           return (
@@ -177,6 +174,9 @@ export function ShowControls({ refName, label, disabled, title }: { refName: str
           );
         })}
       </select>
+      <button className="btn small" type="button" disabled={disabled} title={title} onClick={() => run({ type: "show", ref: refName })}>
+        Show
+      </button>
     </>
   );
 }

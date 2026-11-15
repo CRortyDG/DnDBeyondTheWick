@@ -5,6 +5,8 @@ import type { Scene, SceneKind } from "@/shared/types";
 import { SceneView } from "../ui/SceneView";
 import { DownIcon, UpIcon } from "../ui/icons";
 import { useDm } from "./context";
+import { Drawer } from "./Drawer";
+import { MenuItem, RowMenu } from "./RowMenu";
 import { Field } from "./Field";
 import { Check } from "./Check";
 import { uploadImage } from "./upload";
@@ -52,23 +54,19 @@ export function ScenesPanel() {
                 const i = s.scenes.indexOf(sc);
                 const ref = refForScene(s, sc);
                 return (
-                  <li key={sc.id} className={`scene-item${sc.id === s.live.sceneId ? " live" : ""}`}>
+                  <li key={sc.id} className={`scene-item list-row${sc.id === s.live.sceneId ? " live" : ""}${openId === sc.id ? " selected" : ""}`}>
                     <div className="scene-row">
-                      <span className="scene-label">
-                        {sc.label}
+                      <button type="button" className="row-main" aria-expanded={openId === sc.id} onClick={() => setOpenId(openId === sc.id ? null : sc.id)} title={`Edit ${sc.label}`}>
+                        <span className="row-title">{sc.label}</span>
+                        <span className="row-sub">
+                          <code className="ref-code">{ref}</code>
+                        </span>
+                      </button>
+                      <span className="row-meta">
+                        {sc.id === s.live.sceneId ? <span className="tag live">On the TV</span> : null}
                         {sc.reveal ? <span className="tag wax">reveal</span> : null}
                         {sc.kind === "map" ? <span className="tag">{sc.map?.pins.length ?? 0} locations</span> : null}
-                        {sc.id === s.live.sceneId ? <span className="tag">on the TV</span> : null}
-                        <code className="note ref-code">{ref}</code>
                       </span>
-                      <span className="spacer" />
-                      <button className="btn small icon" type="button" aria-label={`Move ${sc.label} up`} disabled={i === 0} onClick={() => run({ type: "scene.move", sceneId: sc.id, dir: -1 })}>
-                        <UpIcon />
-                      </button>
-                      <button className="btn small icon" type="button" aria-label={`Move ${sc.label} down`} disabled={i === s.scenes.length - 1} onClick={() => run({ type: "scene.move", sceneId: sc.id, dir: 1 })}>
-                        <DownIcon />
-                      </button>
-                      <ShowControls refName={ref} label={sc.label} />
                       {sc.kind === "map" ? (
                         <>
                           <button className="btn small" type="button" onClick={() => openMap(sc.id)}>
@@ -79,11 +77,22 @@ export function ScenesPanel() {
                           </button>
                         </>
                       ) : null}
-                      <button className="btn small" type="button" aria-expanded={openId === sc.id} onClick={() => setOpenId(openId === sc.id ? null : sc.id)}>
-                        {openId === sc.id ? "Done" : "Edit"}
-                      </button>
+                      <ShowControls refName={ref} label={sc.label} />
+                      <RowMenu label={sc.label}>
+                        <MenuItem onClick={() => setOpenId(openId === sc.id ? null : sc.id)}>{openId === sc.id ? "Close the editor" : "Edit"}</MenuItem>
+                        <MenuItem disabled={i === 0} onClick={() => run({ type: "scene.move", sceneId: sc.id, dir: -1 })}>
+                          Move up
+                        </MenuItem>
+                        <MenuItem disabled={i === s.scenes.length - 1} onClick={() => run({ type: "scene.move", sceneId: sc.id, dir: 1 })}>
+                          Move down
+                        </MenuItem>
+                      </RowMenu>
                     </div>
-                    {openId === sc.id ? <SceneEditor scene={sc} /> : null}
+                    {openId === sc.id ? (
+                      <Drawer title={sc.label} subtitle={ref} onClose={() => setOpenId(null)}>
+                        <SceneEditor scene={sc} />
+                      </Drawer>
+                    ) : null}
                   </li>
                 );
               })}
