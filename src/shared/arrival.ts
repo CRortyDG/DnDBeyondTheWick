@@ -27,6 +27,19 @@ export function seatedPlayers(g: Pick<GameState, "players">): Player[] {
   return g.players.filter((p) => !p.archived);
 }
 
+/**
+ * The seats at tonight's table. In a shared world that's whoever is here for the
+ * seated party (its members plus any guests); a phone away from the table sees its
+ * own party's seats instead. Otherwise it's every seat.
+ */
+export function tableSeats(g: Pick<GameState, "players" | "world" | "parties" | "partyId">, viewer?: Player): Player[] {
+  const seated = seatedPlayers(g);
+  if (!g.world || !g.partyId) return seated;
+  if (!viewer || !viewer.away) return seated.filter((p) => !p.away);
+  const party = (g.parties ?? []).find((x) => x.memberIds.includes(viewer.id));
+  return party ? seated.filter((p) => party.memberIds.includes(p.id)) : [viewer];
+}
+
 export function isClaimed(p: Player): boolean {
   return !!p.arrival?.claimedAt;
 }
@@ -170,7 +183,7 @@ export function projectArrival(g: GameState, version: number, token: string | nu
       // A name locked with this link: the link's code is the key, after the # so it never reaches a log.
       tableHref: `/?${q}` + (a.keyed && p.keyHash ? `#key=${encodeURIComponent(p.arrival!.token)}` : ""),
     },
-    seats: seatedPlayers(g).map((x) => ({ name: isClaimed(x) ? seatName(x) : null, lit: isClaimed(x), me: x.id === p.id })),
+    seats: tableSeats(g, p).map((x) => ({ name: isClaimed(x) ? seatName(x) : null, lit: isClaimed(x), me: x.id === p.id })),
     locked: !!g.arrival?.seatsLocked,
   };
 }
@@ -195,7 +208,7 @@ export interface TableView {
 }
 
 export function projectTable(g: GameState): TableView {
-  const seated = seatedPlayers(g);
+  const seated = tableSeats(g);
   const t = arrivalLook(g).title;
   return {
     title: `Tales from ${t.replace(/^The /, "the ")}`,
