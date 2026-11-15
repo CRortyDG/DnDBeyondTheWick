@@ -221,6 +221,28 @@ describe("party things", () => {
     expect(g.renown).toBe(0);
   });
 
+  it("Renown points are each character's too, and follow the table's best rank", () => {
+    twoParties();
+    dm({ type: "party.play", partyId: B });
+    dm({ type: "renown.points", amount: 5, reason: "Saved the sons", tv: false });
+    expect(g.renown).toBe(1);
+    expect(g.renownPoints).toBe(5);
+    expect(g.players.find((p) => p.id === "p3")!.renownPoints).toBe(5);
+    expect(g.renownLog!.at(-1)).toMatchObject({ partyId: B, amount: 5 });
+    dm({ type: "party.play", partyId: A });
+    // Brin (p1) is in both parties, so party A's table starts from Brin's points.
+    expect(g.renownPoints).toBe(5);
+    dm({ type: "player.update", playerId: "p1", patch: { away: true } });
+    expect(g.renown).toBe(0);
+    expect(g.renownPoints).toBe(0);
+    dm({ type: "renown.points", amount: 2, tv: false });
+    expect(g.players.find((p) => p.id === "p2")!.renownPoints).toBe(2);
+    expect(g.players.find((p) => p.id === "p1")!.renownPoints).toBe(5); // away: unchanged
+    dm({ type: "renown.progress", on: true });
+    expect(phone("p1").renown.progress).toMatchObject({ points: 5 });
+    expect(phone("p2").renown.progress).toMatchObject({ points: 2 });
+  });
+
   it("leads and votes belong to the party at the table", () => {
     twoParties();
     dm({ type: "party.play", partyId: A });

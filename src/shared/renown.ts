@@ -1,5 +1,7 @@
-// Renown: one shared party rank the DM sets (no automatic points), and the
-// bounty board it gates. Items, storefronts and job flyers can need a rank.
+// Renown: one shared party rank, and the bounty board it gates. Items,
+// storefronts and job flyers can need a rank. The party also has a hidden
+// running total of Renown points (from jobs and the DM's awards): crossing the
+// next rank's threshold raises the rank. Points never lower it on their own.
 
 import { BOARD_MAX, upCount } from "./board";
 import type { GameState, Item, ItemTier, Job, Relation, Shop, TrustNeed } from "./types";
@@ -11,10 +13,17 @@ export interface RenownRank {
   pay: string;
   /** The TV line when the party reaches this rank. */
   raised: string;
+  /** Renown points (running total) the party needs to reach this rank. Rank 1 is always 0. */
+  points: number;
 }
 
+/** Default points to reach each rank, as a running total: 3, then 5 more, 8 more, 12 more. */
+export const RENOWN_POINTS = [0, 3, 8, 16, 28];
+/** Most points any rank can need. */
+export const RENOWN_POINTS_MAX = 999;
+
 /** The ladder with {town} for the campaign's town. Every campaign has these five steps; the DM can reword them. */
-const LADDER: RenownRank[] = [
+const LADDER: Omit<RenownRank, "points">[] = [
   { name: "Strangers", meaning: "Nobody knows your names yet", pay: "15–50 gp", raised: "Strangers in {town}" },
   { name: "Known in town", meaning: "Locals nod at you", pay: "50–150 gp", raised: "{Town} knows your names" },
   { name: "Trusted", meaning: "The council and merchants come to you", pay: "300–1,000 gp", raised: "{Town} trusts you" },
@@ -23,7 +32,7 @@ const LADDER: RenownRank[] = [
 ];
 
 /** Candlefair's own wording, where it differs: the party came off a boat, and the big city is Baldur's Gate. */
-const CANDLEFAIR: Partial<RenownRank>[] = [
+const CANDLEFAIR: Partial<Omit<RenownRank, "points">>[] = [
   { meaning: "Fresh off the boat" },
   {},
   {},
@@ -45,9 +54,23 @@ export function ranksOf(g: Pick<GameState, "town" | "renownRanks">): RenownRank[
   return LADDER.map((base, i) => {
     const r = town === "Candlefair" ? { ...base, ...CANDLEFAIR[i] } : base;
     const o = g.renownRanks?.[i] ?? {};
-    const pick = (k: keyof RenownRank) => (o[k]?.trim() ? o[k]!.trim() : fill(r[k]));
-    return { name: pick("name"), meaning: pick("meaning"), pay: pick("pay"), raised: pick("raised") };
+    const pick = (k: keyof typeof base) => (o[k]?.trim() ? o[k]!.trim() : fill(r[k]));
+    return { name: pick("name"), meaning: pick("meaning"), pay: pick("pay"), raised: pick("raised"), points: thresholdsOf(g)[i] };
   });
+}
+
+/**
+ * Points (running total) to reach each rank: the DM's own where set, else the
+ * defaults. Always 0 for the first rank and always rising, so a bad stored value
+ * can never make two ranks share a threshold.
+ */
+export function thresholdsOf(g: Pick<GameState, "renownRanks">): number[] {
+  const out: number[] = [];
+  RENOWN_POINTS.forEach((d, i) => {
+    const want = i === 0 ? 0 : (g.renownRanks?.[i]?.points ?? d);
+    out.push(i === 0 ? 0 : Math.min(RENOWN_POINTS_MAX, Math.max(out[i - 1] + 1, Math.round(want))));
+  });
+  return out;
 }
 
 /** The Candlefair wording (kept for anything that has no campaign at hand). */
@@ -63,6 +86,52 @@ export const FAMOUS = 4;
 /** The party's rank right now. */
 export function renownOf(g: Pick<GameState, "renown">): number {
   return Math.max(0, Math.min(RENOWN_MAX, g.renown ?? 0));
+}
+
+/** The party's Renown points. Games from before points: the current rank's threshold. */
+export function pointsOf(g: Pick<GameState, "renown" | "renownPoints" | "renownRanks">): number {
+  return g.renownPoints ?? thresholdsOf(g)[renownOf(g)];
+}
+
+/** The highest rank this many points reaches. */
+export function rankForPoints(g: Pick<GameState, "renownRanks">, points: number): number {
+  const t = thresholdsOf(g);
+  let r = 0;
+  t.forEach((need, i) => {
+    if (points >= need) r = i;
+  });
+  return r;
+}
+
+export interface RenownProgress {
+  points: number;
+  rank: number;
+  /** Points this rank needs. */
+  floor: number;
+  /** Points the next rank needs, or null at the top. */
+  next: number | null;
+  nextName: string | null;
+  /** How far below this rank's own threshold the party has fallen (0 when not). */
+  short: number;
+  /** 0..1 along the way from this rank to the next (1 at the top). */
+  frac: number;
+}
+
+/** Where the party stands on the way to its next rank. */
+export function progressOf(g: Pick<GameState, "town" | "renown" | "renownPoints" | "renownRanks">): RenownProgress {
+  const rank = renownOf(g);
+  const ranks = ranksOf(g);
+  const points = pointsOf(g);
+  const floor = ranks[rank].points;
+  const up = ranks[rank + 1];
+  const next = up ? up.points : null;
+  const frac = next === null ? 1 : Math.max(0, Math.min(1, (points - floor) / (next - floor)));
+  return { points, rank, floor, next, nextName: up ? up.name : null, short: Math.max(0, floor - points), frac };
+}
+
+/** Points a job gives when it's done (1 on flyers from before points). */
+export function jobPoints(j: Pick<Job, "renownPoints">): number {
+  return j.renownPoints ?? 1;
 }
 
 export function rankName(rank: number, g?: Pick<GameState, "town" | "renownRanks">): string {

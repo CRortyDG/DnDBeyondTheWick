@@ -1,11 +1,36 @@
 "use client";
 
 // Changing the party's Renown by hand: one step up or down, or straight to a rank,
-// with an optional reason for the Chronicle and a choice to skip the TV moment.
+// awarding (or taking) Renown points, with an optional reason for the Chronicle
+// and a choice to skip the TV moment. Also the progress bar and the history.
 
-import { useEffect, useRef, useState, useLayoutEffect } from "react";
-import { ranksOf, renownOf } from "@/shared/renown";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { progressOf, ranksOf, renownOf } from "@/shared/renown";
+import type { RenownChange } from "@/shared/types";
+import { partyName } from "@/shared/world";
 import { useDm } from "./context";
+
+/** "Known in town: 4 / 8 points to Trusted" and a small bar. */
+export function RenownProgress() {
+  const { view } = useDm();
+  const p = progressOf(view.state);
+  const name = ranksOf(view.state)[p.rank].name;
+  return (
+    <div className="renown-progress">
+      <div className="renown-progress-line">
+        <b>{name}</b>: {p.next === null ? `${p.points} points, the top rank` : `${p.points} / ${p.next} points to ${p.nextName}`}
+      </div>
+      <div className="renown-bar" role="progressbar" aria-label="Renown points toward the next rank" aria-valuemin={p.floor} aria-valuemax={p.next ?? p.points} aria-valuenow={p.points}>
+        <div className="renown-fill" style={{ width: `${Math.round(p.frac * 100)}%` }} />
+      </div>
+      {p.short ? (
+        <p className="note renown-short">
+          {p.short} {p.short === 1 ? "point" : "points"} short of {name} ({p.floor}). The rank stays until you lower it with −.
+        </p>
+      ) : null}
+    </div>
+  );
+}
 
 export function RenownControl({ onDone }: { onDone?: () => void }) {
   const { view, run } = useDm();
@@ -13,6 +38,20 @@ export function RenownControl({ onDone }: { onDone?: () => void }) {
   const ranks = ranksOf(view.state);
   const [reason, setReason] = useState("");
   const [tv, setTv] = useState(true);
+  const [amount, setAmount] = useState("1");
+  const n = /^[+\-−]?\d{1,2}$/.test(amount.trim()) ? Number(amount.trim().replace("−", "-")) : NaN;
+  const okAmount = Number.isInteger(n) && n !== 0 && Math.abs(n) <= 50;
+
+  const award = async () => {
+    if (!okAmount) return;
+    const why = reason.trim();
+    const ok = await run({ type: "renown.points", amount: n, ...(why ? { reason: why } : {}), ...(tv ? {} : { tv: false }) }, n > 0 ? `+${n} Renown.` : `${n} Renown.`);
+    if (ok) {
+      setReason("");
+      setAmount("1");
+      onDone?.();
+    }
+  };
 
   const go = async (to: number) => {
     if (to === rank || to < 0 || to >= ranks.length) return;
@@ -26,6 +65,13 @@ export function RenownControl({ onDone }: { onDone?: () => void }) {
 
   return (
     <div className="renown-ctl">
+      <RenownProgress />
+      <div className="renown-step renown-award">
+        <input className="fld amt" inputMode="numeric" value={amount} onChange={(e) => setAmount(e.target.value)} aria-label="Renown points to award (use - to take away)" placeholder="1" />
+        <button type="button" className="btn primary" disabled={!okAmount} onClick={() => void award()}>
+          {okAmount && n < 0 ? `Take away ${-n} ${n === -1 ? "point" : "points"}` : `Award ${okAmount ? n : ""} ${n === 1 ? "point" : "points"}`.replace("  ", " ")}
+        </button>
+      </div>
       <div className="renown-step">
         <button type="button" className="btn" disabled={rank <= 0} onClick={() => go(rank - 1)} aria-label="Lower Renown one rank" title={rank > 0 ? `Lower to ${ranks[rank - 1].name}` : undefined}>
           −
@@ -43,12 +89,59 @@ export function RenownControl({ onDone }: { onDone?: () => void }) {
       </div>
       <label className="renown-reason">
         Reason (optional, goes in the Chronicle)
-        <input className="fld" value={reason} maxLength={200} placeholder="e.g. Saved the harbour from the fire" onChange={(e) => setReason(e.target.value)} />
+        <input className="fld" value={reason} maxLength={200} placeholder="e.g. Saved Winterfest from the pudding" onChange={(e) => setReason(e.target.value)} />
       </label>
       <label className="check">
         <input type="checkbox" checked={tv} onChange={(e) => setTv(e.target.checked)} /> Play the Renown moment on the TV when it goes up
       </label>
     </div>
+  );
+}
+
+const SOURCE: Record<RenownChange["source"], string> = { job: "Job", award: "Award", set: "Set by hand" };
+
+/** Every change to the Renown points, newest first, like the Bank ledger. */
+export function RenownHistory() {
+  const { view } = useDm();
+  const log = view.state.renownLog ?? [];
+  const ranks = ranksOf(view.state);
+  const rows = useMemo(() => [...log].reverse(), [log]);
+  return (
+    <details className="renown-history">
+      <summary>Renown history ({log.length})</summary>
+      {!rows.length ? <p className="note">Nothing yet. Finished jobs and your awards show up here.</p> : null}
+      {rows.length ? (
+        <table className="renown-history-table">
+          <thead>
+            <tr>
+              <th>Chapter</th>
+              <th>From</th>
+              <th className="num">Points</th>
+              <th>Reason</th>
+              <th className="num">Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((e) => (
+              <tr key={e.id}>
+                <td>{e.chapter !== undefined ? e.chapter : <span className="note">before play</span>}</td>
+                <td>
+                  {SOURCE[e.source]}
+                  {e.label ? `: ${e.label}` : ""}
+                  {e.partyId ? <span className="note"> · {partyName(view.state, e.partyId) ?? "a past party"}</span> : null}
+                </td>
+                <td className={`num ${e.amount < 0 ? "neg" : "pos"}`}>{e.amount > 0 ? `+${e.amount}` : e.amount < 0 ? `−${-e.amount}` : "0"}</td>
+                <td>
+                  {e.reason}
+                  {e.rankTo !== e.rankFrom ? <span className="note">{e.reason ? " · " : ""}now {ranks[e.rankTo]?.name}</span> : null}
+                </td>
+                <td className="num">{e.total}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      ) : null}
+    </details>
   );
 }
 

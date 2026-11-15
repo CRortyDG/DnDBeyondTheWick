@@ -407,6 +407,8 @@ export function freshStart(g: GameState): GameState {
   Object.assign(s, emptyProgress());
   // Back to strangers, and every job open again. The board stays as the DM laid it out.
   s.renown = 0;
+  delete s.renownPoints;
+  delete s.renownLog;
   delete s.renownMoment;
   delete s.diceRoll;
   delete s.rolls;

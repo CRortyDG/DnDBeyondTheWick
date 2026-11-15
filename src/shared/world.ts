@@ -12,6 +12,7 @@
 // its own character, so it shows what that character knows.
 
 import { isFound, stageRank } from "./discovery";
+import { pointsOf, RENOWN_MAX, thresholdsOf } from "./renown";
 import type { Entry, GameState, Party, Scene, Stage, WorldEvent } from "./types";
 
 export const PARTIES_MAX = 12;
@@ -101,7 +102,9 @@ export function materialize(g: GameState, ids: string[]): GameState {
     sh.visibility = isFound(e.stage) ? "all" : "hidden";
     if (sh.visibility === "hidden") sh.playerIds = [];
   }
+  const points = tablePoints(g, ids);
   g.renown = tableRenown(g, ids);
+  g.renownPoints = points;
   return g;
 }
 
@@ -130,6 +133,24 @@ export function tableRenown(g: Pick<GameState, "players" | "renown">, ids: strin
   return best < 0 ? (g.renown ?? 0) : best;
 }
 
+/** A character's own Renown points (from before points: their rank's threshold). */
+export function characterPoints(g: Pick<GameState, "renown" | "renownPoints" | "renownRanks">, p: { renown?: number; renownPoints?: number }): number {
+  if (p.renownPoints !== undefined) return p.renownPoints;
+  if (p.renown === undefined) return pointsOf(g);
+  return thresholdsOf(g)[Math.max(0, Math.min(RENOWN_MAX, p.renown))];
+}
+
+/** The table's Renown points: the best of the characters with the table's (best) rank. */
+export function tablePoints(g: Pick<GameState, "players" | "renown" | "renownPoints" | "renownRanks">, ids: string[]): number {
+  const rank = tableRenown(g, ids);
+  let best = -1;
+  for (const id of ids) {
+    const p = g.players.find((x) => x.id === id);
+    if (p && (p.renown ?? g.renown ?? 0) === rank) best = Math.max(best, characterPoints(g, p));
+  }
+  return best < 0 ? pointsOf(g) : best;
+}
+
 /** The moment the campaign becomes a shared world: everyone knows what the table knows now. */
 export function seedKnowledge(g: GameState, now: number): void {
   const ids = g.players.map((p) => p.id);
@@ -141,7 +162,11 @@ export function seedKnowledge(g: GameState, now: number): void {
     if (sc.known) sc.knownBy = [...ids];
     for (const p of sc.map?.pins ?? []) if (p.discovered) p.knownBy = [...ids];
   }
-  for (const p of g.players) p.renown = g.renown ?? 0;
+  const points = pointsOf(g);
+  for (const p of g.players) {
+    p.renown = g.renown ?? 0;
+    p.renownPoints = points;
+  }
   g.world = { since: now };
 }
 
@@ -195,6 +220,10 @@ export function recordKnowledge(before: GameState, after: GameState): void {
   }
   if ((before.renown ?? 0) !== (after.renown ?? 0)) {
     for (const p of after.players) if (ids.includes(p.id)) p.renown = after.renown ?? 0;
+  }
+  // Renown points the table earned (or lost) are every present character's.
+  if (pointsOf(before) !== pointsOf(after) || (before.renown ?? 0) !== (after.renown ?? 0)) {
+    for (const p of after.players) if (ids.includes(p.id)) p.renownPoints = pointsOf(after);
   }
 }
 
@@ -294,6 +323,7 @@ export function playerLens(g: GameState, playerId: string): GameState {
   tidyLive(out);
   // At the table, jobs and shops open to the table's Renown; away, to their own.
   out.renown = here ? (g.renown ?? 0) : tableRenown(g, [playerId]);
+  out.renownPoints = here ? pointsOf(g) : tablePoints(g, [playerId]);
   // The map on the TV is the table's: a phone at the table sees what the room sees there.
   if (here) {
     const live = out.scenes.find((x) => x.id === g.live.sceneId);

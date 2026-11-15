@@ -8,11 +8,11 @@ import { beatBody } from "./commands";
 import { availableCp, availableStock, boughtPhrase, heldStock, isSecretShop } from "./requests";
 import { candlefairMap, emptyProgress, SEED_ITEMS, SEED_SHOPS, STINGER_SCENE, swordCoastMap } from "./seed";
 import { creditCp, duesFor, firstChargeCp, installmentCp, keepsStake, liveEffects, priceOf, raisedCp, rollDice, sharesOf, splitByShare } from "./progress";
-import { shopVisibleTo } from "./projection";
+import { chapterAt, shopVisibleTo } from "./projection";
 import { CHARACTER_MAX, CLIP_GIF_MAX, CLIP_VIDEO_MAX, STINGER_SCENE_ID, TABLE_SCENE_ID, WHY_MAX } from "./arrival";
 import { starterById } from "./starters";
 import { chapterSessionId, cleanTags, cleanText, defaultChapterId, NEXT_CHAPTER, NOTES_MAX, penName } from "./chronicle";
-import { BOARD_SLOTS, jobsOf, jobTitle, pinnedCount, rankName, ranksOf, renownMet, renownNeeded, renownOf, shopOpenNow, tierOf, trustMet, trustText } from "./renown";
+import { BOARD_SLOTS, jobPoints, jobsOf, jobTitle, pinnedCount, pointsOf, rankForPoints, rankName, ranksOf, RENOWN_POINTS, RENOWN_POINTS_MAX, renownMet, renownNeeded, renownOf, shopOpenNow, thresholdsOf, tierOf, trustMet, trustText } from "./renown";
 import { LOG_MAX, PLAYER_ROLL_GAP_MS, rollPool, type RollTo } from "./dice";
 import { leadsOf, leadVisible, tally, voteClosed } from "./leads";
 import { findRef, sessionRecap, slugInput, stageRank, blankEntry, ENTRIES_MAX, LEADS_MAX, entriesForScene, entriesOf, entryFromScene, entryScene, entryTags, factSlug, FACTS_MAX, isFound, shopEntry, slugify, syncShopEntries, uniqueSlug } from "./discovery";
@@ -28,7 +28,7 @@ import { applyStory, isStoryCommand } from "./storyReducer";
 import { catchUp, materialize, partiesFor, partiesOf, PARTIES_MAX, PARTY_COLORS, partyById, presentIds, recordKnowledge, seedKnowledge, tableParty, tellTable, tidyLive, WORLD_EVENTS_MAX } from "./world";
 import { pendingPlacement, STORY_SECTION, syncStoryStatus } from "./episodeBuilder";
 import type { Flyer, Party, WorldEvent } from "./types";
-import type { Actor, Beat, BeatAction, Entry, EntryFact, Episode, FlyerText, Stage, GameState, Item, ItemTier, Job, Lead, LedgerEntry, LedgerKind, MapData, MapToken, Note, Pin, PinLink, Player, Scene, Session, SessionRun, Shop, StoryBlock, TradeRequest, Vote } from "./types";
+import type { Actor, Beat, BeatAction, Entry, EntryFact, Episode, FlyerText, Stage, GameState, Item, ItemTier, Job, Lead, LedgerEntry, LedgerKind, MapData, MapToken, Note, Pin, PinLink, Player, RenownChange, Scene, Session, SessionRun, Shop, StoryBlock, TradeRequest, Vote } from "./types";
 import type { z } from "zod";
 
 export class CommandError extends Error {
@@ -98,7 +98,10 @@ export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
   if (ctx.actor.role === "player" && cmd.type.startsWith("me.")) {
     const pid = ctx.actor.playerId;
     base = materialize(structuredClone(input), [pid]);
-    if (presentIds(input).includes(pid)) base.renown = input.renown;
+    if (presentIds(input).includes(pid)) {
+      base.renown = input.renown;
+      base.renownPoints = input.renownPoints;
+    }
   }
   const out = applyOne(base, cmd, ctx);
   if (base !== input) materialize(out.state, presentIds(out.state));
@@ -177,6 +180,44 @@ function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
     });
     if (opened.length > 3) announce(`${opened.length} new things in the shops`);
     else if (opened.length) announce(`Now for sale: ${opened.map((it) => it.name).join(", ")}`);
+  };
+
+  /**
+   * Set the party's rank. Raising it writes the Chronicle, plays the TV moment
+   * (unless tv is false) and banners what opened; lowering it is quiet (only a
+   * reason goes in the Chronicle). Used by the DM's +/− and by points crossing a threshold.
+   */
+  const setRank = (to: number, why: string | undefined, tv: boolean | undefined) => {
+    const was = renownOf(s);
+    if (to === was) return;
+    // What the room could see before, so the rank-up can say what opened.
+    const before = gateSnapshot();
+    s.renown = to;
+    const r = ranksOf(s)[to];
+    if (to < was) {
+      // Quiet: things just lock again. Only a reason goes in the Chronicle.
+      if (why) chronicle(`Renown: the party is now ${r.name}. ${why}`);
+      return;
+    }
+    chronicle(`Renown: the party is now ${r.name}. ${why || `${r.meaning}.`}`);
+    if (tv === false) return;
+    announce(r.raised);
+    s.renownMoment = { rank: to, n: ++s.seq, at: ctx.now };
+    announceOpened(before);
+  };
+  /** Note a change to the Renown points in the DM's history (the newest 300). */
+  const logRenown = (c: Omit<RenownChange, "id" | "at" | "total" | "chapter">) => {
+    const chapter = chapterAt(s, ctx.now);
+    const e: RenownChange = { id: nextId("rn"), at: ctx.now, ...c, total: pointsOf(s), ...(chapter !== undefined ? { chapter } : {}), ...(s.world ? { playerIds: presentIds(s), ...(s.partyId ? { partyId: s.partyId } : {}) } : {}) };
+    s.renownLog = [...(s.renownLog ?? []), e].slice(-300);
+  };
+  /** Add (or take) Renown points; crossing the next threshold raises the rank. Never lowers it. */
+  const addRenown = (amount: number, c: Pick<RenownChange, "source" | "reason" | "label" | "jobId">, tv?: boolean) => {
+    const was = renownOf(s);
+    s.renownPoints = Math.max(0, Math.min(RENOWN_POINTS_MAX * 2, pointsOf(s) + amount));
+    const reach = rankForPoints(s, s.renownPoints);
+    if (reach > was) setRank(reach, undefined, tv);
+    logRenown({ ...c, amount, rankFrom: was, rankTo: renownOf(s) });
   };
 
   const move = (p: Player, amountCp: number, note: string, kind: LedgerKind, extra: Partial<LedgerEntry> = {}) => {
@@ -1547,23 +1588,24 @@ function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
     case "renown.set": {
       const was = renownOf(s);
       if (cmd.rank === was) break;
-      // What the room could see before, so the rank-up can say what opened.
-      const before = gateSnapshot();
-      s.renown = cmd.rank;
-      const r = ranksOf(s)[cmd.rank];
-      const why = cmd.reason?.trim();
-      if (cmd.rank < was) {
-        // Quiet: things just lock again. Only a reason goes in the Chronicle.
-        if (why) chronicle(`Renown: the party is now ${r.name}. ${why}`);
-        break;
-      }
-      chronicle(`Renown: the party is now ${r.name}. ${why || `${r.meaning}.`}`);
-      if (cmd.tv === false) break;
-      announce(r.raised);
-      s.renownMoment = { rank: cmd.rank, n: ++s.seq, at: ctx.now };
-      announceOpened(before);
+      const from = pointsOf(s);
+      setRank(cmd.rank, cmd.reason?.trim(), cmd.tv);
+      // Keep the bar honest: a rank set by hand starts at that rank's threshold.
+      s.renownPoints = thresholdsOf(s)[cmd.rank];
+      logRenown({ source: "set", amount: s.renownPoints - from, reason: cmd.reason?.trim() ?? "", rankFrom: was, rankTo: cmd.rank });
       break;
     }
+    case "renown.points": {
+      const why = cmd.reason?.trim() ?? "";
+      const sign = cmd.amount > 0 ? `+${cmd.amount}` : `−${-cmd.amount}`;
+      chronicle(`Renown ${sign}${why ? `: ${why}` : ""}.`.replace(/([.!?])\.$/, "$1"));
+      addRenown(cmd.amount, { source: "award", reason: why }, cmd.tv);
+      break;
+    }
+    case "renown.progress":
+      if (cmd.on) s.renownProgress = true;
+      else delete s.renownProgress;
+      break;
     case "job.add": {
       const old = cmd.followUpOf ? job(cmd.followUpOf) : undefined;
       const j: Job = cleanJob({
@@ -1718,7 +1760,9 @@ function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
       if (j.pinned) announce(`Job done: ${jobTitle(j)}`);
       const amounts = new Set([...pay.values()].filter((cp) => cp > 0));
       const how = !total ? "" : amounts.size === 1 && paid.length > 1 ? ` Paid ${formatCp([...amounts][0])} each.` : ` Paid ${paid.join(", ")}.`;
-      chronicle(`Job done: ${jobTitle(j)}.${how}`);
+      const pts = cmd.renown ?? jobPoints(j);
+      chronicle(`Job done: ${jobTitle(j)}.${how}${pts ? ` +${pts} Renown.` : ""}`);
+      if (pts) addRenown(pts, { source: "job", reason: "", label: jobTitle(j), jobId: j.id });
       break;
     }
     case "job.expire": {
@@ -2818,14 +2862,21 @@ function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
       s.name = cmd.name.trim();
       break;
     case "game.renownRanks":
-      s.renownRanks = cmd.ranks.map((r) => {
+      s.renownRanks = cmd.ranks.map((r, i) => {
         const o: NonNullable<GameState["renownRanks"]>[number] = {};
         for (const k of ["name", "meaning", "pay", "raised"] as const) {
           const v = (r[k] ?? "").replace(/\s+/g, " ").trim();
           if (v) o[k] = v;
         }
+        if (i > 0 && r.points !== undefined && r.points !== RENOWN_POINTS[i]) o.points = r.points;
         return o;
       });
+      {
+        // Each rank must need more points than the one before it.
+        const want = RENOWN_POINTS.map((d, i) => (i === 0 ? 0 : (s.renownRanks?.[i]?.points ?? d)));
+        const bad = want.findIndex((n, i) => i > 0 && n <= want[i - 1]);
+        if (bad > 0) fail(`${ranksOf(s)[bad].name} needs more points than ${ranksOf(s)[bad - 1].name}.`);
+      }
       if (s.renownRanks.every((o) => !Object.keys(o).length)) delete s.renownRanks;
       break;
     case "game.town":

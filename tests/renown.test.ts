@@ -231,7 +231,7 @@ describe("the bounty board", () => {
     expect(fails(DM, { type: "job.done", jobId: "j-ransom", payouts })).toMatch(/already done/);
     expect(ledger.filter((l) => l.kind === "bounty")).toHaveLength(4);
     expect(fails(DM, { type: "job.update", jobId: "j-ransom", patch: { status: "open" } })).toMatch(/done and paid/);
-    expect(g.notes!.at(-1)!.text).toBe("Job done: My brother is being held for ransom. Paid 50 gp each.");
+    expect(g.notes!.at(-1)!.text).toBe("Job done: My brother is being held for ransom. Paid 50 gp each. +1 Renown.");
     expect(projectTv(g, 1).jobs[0].status).toBe("done");
   });
 

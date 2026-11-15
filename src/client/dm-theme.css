@@ -2390,6 +2390,23 @@ html[data-view="dm"] .ready-list li { display: flex; justify-content: space-betw
   }
 }
 
+/* ---------- Renown points: progress bar, award row, history ---------- */
+:where(html[data-view="dm"]) .renown-progress { display: grid; gap: 4px; }
+:where(html[data-view="dm"]) .renown-progress-line { font-size: 14px; }
+:where(html[data-view="dm"]) .renown-bar { height: 8px; border-radius: 999px; background: var(--dm-bg-3); overflow: hidden; }
+:where(html[data-view="dm"]) .renown-fill { height: 100%; border-radius: inherit; background: var(--dm-gold); transition: width 0.4s ease; }
+:where(html[data-view="dm"]) .renown-short { margin: 0; color: var(--dm-warn); }
+:where(html[data-view="dm"]) .renown-step.renown-award .fld.amt { flex: 0 0 72px; text-align: center; }
+:where(html[data-view="dm"]) .renown-step.renown-award .btn { width: auto; flex: 1; font-size: 14px; }
+:where(html[data-view="dm"]) .renown-history { margin-top: var(--dm-s3); }
+:where(html[data-view="dm"]) .renown-history > summary { cursor: pointer; font-weight: 600; }
+:where(html[data-view="dm"]) .renown-history-table { width: 100%; border-collapse: collapse; margin-top: var(--dm-s2); font-size: 13px; }
+:where(html[data-view="dm"]) .renown-history-table th, :where(html[data-view="dm"]) .renown-history-table td { text-align: left; padding: 4px 6px; border-bottom: 1px solid var(--dm-border); vertical-align: top; }
+:where(html[data-view="dm"]) .renown-history-table .num { text-align: right; white-space: nowrap; }
+:where(html[data-view="dm"]) .renown-history-table .pos { color: var(--dm-ok); }
+:where(html[data-view="dm"]) .renown-history-table .neg { color: var(--dm-danger); }
+:where(html[data-view="dm"]) .payout-renown { margin-top: var(--dm-s3); }
+
 /* ---------- Arrival: the Intro card ---------- */
 .intro-editor {
   display: flex;

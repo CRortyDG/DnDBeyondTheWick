@@ -178,6 +178,8 @@ export interface Player {
   hp?: PlayerHp;
   /** Shared world: this character's own Renown rank. The table's is the best of those present. */
   renown?: number;
+  /** Shared world: this character's own Renown points. Missing: their rank's threshold. */
+  renownPoints?: number;
 }
 
 /** A player's hit points, as they (or the DM) typed them. */
@@ -534,6 +536,8 @@ export interface Job {
   reward: JobReward;
   /** The party's Renown needed to take it (0 = Strangers). */
   renown: number;
+  /** Renown points the party gets when it's done (the DM can change it on the Done screen). Missing: 1. */
+  renownPoints?: number;
   style: JobStyle;
   status: JobStatus;
   /** On the TV's notice board (and so on phones). */
@@ -969,6 +973,12 @@ export interface GameState {
   plaqueHidden?: boolean;
   /** The party's Renown rank, 0 = Strangers. Missing: 0. */
   renown?: number;
+  /** DM-ONLY: the party's hidden running total of Renown points. Missing: the current rank's threshold. Read with pointsOf(). */
+  renownPoints?: number;
+  /** DM-ONLY: every change to the Renown points, oldest first (capped). */
+  renownLog?: RenownChange[];
+  /** Phones show the party's progress toward the next rank. Missing: off. */
+  renownProgress?: boolean;
   /** The last time Renown went up: the TV plays the moment when n changes. */
   renownMoment?: { rank: number; n: number; at: number };
   /** The last dice roll on the TV (the DM's or a player's): the TV plays it when n changes. Secret and DM-only rolls never get here. */
@@ -1008,7 +1018,7 @@ export interface GameState {
   /** The town the shop and the players' phones name. Missing: Candlefair. "" on a blank campaign until the DM names it. Read with townOf(). */
   town?: string;
   /** The DM's own wording for the five Renown ranks (blank fields keep the default). Read with ranksOf(). */
-  renownRanks?: Partial<{ name: string; meaning: string; pay: string; raised: string }>[];
+  renownRanks?: Partial<{ name: string; meaning: string; pay: string; raised: string; points: number }>[];
   /** One-time content upgrades already applied to this game (see migrate.ts), so a later delete sticks. */
   upgrades?: string[];
   /** DM-ONLY: the storyboard (threads, story beats, planned session dates). Never copied into a TV or player view. Read with storyOf(). */
@@ -1051,6 +1061,29 @@ export interface WorldSettings {
   events?: WorldEvent[];
   /** The last world news or event moment on the TV and phones: plays when n changes. */
   news?: { n: number; at: number; text: string };
+}
+
+/** DM-ONLY: one change to the party's Renown points. */
+export interface RenownChange {
+  id: string;
+  at: number;
+  /** job: a job flyer marked done; award: the DM's award; set: the DM set the rank by hand. */
+  source: "job" | "award" | "set";
+  /** The job's title (for source job). */
+  label?: string;
+  jobId?: string;
+  /** Signed. */
+  amount: number;
+  reason: string;
+  /** The chapter (session number) running then, if any. */
+  chapter?: number;
+  /** The points after it. */
+  total: number;
+  rankFrom: number;
+  rankTo: number;
+  /** Shared world: the party at the table, and who was there (they all got it). */
+  partyId?: string;
+  playerIds?: string[];
 }
 
 export type LedgerKind = "grant" | "charge" | "purchase" | "payAll" | "transfer" | "rent" | "contribution" | "income" | "bounty" | "loot";
