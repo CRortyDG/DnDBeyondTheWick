@@ -269,7 +269,9 @@ export async function handleApi(req: Request, store: Store): Promise<Response> {
       const { state } = await store.read(game);
       const ok = isDmKey(key, await store.dmKeyHash(game)) || (state !== null && gatedArtIsLive(state, art[1]));
       if (!ok) return notFound();
-      return new Response(svg, { headers: { "Content-Type": "image/svg+xml", "Cache-Control": "private, no-store" } });
+      // Kept a few minutes by the browser that was allowed to see it, so a portrait shown again
+      // (switching tabs on a phone) doesn't ask the server, and the table's request allowance, every time.
+      return new Response(svg, { headers: { "Content-Type": "image/svg+xml", "Cache-Control": "private, max-age=300" } });
     }
 
     // Internal (only the Worker can reach these paths): create the campaign, check a DM key.

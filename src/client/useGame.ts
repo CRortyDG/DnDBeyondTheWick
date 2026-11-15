@@ -63,7 +63,7 @@ export function useGame<V extends View = View>(ident: Ident | null): GameHook<V>
         accept(await api<View>("/api/view", ident));
         setOnline(true);
       } catch (e) {
-        if (e instanceof ApiError && e.status < 500) {
+        if (e instanceof ApiError && e.status < 500 && e.status !== 429) {
           // We were removed, renamed or locked out: go back through hello.
           setHelloTick((t) => t + 1);
         } else {
@@ -98,7 +98,9 @@ export function useGame<V extends View = View>(ident: Ident | null): GameHook<V>
         setOnline(false);
         // Keep the old view if we had one; otherwise show an error and retry.
         if (phaseRef.current === "loading") setPhase("error");
-        setTimeout(() => !cancelled && setHelloTick((t) => t + 1), 4000);
+        // Told to slow down: wait out the minute instead of adding to it.
+        const wait = e instanceof ApiError && e.status === 429 ? 20_000 + Math.random() * 10_000 : 4000;
+        setTimeout(() => !cancelled && setHelloTick((t) => t + 1), wait);
       }
     })();
     return () => {

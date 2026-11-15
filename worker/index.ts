@@ -2,6 +2,7 @@ import { TILES_MAX } from "@/shared/fog";
 import { KEY_HEADER, makeCampaignCode, newDmKey, sha256 } from "@/server/auth";
 import { handlePresetApi, isPresetPath, json, MISS_HEADER } from "@/server/api";
 import { normaliseGameId } from "@/shared/handles";
+import { screenKey } from "@/server/limits";
 import type { Env } from "./env";
 import { R2Presets } from "./presets";
 import { GameRoom } from "./room";
@@ -86,6 +87,17 @@ async function settle(res: Response, env: Env, ctx: ExecutionContext, ip: string
   const out = new Response(res.body, res);
   out.headers.delete(MISS_HEADER);
   return out;
+}
+
+/**
+ * The everyday ceiling. Each screen (campaign + name) gets its own allowance, so a
+ * busy phone or a stuck tab can't use up the DM's: a whole table shares one Wi-Fi
+ * address. The address as a whole still has a higher ceiling, so making up names
+ * doesn't buy a flood more room. Guessing is limited separately (GUESS_LIMIT).
+ */
+async function overApi(env: Env, ip: string, url: URL): Promise<boolean> {
+  if (await over(env.ADDRESS_LIMIT, ip)) return true;
+  return !!env.API_LIMIT && !(await env.API_LIMIT.limit({ key: screenKey(ip, url) })).success;
 }
 
 const slowDown = (msg: string) => json({ error: msg, code: "rate-limited" }, 429);
@@ -245,7 +257,7 @@ export default {
       if (path.startsWith("/api/")) {
         const ip = ipOf(req);
         if (await lockedOut(ip)) return withHeaders(slowDown("Too many wrong codes or links from here. Try again in 15 minutes."));
-        if (await over(env.API_LIMIT, ip)) return withHeaders(slowDown("Too many requests from here. Slow down a little."));
+        if (await overApi(env, ip, url)) return withHeaders(slowDown("Too many requests from here. Slow down a little."));
         if (path === "/api/create" && req.method === "POST") return withHeaders(await createCampaign(req, env, ctx));
         if (path === "/api/upload" && req.method === "POST") return withHeaders(await upload(req, env, ctx, ip));
         if (path === "/api/upload-tiles" && req.method === "POST") return withHeaders(await uploadTiles(req, env, ctx, ip));

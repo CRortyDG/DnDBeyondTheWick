@@ -26,9 +26,12 @@ and R2 matter.
 
 **1. Nothing rate-limited the API or the live connection (high). Fixed.**
 Every `/api/` call and every WebSocket connect now counts against
-`API_LIMIT` (300 a minute per address). A whole table usually shares one
-Wi-Fi address, and a busy table uses well under a tenth of that. Over the limit
-you get a 429 with a friendly message.
+`API_LIMIT` (300 a minute per screen: address + campaign + name) and
+`ADDRESS_LIMIT` (900 a minute per address). A whole table usually shares one
+Wi-Fi address, so the per-screen allowance keeps one busy phone or stuck tab
+from using up the DM's. A busy table measured about 30 calls a minute in all.
+Over the limit you get a 429 with a friendly message, and screens wait half a
+minute before trying again.
 
 **2. Guessing campaign codes, DM keys, name locks and Arrival links was
 unlimited (high). Fixed.** The room now marks every answer that tells a guesser
