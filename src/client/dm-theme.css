@@ -3258,6 +3258,7 @@ html[data-view="dm"] .hc-small { font-size: 12px; margin-top: 10px; }
     display: block;
     overflow-x: auto;
   }
+}
 /* ---------- the off-script kit (src/client/dm/OffScript.tsx) ---------- */
 :where(html[data-view="dm"]) .offscript {
   display: flex;
