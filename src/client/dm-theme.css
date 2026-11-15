@@ -507,6 +507,8 @@ html[data-view="dm"] {
 :where(html[data-view="dm"]) .dm-shell .dm-subtitle {
   font-size: 12px;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 :where(html[data-view="dm"]) .dm-top .conn {
   flex: none;

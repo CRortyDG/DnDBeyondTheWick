@@ -6775,26 +6775,25 @@ input.fld.inline-input {
 /* ---------- The shared world on the TV ---------- */
 .tv-world {
   position: absolute;
-  top: calc(36 * var(--u));
-  left: calc(40 * var(--u));
+  top: calc(4 * var(--u));
+  left: calc(48 * var(--u));
   z-index: 5;
   display: flex;
-  flex-direction: column;
-  gap: calc(4 * var(--u));
-  padding: calc(14 * var(--u)) calc(26 * var(--u));
-  border-radius: calc(10 * var(--u));
-  background: rgba(14, 9, 6, 0.78);
-  border: calc(2 * var(--u)) solid rgba(227, 182, 92, 0.5);
+  align-items: baseline;
+  gap: calc(14 * var(--u));
+  padding: calc(4 * var(--u)) calc(18 * var(--u));
+  border-radius: calc(6 * var(--u));
+  background: rgba(14, 9, 6, 0.85);
+  border: calc(1.5 * var(--u)) solid rgba(227, 182, 92, 0.5);
   color: #f3e7cf;
   font-family: var(--font-display, Georgia, serif);
-  box-shadow: 0 calc(8 * var(--u)) calc(30 * var(--u)) rgba(0, 0, 0, 0.45);
 }
 .tv-world-day {
-  font-size: calc(40 * var(--u));
-  line-height: 1.05;
+  font-size: calc(26 * var(--u));
+  line-height: 1.1;
 }
 .tv-world-what {
-  font-size: calc(28 * var(--u));
+  font-size: calc(22 * var(--u));
   color: #e3b65c;
 }
 .phone-banner.world-news {
