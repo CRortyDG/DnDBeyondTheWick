@@ -148,7 +148,6 @@ function EntryPage({ entry: e, view, send, onOpen, onBack }: { entry: PublicEntr
   useEffect(() => {
     window.scrollTo?.({ top: 0 });
   }, [e.id]);
-  const info = kindInfo(e.kind);
   return (
     <section className="box person-page" aria-label={e.name}>
       <button type="button" className="btn small" onClick={onBack}>
@@ -162,8 +161,8 @@ function EntryPage({ entry: e, view, send, onOpen, onBack }: { entry: PublicEntr
           <div className="person-meta note">
             {e.relation ? <span className={`relation relation-${e.relation}`}>{relationLabel(e.relation)}</span> : null}
             <span>
-              {info.found}
-              {e.found?.chapter ? ` in Chapter ${e.found.chapter}` : ""}
+              {stageLabel(e.kind, e.stage)}
+              {e.stage === "found" && e.found?.chapter ? ` in Chapter ${e.found.chapter}` : ""}
             </span>
           </div>
         </div>
