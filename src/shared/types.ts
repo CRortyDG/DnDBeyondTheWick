@@ -36,6 +36,8 @@ export interface Scene {
   /** Portraits: the players have met this NPC (set when first shown on the TV, or by the DM). Feeds the Chronicle's tag picker.
    *  Maps: players can open it on their phones (set when first shown on the TV, or by the DM). */
   known?: boolean;
+  /** When this scene was first shown on the TV. Until then its uploaded picture isn't sent to players or the TV (no pre-reveal peeking). */
+  shownAt?: number;
   /** Shared world: the characters who know this portrait or map. The table sees it only if everyone present does. */
   knownBy?: string[];
 }

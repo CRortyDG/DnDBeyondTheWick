@@ -538,6 +538,8 @@ function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
     if (shown?.kind === "portrait") meetPortrait(shown);
     // Once a map has been on the TV, players can open it on their phones.
     if (shown?.kind === "map") shown.known = true;
+    // Mark it shown, so from now on its uploaded picture may reach players/TV (but not before its first reveal).
+    if (shown) shown.shownAt ??= ctx.now;
     s.live.sceneId = id;
     s.live.shopOpen = false;
     delete s.live.recapSessionId;
@@ -3118,7 +3120,21 @@ function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
     }
     case "me.update": {
       const p = player(ctx.actor.role === "player" ? ctx.actor.playerId : "");
-      if (cmd.patch.name !== undefined) p.name = cmd.patch.name.trim() || p.name;
+      if (cmd.patch.name !== undefined) {
+        const next = cmd.patch.name.trim();
+        if (next) {
+          // Don't let a player rename themselves onto another player's name (impersonation).
+          // Mirrors the byName() match used when a player signs in by typing their name.
+          const h = normaliseHandle(next);
+          const clash =
+            !!h &&
+            s.players.some(
+              (x) => x.id !== p.id && !x.archived && (x.handle === h || normaliseHandle(x.name) === h || (!!x.character && normaliseHandle(x.character) === h)),
+            );
+          if (clash) fail("Another player at the table already goes by that name.");
+          p.name = next;
+        }
+      }
       if (cmd.patch.dndbUrl !== undefined) p.dndbUrl = checkUrl(cmd.patch.dndbUrl);
       break;
     }
@@ -3174,6 +3190,12 @@ function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
       const p = createPlayer(h, cmd.name, "url", cmd.keyHash);
       p.lastSeenAt = ctx.now;
       s.knocks = s.knocks.filter((k) => k.handle !== h);
+      break;
+    }
+    case "system.autoLock": {
+      const p = player(cmd.playerId);
+      // Only ever claims an unlocked name; never replaces someone's lock.
+      if (!p.keyHash) p.keyHash = cmd.keyHash;
       break;
     }
     case "system.hello": {
