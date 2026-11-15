@@ -1,7 +1,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import { originOf, PRESET_NAME_MAX, townOf } from "@/shared/presets";
-import { deletePresetOnline, devicePresets, forgetPreset, rememberPreset, renamePresetOnline, type DevicePreset } from "../presets";
+import { deletePresetOnline, devicePresets, forgetPreset, libraryStatus, refreshListing, rememberPreset, renamePresetOnline, unpublishPreset, type DevicePreset } from "../presets";
+import { PublishDialog } from "./PublishPreset";
 import { absoluteHref, api, authHeaders, dmLink, rememberKey } from "../api";
 import { useDm } from "./context";
 import { downloadBackup, restoreBackup } from "./backup";
@@ -261,6 +262,20 @@ function PresetsBox() {
   const [name, setName] = useState(s.name);
   const [busy, setBusy] = useState(false);
   const refresh = () => setList(devicePresets());
+  // Which of them are in the shared library (checked once; a missing answer just shows no tag).
+  const [listed, setListed] = useState<Record<string, boolean>>({});
+  const [publishing, setPublishing] = useState<DevicePreset | null>(null);
+  useEffect(() => {
+    let live = true;
+    for (const p of devicePresets()) {
+      libraryStatus(p)
+        .then((st) => live && setListed((m) => ({ ...m, [p.code]: st.listed })))
+        .catch(() => {});
+    }
+    return () => {
+      live = false;
+    };
+  }, []);
 
   const save = async (over?: DevicePreset) => {
     const n = (over ? over.name : name).trim();
@@ -274,6 +289,8 @@ function PresetsBox() {
       });
       rememberPreset({ code: r.code, token: r.token, name: r.name, savedAt: r.savedAt });
       refresh();
+      // A listed preset's card (what's inside, the first episode) follows the new setup.
+      if (over && listed[over.code]) await refreshListing(over).catch(() => {});
       toast(over ? `Saved over \u201c${r.name}\u201d.` : `Saved \u201c${r.name}\u201d. Pick it when you start your next campaign.`);
     } catch (e) {
       toast(e instanceof Error ? e.message : String(e));
@@ -295,8 +312,9 @@ function PresetsBox() {
   };
 
   const remove = async (p: DevicePreset) => {
-    if (!confirm(`Delete the preset \u201c${p.name}\u201d? Its code stops working. Campaigns already started from it keep everything.`)) return;
+    if (!confirm(`Delete the preset \u201c${p.name}\u201d? Its code stops working${listed[p.code] ? " and it leaves the library" : ""}. Campaigns already started from it keep everything.`)) return;
     try {
+      await unpublishPreset(p).catch(() => {});
       await deletePresetOnline(p);
       forgetPreset(p.code);
       refresh();
@@ -334,6 +352,7 @@ function PresetsBox() {
             <li key={p.code}>
               <span>
                 <b>{p.name}</b>
+                {listed[p.code] ? <span className="tag wax">In the library</span> : null}
                 <span className="note">
                   {" "}
                   · code <code>{p.code}</code> · saved {new Date(p.savedAt).toLocaleDateString(undefined, { day: "numeric", month: "short" })}
@@ -349,6 +368,9 @@ function PresetsBox() {
                 <button className="btn small" type="button" onClick={() => void rename(p)}>
                   Rename
                 </button>
+                <button className="btn small" type="button" onClick={() => setPublishing(p)} title="Share it in the preset library, so any DM can start a campaign from it">
+                  {listed[p.code] ? "Library listing" : "List in library"}
+                </button>
                 <button className="btn small danger" type="button" onClick={() => void remove(p)}>
                   Delete
                 </button>
@@ -359,7 +381,14 @@ function PresetsBox() {
       ) : (
         <p className="note">No presets saved on this device yet.</p>
       )}
-      <p className="note">Your presets are listed on this device. Share a code to start a campaign from it anywhere.</p>
+      <p className="note">
+        Your presets are listed on this device. Share a code to start a campaign from it anywhere, or list one in the{" "}
+        <a href="/library" target="_blank" rel="noreferrer">
+          preset library
+        </a>
+        .
+      </p>
+      {publishing ? <PublishDialog preset={publishing} onClose={() => setPublishing(null)} onChange={(on) => setListed((m) => ({ ...m, [publishing.code]: on }))} /> : null}
     </section>
   );
 }

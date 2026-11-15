@@ -11,6 +11,7 @@ import { upgrade } from "@/shared/migrate";
 import { gatedArtIsLive } from "@/shared/projection";
 import { originOf, presetSetup } from "@/shared/presets";
 import { freshStart } from "@/shared/seed";
+import type { Library } from "./library";
 import { deletePreset, presetInfo, renamePreset, savePreset, type PresetStore } from "./presets";
 import type { GameState, LedgerEntry } from "@/shared/types";
 
@@ -50,7 +51,7 @@ export function miss(res: Response): Response {
 const MAX_BODY = 64 * 1024;
 const MAX_IMPORT = 4 * 1024 * 1024;
 
-async function readJson(req: Request, max = MAX_BODY): Promise<unknown> {
+export async function readJson(req: Request, max = MAX_BODY): Promise<unknown> {
   const len = Number(req.headers.get("Content-Length") ?? 0);
   if (len > max) throw new HttpError(413, "That request is too big.");
   const text = await req.text().catch(() => "");
@@ -62,7 +63,7 @@ async function readJson(req: Request, max = MAX_BODY): Promise<unknown> {
   }
 }
 
-async function guard(fn: () => Promise<Response>): Promise<Response> {
+export async function guard(fn: () => Promise<Response>): Promise<Response> {
   try {
     return await fn();
   } catch (e) {
@@ -356,6 +357,41 @@ export async function handlePresetApi(req: Request, presets: PresetStore): Promi
     const body = ((await readJson(req)) ?? {}) as { code?: unknown; token?: unknown; name?: unknown };
     if (path === "/api/preset/rename") return json({ ok: true, ...(await renamePreset(presets, body.code, body.token, body.name)) });
     if (path === "/api/preset/delete") return json(await deletePreset(presets, body.code, body.token));
+    throw new HttpError(404, "Not found.");
+  });
+}
+
+/** The shared preset library's routes (see library.ts). The Worker hands them to the Library Durable Object. */
+export function isLibraryPath(path: string): boolean {
+  return path === "/api/library" || path.startsWith("/api/library/");
+}
+
+export const ADMIN_HEADER = "x-library-admin";
+/** Set by the Worker: the caller's address, for one report per connection. Never trusted from outside. */
+export const REPORTER_HEADER = "x-library-reporter";
+
+export async function handleLibraryApi(req: Request, lib: Library): Promise<Response> {
+  const url = new URL(req.url);
+  const path = url.pathname;
+  return guard(async () => {
+    if (req.method === "GET") {
+      if (path === "/api/library") {
+        const res = json({ listings: await lib.browse() });
+        res.headers.set("Cache-Control", "public, max-age=60");
+        return res;
+      }
+      if (path === "/api/library/item") return json(await lib.one(url.searchParams.get("code")));
+      if (path === "/api/library/admin") return json({ listings: await lib.adminList(req.headers.get(ADMIN_HEADER)) });
+      throw new HttpError(404, "Not found.");
+    }
+    if (req.method !== "POST") throw new HttpError(404, "Not found.");
+    const body = ((await readJson(req)) ?? {}) as Record<string, unknown>;
+    if (path === "/api/library/publish") return json(await lib.publish(body));
+    if (path === "/api/library/status") return json(await lib.status(body.code, body.token));
+    if (path === "/api/library/refresh") return json(await lib.refresh(body.code, body.token));
+    if (path === "/api/library/unpublish") return json(await lib.unpublish(body.code, body.token));
+    if (path === "/api/library/report") return json(await lib.report(body.code, body.reason, req.headers.get(REPORTER_HEADER) ?? "unknown"));
+    if (path === "/api/library/admin") return json(await lib.adminAct(req.headers.get(ADMIN_HEADER), body.code, body.action));
     throw new HttpError(404, "Not found.");
   });
 }

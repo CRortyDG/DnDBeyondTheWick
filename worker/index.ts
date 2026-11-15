@@ -1,6 +1,6 @@
 import { TILES_MAX } from "@/shared/fog";
 import { KEY_HEADER, makeCampaignCode, newDmKey, sha256 } from "@/server/auth";
-import { handlePresetApi, isPresetPath, json, MISS_HEADER } from "@/server/api";
+import { handlePresetApi, isLibraryPath, isPresetPath, json, MISS_HEADER, REPORTER_HEADER } from "@/server/api";
 import { normaliseGameId } from "@/shared/handles";
 import { pickedCodeProblem, screenKey } from "@/server/limits";
 import { parseRange, rangeBounds } from "@/server/range";
@@ -8,8 +8,9 @@ import { CLIP_VIDEO_MAX } from "@/shared/arrival";
 import type { Env } from "./env";
 import { R2Presets } from "./presets";
 import { GameRoom } from "./room";
+import { LibraryRoom } from "./library";
 
-export { GameRoom };
+export { GameRoom, LibraryRoom };
 
 /**
  * The front door. Serves the built app, sends each campaign's API calls and
@@ -338,6 +339,15 @@ async function arrivalPage(req: Request, env: Env, ctx: ExecutionContext): Promi
     .transform(page);
 }
 
+/** The preset library: publishing and reporting count like uploads (both are rare), then go to its one Durable Object. */
+async function libraryCall(req: Request, env: Env, ip: string): Promise<Response> {
+  const path = new URL(req.url).pathname;
+  if (req.method === "POST" && (path === "/api/library/publish" || path === "/api/library/report") && (await over(env.UPLOAD_LIMIT, ip))) return slowDown("Too many changes from here. Wait a minute and try again.");
+  const headers = new Headers(req.headers);
+  headers.set(REPORTER_HEADER, ip);
+  return env.LIBRARY.get(env.LIBRARY.idFromName("library")).fetch(new Request(req, { headers }));
+}
+
 export default {
   async fetch(req: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(req.url);
@@ -352,6 +362,7 @@ export default {
         if (path === "/api/create" && req.method === "POST") return withHeaders(await createCampaign(req, env, ctx));
         if (path === "/api/upload" && req.method === "POST") return withHeaders(await upload(req, env, ctx, ip));
         if (path === "/api/upload-tiles" && req.method === "POST") return withHeaders(await uploadTiles(req, env, ctx, ip));
+        if (isLibraryPath(path)) return withHeaders(await settle(await libraryCall(req, env, ip), env, ctx, ip));
         if (isPresetPath(path)) return withHeaders(await settle(await handlePresetApi(req, new R2Presets(env.FILES)), env, ctx, ip));
         const res = await room(env, normaliseGameId(url.searchParams.get("game"))).fetch(req);
         return withHeaders(await settle(res, env, ctx, ip));
