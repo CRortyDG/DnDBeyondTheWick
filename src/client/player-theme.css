@@ -1,0 +1,1722 @@
+/*
+ * Player phone theme.
+ *
+ * Only the player's phone view loads these rules: every selector sits under
+ * html[data-view="player"], so the TV, the DM console and Arrival never see
+ * them. The prefix is wrapped in :where() so it adds no specificity: a rule
+ * here beats the same selector in globals.css because this file loads after
+ * it, and anything more specific in globals.css (a feature's own layout)
+ * still wins.
+ *
+ * Two layers: the app's chrome (bars, buttons, fields, labels, numbers) uses
+ * the same modern tokens as the DM console, with Inter. Things that belong to
+ * the world (notes, flyers, people, item cards, names) keep IM Fell on
+ * parchment, so the phone still feels like the table.
+ */
+
+/* Not wrapped in :where(): the token block has to outrank globals.css's :root. */
+html[data-view="player"] {
+  /* Surfaces, darkest to lightest. */
+  --pl-bg-0: #0f0b08;
+  --pl-bg-1: #17120e;
+  --pl-bg-2: #211a15;
+  --pl-bg-3: #2b231c;
+  --pl-border: #33281f;
+  --pl-border-strong: #4a3c30;
+
+  /* Text. */
+  --pl-text: #ede4d3;
+  --pl-text-2: #b5a794;
+  --pl-text-3: #8a7b6c;
+
+  /* Meaning. Gold: money, selected. Wax: the main action. */
+  --pl-gold: #e3b65c;
+  --pl-gold-soft: rgba(227, 182, 92, 0.14);
+  --pl-gold-line: rgba(227, 182, 92, 0.45);
+  --pl-wax: #a63a2c;
+  --pl-wax-hover: #b94534;
+  --pl-ok: #86c38a;
+  --pl-danger: #e2735f;
+
+  --pl-font-ui: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+
+  /* 4px grid. Radius: small controls, controls and panels, sheets. */
+  --pl-s1: 4px;
+  --pl-s2: 8px;
+  --pl-s3: 12px;
+  --pl-s4: 16px;
+  --pl-s5: 20px;
+  --pl-s6: 24px;
+  --pl-r-sm: 8px;
+  --pl-r-md: 12px;
+  --pl-r-lg: 20px;
+  --pl-control: 44px;
+
+  /* The old chrome tokens, pointed at the new surfaces, so each feature's own
+     rules pick up the new palette. Parchment, ink and the fonts stay. */
+  --tavern: var(--pl-bg-1);
+  --tavern-deep: var(--pl-bg-0);
+  --wood: var(--pl-border);
+  --wood-2: var(--pl-bg-2);
+  --line: var(--pl-border-strong);
+  --muted: var(--pl-text-2);
+  --up: var(--pl-ok);
+  --down: var(--pl-danger);
+}
+
+:where(html[data-view="player"]) body {
+  background-color: var(--pl-bg-0);
+  /* A little candlelight from above. */
+  background-image: radial-gradient(120% 420px at 50% -120px, rgba(227, 182, 92, 0.09), transparent 70%);
+  background-repeat: no-repeat;
+  color: var(--pl-text);
+  -webkit-tap-highlight-color: transparent;
+}
+
+:where(html[data-view="player"]) :focus-visible {
+  outline: 2px solid var(--pl-gold);
+  outline-offset: 2px;
+}
+
+:where(html[data-view="player"]) a {
+  color: var(--pl-gold);
+}
+
+/* ---------- panels ---------- */
+
+:where(html[data-view="player"]) .box {
+  background: var(--pl-bg-1);
+  border: 1px solid var(--pl-border);
+  border-radius: var(--pl-r-md);
+  padding: var(--pl-s4);
+}
+:where(html[data-view="player"]) .box h2,
+:where(html[data-view="player"]) .box h3 {
+  font-size: 22px;
+  color: var(--pl-gold);
+  margin-bottom: var(--pl-s3);
+}
+
+/* ---------- text ---------- */
+
+:where(html[data-view="player"]) .note {
+  font-family: var(--pl-font-ui);
+  color: var(--pl-text-2);
+  font-size: 14px;
+  line-height: 1.5;
+}
+:where(html[data-view="player"]) .error-text {
+  font-family: var(--pl-font-ui);
+  font-size: 14px;
+  color: var(--pl-danger);
+}
+:where(html[data-view="player"]) .player-msg,
+:where(html[data-view="player"]) .player-offline {
+  font-family: var(--pl-font-ui);
+  font-size: 14px;
+  color: var(--pl-text-2);
+}
+:where(html[data-view="player"]) .linkish {
+  font-family: var(--pl-font-ui);
+  color: var(--pl-gold);
+}
+
+/* ---------- buttons ---------- */
+
+:where(html[data-view="player"]) .btn {
+  font-family: var(--pl-font-ui);
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1.2;
+  letter-spacing: -0.005em;
+  color: var(--pl-text);
+  background: var(--pl-bg-2);
+  border: 1px solid var(--pl-border-strong);
+  border-radius: var(--pl-r-sm);
+  transition:
+    background-color 0.12s,
+    border-color 0.12s,
+    color 0.12s,
+    transform 0.08s;
+}
+:where(html[data-view="player"]) .btn:hover:not(:disabled) {
+  background: var(--pl-bg-3);
+}
+:where(html[data-view="player"]) .btn:active:not(:disabled) {
+  transform: scale(0.98);
+}
+:where(html[data-view="player"]) .btn:disabled {
+  opacity: 0.45;
+}
+:where(html[data-view="player"]) .btn.primary {
+  background: var(--pl-wax);
+  border-color: var(--pl-wax);
+  color: #fff6ea;
+  font-weight: 600;
+}
+:where(html[data-view="player"]) .btn.primary:hover:not(:disabled) {
+  background: var(--pl-wax-hover);
+  border-color: var(--pl-wax-hover);
+}
+/* A disabled main action reads as "not yet", not as a dark red smudge. */
+:where(html[data-view="player"]) .btn.primary:disabled {
+  opacity: 1;
+  background: var(--pl-bg-2);
+  border-color: var(--pl-border-strong);
+  color: var(--pl-text-3);
+}
+/* "On": the selected tab or toggle. */
+:where(html[data-view="player"]) .btn.on {
+  background: var(--pl-gold-soft);
+  border-color: var(--pl-gold-line);
+  color: var(--pl-gold);
+}
+:where(html[data-view="player"]) .btn.on:hover:not(:disabled) {
+  background: rgba(227, 182, 92, 0.22);
+}
+:where(html[data-view="player"]) .btn.small {
+  font-size: 14px;
+}
+:where(html[data-view="player"]) .btn.big {
+  font-size: 16px;
+  font-weight: 600;
+  border-radius: var(--pl-r-md);
+}
+:where(html[data-view="player"]) .btn.danger {
+  background: transparent;
+  border-color: rgba(226, 115, 95, 0.45);
+  color: var(--pl-danger);
+}
+:where(html[data-view="player"]) .btn.danger:hover:not(:disabled) {
+  background: rgba(226, 115, 95, 0.1);
+}
+
+/* ---------- fields ---------- */
+
+:where(html[data-view="player"]) .fld {
+  font-family: var(--pl-font-ui);
+  /* 16px stops iPhones zooming in on focus. */
+  font-size: 16px;
+  color: var(--pl-text);
+  background: var(--pl-bg-0);
+  border: 1px solid var(--pl-border-strong);
+  border-radius: var(--pl-r-sm);
+  transition:
+    border-color 0.12s,
+    box-shadow 0.12s;
+}
+:where(html[data-view="player"]) .fld::placeholder {
+  color: var(--pl-text-3);
+}
+:where(html[data-view="player"]) .fld:focus {
+  outline: none;
+  border-color: var(--pl-gold-line);
+  box-shadow: 0 0 0 3px var(--pl-gold-soft);
+}
+:where(html[data-view="player"]) .form label,
+:where(html[data-view="player"]) .inline label {
+  font-family: var(--pl-font-ui);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--pl-text-2);
+  gap: 6px;
+}
+:where(html[data-view="player"]) label.check {
+  font-family: var(--pl-font-ui);
+  color: var(--pl-text);
+}
+
+/* ---------- chips and counts ---------- */
+
+:where(html[data-view="player"]) .badge {
+  font-family: var(--pl-font-ui);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 18px;
+  min-width: 18px;
+  padding: 0 6px;
+  text-align: center;
+  background: var(--pl-wax);
+  color: #fff6ea;
+}
+:where(html[data-view="player"]) .tag {
+  font-family: var(--pl-font-ui);
+  font-size: 12px;
+  font-weight: 500;
+  padding: 2px 10px;
+  border-color: var(--pl-border-strong);
+  color: var(--pl-text-2);
+}
+
+/* ---------- lists ---------- */
+
+:where(html[data-view="player"]) .ledger li {
+  border-color: var(--pl-border);
+}
+:where(html[data-view="player"]) .ledger .who {
+  font-family: var(--pl-font-ui);
+  font-size: 12px;
+  color: var(--pl-text-3);
+}
+:where(html[data-view="player"]) .ledger .up,
+:where(html[data-view="player"]) .ledger .down,
+:where(html[data-view="player"]) .purse-amt {
+  font-family: var(--font-num);
+  font-variant-numeric: lining-nums tabular-nums;
+}
+
+/* ---------- bottom sheets ---------- */
+
+:where(html[data-view="player"]) .sheet-backdrop {
+  background: rgba(6, 4, 3, 0.66);
+  -webkit-backdrop-filter: blur(2px);
+  backdrop-filter: blur(2px);
+  animation: pl-fade 0.18s ease-out;
+}
+:where(html[data-view="player"]) .sheet {
+  background: var(--pl-bg-1);
+  border: 1px solid var(--pl-border-strong);
+  border-bottom: 0;
+  border-radius: var(--pl-r-lg) var(--pl-r-lg) 0 0;
+  padding: 8px max(16px, env(safe-area-inset-right)) calc(20px + env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+  gap: var(--pl-s3);
+  box-shadow: 0 -12px 40px rgba(0, 0, 0, 0.5);
+  animation: pl-rise 0.22s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+/* Sheets without the new grab handle get a little room at the top. */
+:where(html[data-view="player"]) .sheet:not(.pl-sheet) {
+  padding-top: 20px;
+}
+:where(html[data-view="player"]) .pl-sheet-grab {
+  width: 40px;
+  height: 4px;
+  border-radius: 99px;
+  background: var(--pl-border-strong);
+  margin: 0 auto 4px;
+}
+:where(html[data-view="player"]) .pl-sheet-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--pl-s3);
+}
+:where(html[data-view="player"]) .pl-sheet-head h2 {
+  font-size: 22px;
+  color: var(--parchment);
+  margin: 0;
+  min-width: 0;
+  text-wrap: balance;
+}
+:where(html[data-view="player"]) .pl-sheet-x {
+  flex: none;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 0;
+  background: var(--pl-bg-3);
+  color: var(--pl-text-2);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+:where(html[data-view="player"]) .pl-sheet-body {
+  font-family: var(--pl-font-ui);
+  font-size: 15px;
+  color: var(--pl-text-2);
+  margin: 0;
+}
+:where(html[data-view="player"]) .pl-sheet-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--pl-s2);
+  margin-top: var(--pl-s1);
+}
+:where(html[data-view="player"]) .pl-sheet-actions .btn {
+  min-height: 48px;
+}
+
+@keyframes pl-fade {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes pl-rise {
+  from {
+    transform: translateY(40px);
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  :where(html[data-view="player"]) .sheet,
+  :where(html[data-view="player"]) .sheet-backdrop {
+    animation: none;
+  }
+  :where(html[data-view="player"]) .btn {
+    transition: none;
+  }
+}
+
+/* ---------- the shell: header, tab bar, dice button ---------- */
+
+:where(html[data-view="player"]) .player-root {
+  gap: var(--pl-s3);
+  padding-left: max(16px, env(safe-area-inset-left));
+  padding-right: max(16px, env(safe-area-inset-right));
+  /* Room for the tab bar and the dice button. */
+  padding-bottom: calc(150px + env(safe-area-inset-bottom));
+}
+
+/* One slim bar that stays put: name, renown and tonight's chapter, and gold. */
+:where(html[data-view="player"]) .pl-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--pl-s3);
+  margin: 0 calc(-1 * max(16px, env(safe-area-inset-right))) 0 calc(-1 * max(16px, env(safe-area-inset-left)));
+  padding: calc(10px + env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) 10px max(16px, env(safe-area-inset-left));
+  top: 0;
+  background: rgba(15, 11, 8, 0.86);
+  -webkit-backdrop-filter: blur(12px) saturate(1.2);
+  backdrop-filter: blur(12px) saturate(1.2);
+  border-bottom: 1px solid rgba(227, 182, 92, 0.12);
+  z-index: 20;
+}
+:where(html[data-view="player"]) .pl-who {
+  min-width: 0;
+  display: grid;
+  text-align: left;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+:where(html[data-view="player"]) .pl-top .player-name {
+  display: block;
+  font-family: var(--font-sc);
+  font-size: clamp(18px, 5.4vw, 22px);
+  line-height: 1.15;
+  color: var(--parchment);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+:where(html[data-view="player"]) .pl-sub {
+  margin: 2px 0 0;
+  display: flex;
+  gap: 6px;
+  align-items: baseline;
+  font-family: var(--pl-font-ui);
+  font-size: 12px;
+  color: var(--pl-text-3);
+  white-space: nowrap;
+  min-width: 0;
+}
+:where(html[data-view="player"]) .pl-sub .renown-line-v {
+  color: var(--pl-gold);
+  font-family: var(--pl-font-ui);
+  font-size: 12px;
+  letter-spacing: 0;
+  text-transform: none;
+}
+:where(html[data-view="player"]) .pl-sub-where {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+:where(html[data-view="player"]) .pl-coin {
+  flex: none;
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 40px;
+  padding: 6px 13px 6px 9px;
+  border-radius: 99px;
+  background: rgba(227, 182, 92, 0.1);
+  border: 1px solid rgba(227, 182, 92, 0.38);
+  color: var(--pl-gold);
+  cursor: pointer;
+  font: inherit;
+}
+:where(html[data-view="player"]) .pl-coin:active {
+  transform: scale(0.97);
+}
+:where(html[data-view="player"]) .pl-coin-face {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, #f6d98a, #b98a2c);
+  box-shadow: inset 0 0 0 1.5px rgba(90, 60, 10, 0.5);
+}
+:where(html[data-view="player"]) .pl-coin-amt {
+  font-family: var(--font-num);
+  font-size: 17px;
+  line-height: 1;
+  font-variant-numeric: lining-nums tabular-nums;
+  white-space: nowrap;
+}
+/* Some gold is held for an ask that's waiting on the DM. */
+:where(html[data-view="player"]) .pl-coin-held {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--pl-gold);
+  box-shadow: 0 0 0 2px var(--pl-bg-0);
+}
+:where(html[data-view="player"]) .pl-offline {
+  position: sticky;
+  top: calc(64px + env(safe-area-inset-top));
+  z-index: 19;
+  margin: 0;
+  text-align: center;
+  font-size: 13px;
+  padding: 6px 10px;
+  border-radius: 99px;
+  background: rgba(230, 164, 87, 0.12);
+  color: #e6a457;
+  justify-self: center;
+}
+
+/* The bottom tab bar. */
+:where(html[data-view="player"]) .pl-nav {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 30;
+  background: rgba(18, 14, 11, 0.94);
+  -webkit-backdrop-filter: blur(14px) saturate(1.2);
+  backdrop-filter: blur(14px) saturate(1.2);
+  border-top: 1px solid var(--pl-border);
+  padding: 0 env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+}
+:where(html[data-view="player"]) .pl-nav-in {
+  display: grid;
+  max-width: 720px;
+  margin: 0 auto;
+}
+:where(html[data-view="player"]) .pl-nav-tab {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  gap: 3px;
+  min-height: 60px;
+  padding: 8px 2px 6px;
+  border: 0;
+  background: none;
+  color: var(--pl-text-3);
+  font-family: var(--pl-font-ui);
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: color 0.12s;
+}
+:where(html[data-view="player"]) .pl-nav-tab.on {
+  color: var(--pl-gold);
+}
+:where(html[data-view="player"]) .pl-nav-tab.on::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  width: 28px;
+  height: 2px;
+  border-radius: 0 0 2px 2px;
+  background: var(--pl-gold);
+}
+:where(html[data-view="player"]) .pl-nav-tab:active .pl-nav-icon {
+  transform: scale(0.92);
+}
+:where(html[data-view="player"]) .pl-nav-icon {
+  position: relative;
+  display: grid;
+  transition: transform 0.08s;
+}
+:where(html[data-view="player"]) .pl-nav-count {
+  position: absolute;
+  top: -5px;
+  left: 15px;
+  min-width: 17px;
+  height: 17px;
+  padding: 0 4px;
+  border-radius: 99px;
+  background: var(--pl-wax);
+  color: #fff6ea;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 17px;
+  text-align: center;
+  box-shadow: 0 0 0 2px rgba(18, 14, 11, 0.94);
+}
+
+/* The d20: dice from any tab. */
+:where(html[data-view="player"]) .pl-fab {
+  position: fixed;
+  z-index: 29;
+  right: max(16px, calc(env(safe-area-inset-right) + 12px));
+  bottom: calc(76px + env(safe-area-inset-bottom));
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  color: #f6e7c9;
+  background: radial-gradient(circle at 35% 30%, #c4503d, #7a2a1f);
+  border: 1px solid rgba(255, 220, 180, 0.25);
+  box-shadow:
+    0 8px 24px rgba(0, 0, 0, 0.55),
+    0 0 0 4px rgba(122, 42, 31, 0.2);
+  cursor: pointer;
+  transition: transform 0.12s;
+}
+:where(html[data-view="player"]) .pl-fab:active {
+  transform: scale(0.94) rotate(-12deg);
+}
+/* On a wide screen the bar is centred, so keep the button by the content. */
+@media (min-width: 760px) {
+  :where(html[data-view="player"]) .pl-fab {
+    right: calc(50% - 360px + 16px);
+  }
+}
+
+/* ---------- purse and dice sheets ---------- */
+
+:where(html[data-view="player"]) .pl-wallet-big {
+  font-family: var(--font-num);
+  font-size: 40px;
+  line-height: 1.05;
+  color: var(--pl-gold);
+  font-variant-numeric: lining-nums tabular-nums;
+}
+:where(html[data-view="player"]) .pl-wallet-avail {
+  margin: -6px 0 0;
+  font-family: var(--pl-font-ui);
+  font-size: 13px;
+  color: var(--pl-ok);
+}
+:where(html[data-view="player"]) .pl-wallet-avail.held {
+  color: var(--pl-text-2);
+}
+:where(html[data-view="player"]) .pl-sheet-sub {
+  font-family: var(--pl-font-ui);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--pl-text-3);
+  margin: var(--pl-s2) 0 0;
+}
+:where(html[data-view="player"]) .pl-wallet-sheet .purse-list {
+  font-size: 17px;
+  gap: 0;
+}
+:where(html[data-view="player"]) .pl-wallet-sheet .purse-list li {
+  padding: 8px 0;
+  border-bottom: 1px solid var(--pl-border);
+  align-items: center;
+}
+:where(html[data-view="player"]) .pl-wallet-sheet .purse-list li.pl-purse-total {
+  border-bottom: 0;
+  font-family: var(--pl-font-ui);
+  font-size: 14px;
+  color: var(--pl-text-2);
+}
+:where(html[data-view="player"]) .pl-dice-sheet .pd-dice {
+  border: 0;
+  padding: 0;
+  background: none;
+}
+:where(html[data-view="player"]) .pl-dice-sheet .dt-head h2 {
+  display: none;
+}
+
+/* ---------- Gold & shops ---------- */
+
+:where(html[data-view="player"]) .pl-msg {
+  padding: 10px 14px;
+  border-radius: var(--pl-r-md);
+  background: var(--pl-gold-soft);
+  color: var(--pl-text);
+}
+:where(html[data-view="player"]) .owe-note {
+  padding: 10px 14px;
+  border-radius: var(--pl-r-md);
+  background: rgba(226, 115, 95, 0.1);
+  color: var(--pl-danger);
+  margin: 0;
+}
+
+/* The purse, up top. */
+:where(html[data-view="player"]) .pl-wallet {
+  position: relative;
+  overflow: hidden;
+  border-radius: 16px;
+  padding: var(--pl-s4);
+  background: linear-gradient(160deg, #2a1f16, #17110d);
+  border: 1px solid rgba(227, 182, 92, 0.25);
+}
+:where(html[data-view="player"]) .pl-wallet::after {
+  content: "";
+  position: absolute;
+  right: -40px;
+  top: -50px;
+  width: 180px;
+  height: 180px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(227, 182, 92, 0.16), transparent 70%);
+  pointer-events: none;
+}
+:where(html[data-view="player"]) .pl-wallet-lbl {
+  font-family: var(--pl-font-ui);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--pl-text-3);
+}
+:where(html[data-view="player"]) .pl-wallet-acts {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  gap: var(--pl-s2);
+  margin-top: var(--pl-s4);
+}
+:where(html[data-view="player"]) .pl-wallet-acts .btn {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 40px;
+  padding: 6px 8px;
+  font-size: 13px;
+}
+:where(html[data-view="player"]) .pl-wallet .pl-wallet-avail {
+  margin: 4px 0 0;
+}
+
+/* Section heads outside a box: an IM Fell title and a quiet count. */
+:where(html[data-view="player"]) .pl-sec-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--pl-s3);
+  margin-top: var(--pl-s2);
+}
+:where(html[data-view="player"]) .pl-sec-head h2 {
+  font-size: 22px;
+  color: var(--parchment);
+  margin: 0;
+}
+:where(html[data-view="player"]) .pl-sec-head > span {
+  font-family: var(--pl-font-ui);
+  font-size: 12px;
+  color: var(--pl-text-3);
+  white-space: nowrap;
+}
+
+:where(html[data-view="player"]) .pl-market {
+  display: grid;
+  gap: var(--pl-s3);
+  min-width: 0;
+}
+:where(html[data-view="player"]) .pl-search {
+  position: relative;
+}
+:where(html[data-view="player"]) .pl-search svg {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--pl-text-3);
+  pointer-events: none;
+}
+:where(html[data-view="player"]) .pl-search .fld {
+  padding-left: 36px;
+  border-radius: var(--pl-r-md);
+  background: var(--pl-bg-1);
+}
+
+/* Segmented control. */
+:where(html[data-view="player"]) .pl-seg {
+  display: flex;
+  gap: 3px;
+  padding: 3px;
+  border-radius: var(--pl-r-md);
+  background: var(--pl-bg-1);
+  border: 1px solid var(--pl-border);
+}
+:where(html[data-view="player"]) .pl-seg button {
+  flex: 1;
+  min-height: 36px;
+  border: 0;
+  border-radius: 9px;
+  background: none;
+  color: var(--pl-text-2);
+  font-family: var(--pl-font-ui);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+:where(html[data-view="player"]) .pl-seg button.on {
+  background: var(--pl-bg-3);
+  color: var(--pl-text);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+/* The segmented control and chips stay under the header while you scroll. */
+:where(html[data-view="player"]) .pl-market-bar {
+  position: sticky;
+  top: calc(61px + env(safe-area-inset-top));
+  z-index: 10;
+  display: grid;
+  gap: var(--pl-s2);
+  margin: 0 calc(-1 * max(16px, env(safe-area-inset-right))) 0 calc(-1 * max(16px, env(safe-area-inset-left)));
+  padding: 8px max(16px, env(safe-area-inset-right)) 8px max(16px, env(safe-area-inset-left));
+  background: rgba(15, 11, 8, 0.9);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+}
+:where(html[data-view="player"]) .pl-chips {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  margin: 0 calc(-1 * max(16px, env(safe-area-inset-right))) 0 calc(-1 * max(16px, env(safe-area-inset-left)));
+  padding: 0 max(16px, env(safe-area-inset-right)) 0 max(16px, env(safe-area-inset-left));
+  -webkit-overflow-scrolling: touch;
+}
+:where(html[data-view="player"]) .pl-chips::-webkit-scrollbar {
+  display: none;
+}
+:where(html[data-view="player"]) .pl-chip {
+  flex: none;
+  min-height: 34px;
+  padding: 0 14px;
+  border-radius: 99px;
+  border: 1px solid var(--pl-border-strong);
+  background: var(--pl-bg-1);
+  color: var(--pl-text-2);
+  font-family: var(--pl-font-ui);
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+}
+:where(html[data-view="player"]) .pl-chip.on {
+  background: var(--pl-gold-soft);
+  border-color: var(--pl-gold-line);
+  color: var(--pl-gold);
+}
+:where(html[data-view="player"]) .pl-market-sub {
+  margin: 0;
+  font-style: italic;
+  color: var(--pl-text-2);
+}
+
+/* The goods. */
+:where(html[data-view="player"]) .pl-items {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--pl-border);
+  border-radius: 14px;
+  background: var(--pl-bg-1);
+  overflow: hidden;
+}
+:where(html[data-view="player"]) .pl-items li + li {
+  border-top: 1px solid var(--pl-border);
+}
+:where(html[data-view="player"]) .pl-item {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr) auto;
+  gap: var(--pl-s3);
+  align-items: center;
+  padding: 11px 14px;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+:where(html[data-view="player"]) .pl-item:active {
+  background: var(--pl-bg-2);
+}
+:where(html[data-view="player"]) .pl-item-ico {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  background: linear-gradient(160deg, var(--parchment), var(--parchment-2));
+  color: var(--wax);
+  font-family: var(--font-sc);
+  font-size: 20px;
+}
+:where(html[data-view="player"]) .pl-item.locked .pl-item-ico {
+  background: var(--pl-bg-3);
+  color: var(--pl-text-3);
+}
+:where(html[data-view="player"]) .pl-item-main {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+:where(html[data-view="player"]) .pl-item-name {
+  font-family: var(--font-body);
+  font-size: 17px;
+  line-height: 1.2;
+  color: var(--parchment);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 8px;
+}
+:where(html[data-view="player"]) .pl-item-name .earned-badge {
+  font-family: var(--pl-font-ui);
+  font-size: 10px;
+}
+:where(html[data-view="player"]) .pl-item-off {
+  font-family: var(--pl-font-ui);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--pl-ok);
+}
+:where(html[data-view="player"]) .pl-item-sub {
+  font-family: var(--pl-font-ui);
+  font-size: 12px;
+  line-height: 1.35;
+  color: var(--pl-text-3);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+:where(html[data-view="player"]) .pl-item.cant .pl-item-sub {
+  color: #d99a82;
+}
+:where(html[data-view="player"]) .pl-item.rumor .pl-item-sub {
+  font-family: var(--font-body);
+  font-style: italic;
+  font-size: 14px;
+  color: var(--pl-text-2);
+}
+:where(html[data-view="player"]) .pl-item-price {
+  font-family: var(--font-num);
+  font-size: 17px;
+  line-height: 1.1;
+  color: var(--pl-gold);
+  text-align: right;
+  white-space: nowrap;
+  font-variant-numeric: lining-nums tabular-nums;
+}
+:where(html[data-view="player"]) .pl-item-price small {
+  display: block;
+  font-family: var(--pl-font-ui);
+  font-size: 11px;
+  color: var(--pl-text-3);
+}
+:where(html[data-view="player"]) .pl-item.locked .pl-item-name,
+:where(html[data-view="player"]) .pl-item.locked .pl-item-price,
+:where(html[data-view="player"]) .pl-item.cant .pl-item-price {
+  opacity: 0.6;
+}
+:where(html[data-view="player"]) .pl-empty {
+  display: flex;
+  gap: var(--pl-s2);
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 28px 16px;
+  border: 1px dashed var(--pl-border-strong);
+  border-radius: 14px;
+  color: var(--pl-text-2);
+  font-family: var(--pl-font-ui);
+  font-size: 14px;
+}
+:where(html[data-view="player"]) .pl-empty p {
+  margin: 0;
+}
+:where(html[data-view="player"]) .pl-hint {
+  margin: 0;
+  font-family: var(--pl-font-ui);
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--pl-text-3);
+  text-align: center;
+  padding: 0 8px;
+}
+
+/* A row that opens a sheet. */
+:where(html[data-view="player"]) .pl-row-link {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--pl-s3);
+  width: 100%;
+  padding: 14px 16px;
+  border-radius: 14px;
+  border: 1px solid var(--pl-border);
+  background: var(--pl-bg-1);
+  color: var(--pl-text-3);
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+}
+:where(html[data-view="player"]) .pl-row-link > span {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+:where(html[data-view="player"]) .pl-row-link b {
+  font-family: var(--font-sc);
+  font-weight: 400;
+  font-size: 18px;
+  color: var(--parchment);
+}
+:where(html[data-view="player"]) .pl-row-link > span > span {
+  font-family: var(--pl-font-ui);
+  font-size: 13px;
+  color: var(--pl-text-3);
+}
+
+/* The item's own parchment card, in its sheet. */
+:where(html[data-view="player"]) .pl-item-sheet .card {
+  margin-top: 4px;
+}
+:where(html[data-view="player"]) .pl-you-player {
+  margin: -6px 0 0;
+}
+:where(html[data-view="player"]) .pl-locked {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  font-family: var(--pl-font-ui);
+  font-size: 14px;
+  color: var(--pl-ok);
+}
+
+/* ---------- Story (the Chronicle) ---------- */
+
+/* The note box is one line until you tap it or start writing. */
+:where(html[data-view="player"]) .chron-add {
+  gap: var(--pl-s2);
+  padding: 12px;
+  border-radius: 14px;
+  background: var(--pl-bg-1);
+  border-color: var(--pl-border);
+}
+:where(html[data-view="player"]) .chron-add-label {
+  font-family: var(--pl-font-ui);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--pl-text-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+:where(html[data-view="player"]) .chron-add-text {
+  font-family: var(--font-body);
+  font-size: 17px;
+  min-height: 48px;
+  height: 48px;
+  padding-top: 11px;
+  resize: none;
+  transition: height 0.16s ease;
+}
+:where(html[data-view="player"]) .chron-add:focus-within .chron-add-text,
+:where(html[data-view="player"]) .chron-add-text:not(:placeholder-shown) {
+  height: 112px;
+}
+:where(html[data-view="player"]) .chron-add:has(.chron-add-text:placeholder-shown):not(:focus-within):not(:has(.chron-add-more)) .chron-add-row {
+  display: none;
+}
+:where(html[data-view="player"]) .btn.chron-post {
+  min-height: 44px;
+  font-size: 15px;
+}
+
+/* Search on its own line, then the toggles in one row that scrolls. */
+:where(html[data-view="player"]) .chron-search {
+  border-radius: var(--pl-r-md);
+  background: var(--pl-bg-1);
+}
+:where(html[data-view="player"]) .chron-toggles {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scrollbar-width: none;
+  gap: 6px;
+}
+:where(html[data-view="player"]) .chron-toggles::-webkit-scrollbar {
+  display: none;
+}
+:where(html[data-view="player"]) .chron-toggles .btn.small {
+  flex: none;
+  min-height: 34px;
+  padding: 0 14px;
+  border-radius: 99px;
+  font-size: 13px;
+  background: var(--pl-bg-1);
+}
+:where(html[data-view="player"]) .chron-toggles .btn.small.on {
+  background: var(--pl-gold-soft);
+}
+:where(html[data-view="player"]) .chron-page {
+  border-radius: var(--pl-r-md);
+}
+
+/* ---------- Discover ---------- */
+
+:where(html[data-view="player"]) .pl-areas {
+  display: grid;
+  gap: var(--pl-s2);
+}
+:where(html[data-view="player"]) .pl-chip-n {
+  margin-left: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--pl-text-3);
+}
+:where(html[data-view="player"]) .pl-chip.on .pl-chip-n {
+  color: var(--pl-gold);
+}
+:where(html[data-view="player"]) .pl-area-line {
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--pl-font-ui);
+  font-size: 13px;
+  color: var(--pl-text-2);
+}
+:where(html[data-view="player"]) .pl-discovery {
+  display: grid;
+  gap: var(--pl-s2);
+}
+/* Entries as rows in one panel: portrait, name, one line, what's known. */
+:where(html[data-view="player"]) .pl-discovery .people-grid {
+  margin: 0;
+  gap: 0;
+  border: 1px solid var(--pl-border);
+  border-radius: 14px;
+  background: var(--pl-bg-1);
+  overflow: hidden;
+}
+:where(html[data-view="player"]) .pl-discovery .people-grid > li + li {
+  border-top: 1px solid var(--pl-border);
+}
+:where(html[data-view="player"]) .pl-discovery .person-card {
+  gap: var(--pl-s3);
+  padding: 12px 14px;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+  color: var(--pl-text);
+}
+:where(html[data-view="player"]) .pl-discovery .person-card:active:not(.rumored) {
+  background: var(--pl-bg-2);
+}
+:where(html[data-view="player"]) .pl-discovery .person-card:not(.rumored)::after {
+  content: "";
+  flex: none;
+  margin-left: auto;
+  width: 8px;
+  height: 8px;
+  border-right: 2px solid var(--pl-text-3);
+  border-top: 2px solid var(--pl-text-3);
+  transform: rotate(45deg);
+}
+:where(html[data-view="player"]) .pl-discovery .person-face {
+  width: 48px;
+  height: 48px;
+  font-size: 22px;
+  border-width: 1.5px;
+}
+:where(html[data-view="player"]) .pl-discovery .person-name {
+  font-size: 18px;
+  color: var(--parchment);
+}
+:where(html[data-view="player"]) .pl-discovery .person-card .person-title {
+  font-size: 14px;
+  color: var(--pl-text-2);
+}
+:where(html[data-view="player"]) .pl-discovery .person-card .person-meta {
+  font-size: 12px;
+  color: var(--pl-text-3);
+}
+:where(html[data-view="player"]) .pl-discovery .entry-stage {
+  font-weight: 600;
+  color: var(--pl-text-2);
+}
+:where(html[data-view="player"]) .pl-discovery .entry-stage-rumored {
+  color: #c79a3e;
+}
+/* "New" is a small gold dot by the name. */
+:where(html[data-view="player"]) .pl-discovery .person-new {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  min-width: 0;
+  padding: 0;
+  margin-left: 8px;
+  vertical-align: 4px;
+  border-radius: 50%;
+  font-size: 0;
+  background: var(--pl-gold);
+  box-shadow: 0 0 0 3px var(--pl-gold-soft);
+}
+/* Rumors: dimmer, dashed ring, the hint in italics. */
+:where(html[data-view="player"]) .pl-discovery .person-card.rumored {
+  background: repeating-linear-gradient(135deg, transparent 0 10px, rgba(255, 255, 255, 0.015) 10px 20px);
+}
+:where(html[data-view="player"]) .pl-discovery .person-card.rumored .person-name {
+  color: var(--pl-text-3);
+}
+:where(html[data-view="player"]) .pl-discovery .person-card.rumored .person-face {
+  opacity: 0.75;
+  border-style: dashed;
+}
+
+/* ---------- Jobs ---------- */
+
+/* Renown folds into one line; tap to see the ladder. */
+:where(html[data-view="player"]) .pl-renown {
+  border: 1px solid var(--pl-border);
+  border-radius: 14px;
+  background: var(--pl-bg-1);
+  padding: 0 14px;
+}
+:where(html[data-view="player"]) .pl-renown summary {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-height: 52px;
+  padding: 14px 0;
+  cursor: pointer;
+  list-style: none;
+  font-family: var(--pl-font-ui);
+}
+:where(html[data-view="player"]) .pl-renown summary::-webkit-details-marker {
+  display: none;
+}
+:where(html[data-view="player"]) .pl-renown summary::after {
+  content: "";
+  margin-left: auto;
+  align-self: center;
+  width: 7px;
+  height: 7px;
+  border-right: 2px solid var(--pl-text-3);
+  border-bottom: 2px solid var(--pl-text-3);
+  transform: rotate(45deg) translate(-2px, -2px);
+  transition: transform 0.15s;
+}
+:where(html[data-view="player"]) .pl-renown[open] summary::after {
+  transform: rotate(-135deg);
+}
+:where(html[data-view="player"]) .pl-renown-k {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--pl-text-3);
+}
+:where(html[data-view="player"]) .pl-renown-v {
+  font-family: var(--font-sc);
+  font-size: 18px;
+  color: var(--pl-gold);
+}
+:where(html[data-view="player"]) .pl-renown-pay {
+  font-size: 12px;
+  color: var(--pl-text-3);
+  white-space: nowrap;
+}
+:where(html[data-view="player"]) .pl-renown > p {
+  margin: 0 0 8px;
+}
+:where(html[data-view="player"]) .pl-renown .renown-ladder {
+  margin: 0 0 14px;
+  font-family: var(--pl-font-ui);
+  font-size: 14px;
+}
+:where(html[data-view="player"]) .pl-renown .renown-ladder li {
+  padding: 8px 10px;
+  border-radius: var(--pl-r-sm);
+}
+:where(html[data-view="player"]) .pl-renown .renown-ladder li.on {
+  background: var(--pl-gold-soft);
+  color: var(--pl-gold);
+}
+:where(html[data-view="player"]) .pl-board {
+  display: grid;
+  gap: var(--pl-s3);
+}
+:where(html[data-view="player"]) .pl-board .job-list {
+  margin: 4px 0 0;
+}
+
+/* ---------- Map ---------- */
+
+/* The map runs edge to edge. */
+:where(html[data-view="player"]) .phone-map {
+  margin: 0;
+}
+:where(html[data-view="player"]) .phone-map-head h2 {
+  font-size: 20px;
+  color: var(--parchment);
+}
+:where(html[data-view="player"]) .phone-map-head .btn.small {
+  min-height: 40px;
+  border-radius: 99px;
+}
+:where(html[data-view="player"]) .phone-map-head .btn.small[aria-label^="Zoom"] {
+  width: 40px;
+  min-width: 40px;
+  padding: 0;
+  font-size: 18px;
+}
+:where(html[data-view="player"]) .phone-map-frame {
+  margin: 0 calc(-1 * max(16px, env(safe-area-inset-right))) 0 calc(-1 * max(16px, env(safe-area-inset-left)));
+  border-radius: 0;
+  border-left: 0;
+  border-right: 0;
+  height: min(62vh, 640px);
+}
+@media (min-width: 760px) {
+  :where(html[data-view="player"]) .phone-map-frame {
+    margin: 0;
+    border-radius: var(--pl-r-md);
+    border: 1px solid var(--pl-border);
+  }
+}
+:where(html[data-view="player"]) .phone-map-pick .btn.small {
+  min-height: 34px;
+  border-radius: 99px;
+  font-size: 13px;
+}
+:where(html[data-view="player"]) .phone-pin-card {
+  border-color: var(--pl-gold-line);
+  border-radius: var(--pl-r-md);
+  background: var(--pl-bg-1);
+}
+:where(html[data-view="player"]) .phone-legend {
+  gap: 0;
+  border: 1px solid var(--pl-border);
+  border-radius: 14px;
+  background: var(--pl-bg-1);
+  overflow: hidden;
+}
+:where(html[data-view="player"]) .phone-legend > li + li {
+  border-top: 1px solid var(--pl-border);
+}
+:where(html[data-view="player"]) .phone-legend .note {
+  font-size: 12px;
+}
+
+/* ---------- fights ---------- */
+
+/* A strip under the header while a fight is on and you're on another tab. */
+:where(html[data-view="player"]) .pl-fight-strip {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 14px;
+  border-radius: var(--pl-r-md);
+  border: 1px solid rgba(226, 115, 95, 0.4);
+  background: linear-gradient(90deg, rgba(122, 42, 31, 0.45), rgba(122, 42, 31, 0.15));
+  color: var(--pl-text);
+  font-family: var(--pl-font-ui);
+  text-align: left;
+  cursor: pointer;
+}
+:where(html[data-view="player"]) .pl-fight-strip-k {
+  font-family: var(--font-poster);
+  font-size: 20px;
+  line-height: 1;
+  color: #ffe9c9;
+  white-space: nowrap;
+}
+:where(html[data-view="player"]) .pl-fight-strip-v {
+  font-size: 13px;
+  color: #e7c3b0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+:where(html[data-view="player"]) .pl-fight-strip.turn,
+:where(html[data-view="player"]) .pl-fight-strip.next {
+  border-color: #ffd28a;
+  animation: pl-glow 1.6s ease-in-out infinite;
+}
+
+/* The Fight tab glows when you're next or it's your turn. */
+:where(html[data-view="player"]) .pl-nav-tab.fight {
+  color: #e2735f;
+}
+:where(html[data-view="player"]) .pl-nav-tab.fight.on {
+  color: #ffb39f;
+}
+:where(html[data-view="player"]) .pl-nav-tab.fight.on::before {
+  background: #e2735f;
+}
+:where(html[data-view="player"]) .pl-nav-alert {
+  position: absolute;
+  top: -3px;
+  right: -5px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #ffd28a;
+  box-shadow: 0 0 0 2px rgba(18, 14, 11, 0.94);
+  animation: pl-blink 1s ease-in-out infinite;
+}
+
+/* The fight screen. Its parts are grid items: keep the face strip from widening the page. */
+:where(html[data-view="player"]) .pl-fight > * {
+  min-width: 0;
+}
+:where(html[data-view="player"]) .pl-fight {
+  gap: var(--pl-s4);
+  padding: var(--pl-s5) var(--pl-s4);
+  border: 1px solid rgba(255, 200, 160, 0.16);
+  border-radius: 18px;
+  background: radial-gradient(120% 70% at 50% 0%, #3e1813, #1a0f0b 75%);
+}
+:where(html[data-view="player"]) .pl-fight.next {
+  border-color: rgba(255, 210, 138, 0.6);
+  box-shadow: 0 0 0 3px rgba(255, 210, 138, 0.15);
+}
+:where(html[data-view="player"]) .pl-fight.turn {
+  border-color: #ffd28a;
+  background: radial-gradient(120% 70% at 50% 0%, #6b2418, #2a0f0a 75%);
+}
+:where(html[data-view="player"]) .pl-fight.down {
+  border-color: rgba(226, 115, 95, 0.6);
+}
+:where(html[data-view="player"]) .pl-fight-head {
+  display: grid;
+  justify-items: center;
+  text-align: center;
+  gap: 4px;
+}
+:where(html[data-view="player"]) .pl-fight-round {
+  font-family: var(--pl-font-ui);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #f0b9a2;
+}
+:where(html[data-view="player"]) .pl-fight-title {
+  font-size: clamp(44px, 15vw, 64px);
+  color: #ffe9c9;
+}
+:where(html[data-view="player"]) .pl-fight.turn .pl-fight-title {
+  text-shadow: 0 0 30px rgba(255, 140, 80, 0.5);
+}
+:where(html[data-view="player"]) .pl-fight-now {
+  font-family: var(--font-sc);
+  font-size: 30px;
+  line-height: 1.1;
+  color: var(--parchment);
+}
+:where(html[data-view="player"]) .pl-fight-now span {
+  display: block;
+  font-family: var(--pl-font-ui);
+  font-size: 12px;
+  color: #c99c86;
+}
+:where(html[data-view="player"]) .pl-fight-sub {
+  font-family: var(--pl-font-ui);
+  font-size: 13px;
+  color: #d9b7a3;
+}
+
+/* HP: a big − / + with the number between, then "change by more". */
+:where(html[data-view="player"]) .pl-hp {
+  gap: var(--pl-s3);
+  padding: 14px;
+  border: 1px solid rgba(255, 200, 160, 0.14);
+  border-radius: 16px;
+  background: rgba(0, 0, 0, 0.28);
+}
+:where(html[data-view="player"]) .pl-hp-top {
+  display: flex;
+  justify-content: space-between;
+  font-family: var(--pl-font-ui);
+  font-size: 12px;
+  font-weight: 500;
+  color: #d9b7a3;
+}
+:where(html[data-view="player"]) .pl-hp-top .linkish {
+  font-size: 12px;
+}
+:where(html[data-view="player"]) .pl-hp-step {
+  display: grid;
+  grid-template-columns: 56px 1fr 56px;
+  align-items: center;
+  gap: 10px;
+}
+:where(html[data-view="player"]) .pl-hp-b {
+  height: 56px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 200, 160, 0.2);
+  background: rgba(255, 255, 255, 0.06);
+  color: #ffe9c9;
+  font: 400 28px/1 var(--pl-font-ui);
+  cursor: pointer;
+}
+:where(html[data-view="player"]) .pl-hp-b:active:not(:disabled) {
+  transform: scale(0.95);
+  background: rgba(255, 255, 255, 0.12);
+}
+:where(html[data-view="player"]) .pl-hp-b:disabled {
+  opacity: 0.35;
+}
+:where(html[data-view="player"]) .pl-hp-num {
+  text-align: center;
+  font-size: 44px;
+  line-height: 1;
+  color: #ffe9c9;
+  font-variant-numeric: lining-nums tabular-nums;
+}
+:where(html[data-view="player"]) .pl-hp-num small {
+  font-size: 22px;
+  color: #c99c86;
+}
+:where(html[data-view="player"]) .pl-hp-num .fx-temp {
+  display: block;
+  font-family: var(--pl-font-ui);
+  font-size: 12px;
+  color: #8fb0d6;
+  margin-top: 4px;
+}
+:where(html[data-view="player"]) .pl-hp-bar {
+  display: block;
+  height: 6px;
+  border-radius: 99px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+:where(html[data-view="player"]) .pl-hp-bar > span {
+  display: block;
+  height: 100%;
+  border-radius: 99px;
+  background: linear-gradient(90deg, #86c38a, #b6d98a);
+  transition: width 0.3s;
+}
+:where(html[data-view="player"]) .pl-hp-bar.mid > span {
+  background: linear-gradient(90deg, #d9a34a, #e6c26a);
+}
+:where(html[data-view="player"]) .pl-hp-bar.low > span {
+  background: linear-gradient(90deg, #c4503d, #e2735f);
+}
+:where(html[data-view="player"]) .pl-hp .fc-hp-change {
+  grid-template-columns: 72px 1fr 1fr 1fr;
+}
+:where(html[data-view="player"]) .pl-hp .fc-hp-change .fld {
+  grid-column: auto;
+  font-family: var(--font-num);
+  min-height: 44px;
+}
+:where(html[data-view="player"]) .pl-hp .fc-hp-change .btn {
+  font-size: 14px;
+  padding: 6px 4px;
+}
+:where(html[data-view="player"]) .pl-hp label.check {
+  font-size: 13px;
+  color: #d9b7a3;
+  min-height: 32px;
+}
+:where(html[data-view="player"]) .fc-hp {
+  border-top: 0;
+}
+
+/* Turn order: a strip of faces. */
+:where(html[data-view="player"]) .pl-fight-order h3 {
+  margin: 0 0 8px;
+  font-family: var(--pl-font-ui);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #c99c86;
+}
+:where(html[data-view="player"]) .pl-strip {
+  list-style: none;
+  margin: 0 -16px;
+  padding: 4px 16px 2px;
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+:where(html[data-view="player"]) .pl-strip::-webkit-scrollbar {
+  display: none;
+}
+:where(html[data-view="player"]) .pl-strip li {
+  flex: none;
+  width: 66px;
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  text-align: center;
+  font-family: var(--pl-font-ui);
+}
+:where(html[data-view="player"]) .pl-av {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  font-family: var(--font-sc);
+  font-size: 20px;
+  color: #f3d7c0;
+  background: #3b221b;
+  border: 1.5px solid rgba(255, 200, 160, 0.22);
+}
+:where(html[data-view="player"]) .pl-av img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+:where(html[data-view="player"]) .pl-who-monster .pl-av {
+  background: #241614;
+  color: #e2735f;
+  border-style: dashed;
+}
+:where(html[data-view="player"]) .pl-strip li.me .pl-av {
+  background: #6b2a1d;
+  border-color: #ffd28a;
+}
+:where(html[data-view="player"]) .pl-strip li.cur .pl-av {
+  box-shadow: 0 0 0 3px rgba(255, 210, 138, 0.55);
+  border-color: #ffd28a;
+}
+:where(html[data-view="player"]) .pl-strip li.down {
+  opacity: 0.45;
+}
+:where(html[data-view="player"]) .pl-av-name {
+  max-width: 100%;
+  font-size: 11px;
+  line-height: 1.2;
+  color: #d9b7a3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+:where(html[data-view="player"]) .pl-strip li.me .pl-av-name,
+:where(html[data-view="player"]) .pl-strip li.cur .pl-av-name {
+  color: #ffe9c9;
+  font-weight: 600;
+}
+:where(html[data-view="player"]) .pl-av-state {
+  min-height: 13px;
+  font-size: 10px;
+  line-height: 1.3;
+  color: #c99c86;
+}
+
+/* End my turn, in thumb reach above the tab bar. */
+:where(html[data-view="player"]) .pl-fight-end {
+  position: sticky;
+  bottom: calc(76px + env(safe-area-inset-bottom));
+  z-index: 5;
+  display: grid;
+  gap: 6px;
+  text-align: center;
+}
+:where(html[data-view="player"]) .pl-fight-end .btn.big {
+  min-height: 58px;
+  font-size: 18px;
+  border-radius: 16px;
+  background: linear-gradient(180deg, #f3e3c0, #e2cc9c);
+  color: #3a1a12;
+  border-color: #fff1d0;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.5);
+}
+:where(html[data-view="player"]) .pl-fight-end p {
+  margin: 0;
+  font-family: var(--pl-font-ui);
+  font-size: 12px;
+  color: #c99c86;
+}
+
+/* Death saves: big pips. */
+:where(html[data-view="player"]) .fc-saves {
+  border-top: 0;
+  padding: 14px;
+  border-radius: 16px;
+  background: rgba(0, 0, 0, 0.28);
+  border: 1px solid rgba(226, 115, 95, 0.3);
+  justify-items: center;
+  text-align: center;
+}
+:where(html[data-view="player"]) .fc-saves .fc-big {
+  font-size: 36px;
+  color: #ffe9c9;
+}
+:where(html[data-view="player"]) .fc-saves-row {
+  gap: 14px;
+}
+:where(html[data-view="player"]) .fc-saves-row span {
+  width: 84px;
+  text-align: right;
+  font-family: var(--pl-font-ui);
+  font-size: 13px;
+  color: #d9b7a3;
+}
+:where(html[data-view="player"]) .fc-dot {
+  width: 52px;
+  height: 52px;
+}
+:where(html[data-view="player"]) .fc-saves .btn.primary {
+  width: 100%;
+}
+
+/* Initiative. */
+:where(html[data-view="player"]) .fc-pad .fc-big {
+  text-align: center;
+  font-size: 40px;
+  color: #ffe9c9;
+}
+:where(html[data-view="player"]) .fc-pad .note {
+  text-align: center;
+}
+:where(html[data-view="player"]) .fc-pad-num {
+  border-radius: 14px;
+  background: rgba(0, 0, 0, 0.35);
+  border-color: rgba(255, 200, 160, 0.18);
+}
+:where(html[data-view="player"]) .fc-keys .btn {
+  border-radius: 14px;
+  font-family: var(--pl-font-ui);
+  font-size: 24px;
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 200, 160, 0.16);
+}
+
+@keyframes pl-glow {
+  50% {
+    box-shadow: 0 0 0 4px rgba(255, 210, 138, 0.25);
+  }
+}
+@keyframes pl-blink {
+  50% {
+    opacity: 0.35;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  :where(html[data-view="player"]) .pl-fight-strip,
+  :where(html[data-view="player"]) .pl-nav-alert {
+    animation: none;
+  }
+}

@@ -49,6 +49,8 @@ export function useDiscoverySeen(view: PlayerView) {
 
 export function Discovery({ view, send, seen }: { view: PlayerView; send: Send; seen: ReturnType<typeof useDiscoverySeen> }) {
   const [openId, setOpenId] = useState<string | null>(null);
+  const [areaPick, setArea] = useState<string | null>(null);
+  const area = view.areas.some((a) => a.name === areaPick) ? areaPick : null;
   const open = view.entries.find((e) => e.id === openId && e.stage !== "rumored");
   // Opening a found entry marks it read. Rumors are read by being on screen.
   useEffect(() => {
@@ -65,9 +67,10 @@ export function Discovery({ view, send, seen }: { view: PlayerView; send: Send; 
   if (open) return <EntryPage entry={open} view={view} send={send} onOpen={setOpenId} onBack={() => setOpenId(null)} />;
 
   const kinds = [...KINDS.map((k) => k.id), ...new Set(view.entries.map((e) => e.kind).filter((k) => !KINDS.some((x) => x.id === k)))];
-  const sections = kinds.map((k) => ({ k, list: view.entries.filter((e) => e.kind === k) })).filter((x) => x.list.length);
+  const inArea = (e: PublicEntry) => !area || e.areas.includes(area);
+  const sections = kinds.map((k) => ({ k, list: view.entries.filter((e) => e.kind === k && inArea(e)) })).filter((x) => x.list.length);
 
-  if (!sections.length) {
+  if (!view.entries.length) {
     return (
       <>
         <Leads leads={view.leads} send={send} />
@@ -81,15 +84,20 @@ export function Discovery({ view, send, seen }: { view: PlayerView; send: Send; 
   return (
     <>
       <Leads leads={view.leads} send={send} />
-      <Areas view={view} />
+      <Areas view={view} area={area} onArea={setArea} />
+      {!sections.length ? (
+        <div className="pl-empty">
+          <p>Nothing found in {area} yet.</p>
+        </div>
+      ) : null}
       {sections.map(({ k, list }) => {
         const info = kindInfo(k);
         const found = list.filter((e) => e.stage !== "rumored").length;
         return (
-          <section key={k} className="box discovery" aria-label={info.plural}>
-            <div className="box-head">
+          <section key={k} className="discovery pl-discovery" aria-label={info.plural}>
+            <div className="pl-sec-head">
               <h2>{info.plural}</h2>
-              <span className="note">
+              <span>
                 {info.found} {found}
                 {list.length > found ? ` · ${list.length - found} rumored` : ""}
               </span>
@@ -194,30 +202,36 @@ function EntryPage({ entry: e, view, send, onOpen, onBack }: { entry: PublicEntr
   );
 }
 
-/** Per area: how much the party has found. In totals mode, one slot per thing to find. */
-function Areas({ view }: { view: PlayerView }) {
-  if (view.areas.length < 1) return null;
+/** Areas as chips that narrow the list; the picked one says how much is found there. */
+function Areas({ view, area, onArea }: { view: PlayerView; area: string | null; onArea: (a: string | null) => void }) {
+  if (view.areas.length < 2) return null;
+  const a = view.areas.find((x) => x.name === area);
   return (
-    <section className="box discovery-areas" aria-label="Areas">
-      <h2>Areas</h2>
-      <ul className="area-list">
-        {view.areas.map((a) => (
-          <li key={a.name}>
-            <span className="area-name">{a.name}</span>
-            <span className="note">
-              {a.found} found{a.rumored ? ` · ${a.rumored} rumored` : ""}
-              {a.total !== undefined ? ` · ${a.total - a.found} left` : ""}
-            </span>
-            {a.total !== undefined ? (
-              <span className="area-slots" aria-hidden="true">
-                {Array.from({ length: Math.min(a.total, 30) }, (_, i) => (
-                  <span key={i} className={`area-slot${i < a.found ? " found" : i < a.found + a.rumored ? " rumored" : ""}`} />
-                ))}
-              </span>
-            ) : null}
-          </li>
+    <div className="discovery-areas pl-areas" aria-label="Areas">
+      <div className="pl-chips" role="tablist" aria-label="Areas">
+        <button type="button" role="tab" aria-selected={!area} className={`pl-chip${!area ? " on" : ""}`} onClick={() => onArea(null)}>
+          Everywhere
+        </button>
+        {view.areas.map((x) => (
+          <button key={x.name} type="button" role="tab" aria-selected={area === x.name} className={`pl-chip${area === x.name ? " on" : ""}`} onClick={() => onArea(x.name)}>
+            {x.name}
+            <span className="pl-chip-n">{x.found}</span>
+          </button>
         ))}
-      </ul>
-    </section>
+      </div>
+      {a ? (
+        <p className="pl-area-line">
+          {a.found} found{a.rumored ? ` · ${a.rumored} rumored` : ""}
+          {a.total !== undefined ? ` · ${a.total - a.found} left to find` : ""}
+          {a.total !== undefined ? (
+            <span className="area-slots" aria-hidden="true">
+              {Array.from({ length: Math.min(a.total, 30) }, (_, i) => (
+                <span key={i} className={`area-slot${i < a.found ? " found" : i < a.found + a.rumored ? " rumored" : ""}`} />
+              ))}
+            </span>
+          ) : null}
+        </p>
+      ) : null}
+    </div>
   );
 }

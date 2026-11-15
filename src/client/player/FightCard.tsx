@@ -36,8 +36,12 @@ export function FightCard({ view, send }: { view: PlayerView; send: Send }) {
   const hp = view.me.hp;
   const down = hp.max > 0 && hp.cur <= 0;
 
+  const current = f.order.find((c) => c.id === f.currentId);
+  const next = f.order.find((c) => c.id === f.nextId);
+  const running = f.status === "running" || f.status === "paused";
+
   return (
-    <section className={`fc-card${myTurn ? " turn" : upNext ? " next" : ""}${down ? " down" : ""}`} aria-label="The fight" aria-live="polite">
+    <section className={`fc-card pl-fight${myTurn ? " turn" : upNext ? " next" : ""}${down ? " down" : ""}`} aria-label="The fight" aria-live="polite">
       {f.status === "setup" ? (
         mine ? (
           <InitiativePad value={mine.init} onSubmit={(n) => go({ type: "me.initiative", init: n })} />
@@ -45,18 +49,28 @@ export function FightCard({ view, send }: { view: PlayerView; send: Send }) {
           <p className="fc-big">Roll initiative! The DM is setting up the fight.</p>
         )
       ) : f.status === "over" ? (
-        <p className="fc-big">{f.over?.outcome === "won" ? "Victory! The fight is over." : f.over?.outcome === "fallen" ? "The party has fallen…" : "The fight is over."}</p>
+        <div className="pl-fight-head">
+          <div className="fc-big pl-fight-title">{f.over?.outcome === "won" ? "Victory!" : f.over?.outcome === "fallen" ? "The party has fallen…" : "The fight is over"}</div>
+          {f.over ? <div className="pl-fight-sub">{f.over.rounds === 1 ? "1 round" : `${f.over.rounds} rounds`}</div> : null}
+        </div>
       ) : (
         <>
-          <div className="fc-head">
-            {myTurn ? <div className="fc-big">Your turn!</div> : upNext ? <div className="fc-big">You&rsquo;re up next</div> : <div className="fc-who">Now: {f.order.find((c) => c.id === f.currentId)?.name ?? "…"}</div>}
-            <div className="fc-round">Round {f.round}{f.status === "paused" ? " · paused" : ""}</div>
-          </div>
-          {myTurn ? (
-            <button className="btn primary big" type="button" onClick={() => go({ type: "me.endTurn" })}>
-              End my turn
-            </button>
-          ) : null}
+          <header className="pl-fight-head">
+            <div className="fc-round pl-fight-round">
+              Round {f.round}
+              {f.status === "paused" ? " · paused" : ""}
+            </div>
+            {myTurn ? (
+              <div className="fc-big pl-fight-title">Your turn!</div>
+            ) : upNext ? (
+              <div className="fc-big pl-fight-title">You&rsquo;re up next</div>
+            ) : (
+              <div className="fc-who pl-fight-now">
+                <span>Now</span> {current?.name ?? "…"}
+              </div>
+            )}
+            <div className="pl-fight-sub">{myTurn ? "Everyone’s waiting on you" : upNext ? `After ${current?.name ?? "this turn"}` : mine ? "Waiting for your turn" : "Watching the fight"}</div>
+          </header>
           {mine?.concDc ? <p className="fc-conc">You took damage while concentrating: Constitution save, DC {mine.concDc}.</p> : null}
           {me?.conditions.length ? (
             <div className="fc-conds" aria-label="Your conditions">
@@ -69,17 +83,33 @@ export function FightCard({ view, send }: { view: PlayerView; send: Send }) {
               ))}
             </div>
           ) : null}
-          <ol className="fc-order" aria-label="Turn order">
-            {f.order.map((c) => (
-              <li key={c.id} className={`${c.id === f.currentId ? "cur" : ""}${c.id === meId ? " me" : ""}${c.down ? " down" : ""}`}>
-                <span className="fc-o-name">{c.id === meId ? `${c.name} (you)` : c.name}</span>
-                <span className="fc-o-state">{c.kind === "monster" && c.health ? HEALTH_LABEL[c.health] : c.down ? "Down" : c.id === f.nextId ? "next" : ""}</span>
-              </li>
-            ))}
-          </ol>
         </>
       )}
       {mine && f.status !== "over" ? down && mine.deathSaves ? <DeathSaves saves={mine.deathSaves} go={go} /> : <MyHp hp={hp} go={go} /> : null}
+      {running ? (
+        <div className="pl-fight-order">
+          <h3>Turn order</h3>
+          <ol className="pl-strip" aria-label="Turn order">
+            {f.order.map((c) => (
+              <li key={c.id} className={`pl-who-${c.kind}${c.id === f.currentId ? " cur" : ""}${c.id === meId ? " me" : ""}${c.down ? " down" : ""}`} aria-current={c.id === f.currentId ? "true" : undefined}>
+                <span className="pl-av" aria-hidden="true">
+                  {c.art?.url ? <img src={c.art.url} alt="" /> : (c.name.trim()[0] ?? "?").toUpperCase()}
+                </span>
+                <span className="pl-av-name">{c.id === meId ? "You" : c.name}</span>
+                <span className="pl-av-state">{c.kind === "monster" && c.health ? HEALTH_LABEL[c.health] : c.down ? "Down" : c.id === f.nextId ? "Next" : ""}</span>
+              </li>
+            ))}
+          </ol>
+        </div>
+      ) : null}
+      {myTurn ? (
+        <div className="pl-fight-end">
+          <button className="btn primary big" type="button" onClick={() => go({ type: "me.endTurn" })}>
+            End my turn
+          </button>
+          {next && next.id !== meId ? <p>Up next: {next.name}</p> : null}
+        </div>
+      ) : null}
       {msg ? (
         <p className="error-text" role="alert">
           {msg}
@@ -183,30 +213,41 @@ function MyHp({ hp, go }: { hp: PlayerView["me"]["hp"]; go: (c: object) => Promi
     );
   }
   const pct = Math.max(0, Math.min(100, (hp.cur / Math.max(1, hp.max)) * 100));
+  const step = (mode: "damage" | "heal") => go({ type: "me.hp", mode, amount: 1 });
   return (
-    <div className="fc-hp" aria-label="Your HP">
-      <div className="fc-hp-row">
-        <span className="fc-hp-num">
-          {hp.cur} / {hp.max}
-          {hp.temp ? <span className="fx-temp"> +{hp.temp} temp</span> : null}
-        </span>
-        <button className="btn small" type="button" onClick={() => (setCur(String(hp.cur)), setMax(String(hp.max)), setSetting(true))}>
+    <div className="fc-hp pl-hp" aria-label="Your HP">
+      <div className="pl-hp-top">
+        <span>Hit points</span>
+        <button className="linkish" type="button" onClick={() => (setCur(String(hp.cur)), setMax(String(hp.max)), setSetting(true))}>
           Set HP
         </button>
       </div>
-      <span className="fx-bar">
+      <div className="pl-hp-step">
+        <button type="button" className="pl-hp-b" aria-label="Lose 1 HP" disabled={hp.cur <= 0} onClick={() => step("damage")}>
+          &minus;
+        </button>
+        <span className="fc-hp-num pl-hp-num" aria-live="polite">
+          {hp.cur}
+          <small> / {hp.max}</small>
+          {hp.temp ? <span className="fx-temp"> +{hp.temp} temp</span> : null}
+        </span>
+        <button type="button" className="pl-hp-b" aria-label="Gain 1 HP" disabled={hp.cur >= hp.max} onClick={() => step("heal")}>
+          +
+        </button>
+      </div>
+      <span className={`fx-bar pl-hp-bar${pct <= 25 ? " low" : pct <= 50 ? " mid" : ""}`}>
         <span style={{ width: `${pct}%` }} />
       </span>
       <div className="fc-hp-change">
         <input className="fld" inputMode="numeric" aria-label="Amount" placeholder="0" value={amt} onChange={(e) => setAmt(e.target.value.replace(/\D/g, "").slice(0, 4))} />
         <button className="btn" type="button" disabled={!(n > 0)} onClick={() => apply("damage")}>
-          Took damage
+          Damage
         </button>
         <button className="btn" type="button" disabled={!(n > 0)} onClick={() => apply("heal")}>
-          Healed
+          Heal
         </button>
         <button className="btn" type="button" disabled={!(n > 0)} onClick={() => apply("temp")}>
-          Temp HP
+          Temp
         </button>
       </div>
       <label className="check">
