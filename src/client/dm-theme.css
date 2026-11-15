@@ -1986,3 +1986,164 @@ html[data-view="dm"] {
 :where(html[data-view="dm"]) .bank > .pg-head {
   margin-bottom: 0;
 }
+
+/* ---------- Shop ---------- */
+
+:where(html[data-view="dm"]) .shop-layout {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr);
+  gap: var(--dm-s4);
+  align-items: start;
+}
+:where(html[data-view="dm"]) .shop-fronts {
+  position: sticky;
+  top: calc(var(--dm-top-h) + 12px);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 4px;
+  background: var(--dm-bg-1);
+  border: 1px solid var(--dm-border);
+  border-radius: var(--dm-r-md);
+}
+:where(html[data-view="dm"]) .shop-front {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  width: 100%;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: var(--dm-r-sm);
+  background: none;
+  color: var(--dm-text);
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+:where(html[data-view="dm"]) .shop-front:hover {
+  background: var(--dm-bg-2);
+}
+:where(html[data-view="dm"]) .shop-front.on {
+  background: var(--dm-bg-3);
+  box-shadow: inset 2px 0 0 var(--dm-gold);
+}
+:where(html[data-view="dm"]) .shop-front-name {
+  font-size: 14px;
+  font-weight: 500;
+}
+:where(html[data-view="dm"]) .shop-front-meta {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  color: var(--dm-text-3);
+}
+:where(html[data-view="dm"]) .shop-front-meta .tag.on-tv {
+  margin-left: 2px;
+  padding: 0 5px;
+  font-size: 10px;
+  color: var(--dm-gold);
+  border-color: var(--dm-gold-line);
+}
+:where(html[data-view="dm"]) .vis-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--dm-text-3);
+  flex: none;
+}
+:where(html[data-view="dm"]) .vis-dot.vis-all { background: var(--dm-ok); }
+:where(html[data-view="dm"]) .vis-dot.vis-some { background: var(--dm-gold); }
+:where(html[data-view="dm"]) .shop-main {
+  display: flex;
+  flex-direction: column;
+  gap: var(--dm-s3);
+  min-width: 0;
+}
+:where(html[data-view="dm"]) .vis-box {
+  margin: 0;
+}
+:where(html[data-view="dm"]) .vis-box .box-head {
+  align-items: flex-start;
+}
+:where(html[data-view="dm"]) .vis-box h3 {
+  margin: 0;
+}
+:where(html[data-view="dm"]) .vis-tagline {
+  margin: 2px 0 0;
+  font-size: 13px;
+  color: var(--dm-text-3);
+  font-style: italic;
+}
+:where(html[data-view="dm"]) .vis-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--dm-s3);
+  margin-top: var(--dm-s3);
+}
+:where(html[data-view="dm"]) .vis-row .note {
+  margin: 0;
+}
+:where(html[data-view="dm"]) .vis-players {
+  margin-top: var(--dm-s2);
+}
+:where(html[data-view="dm"]) .vis-players.dim {
+  opacity: 0.55;
+}
+:where(html[data-view="dm"]) .vis-box.vis-all { border-color: rgba(134, 195, 138, 0.45); }
+:where(html[data-view="dm"]) .vis-box.vis-some { border-color: var(--dm-gold-line); }
+:where(html[data-view="dm"]) .vis-box.vis-hidden { border-style: dashed; border-color: var(--dm-border-strong); }
+:where(html[data-view="dm"]) .item-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  justify-content: flex-end;
+}
+:where(html[data-view="dm"]) .item-row .buyers {
+  width: auto;
+}
+:where(html[data-view="dm"]) .item-row .buyers .note {
+  width: auto;
+}
+:where(html[data-view="dm"]) .item-row:has(.buyers) .scene-row {
+  flex-wrap: wrap;
+}
+:where(html[data-view="dm"]) .item-row:has(.buyers) .item-actions {
+  order: 10;
+  flex-basis: 100%;
+  justify-content: flex-start;
+  padding: var(--dm-s2) 0 var(--dm-s1);
+}
+:where(html[data-view="dm"]) .tier-tag.tier-sale { color: var(--dm-ok); border-color: rgba(134, 195, 138, 0.4); }
+:where(html[data-view="dm"]) .tier-tag.tier-locked { color: var(--dm-warn); border-color: rgba(230, 164, 87, 0.4); }
+:where(html[data-view="dm"]) .tier-tag.tier-rumored { color: var(--dm-info); border-color: rgba(143, 176, 214, 0.4); }
+:where(html[data-view="dm"]) .item-row.tier-hidden .row-title { color: var(--dm-text-3); }
+:where(html[data-view="dm"]) .pg-empty-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--dm-s3);
+  padding: var(--dm-s5);
+  border: 1px dashed var(--dm-border-strong);
+  border-radius: var(--dm-r-md);
+  color: var(--dm-text-2);
+}
+:where(html[data-view="dm"]) .pg-empty-card p { margin: 0; }
+:where(html[data-view="dm"]) .linkish {
+  background: none;
+  border: 0;
+  padding: 0;
+  color: var(--dm-gold);
+  text-decoration: underline;
+  cursor: pointer;
+  font: inherit;
+}
+:where(html[data-view="dm"]) .item-editor .inline .grow { flex: 1; }
+@media (max-width: 1100px) {
+  :where(html[data-view="dm"]) .shop-layout { grid-template-columns: 1fr; }
+  :where(html[data-view="dm"]) .shop-fronts { position: static; flex-direction: row; flex-wrap: wrap; }
+  :where(html[data-view="dm"]) .shop-front { width: auto; }
+}

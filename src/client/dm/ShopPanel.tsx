@@ -2,7 +2,7 @@
 import { townOf } from "@/shared/presets";
 
 import { TrustSelect } from "./TrustSelect";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { canAfford, cpToGpInput, formatCp, parseAmount } from "@/shared/money";
 import type { Item, ItemTier, Shop, ShopVisibility } from "@/shared/types";
 import { ShopBoard } from "../ui/ShopBoard";
@@ -12,7 +12,11 @@ import { RENOWN, tierOf } from "@/shared/renown";
 import { Field } from "./Field";
 import { Check } from "./Check";
 import { ContributeBox, GrantBox, KindFields, RunningBox } from "./ItemExtras";
-import { CATEGORIES, creditCp, firstChargeCp, KINDS, raisedCp } from "@/shared/progress";
+import { categoryLabel, CATEGORIES, creditCp, firstChargeCp, KINDS, raisedCp } from "@/shared/progress";
+import { PageHead } from "./PageHead";
+import { Drawer } from "./Drawer";
+import { MenuItem, RowMenu } from "./RowMenu";
+import { GearIcon, PlusIcon } from "./navIcons";
 import type { ShopMode } from "../ui/ShopBoard";
 import type { ItemCategory, ItemKind } from "@/shared/types";
 
@@ -25,6 +29,10 @@ const TIERS: [ItemTier, string][] = [
 
 const VIS_NOTE: Record<ShopVisibility, string | null> = { all: null, hidden: "hidden", some: "secret" };
 
+const KIND_SHORT: Record<ItemKind, string> = { purchase: "", recurring: "per month", service: "service", order: "special order", training: "training", project: "project", earned: "earned" };
+const TIER_TAG: Record<ItemTier, string> = { sale: "for sale", locked: "locked", rumored: "rumored", hidden: "hidden" };
+const VIS_LABEL: Record<ShopVisibility, string> = { all: "open", hidden: "hidden", some: "secret" };
+
 export function ShopPanel() {
   const { view, run } = useDm();
   const s = view.state;
@@ -35,6 +43,19 @@ export function ShopPanel() {
   const [quiet, setQuiet] = useState(false);
   const [mode, setMode] = useState<ShopMode>("shop");
   const [category, setCategory] = useState<ItemCategory | undefined>(undefined);
+  const [preview, setPreview] = useState(false);
+  const [editing, setEditing] = useState<string | null>(null);
+  const [drawer, setDrawer] = useState<null | "item" | "shop" | "settings">(null);
+  // After adding a shop, jump to it once it arrives.
+  const [newShop, setNewShop] = useState<{ name: string; known: Set<string> } | null>(null);
+  useEffect(() => {
+    if (!newShop) return;
+    const made = s.shops.find((x) => !newShop.known.has(x.id) && x.name === newShop.name) ?? s.shops.find((x) => !newShop.known.has(x.id));
+    if (made) {
+      setShopId(made.id);
+      setNewShop(null);
+    }
+  }, [newShop, s.shops]);
   // What the cards show the DM: progress on projects and who has earned what.
   const cards = s.items.map((i) => ({
     ...i,
@@ -43,8 +64,16 @@ export function ShopPanel() {
   }));
   const shop = s.shops.find((x) => x.id === shopId) ?? s.shops[0];
   const buyers = s.players.filter((p) => !p.archived);
+  const editingItem = s.items.find((x) => x.id === editing);
 
-  const actions = (it: Item) => {
+  const pickShop = (id: string) => {
+    setShopId(id);
+    setBuying(null);
+    const next = s.shops.find((x) => x.id === id);
+    if (s.live.shopOpen && next?.visibility === "all") void run({ type: "live.shop", open: true, shopId: id });
+  };
+
+  const actions = (it: Item, compact = false) => {
     const buyable = tierOf(s, it) === "sale" && it.stock !== 0 && !s.shops.find((x) => x.id === it.shopId)?.closed && !(it.kind === "project" && s.effectsOn[it.id]);
     const cost = firstChargeCp(s, it);
     return (
@@ -103,120 +132,262 @@ export function ShopPanel() {
             Put on sale
           </button>
         ) : null}
-        <ItemEditor it={it} quiet={quiet} />
+        {compact ? null : (
+          <button className="btn small ghost" type="button" onClick={() => setEditing(it.id)}>
+            Edit
+          </button>
+        )}
       </>
     );
   };
 
+  const openCount = s.shops.filter((x) => x.visibility !== "hidden").length;
+  const forSale = s.items.filter((i) => tierOf(s, i) === "sale").length;
+  const onTheWay = s.orders.filter((o) => !o.arrived).length;
+
+  const head = (
+    <PageHead
+      title="Shop"
+      sub="Storefronts, their goods, and who can see them."
+      help={
+        <>
+          <p>A new shop starts hidden. Open it to everyone to put it on phones (and on the TV with the button up here), or to a few players as a secret offer that never reaches the TV.</p>
+          <p>Items can be for sale, locked (visible, with a reason), rumored (??? and a hint) or hidden. Renown and trust gates lock an item until the party earns them. Tick Quietly to skip the &ldquo;New at&hellip;&rdquo; banner on the TV.</p>
+        </>
+      }
+      actions={
+        <>
+          <button className="btn" type="button" onClick={() => setDrawer("shop")}>
+            <PlusIcon size={16} /> Shop
+          </button>
+          {shop ? (
+            <button className="btn" type="button" onClick={() => setDrawer("item")}>
+              <PlusIcon size={16} /> Item
+            </button>
+          ) : null}
+          {s.live.shopOpen ? (
+            <button className="btn primary" type="button" onClick={() => run({ type: "live.shop", open: false })}>
+              <TvIcon /> Close on the TV
+            </button>
+          ) : shop && shop.visibility === "all" ? (
+            <button className="btn primary" type="button" onClick={() => run({ type: "live.shop", open: true, shopId: shop.id }, `${shop.name} is on the TV.`)}>
+              <TvIcon /> Show on the TV
+            </button>
+          ) : null}
+        </>
+      }
+      stats={[
+        { label: "Open shops", value: `${openCount} of ${s.shops.length}`, tone: openCount ? "ok" : "muted" },
+        { label: "For sale", value: forSale, tone: "gold" },
+        ...(onTheWay ? [{ label: "Orders on the way", value: onTheWay }] : []),
+        ...(s.live.shopOpen ? [{ label: "On the TV", value: s.shops.find((x) => x.id === s.live.shopId)?.name ?? "Shop", tone: "gold" as const }] : []),
+      ]}
+    />
+  );
+
+  const drawers = (
+    <>
+      {drawer === "item" && shop ? (
+        <Drawer title="New item" subtitle={`In ${shop.name}`} onClose={() => setDrawer(null)} closeLabel="Cancel">
+          <AddItem shopId={shop.id} quiet={quiet} onAdded={() => setDrawer(null)} />
+        </Drawer>
+      ) : null}
+      {drawer === "shop" ? (
+        <Drawer title="New shop" subtitle="It starts hidden" onClose={() => setDrawer(null)} closeLabel="Cancel">
+          <AddShop
+            onAdded={(name) => {
+              setDrawer(null);
+              setNewShop({ name, known: new Set(s.shops.map((x) => x.id)) });
+            }}
+          />
+        </Drawer>
+      ) : null}
+      {drawer === "settings" && shop ? (
+        <Drawer title={shop.name} subtitle="Shop settings" onClose={() => setDrawer(null)}>
+          <ShopSettings shop={shop} onRemoved={() => setDrawer(null)} />
+        </Drawer>
+      ) : null}
+      {editingItem ? (
+        <Drawer title={editingItem.name} subtitle={`${formatCp(editingItem.priceCp)} · ${TIER_TAG[editingItem.tier]}`} onClose={() => setEditing(null)} wide>
+          <ItemEditor it={editingItem} quiet={quiet} onRemoved={() => setEditing(null)} />
+        </Drawer>
+      ) : null}
+    </>
+  );
+
   if (!shop) {
     // A blank campaign (or every shop removed): start with one.
     return (
-      <div className="dm-shop">
-        <div className="panel-grid">
-          <section className="box">
-            <h3>Shops</h3>
-            <p className="note">No shops yet. Add one here; it starts hidden, so players only see it once you open it to them. Then add its items.</p>
-          </section>
-          <AddShop />
+      <div className="dm-shop pg">
+        {head}
+        <div className="pg-empty-card">
+          <p>No shops yet. Add one; it starts hidden, so players only see it once you open it to them.</p>
+          <button className="btn primary" type="button" onClick={() => setDrawer("shop")}>
+            <PlusIcon size={16} /> Add a shop
+          </button>
         </div>
+        {drawers}
       </div>
     );
   }
 
+  const items = s.items.filter((i) => i.shopId === shop.id);
+
   return (
-    <div className="dm-shop">
-      <ShopVisibilityBox key={shop.id} shop={shop} quiet={quiet} />
+    <div className="dm-shop pg">
+      {head}
+      <div className="shop-layout">
+        <nav className="shop-fronts" aria-label="Storefronts">
+          {s.shops.map((sh) => {
+            const n = s.items.filter((i) => i.shopId === sh.id).length;
+            const onTv = s.live.shopOpen && s.live.shopId === sh.id;
+            return (
+              <button key={sh.id} type="button" className={`shop-front${sh.id === shop.id ? " on" : ""}`} aria-current={sh.id === shop.id ? "true" : undefined} onClick={() => pickShop(sh.id)}>
+                <span className="shop-front-name">{sh.name}</span>
+                <span className="shop-front-meta">
+                  <span className={`vis-dot vis-${sh.visibility}`} aria-hidden="true" />
+                  {VIS_LABEL[sh.visibility]}
+                  {sh.closed ? " · closed" : ""} · {n} {n === 1 ? "item" : "items"}
+                  {onTv ? <span className="tag on-tv">TV</span> : null}
+                </span>
+              </button>
+            );
+          })}
+        </nav>
 
-      <div className="inline shop-tv-row">
-        {s.live.shopOpen ? (
-          <>
-            <span className="note tv-follows">
-              <TvIcon /> The shop is open on the TV, and it follows these tabs.
-            </span>
-            <button className="btn" type="button" onClick={() => run({ type: "live.shop", open: false })}>
-              Close the shop on the TV
-            </button>
-          </>
-        ) : shop.visibility === "all" ? (
-          <button className="btn primary" type="button" onClick={() => run({ type: "live.shop", open: true, shopId: shop.id }, `${shop.name} is on the TV.`)}>
-            <TvIcon /> Show {shop.name} on the TV
-          </button>
-        ) : (
-          <span className="note">The TV only shows shops open to everyone.</span>
-        )}
-        <span className="spacer" />
-        <Check checked={quiet} onChange={setQuiet}>
-          Quietly (no &ldquo;New at&hellip;&rdquo; banner on the TV)
-        </Check>
-      </div>
+        <div className="shop-main">
+          <ShopVisibilityBox key={shop.id} shop={shop} quiet={quiet} onSettings={() => setDrawer("settings")} />
 
-      <ShopBoard
-        town={townOf(s)}
-        shops={s.shops}
-        items={cards}
-        shopId={shop.id}
-        mode={mode}
-        onMode={setMode}
-        category={category}
-        onCategory={setCategory}
-        onShop={(id) => {
-          setShopId(id);
-          setBuying(null);
-          const next = s.shops.find((x) => x.id === id);
-          if (s.live.shopOpen && next?.visibility === "all") void run({ type: "live.shop", open: true, shopId: id });
-        }}
-        size="page"
-        dm
-        tabNote={(sh) => VIS_NOTE[(sh as Shop).visibility]}
-        actions={actions}
-      />
-
-      <OrdersBox />
-      <RunningBox />
-
-      <div className="panel-grid">
-        <section className="box">
-          <h3>This shop</h3>
-          <div className="form" key={shop.id}>
-            <Field label="Shop name" value={shop.name} onCommit={(v) => run({ type: "shop.update", shopId: shop.id, patch: { name: v } })} />
-            <Field label="Tagline" value={shop.subtitle} onCommit={(v) => run({ type: "shop.update", shopId: shop.id, patch: { subtitle: v } })} />
-            <Check checked={!!shop.closed} onChange={(v) => run({ type: "shop.update", shopId: shop.id, patch: { closed: v } })}>
-              Closed: players see the name and tagline, but no goods
+          <div className="pg-toolbar">
+            <div className="seg" role="group" aria-label="View">
+              <button type="button" className={`btn small${preview ? "" : " on"}`} aria-pressed={!preview} onClick={() => setPreview(false)}>
+                List
+              </button>
+              <button type="button" className={`btn small${preview ? " on" : ""}`} aria-pressed={preview} onClick={() => setPreview(true)}>
+                As players see it
+              </button>
+            </div>
+            <span className="grow" />
+            <Check checked={quiet} onChange={setQuiet}>
+              Quietly (no &ldquo;New at&hellip;&rdquo; banner on the TV)
             </Check>
-            <Check checked={!!shop.secretSales || shop.visibility === "some"} onChange={(v) => run({ type: "shop.update", shopId: shop.id, patch: { secretSales: v } })}>
-              Secret sales: purchases here never show on the TV or other players&rsquo; phones{shop.visibility === "some" ? " (always, while it's for selected players)" : ""}
-            </Check>
-            <label>
-              Needs Renown (until then: name and rank only, no goods)
-              <select className="fld" value={shop.renown ?? 0} onChange={(e) => run({ type: "shop.update", shopId: shop.id, patch: { renown: Number(e.target.value) } })}>
-                {RENOWN.map((r, i) => (
-                  <option key={r.name} value={i}>
-                    {i === 0 ? "No Renown needed" : r.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <TrustSelect value={shop.trust} onChange={(trust) => void run({ type: "shop.update", shopId: shop.id, patch: { trust } })} />
-            <button
-              className="btn small danger"
-              type="button"
-              onClick={() => {
-                if (confirm(`Remove ${shop.name} and all its items?`)) void run({ type: "shop.remove", shopId: shop.id }, `Removed ${shop.name}.`);
-              }}
-            >
-              Remove this shop
-            </button>
           </div>
-        </section>
-        <AddItem shopId={shop.id} quiet={quiet} />
-        <AddShop />
+
+          {preview ? (
+            <ShopBoard town={townOf(s)} shops={s.shops} items={cards} shopId={shop.id} mode={mode} onMode={setMode} category={category} onCategory={setCategory} onShop={pickShop} size="page" dm tabNote={(sh) => VIS_NOTE[(sh as Shop).visibility]} actions={(it) => actions(it)} />
+          ) : (
+            <ol className="scene-list pg-list shop-items">
+              {items.map((it) => {
+                const eff = tierOf(s, it);
+                const card = cards.find((c) => c.id === it.id) as (typeof cards)[number] & { raisedCp?: number; earnedBy?: string[] };
+                const bits = [categoryLabel(it.category), KIND_SHORT[it.kind], it.stock !== null ? (it.stock === 0 ? "sold out" : `${it.stock} left`) : "", it.description].filter(Boolean);
+                return (
+                  <li key={it.id} className={`scene-item list-row item-row tier-${eff}${editing === it.id ? " selected" : ""}`}>
+                    <div className="scene-row">
+                      <button type="button" className="row-main" onClick={() => setEditing(it.id)} title={`Edit ${it.name}`}>
+                        <span className="row-title">{it.name}</span>
+                        <span className="row-sub">{bits.join(" · ")}</span>
+                      </button>
+                      <span className="row-meta">
+                        {eff !== it.tier ? <span className="tag">gated</span> : null}
+                        <span className={`tag tier-tag tier-${eff}`}>{TIER_TAG[eff]}</span>
+                        {it.kind === "project" ? <span className="tag">{formatCp(card.raisedCp ?? 0)} raised</span> : null}
+                        {it.kind === "earned" && card.earnedBy?.length ? <span className="tag">{card.earnedBy.length} earned</span> : null}
+                        <span className="pg-money">{it.priceLabel || formatCp(it.priceCp)}</span>
+                      </span>
+                      <span className="item-actions">{actions(it, true)}</span>
+                      <RowMenu label={it.name}>
+                        <MenuItem onClick={() => setEditing(it.id)}>Edit</MenuItem>
+                        {(["sale", "locked", "rumored", "hidden"] as ItemTier[])
+                          .filter((t) => t !== it.tier)
+                          .map((t) => (
+                            <MenuItem key={t} onClick={() => run({ type: "item.update", itemId: it.id, patch: { tier: t }, quiet })}>
+                              Make it {TIER_TAG[t]}
+                            </MenuItem>
+                          ))}
+                      </RowMenu>
+                    </div>
+                  </li>
+                );
+              })}
+              {items.length === 0 ? (
+                <li className="pg-empty">
+                  Nothing in {shop.name} yet.{" "}
+                  <button className="linkish" type="button" onClick={() => setDrawer("item")}>
+                    Add the first item
+                  </button>
+                </li>
+              ) : null}
+            </ol>
+          )}
+
+          <OrdersBox />
+          <RunningBox />
+        </div>
       </div>
+      {drawers}
     </div>
   );
 }
 
+/** Name, tagline, gates and removal for one shop. */
+function ShopSettings({ shop, onRemoved }: { shop: Shop; onRemoved: () => void }) {
+  const { run } = useDm();
+  const [confirming, setConfirming] = useState(false);
+  return (
+    <>
+      <div className="form" key={shop.id}>
+        <Field label="Shop name" value={shop.name} onCommit={(v) => run({ type: "shop.update", shopId: shop.id, patch: { name: v } })} />
+        <Field label="Tagline" value={shop.subtitle} onCommit={(v) => run({ type: "shop.update", shopId: shop.id, patch: { subtitle: v } })} />
+        <Check checked={!!shop.closed} onChange={(v) => run({ type: "shop.update", shopId: shop.id, patch: { closed: v } })}>
+          Closed: players see the name and tagline, but no goods
+        </Check>
+        <Check checked={!!shop.secretSales || shop.visibility === "some"} onChange={(v) => run({ type: "shop.update", shopId: shop.id, patch: { secretSales: v } })}>
+          Secret sales: purchases here never show on the TV or other players&rsquo; phones{shop.visibility === "some" ? " (always, while it's for selected players)" : ""}
+        </Check>
+        <label>
+          Needs Renown (until then: name and rank only, no goods)
+          <select className="fld" value={shop.renown ?? 0} onChange={(e) => run({ type: "shop.update", shopId: shop.id, patch: { renown: Number(e.target.value) } })}>
+            {RENOWN.map((r, i) => (
+              <option key={r.name} value={i}>
+                {i === 0 ? "No Renown needed" : r.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <TrustSelect value={shop.trust} onChange={(trust) => void run({ type: "shop.update", shopId: shop.id, patch: { trust } })} />
+      </div>
+      <section className="box danger-zone">
+        <h3>{shop.name}</h3>
+        <div className="inline">
+          {confirming ? (
+            <>
+              <button className="btn small" type="button" onClick={() => setConfirming(false)}>
+                Keep it
+              </button>
+              <button
+                className="btn small danger"
+                type="button"
+                onClick={async () => {
+                  if (await run({ type: "shop.remove", shopId: shop.id }, `Removed ${shop.name}.`)) onRemoved();
+                }}
+              >
+                Remove {shop.name} and all its items
+              </button>
+            </>
+          ) : (
+            <button className="btn small danger" type="button" onClick={() => setConfirming(true)}>
+              Remove this shop
+            </button>
+          )}
+        </div>
+      </section>
+    </>
+  );
+}
+
 /** Hidden / everyone / some players, for one shop. */
-function ShopVisibilityBox({ shop, quiet }: { shop: Shop; quiet: boolean }) {
+function ShopVisibilityBox({ shop, quiet, onSettings }: { shop: Shop; quiet: boolean; onSettings: () => void }) {
   const { view, run, toast } = useDm();
   const players = view.state.players.filter((p) => !p.archived);
   const [picked, setPicked] = useState<string[]>(shop.playerIds);
@@ -228,12 +399,16 @@ function ShopVisibilityBox({ shop, quiet }: { shop: Shop; quiet: boolean }) {
   return (
     <section className={`box vis-box vis-${shop.visibility}`} aria-label={`Who can see ${shop.name}`}>
       <div className="box-head">
-        <h3>{shop.name}</h3>
-        <span className="note">
-          {shop.visibility === "hidden" ? "Hidden: nobody but you sees this shop." : shop.visibility === "all" ? "Open to everyone, and it can go on the TV." : "Secret offer: only the players ticked below see it. Never on the TV."}
-        </span>
+        <div>
+          <h3>{shop.name}</h3>
+          {shop.subtitle ? <p className="vis-tagline">{shop.subtitle}</p> : null}
+        </div>
+        <button className="btn small" type="button" onClick={onSettings}>
+          <GearIcon size={14} /> Shop settings
+        </button>
       </div>
-      <div className="inline" role="group" aria-label="Who can see this shop">
+      <div className="vis-row">
+      <div className="seg" role="group" aria-label="Who can see this shop">
         <button type="button" className={`btn small${shop.visibility === "hidden" ? " on" : ""}`} aria-pressed={shop.visibility === "hidden"} onClick={() => set("hidden")}>
           Hidden
         </button>
@@ -249,7 +424,12 @@ function ShopVisibilityBox({ shop, quiet }: { shop: Shop; quiet: boolean }) {
           Selected players
         </button>
       </div>
-      <div className="checks">
+        <span className="note">
+          {shop.visibility === "hidden" ? "Nobody but you sees this shop." : shop.visibility === "all" ? "Open to everyone, and it can go on the TV." : "Secret offer: only the ticked players see it. Never on the TV."}
+          {shop.closed ? " Closed for now." : ""}
+        </span>
+      </div>
+      <div className={`checks vis-players${shop.visibility === "some" ? "" : " dim"}`}>
         {players.map((p) => (
           <label className="check" key={p.id}>
             <input
@@ -269,13 +449,13 @@ function ShopVisibilityBox({ shop, quiet }: { shop: Shop; quiet: boolean }) {
   );
 }
 
-function ItemEditor({ it, quiet }: { it: Item; quiet: boolean }) {
+function ItemEditor({ it, quiet, onRemoved }: { it: Item; quiet: boolean; onRemoved: () => void }) {
   const { view, run } = useDm();
+  const [confirming, setConfirming] = useState(false);
   const s = view.state;
   const patch = (p: Partial<Item>) => run({ type: "item.update", itemId: it.id, patch: p, quiet });
   return (
-    <details className="dm-edit">
-      <summary>Edit</summary>
+    <div className="item-editor">
       <div className="form">
         <label>
           Shown as
@@ -364,18 +544,30 @@ function ItemEditor({ it, quiet }: { it: Item; quiet: boolean }) {
               ))}
             </select>
           </label>
-          <button
-            className="btn small danger"
-            type="button"
-            onClick={() => {
-              if (confirm(`Remove ${it.name} from the shop?`)) void run({ type: "item.remove", itemId: it.id }, `Removed ${it.name}.`);
-            }}
-          >
-            Remove
-          </button>
+          <span className="grow" />
+          {confirming ? (
+            <>
+              <button className="btn small" type="button" onClick={() => setConfirming(false)}>
+                Keep it
+              </button>
+              <button
+                className="btn small danger"
+                type="button"
+                onClick={async () => {
+                  if (await run({ type: "item.remove", itemId: it.id }, `Removed ${it.name}.`)) onRemoved();
+                }}
+              >
+                Remove {it.name}
+              </button>
+            </>
+          ) : (
+            <button className="btn small danger" type="button" onClick={() => setConfirming(true)}>
+              Remove item
+            </button>
+          )}
         </div>
       </div>
-    </details>
+    </div>
   );
 }
 
@@ -418,22 +610,23 @@ function OrdersBox() {
   );
 }
 
-function AddItem({ shopId, quiet }: { shopId: string; quiet: boolean }) {
+function AddItem({ shopId, quiet, onAdded }: { shopId: string; quiet: boolean; onAdded: () => void }) {
   const { view, run, toast } = useDm();
   const blank = { shopId, name: "", price: "", description: "", tier: "sale" as ItemTier, reason: "", hint: "", category: "gear" as ItemCategory, kind: "purchase" as ItemKind };
   const [f, setF] = useState(blank);
   const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => setF({ ...f, [k]: e.target.value });
   return (
-    <section className="box">
-      <h3>Add an item</h3>
-      <form
+    <form
         className="form"
         onSubmit={async (e) => {
           e.preventDefault();
           const cp = parseAmount(f.price || "0");
           if (!f.name.trim() || cp === null) return toast("Give the item a name and a price.");
           const item = { shopId: f.shopId, name: f.name, priceCp: cp, description: f.description, tier: f.tier, reason: f.reason, hint: f.hint, category: f.category, kind: f.kind };
-          if (await run({ type: "item.add", item, quiet }, `Added ${f.name}.`)) setF({ ...blank, shopId: f.shopId });
+          if (await run({ type: "item.add", item, quiet }, `Added ${f.name}.`)) {
+            setF({ ...blank, shopId: f.shopId });
+            onAdded();
+          }
         }}
       >
         <label>
@@ -448,7 +641,7 @@ function AddItem({ shopId, quiet }: { shopId: string; quiet: boolean }) {
         </label>
         <label>
           Name
-          <input className="fld" value={f.name} onChange={set("name")} />
+          <input className="fld" autoFocus value={f.name} onChange={set("name")} />
         </label>
         <label>
           Category
@@ -500,28 +693,26 @@ function AddItem({ shopId, quiet }: { shopId: string; quiet: boolean }) {
             <input className="fld" value={f.hint} onChange={set("hint")} placeholder="e.g. Someone in town has been watching you." />
           </label>
         ) : null}
-        <p className="note">Stock, lessons, effects and fine print are under Edit on the card once it&rsquo;s added.</p>
+        <p className="note">Stock, lessons, effects and fine print are under Edit once it&rsquo;s added.</p>
         <button className="btn primary" type="submit">
           Add item
         </button>
       </form>
-    </section>
   );
 }
 
-function AddShop() {
+function AddShop({ onAdded }: { onAdded: (name: string) => void }) {
   const { run } = useDm();
   const [name, setName] = useState("");
   const [subtitle, setSubtitle] = useState("");
   return (
-    <section className="box">
-      <h3>Add a shop</h3>
-      <form
+    <form
         className="form"
         onSubmit={async (e) => {
           e.preventDefault();
           if (!name.trim()) return;
           if (await run({ type: "shop.add", name, subtitle }, `Added ${name}. It starts hidden.`)) {
+            onAdded(name.trim());
             setName("");
             setSubtitle("");
           }
@@ -529,7 +720,7 @@ function AddShop() {
       >
         <label>
           Name
-          <input className="fld" value={name} onChange={(e) => setName(e.target.value)} />
+          <input className="fld" autoFocus value={name} onChange={(e) => setName(e.target.value)} />
         </label>
         <label>
           Tagline
@@ -539,6 +730,5 @@ function AddShop() {
           Add shop (starts hidden)
         </button>
       </form>
-    </section>
   );
 }
