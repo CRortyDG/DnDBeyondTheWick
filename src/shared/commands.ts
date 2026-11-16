@@ -379,6 +379,15 @@ export const dmCommand = z.discriminatedUnion("type", [
   z.object({ type: z.literal("renown.points"), amount: z.number().int().min(-50).max(50).refine((n) => n !== 0, "Give or take at least one point."), reason: text(200).optional(), tv: z.boolean().optional() }),
   /** Show the party's progress toward the next rank on phones. */
   z.object({ type: z.literal("renown.progress"), on: z.boolean() }),
+  /**
+   * Fix a line in the Renown history: its points and reason. The difference goes on (or comes
+   * off) the points of everyone who got it, later totals move with it, and its Chronicle line is
+   * corrected. Reaching a new rank raises it (tv as renown.set); falling short only lowers the
+   * rank when lower is true. A rank set by hand (source set) only takes a new reason.
+   */
+  z.object({ type: z.literal("renown.edit"), changeId: id, amount: z.number().int().min(-50).max(50).optional(), reason: text(200).optional(), lower: z.boolean().optional(), tv: z.boolean().optional() }),
+  /** Undo a line in the Renown history: its points come off, it leaves the history and its Chronicle lines go. */
+  z.object({ type: z.literal("renown.undo"), changeId: id, lower: z.boolean().optional() }),
   /** secret: only the DM sees it (in the roll log); otherwise it plays on the TV. */
   z.object({ type: z.literal("dice.roll"), dice: diceAsk, plus: dicePlus, secret: z.boolean().optional() }),
   /** Empty the roll log (the DM's and the players' rolls). */
