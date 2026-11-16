@@ -43,15 +43,17 @@ function publicKey(k: BuilderKeyInfo) {
 }
 
 /** A draft as the review queue shows it: names for what it points at, and the diff for a suggestion. */
-function reviewView(g: GameState, d: Draft, drafts: Map<string, Draft>) {
-  const nameOf = (id: string) => {
-    if (DRAFT_ID_RE.test(id)) {
-      const x = drafts.get(id);
-      return x ? `${draftTitle(x)} (draft)` : "a draft that's gone";
-    }
-    return entriesOf(g).find((e) => e.id === id)?.name ?? storyOf(g).threads.find((t) => t.id === id)?.name ?? id;
+function reviewView(g: GameState, d: Draft, drafts: Map<string, Draft>, made: Map<string, { id: string }>) {
+  const gameName = (id: string) => entriesOf(g).find((e) => e.id === id)?.name ?? storyOf(g).threads.find((t) => t.id === id)?.name;
+  // A draft that was approved already points at what it became, so it reads (and approves) like anything else in the game.
+  const ref = (id: string) => {
+    if (!DRAFT_ID_RE.test(id)) return { id, name: gameName(id) ?? id, draft: false };
+    const m = made.get(id);
+    if (m) return { id, name: gameName(m.id) ?? draftTitle(drafts.get(id) ?? { kind: "entry", body: {} }), draft: false };
+    const x = drafts.get(id);
+    return { id, name: x ? `${draftTitle(x)} (draft)` : "a draft that's gone", draft: true };
   };
-  const out: Record<string, unknown> = { ...d, title: draftTitle(d), refs: draftRefs(d).map((id) => ({ id, name: nameOf(id), draft: DRAFT_ID_RE.test(id) })) };
+  const out: Record<string, unknown> = { ...d, title: draftTitle(d), refs: draftRefs(d).map(ref) };
   if (d.kind === "suggestion") {
     const s = d.body as unknown as SuggestionBody;
     const now = currentValue(g, s.target, s.field);
@@ -60,15 +62,15 @@ function reviewView(g: GameState, d: Draft, drafts: Map<string, Draft>) {
   return out;
 }
 
-/** Ids to approve plus every pending draft they hang off, parents first. */
-function withParents(ids: string[], pending: Map<string, Draft>): Draft[] {
+/** Ids to approve plus every pending draft they hang off, parents first. Parents already approved (made) are fine. */
+function withParents(ids: string[], pending: Map<string, Draft>, made: Map<string, unknown> = new Map()): Draft[] {
   const chosen = new Map<string, Draft>();
   const add = (id: string) => {
     if (chosen.has(id)) return;
     const d = pending.get(id);
     if (!d) throw new HttpError(409, "One of those drafts was already reviewed or withdrawn. Reload the list.");
     for (const r of draftRefs(d)) {
-      if (!DRAFT_ID_RE.test(r)) continue;
+      if (!DRAFT_ID_RE.test(r) || (made.has(r) && !pending.has(r))) continue;
       if (!pending.has(r)) throw new HttpError(409, `"${draftTitle(d)}" belongs to a draft that was rejected or withdrawn. Reject it too.`);
       add(r);
     }
@@ -115,7 +117,10 @@ export async function handleBuilderAdmin(req: Request, store: Store, game: strin
   const json = (data: unknown) => new Response(JSON.stringify(data), { headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" } });
 
   if (path === "status" && method === "GET") {
-    return json({ enabled: await builderEnabled(b), keys: (await listKeys(b)).map(publicKey), pending: await b.count(DRAFT_TBL, "pending") });
+    // The review page shows links and facts on the draft they hang off, so the badge counts rows, not drafts.
+    const pending = await pendingMap(store);
+    const rows = [...pending.values()].filter((d) => !((d.kind === "link" || d.kind === "fact") && draftRefs(d).some((r) => pending.has(r)))).length;
+    return json({ enabled: await builderEnabled(b), keys: (await listKeys(b)).map(publicKey), pending: pending.size, rows });
   }
   if (path === "enabled" && method === "POST") {
     const { on } = await parse(z.object({ on: z.boolean() }), req);
@@ -159,7 +164,8 @@ export async function handleBuilderAdmin(req: Request, store: Store, game: strin
     const pending = all.filter((d) => d.status === "pending").sort((a, c) => a.createdAt - c.createdAt);
     const reviewed = all.filter((d) => d.status !== "pending").sort((a, c) => (c.reviewedAt ?? 0) - (a.reviewedAt ?? 0));
     for (const d of reviewed.slice(REVIEWED_KEEP)) await b.del(DRAFT_TBL, d.id);
-    return json({ pending: pending.map((d) => reviewView(state, d, byId)), reviewed: reviewed.slice(0, 40).map((d) => ({ id: d.id, kind: d.kind, title: draftTitle(d), label: d.label, status: d.status, reviewedAt: d.reviewedAt, resultId: d.resultId })) });
+    const made = madeIndex(state);
+    return json({ pending: pending.map((d) => reviewView(state, d, byId, made)), reviewed: reviewed.slice(0, 40).map((d) => ({ id: d.id, kind: d.kind, title: draftTitle(d), label: d.label, status: d.status, reviewedAt: d.reviewedAt, resultId: d.resultId })) });
   }
   if (path === "review-edit" && method === "POST") {
     const { id, body } = await parse(z.object({ id: z.string().regex(DRAFT_ID_RE), body: z.record(z.string(), z.unknown()) }), req);
@@ -182,7 +188,8 @@ export async function handleBuilderAdmin(req: Request, store: Store, game: strin
   }
   if (path === "approve" && method === "POST") {
     const body = await parse(approveBody, req);
-    const list = withParents(body.ids, await pendingMap(store));
+    const { state } = await store.read(game);
+    const list = withParents(body.ids, await pendingMap(store), state ? madeIndex(state) : new Map());
     const ops = list.map((d) => draftToOp(d, body.stage));
     const r = await execute(store, game, { role: "system" }, { type: "system.builderApply", ops }, now);
     const made = madeIndex(r.state);

@@ -16,7 +16,7 @@ import { entriesOf, areaCounts } from "@/shared/discovery";
 import { tablesOf } from "@/shared/tables";
 import { Discovery } from "@/client/player/Discovery";
 import { Pinned } from "@/client/scenes/Board";
-import { DraftCard } from "@/client/dm/BuilderPanel";
+import { DraftCard, DraftDetail, DraftRow, approveSet, foldDrafts, rejectSet, type ReviewDraft } from "@/client/dm/BuilderPanel";
 import type { GameState } from "@/shared/types";
 
 const GAME = "testcampaign";
@@ -299,6 +299,59 @@ describe("drafts", () => {
     expect((await dm("/api/builder-admin/approve", { ids: [person.data.draft_id] })).status).toBe(409);
   });
 
+  it("a link or fact can be approved after the draft it hangs off was approved on its own", async () => {
+    const person = await call(KEY, "create_entry", { kind: "person", name: "Osric Pell" });
+    const place = await call(KEY, "create_entry", { kind: "place", name: "Pell's Chandlery" });
+    const link = await call(KEY, "link_entries", { a: person.data.draft_id, b: place.data.draft_id });
+    const fact = await call(KEY, "add_fact", { entry: person.data.draft_id, text: "Counts candles" });
+    expect((await dm("/api/builder-admin/approve", { ids: [person.data.draft_id] })).status).toBe(200);
+    // The queue now names the approved end as part of the game, not a draft.
+    const q = await dm("/api/builder-admin/review");
+    const l = q.data.pending.find((d: ReviewDraft) => d.id === link.data.draft_id) as ReviewDraft;
+    expect(l.refs.map((r) => [r.name, r.draft])).toEqual([
+      ["Osric Pell", false],
+      ["Pell's Chandlery (draft)", true],
+    ]);
+    // The badge counts rows: the place (the link and fact sit on it or on what's approved).
+    expect((await dm("/api/builder-admin/status")).data).toMatchObject({ pending: 3, rows: 2 });
+    expect((await dm("/api/builder-admin/approve", { ids: [fact.data.draft_id] })).status).toBe(200);
+    expect((await dm("/api/builder-admin/approve", { ids: [link.data.draft_id] })).status).toBe(200);
+    const g = await state();
+    const osric = entriesOf(g).find((e) => e.name === "Osric Pell")!;
+    const shop = entriesOf(g).find((e) => e.name === "Pell's Chandlery")!;
+    expect(osric.links).toEqual([shop.id]);
+    expect(osric.facts.map((f) => f.text)).toEqual(["Counts candles"]);
+  });
+
+  it("the review page folds links and facts onto their draft, and approves or rejects them with it", async () => {
+    const a = await call(KEY, "create_entry", { kind: "person", name: "Tobin Marsh" });
+    const b = await call(KEY, "create_entry", { kind: "place", name: "The Ferry Landing" });
+    const ab = await call(KEY, "link_entries", { a: a.data.draft_id, b: b.data.draft_id });
+    const old = entriesOf(await state())[0];
+    const aOld = await call(KEY, "link_entries", { a: a.data.draft_id, b: old.id });
+    const f = await call(KEY, "add_fact", { entry: a.data.draft_id, text: "Won't cross after six bells" });
+    const lone = await call(KEY, "add_fact", { entry: old.id, text: "Keeps a spare candle" });
+    const pending = (await dm("/api/builder-admin/review")).data.pending as ReviewDraft[];
+    const { top, hangers } = foldDrafts(pending);
+    expect(top.map((d) => d.id).sort()).toEqual([a.data.draft_id, b.data.draft_id, lone.data.draft_id].sort());
+    expect(hangers.get(a.data.draft_id)!.map((d) => d.id).sort()).toEqual([ab.data.draft_id, aOld.data.draft_id, f.data.draft_id].sort());
+    expect(hangers.get(b.data.draft_id)!.map((d) => d.id)).toEqual([ab.data.draft_id]);
+    // Approving Tobin takes his fact and his link to what's in the game, but not the link to the other draft.
+    expect(approveSet(pending, [a.data.draft_id]).sort()).toEqual([a.data.draft_id, aOld.data.draft_id, f.data.draft_id].sort());
+    expect(approveSet(pending, [a.data.draft_id, b.data.draft_id])).toContain(ab.data.draft_id);
+    // Rejecting the landing takes the link to it.
+    expect(rejectSet(pending, [b.data.draft_id]).sort()).toEqual([b.data.draft_id, ab.data.draft_id].sort());
+    // Rows and the drawer render as plain text.
+    for (const d of top) {
+      const html = renderToStaticMarkup(createElement(DraftRow, { draft: d, hangers: hangers.get(d.id), busy: false, onOpen: () => {}, onApprove: () => {}, onReject: () => {} }));
+      expect(html).toContain(d.kind === "fact" ? "Keeps a spare candle" : d.title);
+    }
+    const detail = renderToStaticMarkup(createElement(DraftDetail, { draft: top.find((d) => d.id === a.data.draft_id)!, hangers: hangers.get(a.data.draft_id), busy: false, onApprove: () => {}, onReject: () => {}, onEdit: () => {} }));
+    expect(detail).toContain("Won&#x27;t cross after six bells");
+    expect(detail).toContain("The Ferry Landing");
+    expect(detail).toContain(old.name.replace(/'/g, "&#x27;"));
+  });
+
   it("reject takes the drafts that hang off it along", async () => {
     const person = await call(KEY, "create_entry", { kind: "person", name: "Odo Fenwick" });
     const fact = await call(KEY, "add_fact", { entry: person.data.draft_id, text: "Owns the mill" });
@@ -517,6 +570,8 @@ describe("hostile content", () => {
     for (const draft of q.data.pending) {
       const html = renderToStaticMarkup(createElement(DraftCard, { draft, busy: false, onApprove: () => {}, onReject: () => {}, onEdit: () => {} }));
       expect(unsafe(html)).toEqual([]);
+      const row = renderToStaticMarkup(createElement(DraftRow, { draft, busy: false, onOpen: () => {}, onApprove: () => {}, onReject: () => {} }));
+      expect(unsafe(row)).toEqual([]);
     }
     await dm("/api/builder-admin/approve", { ids: [d.data.draft_id, j.data.draft_id] });
     const g = await state();

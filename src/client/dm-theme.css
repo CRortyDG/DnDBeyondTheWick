@@ -3473,11 +3473,207 @@ html[data-view="tv"] .practice-stripe .practice-tag {
 :where(html[data-view="dm"]) .builder-panel .seg {
   margin: var(--dm-s3) 0;
 }
-:where(html[data-view="dm"]) .builder-bulk {
-  align-items: flex-end;
-  margin-bottom: var(--dm-s3);
-  flex-wrap: wrap;
+:where(html[data-view="dm"]) .builder-bar {
+  display: grid;
+  gap: var(--dm-s2);
+  margin-bottom: var(--dm-s4);
 }
+:where(html[data-view="dm"]) .builder-panel .builder-filter {
+  margin: 0;
+  flex-wrap: wrap;
+  justify-self: start;
+}
+:where(html[data-view="dm"]) .builder-bulk {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--dm-s2);
+}
+:where(html[data-view="dm"]) .builder-stage {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--dm-s2);
+}
+:where(html[data-view="dm"]) .builder-stage .fld {
+  width: auto;
+  min-height: var(--dm-control-sm);
+  padding-block: 2px;
+}
+:where(html[data-view="dm"]) .builder-bulk .btn svg,
+:where(html[data-view="dm"]) .draft-actions .btn svg {
+  vertical-align: -3px;
+}
+:where(html[data-view="dm"]) .builder-section {
+  margin-bottom: var(--dm-s5);
+}
+:where(html[data-view="dm"]) .builder-section-head {
+  display: flex;
+  align-items: center;
+  gap: var(--dm-s3);
+  padding: 0 0 var(--dm-s2) 12px;
+}
+:where(html[data-view="dm"]) .builder-section-head h3 {
+  margin: 0;
+  font-size: 14px;
+}
+:where(html[data-view="dm"]) .builder-section-head h3 .note {
+  font-weight: 400;
+  margin-left: 4px;
+}
+:where(html[data-view="dm"]) .draft-pick {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--dm-gold);
+}
+:where(html[data-view="dm"]) .draft-row .scene-row {
+  align-items: center;
+}
+:where(html[data-view="dm"]) .draft-row.draft-stale {
+  box-shadow: inset 2px 0 0 var(--dm-warn);
+}
+:where(html[data-view="dm"]) .tag.warn {
+  color: var(--dm-warn);
+  background: var(--dm-warn-soft);
+}
+:where(html[data-view="dm"]) .draft-yes {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--dm-ok);
+}
+:where(html[data-view="dm"]) .draft-yes:hover:not(:disabled) {
+  background: var(--dm-ok-soft);
+}
+:where(html[data-view="dm"]) .draft-no:hover:not(:disabled) {
+  color: var(--dm-danger);
+}
+:where(html[data-view="dm"]) .builder-reviewed {
+  margin-top: var(--dm-s4);
+}
+:where(html[data-view="dm"]) .builder-reviewed summary h3 {
+  display: inline;
+  margin: 0;
+  font-size: 14px;
+}
+/* The drawer: one draft, read top to bottom. */
+:where(html[data-view="dm"]) .draft-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--dm-s2);
+  margin: calc(-1 * var(--dm-s2)) 0 var(--dm-s3);
+}
+:where(html[data-view="dm"]) .draft-detail {
+  display: grid;
+  gap: var(--dm-s4);
+}
+:where(html[data-view="dm"]) .draft-detail > .note,
+:where(html[data-view="dm"]) .draft-lead {
+  margin: 0;
+}
+:where(html[data-view="dm"]) .draft-lead {
+  font-size: 15px;
+}
+:where(html[data-view="dm"]) .draft-group {
+  display: grid;
+  gap: var(--dm-s2);
+}
+:where(html[data-view="dm"]) .dm-drawer-body .draft-group h4 {
+  margin: 0;
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--dm-text-3);
+}
+:where(html[data-view="dm"]) .draft-group > .note {
+  margin: -4px 0 0;
+}
+:where(html[data-view="dm"]) .draft-group .draft-fields {
+  margin: 0;
+}
+:where(html[data-view="dm"]) .draft-dm {
+  padding: var(--dm-s3);
+  border-radius: var(--dm-r-sm);
+  background: var(--dm-bg-2);
+  box-shadow: inset 2px 0 0 var(--dm-wax);
+}
+:where(html[data-view="dm"]) .draft-secret {
+  color: var(--dm-gold);
+}
+:where(html[data-view="dm"]) .draft-sub-h {
+  font-size: 13px;
+  color: var(--dm-text-3);
+  margin-bottom: var(--dm-s1);
+}
+:where(html[data-view="dm"]) .draft-facts ul,
+:where(html[data-view="dm"]) .draft-links {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 2px;
+}
+:where(html[data-view="dm"]) .draft-facts li,
+:where(html[data-view="dm"]) .draft-links li {
+  display: flex;
+  align-items: center;
+  gap: var(--dm-s2);
+  min-height: 32px;
+  padding: 2px 4px 2px 10px;
+  border-radius: var(--dm-r-sm);
+  background: var(--dm-bg-2);
+}
+:where(html[data-view="dm"]) .draft-facts li > span {
+  flex: 1;
+  padding: 4px 0;
+}
+:where(html[data-view="dm"]) .draft-links li .tag {
+  margin: 0;
+}
+:where(html[data-view="dm"]) .draft-ref {
+  border: 0;
+  padding: 0;
+  background: none;
+  color: var(--dm-gold);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-color: var(--dm-gold-line);
+  text-underline-offset: 3px;
+}
+:where(html[data-view="dm"]) .draft-actions {
+  position: sticky;
+  bottom: calc(-1 * var(--dm-s4));
+  display: flex;
+  align-items: center;
+  gap: var(--dm-s2);
+  margin: 0 calc(-1 * var(--dm-s4)) calc(-1 * var(--dm-s4));
+  padding: var(--dm-s3) var(--dm-s4);
+  border-top: 1px solid var(--dm-border);
+  background: var(--dm-bg-1);
+}
+:where(html[data-view="dm"]) .draft-actions .btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+@media (max-width: 640px) {
+  :where(html[data-view="dm"]) .draft-btn-text {
+    display: none;
+  }
+  :where(html[data-view="dm"]) .draft-row .row-meta .tag:not(.warn) {
+    display: none;
+  }
+  :where(html[data-view="dm"]) .draft-fields > div {
+    grid-template-columns: 1fr;
+    gap: 2px;
+  }
+}
+/* Made at the table (ReviewMadeUp) still uses cards. */
 :where(html[data-view="dm"]) .builder-batch {
   margin-bottom: var(--dm-s5);
 }
