@@ -38,7 +38,8 @@ html[data-view="player"] {
   --pl-ok: #86c38a;
   --pl-danger: #e2735f;
 
-  --pl-font-ui: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --pl-font-ui:
+    "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 
   /* 4px grid. Radius: small controls, controls and panels, sheets. */
   --pl-s1: 4px;
@@ -67,7 +68,11 @@ html[data-view="player"] {
 :where(html[data-view="player"]) body {
   background-color: var(--pl-bg-0);
   /* A little candlelight from above. */
-  background-image: radial-gradient(120% 420px at 50% -120px, rgba(227, 182, 92, 0.09), transparent 70%);
+  background-image: radial-gradient(
+    120% 420px at 50% -120px,
+    rgba(227, 182, 92, 0.09),
+    transparent 70%
+  );
   background-repeat: no-repeat;
   color: var(--pl-text);
   -webkit-tap-highlight-color: transparent;
@@ -278,7 +283,9 @@ html[data-view="player"] {
   border: 1px solid var(--pl-border-strong);
   border-bottom: 0;
   border-radius: var(--pl-r-lg) var(--pl-r-lg) 0 0;
-  padding: 8px max(16px, env(safe-area-inset-right)) calc(20px + env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+  padding: 8px max(16px, env(safe-area-inset-right))
+    calc(20px + env(safe-area-inset-bottom))
+    max(16px, env(safe-area-inset-left));
   gap: var(--pl-s3);
   box-shadow: 0 -12px 40px rgba(0, 0, 0, 0.5);
   animation: pl-rise 0.22s cubic-bezier(0.2, 0.8, 0.2, 1);
@@ -375,8 +382,11 @@ html[data-view="player"] {
   align-items: center;
   justify-content: space-between;
   gap: var(--pl-s3);
-  margin: 0 calc(-1 * max(16px, env(safe-area-inset-right))) 0 calc(-1 * max(16px, env(safe-area-inset-left)));
-  padding: calc(10px + env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) 10px max(16px, env(safe-area-inset-left));
+  margin: 0 calc(-1 * max(16px, env(safe-area-inset-right))) 0
+    calc(-1 * max(16px, env(safe-area-inset-left)));
+  padding: calc(10px + env(safe-area-inset-top))
+    max(16px, env(safe-area-inset-right)) 10px
+    max(16px, env(safe-area-inset-left));
   top: 0;
   background: rgba(15, 11, 8, 0.86);
   -webkit-backdrop-filter: blur(12px) saturate(1.2);
@@ -496,7 +506,8 @@ html[data-view="player"] {
   -webkit-backdrop-filter: blur(14px) saturate(1.2);
   backdrop-filter: blur(14px) saturate(1.2);
   border-top: 1px solid var(--pl-border);
-  padding: 0 env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  padding: 0 env(safe-area-inset-right) env(safe-area-inset-bottom)
+    env(safe-area-inset-left);
 }
 :where(html[data-view="player"]) .pl-nav-in {
   display: grid;
@@ -623,7 +634,10 @@ html[data-view="player"] {
   border-bottom: 1px solid var(--pl-border);
   align-items: center;
 }
-:where(html[data-view="player"]) .pl-wallet-sheet .purse-list li.pl-purse-total {
+:where(html[data-view="player"])
+  .pl-wallet-sheet
+  .purse-list
+  li.pl-purse-total {
   border-bottom: 0;
   font-family: var(--pl-font-ui);
   font-size: 14px;
@@ -671,7 +685,11 @@ html[data-view="player"] {
   width: 180px;
   height: 180px;
   border-radius: 50%;
-  background: radial-gradient(circle, rgba(227, 182, 92, 0.16), transparent 70%);
+  background: radial-gradient(
+    circle,
+    rgba(227, 182, 92, 0.16),
+    transparent 70%
+  );
   pointer-events: none;
 }
 :where(html[data-view="player"]) .pl-wallet-lbl {
@@ -775,8 +793,10 @@ html[data-view="player"] {
   z-index: 10;
   display: grid;
   gap: var(--pl-s2);
-  margin: 0 calc(-1 * max(16px, env(safe-area-inset-right))) 0 calc(-1 * max(16px, env(safe-area-inset-left)));
-  padding: 8px max(16px, env(safe-area-inset-right)) 8px max(16px, env(safe-area-inset-left));
+  margin: 0 calc(-1 * max(16px, env(safe-area-inset-right))) 0
+    calc(-1 * max(16px, env(safe-area-inset-left)));
+  padding: 8px max(16px, env(safe-area-inset-right)) 8px
+    max(16px, env(safe-area-inset-left));
   background: rgba(15, 11, 8, 0.9);
   -webkit-backdrop-filter: blur(12px);
   backdrop-filter: blur(12px);
@@ -786,8 +806,10 @@ html[data-view="player"] {
   gap: 6px;
   overflow-x: auto;
   scrollbar-width: none;
-  margin: 0 calc(-1 * max(16px, env(safe-area-inset-right))) 0 calc(-1 * max(16px, env(safe-area-inset-left)));
-  padding: 0 max(16px, env(safe-area-inset-right)) 0 max(16px, env(safe-area-inset-left));
+  margin: 0 calc(-1 * max(16px, env(safe-area-inset-right))) 0
+    calc(-1 * max(16px, env(safe-area-inset-left)));
+  padding: 0 max(16px, env(safe-area-inset-right)) 0
+    max(16px, env(safe-area-inset-left));
   -webkit-overflow-scrolling: touch;
 }
 :where(html[data-view="player"]) .pl-chips::-webkit-scrollbar {
@@ -1036,7 +1058,11 @@ html[data-view="player"] {
 :where(html[data-view="player"]) .chron-add-text:not(:placeholder-shown) {
   height: 112px;
 }
-:where(html[data-view="player"]) .chron-add:has(.chron-add-text:placeholder-shown):not(:focus-within):not(:has(.chron-add-more)) .chron-add-row {
+:where(html[data-view="player"])
+  .chron-add:has(.chron-add-text:placeholder-shown):not(:focus-within):not(
+    :has(.chron-add-more)
+  )
+  .chron-add-row {
   display: none;
 }
 :where(html[data-view="player"]) .btn.chron-post {
@@ -1056,8 +1082,10 @@ html[data-view="player"] {
   gap: 6px;
   /* Scroll edge to edge, so the last chip slides off the screen rather than
      stopping short at the gutter. */
-  margin: 0 calc(-1 * max(16px, env(safe-area-inset-right))) 0 calc(-1 * max(16px, env(safe-area-inset-left)));
-  padding: 0 max(16px, env(safe-area-inset-right)) 0 max(16px, env(safe-area-inset-left));
+  margin: 0 calc(-1 * max(16px, env(safe-area-inset-right))) 0
+    calc(-1 * max(16px, env(safe-area-inset-left)));
+  padding: 0 max(16px, env(safe-area-inset-right)) 0
+    max(16px, env(safe-area-inset-left));
 }
 :where(html[data-view="player"]) .chron-toggles::-webkit-scrollbar {
   display: none;
@@ -1126,10 +1154,14 @@ html[data-view="player"] {
   box-shadow: none;
   color: var(--pl-text);
 }
-:where(html[data-view="player"]) .pl-discovery .person-card:active:not(.rumored) {
+:where(html[data-view="player"])
+  .pl-discovery
+  .person-card:active:not(.rumored) {
   background: var(--pl-bg-2);
 }
-:where(html[data-view="player"]) .pl-discovery .person-card:not(.rumored)::after {
+:where(html[data-view="player"])
+  .pl-discovery
+  .person-card:not(.rumored)::after {
   content: "";
   flex: none;
   margin-left: auto;
@@ -1180,14 +1212,118 @@ html[data-view="player"] {
 }
 /* Rumors: dimmer, dashed ring, the hint in italics. */
 :where(html[data-view="player"]) .pl-discovery .person-card.rumored {
-  background: repeating-linear-gradient(135deg, transparent 0 10px, rgba(255, 255, 255, 0.015) 10px 20px);
+  background: repeating-linear-gradient(
+    135deg,
+    transparent 0 10px,
+    rgba(255, 255, 255, 0.015) 10px 20px
+  );
 }
-:where(html[data-view="player"]) .pl-discovery .person-card.rumored .person-name {
+:where(html[data-view="player"])
+  .pl-discovery
+  .person-card.rumored
+  .person-name {
   color: var(--pl-text-3);
 }
-:where(html[data-view="player"]) .pl-discovery .person-card.rumored .person-face {
+:where(html[data-view="player"])
+  .pl-discovery
+  .person-card.rumored
+  .person-face {
   opacity: 0.75;
   border-style: dashed;
+}
+
+/* One entry, opened. No box around it, a small back link, a smaller portrait
+   when there's no art, and empty sections folded into one line. */
+:where(html[data-view="player"]) .person-page.box {
+  border: 0;
+  background: none;
+  box-shadow: none;
+  padding: 0;
+  gap: var(--pl-s3);
+}
+:where(html[data-view="player"]) .pl-back {
+  all: unset;
+  box-sizing: border-box;
+  justify-self: start;
+  min-height: var(--pl-control);
+  display: inline-flex;
+  align-items: center;
+  margin: -6px 0 -6px -2px;
+  padding: 0 2px;
+  font-family: var(--pl-font-ui);
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--pl-gold);
+  cursor: pointer;
+}
+:where(html[data-view="player"]) .pl-back:focus-visible {
+  outline: 2px solid var(--pl-gold);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+:where(html[data-view="player"]) .person-head {
+  gap: var(--pl-s4);
+}
+:where(html[data-view="player"]) .person-head.no-art .person-face.big {
+  width: 64px;
+  height: 64px;
+  font-size: 30px;
+}
+:where(html[data-view="player"]) .person-page-name {
+  font-size: 26px;
+}
+:where(html[data-view="player"]) .person-page .person-meta {
+  margin-top: 4px;
+  color: var(--pl-text-2);
+}
+:where(html[data-view="player"]) .person-page h3 {
+  margin: var(--pl-s2) 0 0;
+  font-size: 13px;
+  font-family: var(--pl-font-ui);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  font-variant: normal;
+  color: var(--pl-text-2);
+}
+:where(html[data-view="player"]) .person-page .person-facts li {
+  font-size: 17px;
+  padding: 8px 12px;
+}
+:where(html[data-view="player"]) .person-notes.compact {
+  gap: var(--pl-s2);
+}
+:where(html[data-view="player"]) .pn-head,
+:where(html[data-view="player"]) .pn-empty {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--pl-s3);
+}
+:where(html[data-view="player"]) .pn-head h3 {
+  margin: 0;
+}
+:where(html[data-view="player"]) .pn-count {
+  margin-left: 4px;
+  color: var(--pl-text-3);
+  font-weight: 500;
+}
+:where(html[data-view="player"]) .pn-empty {
+  margin-top: var(--pl-s1);
+  padding: 10px 12px 10px 14px;
+  border: 1px dashed var(--pl-border-strong);
+  border-radius: var(--pl-r-md);
+}
+:where(html[data-view="player"]) .pn-empty .note {
+  margin: 0;
+  font-size: 14px;
+  color: var(--pl-text-3);
+}
+:where(html[data-view="player"]) .pn-add {
+  flex: none;
+}
+:where(html[data-view="player"]) .person-notes.compact .chron-add-row {
+  flex-wrap: wrap;
 }
 
 /* ---------- Jobs ---------- */
@@ -1311,14 +1447,17 @@ html[data-view="player"] {
   min-height: 40px;
   border-radius: 99px;
 }
-:where(html[data-view="player"]) .phone-map-head .btn.small[aria-label^="Zoom"] {
+:where(html[data-view="player"])
+  .phone-map-head
+  .btn.small[aria-label^="Zoom"] {
   width: 40px;
   min-width: 40px;
   padding: 0;
   font-size: 18px;
 }
 :where(html[data-view="player"]) .phone-map-frame {
-  margin: 0 calc(-1 * max(16px, env(safe-area-inset-right))) 0 calc(-1 * max(16px, env(safe-area-inset-left)));
+  margin: 0 calc(-1 * max(16px, env(safe-area-inset-right))) 0
+    calc(-1 * max(16px, env(safe-area-inset-left)));
   border-radius: 0;
   border-left: 0;
   border-right: 0;
@@ -1367,7 +1506,11 @@ html[data-view="player"] {
   padding: 10px 14px;
   border-radius: var(--pl-r-md);
   border: 1px solid rgba(226, 115, 95, 0.4);
-  background: linear-gradient(90deg, rgba(122, 42, 31, 0.45), rgba(122, 42, 31, 0.15));
+  background: linear-gradient(
+    90deg,
+    rgba(122, 42, 31, 0.45),
+    rgba(122, 42, 31, 0.15)
+  );
   color: var(--pl-text);
   font-family: var(--pl-font-ui);
   text-align: left;
@@ -2043,7 +2186,10 @@ html[data-view="player"] {
     0 1px 0 var(--pl-border);
 }
 :where(html[data-view="player"]) .pl-desk .pl-item:hover,
-:where(html[data-view="player"]) .pl-desk .pl-discovery .person-card:not(.rumored):hover {
+:where(html[data-view="player"])
+  .pl-desk
+  .pl-discovery
+  .person-card:not(.rumored):hover {
   background: var(--pl-bg-2);
 }
 
@@ -2102,7 +2248,13 @@ html[data-view="player"] {
   padding: var(--pl-s4);
   border-radius: 14px;
   border: 1px solid rgba(227, 182, 92, 0.28);
-  background: radial-gradient(140% 120% at 100% 0%, rgba(227, 182, 92, 0.1), transparent 60%), var(--pl-bg-1);
+  background:
+    radial-gradient(
+      140% 120% at 100% 0%,
+      rgba(227, 182, 92, 0.1),
+      transparent 60%
+    ),
+    var(--pl-bg-1);
 }
 :where(html[data-view="player"]) .pl-rail-big {
   font-family: var(--font-num);
