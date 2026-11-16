@@ -22,6 +22,8 @@ export function FightCard({ view, send }: { view: PlayerView; send: Send }) {
     return !err;
   };
   const meId = mine?.combatantId;
+  const initRoll = view.myRolls.find((r) => r.for === "initiative");
+  const tumbling = useTvTumble(mine?.rolled && initRoll?.to === "tv" ? initRoll.n : null);
   const myTurn = !!f && f.status === "running" && !!meId && f.currentId === meId;
   const upNext = !!f && f.status === "running" && !!meId && f.nextId === meId && !myTurn;
   useBuzz(myTurn ? "turn" : upNext ? "next" : null, `${f?.round}:${f?.currentId}`);
@@ -44,7 +46,17 @@ export function FightCard({ view, send }: { view: PlayerView; send: Send }) {
     <section className={`fc-card pl-fight${myTurn ? " turn" : upNext ? " next" : ""}${down ? " down" : ""}`} aria-label="The fight" aria-live="polite">
       {f.status === "setup" ? (
         mine ? (
-          <InitiativePad value={mine.init} onSubmit={(n) => go({ type: "me.initiative", init: n })} />
+          <InitiativePad
+            key={mine.rolled ? "rolled" : "open"}
+            value={mine.init}
+            rolled={!!mine.rolled}
+            tumbling={tumbling}
+            bonus={mine.bonus}
+            natural={initRoll?.groups[0]?.rolls[0] ?? null}
+            onSubmit={(n) => go({ type: "me.initiative", init: n })}
+            onRoll={() => go({ type: "me.diceRoll", dice: [{ sides: 20, count: 1 }], plus: mine.bonus, tv: true })}
+            onBonus={(b) => go({ type: "me.update", patch: { initBonus: b } })}
+          />
         ) : (
           <p className="fc-big">Roll initiative! The DM is setting up the fight.</p>
         )
@@ -119,6 +131,25 @@ export function FightCard({ view, send }: { view: PlayerView; send: Send }) {
   );
 }
 
+/**
+ * A roll this phone just sent to the TV: hold the number back while the TV's dice
+ * tumble, so the room sees it land first. Rolls already there when the page opened show at once.
+ */
+function useTvTumble(n: number | null): boolean {
+  const seen = useRef<number | null | undefined>(undefined);
+  const [hold, setHold] = useState(false);
+  useEffect(() => {
+    const first = seen.current === undefined;
+    const same = seen.current === n;
+    seen.current = n;
+    if (first || same || n === null) return;
+    setHold(true);
+    const t = setTimeout(() => setHold(false), 1700);
+    return () => clearTimeout(t);
+  }, [n]);
+  return hold;
+}
+
 /** Vibrate where the browser supports it: a short buzz for "up next", a longer one for "your turn". */
 function useBuzz(kind: "turn" | "next" | null, key: string) {
   const last = useRef<string | null>(null);
@@ -133,9 +164,29 @@ function useBuzz(kind: "turn" | "next" | null, key: string) {
   }, [kind, key]);
 }
 
-function InitiativePad({ value, onSubmit }: { value: number | null; onSubmit: (n: number | null) => Promise<boolean> }) {
+function InitiativePad({
+  value,
+  rolled,
+  tumbling,
+  bonus,
+  natural,
+  onSubmit,
+  onRoll,
+  onBonus,
+}: {
+  value: number | null;
+  rolled: boolean;
+  tumbling: boolean;
+  bonus: number;
+  natural: number | null;
+  onSubmit: (n: number | null) => Promise<boolean>;
+  onRoll: () => Promise<boolean>;
+  onBonus: (b: number) => Promise<boolean>;
+}) {
   const [t, setT] = useState(value === null ? "" : String(value));
   const [sent, setSent] = useState(value !== null);
+  const [busy, setBusy] = useState(false);
+  const sign = (b: number) => (b < 0 ? `− ${-b}` : `+ ${b}`);
   const press = (d: string) => {
     setSent(false);
     setT((x) => (d === "-" ? (x.startsWith("-") ? x.slice(1) : "-" + x) : (x + d).replace(/^(-?)0+(?=\d)/, "$1").slice(0, 3)));
@@ -144,10 +195,46 @@ function InitiativePad({ value, onSubmit }: { value: number | null; onSubmit: (n
     if (!t || t === "-") return;
     if (await onSubmit(Number(t))) setSent(true);
   };
+  const roll = async () => {
+    if (busy) return;
+    setBusy(true);
+    await onRoll();
+    setBusy(false);
+  };
+
+  if (rolled && value !== null) {
+    return (
+      <div className="fc-pad">
+        <div className="fc-big">Your initiative</div>
+        <output className={`fc-pad-num${tumbling ? " tumbling" : " sent"}`} aria-live="polite">
+          {tumbling ? "…" : value}
+        </output>
+        <p className="note fc-pad-locked">
+          {tumbling
+            ? "Rolling on the TV…"
+            : `${natural !== null ? `Rolled ${natural}${value - natural ? ` ${sign(value - natural)}` : ""}. ` : ""}Locked in. The DM can still change it.`}
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div className="fc-pad">
       <div className="fc-big">Your initiative?</div>
-      <p className="note">Roll a d20 (or in D&amp;D Beyond), add your initiative, and type the total.</p>
+      <button className="btn primary big fc-pad-roll" type="button" disabled={busy} onClick={roll}>
+        {busy ? "Rolling…" : `Roll on TV: d20${bonus ? ` ${sign(bonus)}` : ""}`}
+      </button>
+      <div className="fc-pad-bonus">
+        <span>Initiative bonus</span>
+        <button type="button" className="pl-hp-b" aria-label="Lower bonus" disabled={bonus <= -10} onClick={() => onBonus(bonus - 1)}>
+          &minus;
+        </button>
+        <output aria-live="polite">{bonus < 0 ? `−${-bonus}` : `+${bonus}`}</output>
+        <button type="button" className="pl-hp-b" aria-label="Raise bonus" disabled={bonus >= 20} onClick={() => onBonus(bonus + 1)}>
+          +
+        </button>
+      </div>
+      <p className="note">Rolling a d20 from the Dice tab counts too. Rolling real dice? Type your total below.</p>
       <output className={`fc-pad-num${sent ? " sent" : ""}`} aria-live="polite">
         {t || "–"}
       </output>
@@ -161,7 +248,7 @@ function InitiativePad({ value, onSubmit }: { value: number | null; onSubmit: (n
           ⌫
         </button>
       </div>
-      <button className="btn primary big" type="button" disabled={!t || t === "-"} onClick={submit}>
+      <button className="btn big" type="button" disabled={!t || t === "-"} onClick={submit}>
         {sent ? `Sent: ${t}. Change it any time` : "Send"}
       </button>
     </div>

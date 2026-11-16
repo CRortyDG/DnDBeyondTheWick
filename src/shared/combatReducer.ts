@@ -396,6 +396,8 @@ function applyFightCore(s: GameState, cmd: FightCommand, h: FightHelpers): void 
       const f = fight();
       const c = who(f, cmd.combatantId);
       c.init = cmd.init;
+      // The DM's number wins. Clearing it lets the player roll again.
+      if (cmd.init === null) delete c.initRolled;
       if (cmd.bonus !== undefined) c.initBonus = cmd.bonus;
       // Re-slot by the new number; everyone else keeps their place (manual drags survive).
       reslotCombatant(f, c);
@@ -540,6 +542,7 @@ function applyFightCore(s: GameState, cmd: FightCommand, h: FightHelpers): void 
     case "me.initiative": {
       const { f, c } = myCombatant();
       if (f.status === "over") fail("The fight is over.");
+      if (c.initRolled && c.init !== null) fail("Your initiative is locked in from your roll. Ask the DM to change it.");
       c.init = cmd.init;
       reslotCombatant(f, c);
       break;

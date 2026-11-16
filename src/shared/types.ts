@@ -182,6 +182,8 @@ export interface Player {
   arrival?: PlayerArrival;
   /** Hit points for the table in combat mode (D&D Beyond stays the real sheet). Missing: not set yet. */
   hp?: PlayerHp;
+  /** The player's initiative bonus, typed on their phone. Added to "Roll on TV" for initiative and used to break ties. */
+  initBonus?: number;
   /** Shared world: this character's own Renown rank. The table's is the best of those present. */
   renown?: number;
   /** Shared world: this character's own Renown points. Missing: their rank's threshold. */
@@ -1074,7 +1076,7 @@ export interface GameState {
   /** The party levelled up: the TV moment, and each phone's "You're level 3!". */
   levelMoment?: { n: number; at: number; levels: { playerId: string; level: number }[] };
   /** The last dice roll on the TV (the DM's or a player's): the TV plays it when n changes. Secret and DM-only rolls never get here. */
-  diceRoll?: { n: number; at: number; groups: DiceGroup[]; plus: number; total: number; /** Set when a player rolled. */ name?: string };
+  diceRoll?: { n: number; at: number; groups: DiceGroup[]; plus: number; total: number; /** Set when a player rolled. */ name?: string; /** What the roll was for. */ for?: "initiative" };
   /** DM-ONLY: every roll, the DM's and the players', newest last (capped). Players see only their own. */
   rolls?: RollEntry[];
   /** The Arrival intro's settings. Missing on games made before it. */
@@ -1332,6 +1334,8 @@ export interface Combatant {
   hidden: boolean;
   init: number | null;
   initBonus: number | null;
+  /** Players: initiative came from a d20 rolled in the app, so the phone keypad is locked. The DM can still change it (clearing it unlocks). */
+  initRolled?: boolean;
   /** Monsters only (DM-ONLY numbers). Players' hit points live on Player.hp. */
   hp: number;
   maxHp: number;

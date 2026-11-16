@@ -214,7 +214,7 @@ export function DiceTray() {
           </div>
           <ul className="dt-log" aria-label="Recent rolls" aria-live="polite">
             {log.map((r) => (
-              <RollLine key={r.n} r={r} who={r.by ? r.name : undefined} tag={TAG[r.to]} secret={r.to !== "tv"} />
+              <RollLine key={r.n} r={r} who={r.by ? r.name : undefined} tag={r.for === "initiative" ? `${TAG[r.to]} · initiative` : TAG[r.to]} secret={r.to !== "tv"} />
             ))}
           </ul>
         </div>

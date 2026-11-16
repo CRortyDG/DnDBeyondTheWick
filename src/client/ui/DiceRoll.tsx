@@ -123,7 +123,7 @@ export function DiceRollCard({ roll, still, leaving }: { roll: Roll; still?: boo
     >
       <div className="dice-roll-card">
         <div className="dice-roll-kicker">
-          {roll.name ? <span className="dice-roll-who">{roll.name} rolls </span> : null}
+          {roll.name ? <span className="dice-roll-who">{roll.name} rolls {roll.for === "initiative" ? "initiative: " : ""}</span> : null}
           {describeResult(roll)}
         </div>
         {use3d ? (

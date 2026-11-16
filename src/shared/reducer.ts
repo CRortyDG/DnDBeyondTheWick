@@ -36,7 +36,7 @@ import type { Actor, Beat, BeatAction, Entry, EntryFact, Episode, FlyerText, Sta
 import type { z } from "zod";
 import { currentValue, madeIndex, sameValue, SUGGEST_FIELDS, type BuilderOp, type BuilderRef } from "./builderOps";
 import { storyOf } from "./story";
-import { monstersOf } from "./combat";
+import { monstersOf, reslotCombatant } from "./combat";
 import { noticesOf } from "./board";
 import { fillRanges, TABLES_MAX, tablesOf } from "./tables";
 import type { MadeBy, RandomTable } from "./types";
@@ -3748,8 +3748,19 @@ function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
       const r = rollPool(cmd.dice, cmd.plus, rand);
       const n = ++s.seq;
       const to: RollTo = cmd.tv ? "tv" : "dm";
-      if (cmd.tv) s.diceRoll = { n, at: ctx.now, ...r, name: penName(p) };
-      logRoll({ ...r, n, at: ctx.now, by: p.id, name: p.name, to });
+      // While "Roll initiative" is up, a player's lone d20 (plus any bonus) is their initiative, locked in.
+      const f = s.fight;
+      const c = f?.status === "setup" ? f.order.find((x) => x.kind === "player" && x.playerId === p.id) : undefined;
+      const lone = r.groups.length === 1 && r.groups[0]!.sides === 20 && r.groups[0]!.rolls.length === 1;
+      const forInit = !!(f && c && lone && !(c.initRolled && c.init !== null));
+      if (forInit) {
+        c!.init = r.total;
+        c!.initRolled = true;
+        reslotCombatant(f!, c!);
+      }
+      const tag = forInit ? { for: "initiative" as const } : {};
+      if (cmd.tv) s.diceRoll = { n, at: ctx.now, ...r, name: penName(p), ...tag };
+      logRoll({ ...r, n, at: ctx.now, by: p.id, name: p.name, to, ...tag });
       break;
     }
     case "me.update": {
@@ -3770,6 +3781,12 @@ function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
         }
       }
       if (cmd.patch.dndbUrl !== undefined) p.dndbUrl = checkUrl(cmd.patch.dndbUrl);
+      if (cmd.patch.initBonus !== undefined) {
+        if (cmd.patch.initBonus) p.initBonus = cmd.patch.initBonus;
+        else delete p.initBonus;
+        const c = s.fight?.order.find((x) => x.kind === "player" && x.playerId === p.id);
+        if (c && s.fight!.status !== "over") c.initBonus = p.initBonus ?? null;
+      }
       break;
     }
     case "me.lockHashed": {

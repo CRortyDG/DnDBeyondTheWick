@@ -31,6 +31,11 @@ export function Dice({ view, send }: { view: PlayerView; send: Send }) {
           Clear dice
         </button>
       </div>
+      {view.fight?.status === "setup" && view.myFight && !view.myFight.rolled ? (
+        <p className="pd-init-hint" role="note">
+          Roll initiative is up: roll one d20 (add your bonus with +) and it fills in your initiative.
+        </p>
+      ) : null}
       <DicePicker picks={picks} />
       <div className="dt-actions">
         <button type="button" className="btn primary" onClick={() => roll(true)} disabled={!picks.total || busy}>
@@ -49,7 +54,7 @@ export function Dice({ view, send }: { view: PlayerView; send: Send }) {
       {view.myRolls.length ? (
         <ul className="dt-log" aria-label="Your last rolls" aria-live="polite">
           {view.myRolls.map((r) => (
-            <RollLine key={r.n} r={r} tag={r.to === "tv" ? "on TV" : "DM only"} secret={r.to !== "tv"} />
+            <RollLine key={r.n} r={r} tag={`${r.to === "tv" ? "on TV" : "DM only"}${r.for === "initiative" ? " · initiative" : ""}`} secret={r.to !== "tv"} />
           ))}
         </ul>
       ) : null}

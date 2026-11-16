@@ -365,7 +365,7 @@ export function playerCombatant(id: string, p: Player): Combatant {
     revealed: true,
     hidden: false,
     init: null,
-    initBonus: null,
+    initBonus: p.initBonus ?? null,
     hp: 0,
     maxHp: 0,
     tempHp: 0,
@@ -554,6 +554,10 @@ function publicCombatant(game: GameState, c: Combatant, art: (sceneId: string) =
 export interface MyFight {
   combatantId: string;
   init: number | null;
+  /** The initiative came from a d20 rolled in the app: locked on the phone. */
+  rolled?: true;
+  /** Their initiative bonus (Player.initBonus). */
+  bonus: number;
   deathSaves: { ok: number; fail: number } | null;
   /** The concentration save they owe after the last hit. */
   concDc?: number;
@@ -562,7 +566,9 @@ export interface MyFight {
 export function myFight(game: GameState, playerId: string): MyFight | null {
   const c = game.fight?.order.find((x) => x.kind === "player" && x.playerId === playerId);
   if (!c) return null;
-  const out: MyFight = { combatantId: c.id, init: c.init, deathSaves: c.deathSaves ? { ...c.deathSaves } : null };
+  const p = game.players.find((x) => x.id === playerId);
+  const out: MyFight = { combatantId: c.id, init: c.init, bonus: p?.initBonus ?? 0, deathSaves: c.deathSaves ? { ...c.deathSaves } : null };
+  if (c.initRolled && c.init !== null) out.rolled = true;
   if (c.concDc) out.concDc = c.concDc;
   return out;
 }

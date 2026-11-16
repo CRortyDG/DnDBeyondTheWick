@@ -1430,3 +1430,34 @@ html.fc-myturn body {
 .fv-root.on-map .fv-chip-name {
   font-size: calc(21 * var(--u));
 }
+.fc-pad-roll {
+  min-height: 64px;
+  font-size: 20px;
+}
+.fc-pad-bonus {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  color: var(--muted);
+}
+.fc-pad-bonus output {
+  min-width: 3ch;
+  text-align: center;
+  font-family: var(--font-num);
+  font-size: 24px;
+}
+.fc-pad-locked {
+  margin: 0;
+  text-align: center;
+}
+.pd-init-hint {
+  margin: 0 0 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--gold);
+  border-radius: 10px;
+  color: var(--gold-bright);
+}
+.fc-pad-num.tumbling {
+  color: var(--muted);
+}
