@@ -66,8 +66,8 @@ function TvScreen({ view, online }: { view: TvView; online: boolean }) {
   const fighting = !!view.fight && view.fight.status !== "paused";
   const liveScene = view.scenes.find((x) => x.id === view.live.sceneId);
   const fightOnMap = liveScene?.kind === "map" && !!liveScene.map?.tokens.length;
-  // The Table fills the screen with seat names, and a clip (or the intro) is a moment of its own: the purse would sit on top of both.
-  const onTable = liveScene?.kind === "table" || liveScene?.kind === "video" || liveScene?.kind === "intro";
+  // The Table fills the screen with seat names, and a clip, the intro or the stinger is a moment of its own: the purse would sit on top of them.
+  const onTable = liveScene?.kind === "table" || liveScene?.kind === "video" || liveScene?.kind === "intro" || liveScene?.kind === "stinger";
 
   return (
     <div className={`tv-root${idle ? " idle" : ""}`}>
