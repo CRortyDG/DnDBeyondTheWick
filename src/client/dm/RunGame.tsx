@@ -16,7 +16,9 @@ import { Inbox, isInboxOpen } from "./Inbox";
 import { Dues } from "./Dues";
 import { useDm } from "./context";
 import { useAutosave } from "./useAutosave";
-import { LevelUpButton } from "./LevelUp";
+import { LevelUpButton, LevelUpDialog } from "./LevelUp";
+import { useTablet } from "./tablet";
+import { FullScreenButton } from "./TabletBits";
 import { DiceButton } from "./DiceTray";
 import { ClueLeftovers, OffScriptPanel, QuickCapture, TurnNotesInto, useOffScriptKeys, type OffTab } from "./OffScript";
 import { hereOf } from "@/shared/offscript";
@@ -47,6 +49,11 @@ export function RunGame({ onExit, onFight }: { onExit: () => void; onFight?: () 
   const ep = r ? (s.episodes ?? []).find((e) => e.id === r.episodeId) : undefined;
   const [drawer, setDrawer] = useState(false);
   const [bank, setBank] = useState(false);
+  // Tablet mode: swipe the run sheet, and the less-used buttons go under More.
+  const tablet = useTablet();
+  const [more, setMore] = useState(false);
+  const [levelUp, setLevelUp] = useState(false);
+  const swipe = useRef<{ x: number; y: number; id: number } | null>(null);
   const [skip, setSkip] = useState<number[]>([]);
   const [finder, setFinder] = useState<{ pinTo?: number } | null>(null);
   // The off-script kit: its panel (O) and the quick note box (N).
@@ -155,6 +162,7 @@ export function RunGame({ onExit, onFight }: { onExit: () => void; onFight?: () 
           </div>
         </div>
         <span className="spacer" />
+        <FullScreenButton small />
         <span className="run-tv" title="What the TV shows">
           TV: {s.live.recapSessionId ? "Previously on…" : s.live.shopOpen ? "the shop" : (live?.label ?? "–")}
           {s.live.purseVisible ? " · purse" : ""}
@@ -171,11 +179,35 @@ export function RunGame({ onExit, onFight }: { onExit: () => void; onFight?: () 
             Back to the fight
           </button>
         ) : null}
-        <button className="btn small" type="button" onClick={() => setBank(true)}>
-          <span className="key">B</span> Bank
-        </button>
+        {tablet ? null : (
+          <button className="btn small" type="button" onClick={() => setBank(true)}>
+            <span className="key">B</span> Bank
+          </button>
+        )}
         <DiceButton small />
-        <LevelUpButton small />
+        {tablet ? (
+          <span className="run-more">
+            <button className={`btn small${more ? " on" : ""}`} type="button" aria-expanded={more} onClick={() => setMore((v) => !v)}>
+              ⋯ More
+            </button>
+            {more ? (
+              <>
+                <div className="run-more-scrim" role="presentation" onClick={() => setMore(false)} />
+                <div className="run-more-menu box" role="menu">
+                  <button className="btn" type="button" role="menuitem" onClick={() => (setMore(false), setBank(true))}>
+                    Bank
+                  </button>
+                  <button className="btn" type="button" role="menuitem" onClick={() => (setMore(false), setLevelUp(true))}>
+                    <span aria-hidden="true">▲</span> Level up
+                  </button>
+                </div>
+              </>
+            ) : null}
+            {levelUp ? <LevelUpDialog onClose={() => setLevelUp(false)} /> : null}
+          </span>
+        ) : (
+          <LevelUpButton small />
+        )}
         <button className="btn small run-jump-toggle" type="button" aria-expanded={drawer} onClick={() => setDrawer((v) => !v)}>
           Beats
         </button>
@@ -185,7 +217,34 @@ export function RunGame({ onExit, onFight }: { onExit: () => void; onFight?: () 
       </header>
 
       <div className="run-body">
-        <main className="run-main">
+        <main
+          className="run-main"
+          onPointerDown={(e) => {
+            if (!tablet || e.pointerType !== "touch") return;
+            const t = e.target as HTMLElement;
+            // Leave text boxes and sliders alone: a drag there isn't a swipe.
+            if (t.closest("input, textarea, select, [contenteditable='true']")) return;
+            swipe.current = { x: e.clientX, y: e.clientY, id: e.pointerId };
+          }}
+          onPointerUp={(e) => {
+            const s0 = swipe.current;
+            swipe.current = null;
+            if (!s0 || s0.id !== e.pointerId) return;
+            const dx = e.clientX - s0.x;
+            const dy = e.clientY - s0.y;
+            // A clear sideways swipe: left for the next beat, right to go back.
+            if (Math.abs(dx) < 90 || Math.abs(dy) > Math.abs(dx) * 0.6) return;
+            if (dx < 0) next();
+            else back();
+          }}
+          onPointerCancel={() => (swipe.current = null)}
+        >
+          {tablet ? (
+            <div className="run-swipe-hint" aria-hidden="true">
+              <span>‹ Swipe right to go back</span>
+              <span>Swipe left for the next beat ›</span>
+            </div>
+          ) : null}
           {r.stage === "start" ? <StartStep session={session} /> : null}
           {beat ? <BeatCard key={beat.id} beat={beat} onBeat={onBeat} episodeId={ep.id} /> : null}
           {r.stage === "end" ? <EndStep session={session} episode={ep} onBank={() => setBank(true)} onEnded={onExit} /> : null}
