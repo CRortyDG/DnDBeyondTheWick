@@ -21,6 +21,10 @@ export const CLIP_URL_RE = /^\/api\/files\/(?:p\/[a-z0-9]{10}|[a-z0-9-]{1,40})\/
 /** The Table's scene id in new games. Older games get one from the Arrival tab. */
 export const TABLE_SCENE_ID = "s-table";
 export const STINGER_SCENE_ID = "s-stinger";
+/** The Arrival intro on the TV. Made the first time the DM plays it there. */
+export const INTRO_SCENE_ID = "s-intro";
+/** More steps than any intro has (the boat has 13, a custom one at most a clip and 12 slides). */
+export const INTRO_STEPS_MAX = 60;
 
 /** Players who hold a seat: everyone who hasn't left the table, in the order they joined. */
 export function seatedPlayers(g: Pick<GameState, "players">): Player[] {
@@ -215,4 +219,24 @@ export function projectTable(g: GameState): TableView {
     seats: seated.map((p) => ({ name: isClaimed(p) ? seatName(p) : null, lit: isClaimed(p) })),
     qr: seated.filter((p) => !isClaimed(p) && p.arrival?.token).map((p) => ({ name: p.name, path: arrivalPath(g.id, p.arrival!.token) })),
   };
+}
+
+// ---------------------------------------------------------------------------
+// What the TV gets while the Arrival intro is live on it.
+
+export interface TvIntroView {
+  look: ArrivalLook;
+  step: number;
+  /** When this step started, by the server's clock. */
+  at: number;
+  paused: boolean;
+  /** Changes on every Back / Next / Play, so the TV restarts the step. */
+  n: number;
+  /** The server's clock when this view was made, so the TV can allow for its own. */
+  clock: number;
+}
+
+export function projectIntro(g: GameState, now: number): TvIntroView {
+  const i = g.live.intro;
+  return { look: arrivalLook(g), step: i?.step ?? 0, at: i?.at ?? now, paused: !!i?.paused, n: i?.n ?? 0, clock: now };
 }

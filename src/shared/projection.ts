@@ -9,7 +9,7 @@ import { townOf } from "./presets";
 import { creditLines, discountPct, firstChargeCp, priceOf, raisedCp, stakeTotals } from "./progress";
 import type { DiceGroup, RollTo } from "./dice";
 import { heldCp, heldStock } from "./requests";
-import { projectTable, type TableView } from "./arrival";
+import { projectIntro, projectTable, type TableView, type TvIntroView } from "./arrival";
 import { notesOf, penName, projectChronicle, type ChronicleView } from "./chronicle";
 import { discoveryView, PORTRAIT_ART, portraitArtAllowed, publicEntries, sceneSpoils, type DiscoveryView, type PublicEntry } from "./discovery";
 import { jobsOf, jobTitle, progressOf, rankName, ranksOf, renownMet, renownNeeded, renownOf, shopOpenNow, tierOf, trustText } from "./renown";
@@ -329,6 +329,8 @@ export interface TvView extends Common {
   recap: { number: number; title: string; text: string; notes?: { text: string; author: string }[] } | null;
   /** The Table's seats and the QR links of unclaimed players: only while The Table is live. */
   table?: TableView;
+  /** While the Arrival intro is live on the TV: what plays and where it's up to. */
+  intro?: TvIntroView;
   /** Combat mode: the fight going on, as the room may see it. */
   fight: FightView | null;
   /** Companions and hirelings with the party (a small card each). */
@@ -625,6 +627,7 @@ export function projectTv(table: GameState, version: number): TvView {
       }),
     recap: publicRecap(game),
     ...(game.scenes.find((sc) => sc.id === game.live.sceneId)?.kind === "table" ? { table: projectTable(game) } : {}),
+    ...(game.scenes.find((sc) => sc.id === game.live.sceneId)?.kind === "intro" ? { intro: projectIntro(game, Date.now()) } : {}),
     fight: publicFight(game),
     companions: publicCompanions(game),
   };

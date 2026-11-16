@@ -21,10 +21,10 @@ import type { Beat, BeatAction, Entry, GameState, Pin, Scene, SceneKind } from "
 export type AssetGame = Pick<GameState, "scenes" | "entries"> & Partial<Pick<GameState, "quick" | "monsters" | "notices" | "jobs" | "flyers">>;
 
 /** The built-in screens, and the scene kind each one shows (leads is an overlay, not a scene). */
-export const SCREENS = ["board", "leads", "table", "stinger", "black"] as const;
+export const SCREENS = ["board", "leads", "table", "intro", "stinger", "black"] as const;
 export type Screen = (typeof SCREENS)[number];
-const SCREEN_KIND: Record<Exclude<Screen, "leads">, SceneKind> = { board: "notice", table: "table", stinger: "stinger", black: "black" };
-export const SCREEN_LABEL: Record<Screen, string> = { board: "Notice board", leads: "Leads board", table: "The Table", stinger: "The stinger", black: "Black screen" };
+const SCREEN_KIND: Record<Exclude<Screen, "leads">, SceneKind> = { board: "notice", table: "table", intro: "intro", stinger: "stinger", black: "black" };
+export const SCREEN_LABEL: Record<Screen, string> = { board: "Notice board", leads: "Leads board", table: "The Table", intro: "The Arrival intro", stinger: "The stinger", black: "Black screen" };
 
 /** Number keys in bar order. */
 export const QUICK_KEYS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 0] as const;
@@ -316,6 +316,7 @@ function needles(g: AssetGame): Needle[] {
   add("leads board", "leads", 4);
   add("black screen", "black", 4);
   add("stinger", "stinger", 4);
+  add("arrival intro", "intro", 4);
   return out;
 }
 

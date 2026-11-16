@@ -11,7 +11,7 @@ import { SHOW_REF_RE } from "./assets";
 import { HANDOUT_BODY_MAX, HANDOUT_SIGN_MAX, HANDOUT_TITLE_MAX } from "./handout";
 import { storyDmCommands } from "./storySchema";
 import { offscriptDmCommands } from "./offscriptSchema";
-import { CLIP_URL_RE, CLIP_VIDEO_MAX, SLIDE_TEXT_MAX, SLIDES_MAX, WELCOME_MAX } from "./arrival";
+import { CLIP_URL_RE, CLIP_VIDEO_MAX, INTRO_STEPS_MAX, SLIDE_TEXT_MAX, SLIDES_MAX, WELCOME_MAX } from "./arrival";
 import type { TokenColor } from "./types";
 import { FOG_MAX_CELLS, TILE_URL_RE, TILES_MAX } from "./fog";
 import { GRID_CELL_MAX, GRID_CELL_MIN, TOKEN_COLORS, TOKEN_SIZES } from "./tokens";
@@ -41,7 +41,7 @@ const artSchema = z.object({
   url: z.string().max(2048).optional(),
 });
 
-const SCENE_KINDS = ["notice", "portrait", "handout", "image", "black", "map", "table", "stinger", "video"] as const;
+const SCENE_KINDS = ["notice", "portrait", "handout", "image", "black", "map", "table", "stinger", "video", "intro"] as const;
 const frac = z.number().min(0).max(1);
 export const SEAL_SCALE_MIN = 0.25;
 export const SEAL_SCALE_MAX = 2;
@@ -212,6 +212,8 @@ const itemFields = {
 
 // The notice board: how a note looks and where it hangs.
 const imageUrl = z.string().max(2048).regex(/^(https:\/\/|\/api\/files\/)/, "Images must be uploaded first.");
+/** An intro slide's picture: an upload, or one of the site's own (the premade campaign's slides use these). */
+const slideImage = z.union([imageUrl, z.string().max(200).regex(/^\/art\/[a-z0-9-]+(?:\/[a-z0-9-]+)*\.(?:jpg|png|webp|svg)$/)]);
 const noteLook = z.object({
   pin: z.enum(PIN_IDS),
   font: z.enum(FONT_IDS),
@@ -576,15 +578,19 @@ export const dmCommand = z.discriminatedUnion("type", [
   /** The DM's own intro clip, or null to remove it. */
   z.object({
     type: z.literal("arrival.clip"),
-    clip: z.object({ url: z.string().max(300).regex(CLIP_URL_RE, "Upload the video first."), kind: z.enum(["video", "gif"]), bytes: z.number().int().min(0).max(CLIP_VIDEO_MAX), poster: imageUrl.optional() }).nullable(),
+    clip: z.object({ url: z.string().max(300).regex(CLIP_URL_RE, "Upload the video first."), kind: z.enum(["video", "gif"]), bytes: z.number().int().min(0).max(CLIP_VIDEO_MAX), seconds: z.number().min(0).max(3600).optional(), poster: imageUrl.optional() }).nullable(),
   }),
   /** The DM's own intro slides, the whole list in order. */
   z.object({
     type: z.literal("arrival.slides"),
-    slides: z.array(z.object({ id, image: imageUrl.optional(), text: text(SLIDE_TEXT_MAX) })).max(SLIDES_MAX),
+    slides: z.array(z.object({ id, image: slideImage.optional(), wide: slideImage.optional(), text: text(SLIDE_TEXT_MAX) })).max(SLIDES_MAX),
   }),
   /** Show The Table on the TV, adding the scene first if this game doesn't have it. */
   z.object({ type: z.literal("arrival.showTable") }),
+  /** Play the Arrival intro on the TV from the start, adding its scene first if this game doesn't have it. */
+  z.object({ type: z.literal("arrival.showIntro") }),
+  /** Move the TV intro to a step (Back, Next), or pause it there. */
+  z.object({ type: z.literal("arrival.introGo"), step: z.number().int().min(0).max(INTRO_STEPS_MAX), paused: z.boolean() }),
 
   z.object({ type: z.literal("game.rename"), name: text(120).min(1) }),
   z.object({ type: z.literal("game.vtt"), url: text(300) }),

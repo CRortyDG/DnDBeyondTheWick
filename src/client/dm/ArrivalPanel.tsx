@@ -68,6 +68,11 @@ export function ArrivalPanel() {
             >
               {s.arrival?.seatsLocked ? "Seats locked" : "Lock seats"}
             </button>
+            {arrivalLook(s).intro ? (
+              <button className="btn" type="button" onClick={() => run({ type: "arrival.showIntro" }, "The intro is playing on the TV.")} title="Plays the intro on the TV, laid out for a wide screen. Step it along under the TV preview.">
+                Play intro on TV
+              </button>
+            ) : null}
             <button className="btn primary" type="button" onClick={() => run({ type: "arrival.showTable" }, "The Table is on the TV.")}>
               Show The Table <span className="key">T</span>
             </button>

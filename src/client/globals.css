@@ -7021,3 +7021,28 @@ input.fld.inline-input {
     animation: none !important;
   }
 }
+
+/* The Arrival intro on the TV: the DM's remote under the preview. */
+.live-intro {
+  margin: 10px 0 12px;
+}
+.live-intro-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.live-intro-line {
+  margin: 4px 0 8px;
+  font-style: italic;
+  opacity: 0.85;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.live-intro-btns {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}

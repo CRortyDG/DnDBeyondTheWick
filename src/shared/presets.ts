@@ -142,7 +142,7 @@ export function fromPreset(setup: GameState, id: string, name: string | undefine
 /** What's in a preset, for the create screen. */
 export function presetCounts(s: GameState) {
   return {
-    scenes: s.scenes.filter((x) => x.kind !== "black" && x.kind !== "table").length,
+    scenes: s.scenes.filter((x) => x.kind !== "black" && x.kind !== "table" && x.kind !== "intro").length,
     shops: s.shops.length,
     items: s.items.length,
     entries: (s.entries ?? []).length,

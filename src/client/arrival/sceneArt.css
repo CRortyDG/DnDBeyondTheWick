@@ -1,0 +1,424 @@
+/* The Arrival intro's pictures (Scenes.tsx) and snow. Shared by the phone intro
+   and the TV intro, so every class here is one only these pictures use. */
+
+.ia-stage {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* Slow camera drift and parallax: each layer moves a little more than the one behind it. */
+.cam {
+  transform-origin: 50% 60%;
+  animation: cam 22s ease-in-out infinite alternate;
+}
+.lay-far {
+  animation: drift 18s ease-in-out infinite alternate;
+}
+.lay-mid {
+  animation: drift-mid 14s ease-in-out infinite alternate;
+}
+.lay-near {
+  animation: drift-near 11s ease-in-out infinite alternate;
+}
+@keyframes cam {
+  from {
+    transform: scale(1.04) translate(-4px, 0);
+  }
+  to {
+    transform: scale(1.09) translate(5px, -6px);
+  }
+}
+@keyframes drift {
+  from {
+    transform: translateX(-3px);
+  }
+  to {
+    transform: translateX(3px);
+  }
+}
+@keyframes drift-mid {
+  from {
+    transform: translate(-7px, 1px);
+  }
+  to {
+    transform: translate(7px, -2px);
+  }
+}
+@keyframes drift-near {
+  from {
+    transform: translate(-13px, 3px) rotate(-0.4deg);
+  }
+  to {
+    transform: translate(13px, -3px) rotate(0.4deg);
+  }
+}
+
+.fog-a {
+  animation: fog 26s ease-in-out infinite alternate;
+}
+.fog-b {
+  animation: fog 34s ease-in-out infinite alternate-reverse;
+}
+@keyframes fog {
+  from {
+    transform: translateX(-40px);
+  }
+  to {
+    transform: translateX(50px);
+  }
+}
+
+.wave-a {
+  animation: wave 6s ease-in-out infinite alternate;
+}
+.wave-b {
+  animation: wave 7.5s ease-in-out infinite alternate-reverse;
+}
+@keyframes wave {
+  from {
+    transform: translateX(-12px);
+  }
+  to {
+    transform: translateX(12px);
+  }
+}
+
+.sway {
+  transform-box: view-box;
+  transform-origin: 0 -400px;
+  animation: sway 4.6s ease-in-out infinite alternate;
+}
+@keyframes sway {
+  from {
+    transform: rotate(-3deg);
+  }
+  to {
+    transform: rotate(3deg);
+  }
+}
+.s-lantern .fade-in-slow {
+  animation: fade-in 3.2s ease 0.3s both;
+}
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.lantern-glow {
+  animation: glow 3.8s ease-in-out infinite alternate;
+}
+@keyframes glow {
+  from {
+    opacity: 0.75;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.creak {
+  animation: creak 5s ease-in-out infinite alternate;
+}
+@keyframes creak {
+  from {
+    opacity: 0.85;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* The one window: dark, then slowly warm. */
+.window-lit,
+.window-glow {
+  animation: window 3.5s ease 1.4s both;
+}
+@keyframes window {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.gangplank {
+  transform-box: fill-box;
+  transform-origin: 0 50%;
+  animation: plank 1.6s cubic-bezier(0.5, 0, 0.75, 1) 0.6s both;
+}
+@keyframes plank {
+  from {
+    transform: rotate(-58deg);
+  }
+  70% {
+    transform: rotate(2deg);
+  }
+  to {
+    transform: rotate(0deg);
+  }
+}
+
+/* The walk uphill: the camera pans between three glimpses. */
+.pan {
+  transition: transform 1.4s cubic-bezier(0.45, 0, 0.25, 1);
+}
+.steam path {
+  animation: steam 4s ease-in-out infinite;
+}
+@keyframes steam {
+  0% {
+    transform: translateY(6px);
+    opacity: 0;
+  }
+  30% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(-26px);
+    opacity: 0;
+  }
+}
+
+/* Daytime life: gulls, the sail, chimney smoke, a wobbly ladder, sidelong glances. */
+.gull-a {
+  animation: gull 5s ease-in-out infinite alternate;
+}
+.gull-b {
+  animation: gull 6.5s ease-in-out infinite alternate-reverse;
+}
+@keyframes gull {
+  from {
+    transform: translate(-10px, 4px);
+  }
+  to {
+    transform: translate(14px, -6px);
+  }
+}
+.sail {
+  transform-box: fill-box;
+  transform-origin: 0 50%;
+  animation: sail 6s ease-in-out infinite alternate;
+}
+@keyframes sail {
+  from {
+    transform: scaleX(0.97);
+  }
+  to {
+    transform: scaleX(1.02);
+  }
+}
+.smoke {
+  animation: steam 5s ease-in-out infinite;
+}
+.smoke-1 {
+  animation-delay: -1.7s;
+}
+.smoke-2 {
+  animation-delay: -3.3s;
+}
+.wobble {
+  transform-box: fill-box;
+  transform-origin: 20% 100%;
+  animation: wobble 2.4s ease-in-out infinite;
+}
+@keyframes wobble {
+  0%,
+  100% {
+    transform: rotate(0deg);
+  }
+  30% {
+    transform: rotate(2.5deg);
+  }
+  60% {
+    transform: rotate(-1.5deg);
+  }
+}
+.glance {
+  animation: fade-in 1.2s ease both;
+}
+.glance-1 {
+  animation-delay: 0.5s;
+}
+.glance-2 {
+  animation-delay: 1s;
+}
+.glance-3 {
+  animation-delay: 1.5s;
+}
+
+/* Mags close up, then the camera pulls back to the whole (empty) room. */
+.mags-close,
+.mags-room {
+  position: absolute;
+  inset: 0;
+  transition:
+    opacity 1.4s ease,
+    transform 1.8s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.mags-room {
+  opacity: 0;
+  transform: scale(1.25);
+}
+.mags-scene.wide .mags-close {
+  opacity: 0;
+  transform: scale(0.75);
+}
+.mags-scene.wide .mags-room {
+  opacity: 1;
+  transform: scale(1);
+}
+
+/* The tavern door, then the warm room behind it. */
+.door-scene {
+  position: absolute;
+  inset: 0;
+}
+.door-room {
+  opacity: 0;
+  transition: opacity 1.2s ease 0.5s;
+}
+.door-front {
+  transition: opacity 1.4s ease 0.7s;
+}
+.door-leaf {
+  transform-box: view-box;
+  transform-origin: 70px 0;
+  transition: transform 1.2s cubic-bezier(0.5, 0, 0.3, 1);
+}
+.door-scene.open .door-leaf {
+  transform: perspective(600px) rotateY(-80deg);
+}
+.door-scene.open .door-front {
+  opacity: 0;
+}
+.door-scene.open .door-room {
+  opacity: 1;
+}
+.door-flood {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 50% 60%, rgba(255, 196, 107, 0.95), rgba(255, 160, 70, 0.55) 45%, rgba(255, 160, 70, 0) 80%);
+  opacity: 0;
+  pointer-events: none;
+}
+.door-scene.open .door-flood {
+  animation: flood 2.4s ease 0.4s both;
+}
+@keyframes flood {
+  0% {
+    opacity: 0;
+  }
+  35% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+.under-door {
+  animation: glow 2.8s ease-in-out infinite alternate;
+}
+.hearth-fire {
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+  animation: hearth 1.4s ease-in-out infinite alternate;
+}
+@keyframes hearth {
+  from {
+    transform: scaleY(0.92);
+  }
+  to {
+    transform: scaleY(1.06);
+  }
+}
+
+/* Mags behind the bar. */
+.mags-scene {
+  position: absolute;
+  inset: 0;
+}
+.mags-portrait {
+  position: absolute;
+  left: 50%;
+  top: 41%;
+  width: min(68vw, 46vh, 340px);
+  height: auto;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  box-shadow:
+    0 0 0 6px #3a2212,
+    0 0 0 9px #8f6a2a,
+    0 20px 60px rgba(0, 0, 0, 0.6);
+  animation: mags-in 1.2s ease 0.2s both;
+}
+@keyframes mags-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -46%);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%);
+  }
+}
+.mags-bar {
+  pointer-events: none;
+}
+
+.snow {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+/* Reduce motion: nothing drifts, sways or falls; scenes only crossfade. */
+@media (prefers-reduced-motion: reduce) {
+  .cam,
+  .lay-far,
+  .lay-mid,
+  .lay-near,
+  .fog-a,
+  .fog-b,
+  .wave-a,
+  .wave-b,
+  .sway,
+  .creak,
+  .lantern-glow,
+  .steam path,
+  .gull-a,
+  .gull-b,
+  .sail,
+  .smoke,
+  .wobble,
+  .glance,
+  .hearth-fire,
+  .under-door,
+  .gangplank,
+  .mags-portrait {
+    animation: none !important;
+  }
+  .pan,
+  .mags-close,
+  .mags-room,
+  .door-leaf {
+    transition: opacity 0.6s ease !important;
+  }
+  .door-scene.open .door-leaf {
+    transform: none;
+  }
+  .door-scene.open .door-flood {
+    animation: none;
+  }
+  .mags-portrait {
+    transform: translate(-50%, -50%);
+  }
+}

@@ -5,7 +5,7 @@ import type { DiceGroup, RollEntry } from "./dice";
 
 import type { HandoutSheet } from "./handout";
 
-export type SceneKind = "notice" | "portrait" | "handout" | "image" | "black" | "map" | "table" | "stinger" | "video";
+export type SceneKind = "notice" | "portrait" | "handout" | "image" | "black" | "map" | "table" | "stinger" | "video" | "intro";
 
 /** Built-in art. "merchant-sigil" is DM-only and served through a gated route. */
 export type BuiltinArt = "candlefair-board" | "artum-notice" | "artum" | "mags-wick" | "chef" | "merchant-sigil";
@@ -256,6 +256,8 @@ export interface IntroClip {
   url: string;
   kind: "video" | "gif";
   bytes: number;
+  /** How long a video runs, measured on upload. The TV intro moves on after it. */
+  seconds?: number;
   /** A still of the first frame, for the link preview and while the clip loads. */
   poster?: string;
 }
@@ -264,6 +266,8 @@ export interface IntroSlide {
   id: string;
   /** An uploaded picture. Missing: the line on its own. */
   image?: string;
+  /** A landscape version of the picture for the TV. Missing: the TV frames the phone picture. */
+  wide?: string;
   text: string;
 }
 
@@ -1099,6 +1103,8 @@ export interface LiveState {
   note?: { kind: "notice" | "job" | "flyer"; id: string };
   /** An ambient scene over the stage (see ambient.ts), with an optional caption. Cleared by any scene change. */
   ambient?: { id: string; caption?: string };
+  /** The Arrival intro on the TV: which step it's on, since when (it moves on by itself unless paused). Read while the intro scene is live. */
+  intro?: { step: number; at: number; paused?: boolean; n: number };
 }
 
 export interface GameState {
