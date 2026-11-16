@@ -1341,6 +1341,8 @@ export interface RenownChange {
   total: number;
   rankFrom: number;
   rankTo: number;
+  /** When the DM last fixed its points or reason. */
+  edited?: number;
   /** Shared world: the party at the table, and who was there (they all got it). */
   partyId?: string;
   playerIds?: string[];
