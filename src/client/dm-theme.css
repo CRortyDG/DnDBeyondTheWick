@@ -4558,6 +4558,16 @@ html[data-view="dm"][data-tablet] .dm-brand-text {
   }
 }
 
+/* Phones: the Bank's amount hint takes its own line instead of a one-word column beside Pay everyone. */
+@media (max-width: 520px) {
+  :where(html[data-view="dm"]) .bank-amount-foot {
+    flex-wrap: wrap;
+  }
+  :where(html[data-view="dm"]) .bank-amount-foot .note {
+    flex-basis: 100%;
+  }
+}
+
 /* Fixing a Renown history line: the ⋯ menu column and the drawer. */
 :where(html[data-view="dm"]) .renown-history-table td.renown-history-menu { width: 1%; padding: 0 2px; vertical-align: middle; }
 :where(html[data-view="dm"]) .renown-history-table tr.on td { background: var(--dm-gold-soft); }
