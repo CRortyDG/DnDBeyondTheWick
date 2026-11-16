@@ -2467,6 +2467,52 @@ input.fld.inline-input {
   gap: 12px;
   font-size: 15px;
 }
+.inbox-history li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  justify-items: stretch;
+  gap: 8px;
+}
+.inbox-history li.is-hidden .inbox-history-row > span:first-child {
+  opacity: 0.6;
+}
+.inbox-history li.on {
+  border: 1px solid var(--wood);
+  border-radius: 8px;
+  padding: 8px;
+  background: var(--tavern-deep);
+}
+.inbox-history-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+.inbox-history-row > span:first-child {
+  flex: 1;
+  min-width: 0;
+}
+.inbox-history-row .nowrap {
+  flex-wrap: nowrap;
+  white-space: nowrap;
+}
+.inbox-history-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-top: 8px;
+}
+.inbox-history-head h3 {
+  margin-top: 0;
+}
+.inbox-fix {
+  display: grid;
+  gap: 8px;
+}
+.inbox-fix p {
+  margin: 0;
+}
 
 /* ---------- TV: "Previously on…" ---------- */
 

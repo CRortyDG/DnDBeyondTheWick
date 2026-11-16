@@ -3742,6 +3742,45 @@ function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
       pruneRequests();
       break;
     }
+    case "request.reopen": {
+      const r = request(cmd.requestId);
+      if (r.status !== "declined") fail(r.status === "pending" ? "That request is already waiting." : `Only a declined request can be reopened. This one was ${r.status}.`);
+      const p = player(r.playerId);
+      if (p.archived) fail(`${p.name} has left the table. Bring them back first.`);
+      // It holds the gold again, so it can't promise more than they have free.
+      const hold = r.totalCp + (r.rewardCp ?? 0);
+      const free = availableCp(s, p.id);
+      if (hold > free) fail(`${p.name} only has ${formatCp(Math.max(0, free))} free now, not ${formatCp(hold)}. Give them the gold first, or ask them to request it again.`);
+      r.status = "pending";
+      r.reopenedAt = ctx.now;
+      delete r.decidedAt;
+      delete r.reason;
+      delete r.hidden;
+      // Back to the end of the list, so it doesn't get pruned as an old decision.
+      s.requests = [...s.requests.filter((x) => x !== r), r];
+      break;
+    }
+    case "request.reason": {
+      const r = request(cmd.requestId);
+      if (r.status !== "declined") fail("Only a declined request has a reason.");
+      const reason = cmd.reason.trim();
+      if (reason) r.reason = reason;
+      else delete r.reason;
+      break;
+    }
+    case "request.hide": {
+      const r = request(cmd.requestId);
+      if (r.status === "pending") fail("That request is still waiting. Approve or decline it first.");
+      if (cmd.hidden) r.hidden = true;
+      else delete r.hidden;
+      break;
+    }
+    case "request.remove": {
+      const r = request(cmd.requestId);
+      if (r.status === "pending") fail("That request is still waiting. Approve or decline it first.");
+      s.requests = s.requests.filter((x) => x !== r);
+      break;
+    }
     case "request.approveAll": {
       const pending = s.requests.filter((r) => r.status === "pending");
       if (!pending.length) fail("Nothing is waiting.");

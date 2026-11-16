@@ -557,6 +557,12 @@ export const dmCommand = z.discriminatedUnion("type", [
   z.object({ type: z.literal("request.decline"), requestId: id, reason: text(120) }),
   /** Approve every pending request that still works; the rest stay pending. */
   z.object({ type: z.literal("request.approveAll") }),
+  // Shop history: fix a decision after the fact. reopen: a declined request goes back to waiting
+  // (holding the gold again) so it can be approved after all. hide: off the player's phone, kept for the DM.
+  z.object({ type: z.literal("request.reopen"), requestId: id }),
+  z.object({ type: z.literal("request.reason"), requestId: id, reason: text(120) }),
+  z.object({ type: z.literal("request.hide"), requestId: id, hidden: z.boolean() }),
+  z.object({ type: z.literal("request.remove"), requestId: id }),
   z.object({ type: z.literal("game.tvPurchases"), on: z.boolean() }),
 
   // The Arrival intro (the link texted before session 0).

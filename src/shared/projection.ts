@@ -709,7 +709,7 @@ export function projectPlayer(table: GameState, version: number, playerId: strin
       .reverse()
       .map((r) => ({ n: r.n, at: r.at, groups: r.groups, plus: r.plus, total: r.total, to: r.to, ...(r.for ? { for: r.for } : {}) })),
     myRequests: game.requests
-      .filter((r) => r.playerId === p.id)
+      .filter((r) => r.playerId === p.id && !r.hidden)
       .slice(-50)
       .reverse()
       .map((r) => {
