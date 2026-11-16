@@ -12,6 +12,13 @@
     <link rel="icon" href="/favicon-32x32.png" sizes="32x32" type="image/png" />
     <link rel="icon" href="/favicon-16x16.png" sizes="16x16" type="image/png" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" sizes="180x180" />
+    <!-- Add to Home Screen opens the page as its own app, with no browser bar (the TV page can be AirPlayed from a phone).
+         No start_url in the manifest on purpose: the saved icon opens the exact page it was added from (?game=…&player=tv). -->
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="Candlefair" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="" />
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IM+Fell+English+SC&amp;family=IM+Fell+English:ital@0;1&amp;family=Pirata+One&amp;family=Caveat:wght@500;700&amp;family=EB+Garamond:wght@500;600&amp;family=Inter:wght@400;500;600&amp;display=swap" />
