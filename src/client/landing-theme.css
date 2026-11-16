@@ -1,0 +1,612 @@
+/*
+ * Front page theme: the "join or start" home page and "Who's at the table?".
+ *
+ * Only those pages load these rules: every selector sits under
+ * html[data-view="landing"] (App.tsx sets it when there is no ?player=).
+ * Same tokens and Inter chrome as the DM console and the player phones;
+ * IM Fell stays for the name and the headings so it still feels like the table.
+ */
+
+html[data-view="landing"] {
+  --hm-bg-0: #0f0b08;
+  --hm-bg-1: #17120e;
+  --hm-bg-2: #211a15;
+  --hm-bg-3: #2b231c;
+  --hm-border: #33281f;
+  --hm-border-strong: #4a3c30;
+  --hm-text: #ede4d3;
+  --hm-text-2: #b5a794;
+  --hm-text-3: #8a7b6c;
+  --hm-gold: #e3b65c;
+  --hm-gold-soft: rgba(227, 182, 92, 0.12);
+  --hm-gold-line: rgba(227, 182, 92, 0.5);
+  --hm-wax: #a63a2c;
+  --hm-wax-hover: #b94534;
+  --hm-ok: #86c38a;
+  --hm-danger: #e2735f;
+  --hm-font-ui: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --hm-r-sm: 8px;
+  --hm-r-md: 12px;
+  --hm-r-lg: 18px;
+  --hm-control: 48px;
+}
+
+html[data-view="landing"],
+html[data-view="landing"] body {
+  background: var(--hm-bg-0);
+  color: var(--hm-text);
+  font-family: var(--hm-font-ui);
+  font-size: 16px;
+  line-height: 1.5;
+}
+
+html[data-view="landing"] .hm-page {
+  min-height: 100vh;
+  min-height: 100dvh;
+  box-sizing: border-box;
+  padding: max(28px, env(safe-area-inset-top)) 16px max(32px, env(safe-area-inset-bottom));
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+  /* Candlelight from above, falling off into the dark. */
+  background:
+    radial-gradient(ellipse 70% 45% at 50% -5%, rgba(227, 182, 92, 0.16), transparent 70%),
+    radial-gradient(ellipse 60% 40% at 50% 110%, rgba(166, 58, 44, 0.12), transparent 70%),
+    var(--hm-bg-0);
+}
+html[data-view="landing"] .hm-page *,
+html[data-view="landing"] .hm-page *::before,
+html[data-view="landing"] .hm-page *::after {
+  box-sizing: border-box;
+}
+
+/* ---------- brand ---------- */
+
+html[data-view="landing"] .hm-brand {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  text-align: center;
+  margin-top: 4px;
+}
+html[data-view="landing"] .hm-mark {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  color: var(--hm-gold);
+  background: var(--hm-gold-soft);
+  box-shadow: 0 0 24px rgba(227, 182, 92, 0.25);
+}
+html[data-view="landing"] .hm-name {
+  font-family: var(--font-sc);
+  font-size: 24px;
+  letter-spacing: 0.02em;
+  color: var(--hm-text);
+}
+html[data-view="landing"] .hm-brand.big {
+  flex-direction: column;
+  gap: 10px;
+  margin: 12px 0 8px;
+}
+html[data-view="landing"] .hm-brand.big .hm-mark {
+  width: 60px;
+  height: 60px;
+}
+html[data-view="landing"] .hm-brand.big .hm-name {
+  font-size: 44px;
+  line-height: 1;
+}
+html[data-view="landing"] .hm-tagline {
+  margin: 0;
+  max-width: 34ch;
+  color: var(--hm-text-2);
+  font-size: 15px;
+}
+
+/* ---------- cards ---------- */
+
+html[data-view="landing"] .hm-grid {
+  width: min(880px, 100%);
+  display: grid;
+  gap: 16px;
+}
+@media (min-width: 760px) {
+  html[data-view="landing"] .hm-grid {
+    grid-template-columns: 1fr 1fr;
+    align-items: stretch;
+  }
+}
+
+html[data-view="landing"] .hm-card {
+  width: min(520px, 100%);
+  background: linear-gradient(180deg, var(--hm-bg-2), var(--hm-bg-1));
+  border: 1px solid var(--hm-border);
+  border-radius: var(--hm-r-lg);
+  padding: 22px 20px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.03);
+}
+html[data-view="landing"] .hm-grid .hm-card {
+  width: 100%;
+}
+html[data-view="landing"] .hm-join {
+  border-color: var(--hm-border-strong);
+}
+@media (min-width: 480px) {
+  html[data-view="landing"] .hm-card {
+    padding: 28px 28px 24px;
+  }
+}
+
+html[data-view="landing"] .hm-card-head {
+  display: grid;
+  gap: 6px;
+}
+html[data-view="landing"] .hm-card-head h1,
+html[data-view="landing"] .hm-card-head h2 {
+  font-family: var(--font-sc);
+  font-size: 30px;
+  line-height: 1.1;
+  color: var(--hm-text);
+  margin: 0;
+}
+html[data-view="landing"] .hm-card-head p {
+  margin: 0;
+  color: var(--hm-text-2);
+  font-size: 15px;
+}
+html[data-view="landing"] .hm-kicker {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--hm-gold);
+}
+html[data-view="landing"] .hm-kicker.ok {
+  color: var(--hm-ok);
+}
+html[data-view="landing"] .hm-pill {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--hm-gold-line);
+  background: var(--hm-gold-soft);
+  color: var(--hm-gold);
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  text-transform: none;
+  word-break: break-all;
+}
+
+/* ---------- fields and buttons ---------- */
+
+html[data-view="landing"] .hm-form {
+  display: grid;
+  gap: 16px;
+}
+html[data-view="landing"] .hm-field {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+html[data-view="landing"] .hm-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--hm-text-2);
+}
+html[data-view="landing"] .hm-input {
+  width: 100%;
+  min-height: var(--hm-control);
+  padding: 10px 14px;
+  font: inherit;
+  /* 16px+ so iOS doesn't zoom on focus. */
+  font-size: 17px;
+  color: var(--hm-text);
+  background: var(--hm-bg-0);
+  border: 1px solid var(--hm-border-strong);
+  border-radius: var(--hm-r-md);
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+html[data-view="landing"] .hm-input::placeholder {
+  color: var(--hm-text-3);
+}
+html[data-view="landing"] .hm-input:focus {
+  border-color: var(--hm-gold);
+  box-shadow: 0 0 0 3px var(--hm-gold-soft);
+}
+html[data-view="landing"] .hm-code {
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  letter-spacing: 0.04em;
+}
+html[data-view="landing"] .hm-join .hm-code {
+  font-size: 20px;
+  min-height: 56px;
+  text-align: center;
+}
+html[data-view="landing"] .hm-hint {
+  font-size: 13px;
+  color: var(--hm-text-3);
+}
+html[data-view="landing"] .hm-hint.warn {
+  color: var(--hm-gold);
+}
+
+html[data-view="landing"] .hm-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: var(--hm-control);
+  padding: 10px 18px;
+  font: inherit;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--hm-text);
+  background: var(--hm-bg-3);
+  border: 1px solid var(--hm-border-strong);
+  border-radius: var(--hm-r-md);
+  cursor: pointer;
+  text-decoration: none;
+  transition: background 0.15s, border-color 0.15s, transform 0.05s;
+}
+html[data-view="landing"] .hm-btn:hover:not(:disabled):not(.disabled) {
+  background: #352b22;
+  border-color: var(--hm-gold-line);
+}
+html[data-view="landing"] .hm-btn:active:not(:disabled):not(.disabled) {
+  transform: translateY(1px);
+}
+html[data-view="landing"] .hm-btn.primary {
+  background: var(--hm-wax);
+  border-color: transparent;
+  color: #fff8ee;
+  box-shadow: 0 6px 18px rgba(166, 58, 44, 0.3);
+}
+html[data-view="landing"] .hm-btn.primary:hover:not(:disabled):not(.disabled) {
+  background: var(--hm-wax-hover);
+  border-color: transparent;
+}
+html[data-view="landing"] .hm-btn:disabled,
+html[data-view="landing"] .hm-btn.disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+html[data-view="landing"] .hm-btn:focus-visible,
+html[data-view="landing"] .hm-back:focus-visible,
+html[data-view="landing"] .hm-page a:focus-visible,
+html[data-view="landing"] .hm-more summary:focus-visible {
+  outline: 2px solid var(--hm-gold);
+  outline-offset: 2px;
+}
+html[data-view="landing"] .hm-dm > .hm-btn {
+  margin-top: auto;
+}
+
+html[data-view="landing"] .hm-error {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: var(--hm-r-sm);
+  background: rgba(226, 115, 95, 0.1);
+  border: 1px solid rgba(226, 115, 95, 0.35);
+  color: var(--hm-danger);
+  font-size: 14px;
+}
+
+/* ---------- DM card: campaigns on this device ---------- */
+
+html[data-view="landing"] .hm-mine {
+  display: grid;
+  gap: 8px;
+}
+html[data-view="landing"] .hm-mine ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+html[data-view="landing"] .hm-mine a {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 48px;
+  padding: 8px 14px;
+  border-radius: var(--hm-r-md);
+  border: 1px solid var(--hm-border-strong);
+  background: var(--hm-bg-1);
+  color: var(--hm-text);
+  text-decoration: none;
+}
+html[data-view="landing"] .hm-mine a:hover {
+  border-color: var(--hm-gold-line);
+  background: var(--hm-gold-soft);
+}
+html[data-view="landing"] .hm-mine-code {
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 15px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+html[data-view="landing"] .hm-mine-go {
+  flex: none;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--hm-gold);
+}
+html[data-view="landing"] .hm-mine-go::after {
+  content: " \2192";
+}
+
+/* ---------- how it works ---------- */
+
+html[data-view="landing"] .hm-steps {
+  width: min(880px, 100%);
+  list-style: none;
+  margin: 4px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+@media (min-width: 760px) {
+  html[data-view="landing"] .hm-steps {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+  }
+}
+html[data-view="landing"] .hm-steps li {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  color: var(--hm-text-2);
+  font-size: 14px;
+}
+html[data-view="landing"] .hm-steps b {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 1px solid var(--hm-border-strong);
+  color: var(--hm-gold);
+  font-size: 13px;
+  font-weight: 600;
+}
+html[data-view="landing"] .hm-steps span {
+  padding-top: 3px;
+}
+
+/* ---------- start a campaign ---------- */
+
+html[data-view="landing"] .hm-back {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 36px;
+  margin: -6px 0 -6px -8px;
+  padding: 4px 10px;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--hm-text-2);
+  background: none;
+  border: 0;
+  border-radius: var(--hm-r-sm);
+  cursor: pointer;
+}
+html[data-view="landing"] .hm-back:hover {
+  color: var(--hm-text);
+  background: var(--hm-bg-3);
+}
+
+html[data-view="landing"] .hm-from {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+  display: grid;
+  gap: 8px;
+}
+html[data-view="landing"] .hm-from legend {
+  padding: 0;
+  margin-bottom: 6px;
+}
+html[data-view="landing"] .hm-opt {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: var(--hm-r-md);
+  border: 1px solid var(--hm-border-strong);
+  background: var(--hm-bg-1);
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+html[data-view="landing"] .hm-opt:hover {
+  border-color: var(--hm-gold-line);
+}
+html[data-view="landing"] .hm-opt.on {
+  border-color: var(--hm-gold);
+  background: var(--hm-gold-soft);
+}
+html[data-view="landing"] .hm-opt input[type="radio"] {
+  flex: none;
+  margin: 3px 0 0;
+  width: 18px;
+  height: 18px;
+  accent-color: var(--hm-gold);
+}
+html[data-view="landing"] .hm-opt-text {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+html[data-view="landing"] .hm-opt-text b {
+  font-weight: 600;
+  color: var(--hm-text);
+}
+html[data-view="landing"] .hm-opt-text > span {
+  font-size: 14px;
+  color: var(--hm-text-2);
+}
+html[data-view="landing"] .hm-opt-text .hm-input {
+  margin-top: 8px;
+}
+html[data-view="landing"] .hm-opt-text .hm-found {
+  margin-top: 4px;
+  color: var(--hm-text);
+}
+
+html[data-view="landing"] .hm-more {
+  border-top: 1px solid var(--hm-border);
+  padding-top: 12px;
+}
+html[data-view="landing"] .hm-more summary {
+  cursor: pointer;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--hm-text-2);
+  border-radius: var(--hm-r-sm);
+}
+html[data-view="landing"] .hm-more summary::-webkit-details-marker {
+  display: none;
+}
+html[data-view="landing"] .hm-more summary::before {
+  content: "+";
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 1px solid var(--hm-border-strong);
+  font-size: 14px;
+  line-height: 1;
+}
+html[data-view="landing"] .hm-more[open] summary::before {
+  content: "\2212";
+}
+html[data-view="landing"] .hm-more summary:hover {
+  color: var(--hm-text);
+}
+html[data-view="landing"] .hm-more[open] .hm-field {
+  margin-top: 10px;
+}
+
+/* ---------- save your DM link ---------- */
+
+html[data-view="landing"] .hm-link {
+  padding: 12px 14px;
+  border-radius: var(--hm-r-md);
+  background: var(--hm-bg-0);
+  border: 1px dashed var(--hm-gold-line);
+}
+html[data-view="landing"] .hm-link code {
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 13px;
+  color: var(--hm-text);
+  word-break: break-all;
+}
+html[data-view="landing"] .hm-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+@media (max-width: 380px) {
+  html[data-view="landing"] .hm-row {
+    grid-template-columns: 1fr;
+  }
+}
+html[data-view="landing"] .hm-check {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  font-size: 15px;
+  cursor: pointer;
+}
+html[data-view="landing"] .hm-check input {
+  width: 20px;
+  height: 20px;
+  margin: 0;
+  accent-color: var(--hm-gold);
+}
+html[data-view="landing"] .hm-foot {
+  margin: 0;
+  font-size: 14px;
+  color: var(--hm-text-2);
+}
+
+/* ---------- who's at the table ---------- */
+
+html[data-view="landing"] .hm-alt {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--hm-border);
+  font-size: 14px;
+  color: var(--hm-text-3);
+}
+html[data-view="landing"] .hm-alt a,
+html[data-view="landing"] .hm-back-home a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 40px;
+  color: var(--hm-gold);
+  font-weight: 500;
+  text-decoration: none;
+}
+html[data-view="landing"] .hm-alt a:hover,
+html[data-view="landing"] .hm-back-home a:hover {
+  text-decoration: underline;
+}
+html[data-view="landing"] .hm-back-home {
+  margin: 0;
+  font-size: 14px;
+}
+html[data-view="landing"] .hm-back-home a {
+  color: var(--hm-text-3);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html[data-view="landing"] .hm-page * {
+    transition: none !important;
+  }
+}
+
+html[data-view="landing"] .hm-link code {
+  background: none;
+  padding: 0;
+  border: 0;
+}
+html[data-view="landing"] .hm-row .hm-btn {
+  padding: 10px 12px;
+  font-size: 15px;
+  text-align: center;
+  white-space: nowrap;
+}

@@ -4,6 +4,7 @@ import { App } from "./App";
 import "./globals.css";
 import "./dm-theme.css";
 import "./player-theme.css";
+import "./landing-theme.css";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
