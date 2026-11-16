@@ -7,6 +7,7 @@ import { DicePicker, RollLine, useDicePicks } from "../ui/DicePicker";
 import { InspirationIcon as DiceIcon } from "../ui/icons";
 import { useDm } from "./context";
 import { RevealPicker } from "./RevealPicker";
+import { useTablet } from "./tablet";
 import "../ui/dice.css";
 
 const TAG: Record<RollEntry["to"], string> = { tv: "on TV", dm: "to you", secret: "secret" };
@@ -162,9 +163,13 @@ export function DiceTray() {
     return () => window.removeEventListener("keydown", onKey);
   }, [toggleDice]);
 
+  const tablet = useTablet();
   if (!open) return null;
 
   return (
+    <>
+    {/* In tablet mode the tray is a tall side panel; tapping outside closes it. */}
+    {tablet ? <div className="dt-scrim" role="presentation" onClick={() => setOpen(false)} /> : null}
     <div
       ref={panel}
       className="box dt-panel"
@@ -220,5 +225,6 @@ export function DiceTray() {
         </div>
       ) : null}
     </div>
+    </>
   );
 }

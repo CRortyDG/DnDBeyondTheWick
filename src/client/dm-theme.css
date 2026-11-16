@@ -4302,3 +4302,258 @@ html[data-view="tv"] .practice-stripe .practice-tag {
 :where(html[data-view="dm"]) .gen-edit > .btn {
   align-self: flex-start;
 }
+
+/* ===========================================================================
+   Tablet mode (Settings → This device). DmApp puts data-tablet on <html>.
+   Finger-sized targets, no keyboard hints, nothing that only shows on hover.
+   Only the DM's own screen: the TV and phones never get data-tablet.
+   =========================================================================== */
+html[data-view="dm"][data-tablet] {
+  --dm-control: 48px;
+  --dm-control-sm: 44px;
+}
+html[data-view="dm"][data-tablet] .btn,
+html[data-view="dm"][data-tablet] .fld {
+  font-size: 15px;
+}
+html[data-view="dm"][data-tablet] .btn.small {
+  min-height: 44px;
+  padding: 6px 14px;
+  font-size: 15px;
+}
+html[data-view="dm"][data-tablet] .fld,
+html[data-view="dm"][data-tablet] select.fld,
+html[data-view="dm"][data-tablet] .fld.small {
+  min-height: 44px;
+}
+html[data-view="dm"][data-tablet] input[type="checkbox"],
+html[data-view="dm"][data-tablet] input[type="radio"] {
+  width: 22px;
+  height: 22px;
+}
+/* Keyboard letters (O, B, /, ↵) mean nothing without a keyboard. */
+html[data-view="dm"][data-tablet] .key {
+  display: none;
+}
+html[data-view="dm"][data-tablet] .dm-shell {
+  --dm-top-h: 64px;
+}
+html[data-view="dm"][data-tablet] .dm-find {
+  min-height: 44px;
+}
+html[data-view="dm"][data-tablet] .dm-nav-item {
+  min-height: 46px;
+  font-size: 15.5px;
+}
+/* Hover-only buttons are always shown. */
+html[data-view="dm"][data-tablet] .quick-x,
+html[data-view="dm"][data-tablet] .bl-remove {
+  opacity: 1;
+}
+html[data-view="dm"][data-tablet] .quick-x {
+  min-width: 36px;
+  min-height: 36px;
+}
+html[data-view="dm"][data-tablet] .quick-slot {
+  min-height: 54px;
+}
+/* No accidental text selection while tapping around. */
+html[data-view="dm"][data-tablet] .btn,
+html[data-view="dm"][data-tablet] .dm-nav-item,
+html[data-view="dm"][data-tablet] .quick-slot {
+  -webkit-user-select: none;
+  user-select: none;
+  touch-action: manipulation;
+}
+
+/* Full screen button (tablet mode only). */
+:where(html[data-view="dm"]) .tablet-full {
+  border-color: var(--dm-gold-line);
+  color: var(--dm-gold);
+  gap: 6px;
+}
+
+/* Settings → This device. */
+:where(html[data-view="dm"]) .tablet-setting {
+  grid-column: 1 / -1;
+  border-color: var(--dm-gold-line);
+}
+:where(html[data-view="dm"]) .tablet-setting h3 {
+  margin: 0 0 4px;
+}
+:where(html[data-view="dm"]) .tablet-setting-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--dm-s4);
+  margin: var(--dm-s3) 0;
+  font-weight: 600;
+}
+
+/* The one-time "switch to tablet mode?" banner. */
+:where(html[data-view="dm"]) .tablet-offer {
+  position: fixed;
+  left: 50%;
+  bottom: 24px;
+  transform: translateX(-50%);
+  z-index: 120;
+  display: flex;
+  align-items: center;
+  gap: var(--dm-s3);
+  max-width: calc(100vw - 32px);
+  padding: 10px 12px 10px 18px;
+  background: var(--dm-bg-3);
+  border: 1px solid var(--dm-border-strong);
+  border-radius: var(--dm-r-md);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.6);
+  color: var(--dm-text);
+  font: 500 15px var(--dm-font-ui);
+}
+
+/* Dice: a tall side panel; tapping the dimmed page closes it. */
+html[data-view="dm"][data-tablet] .dt-panel {
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 100;
+  width: min(460px, 100vw);
+  max-height: none;
+  border-radius: 0;
+  padding: var(--dm-s5);
+  align-content: start;
+}
+html[data-view="dm"][data-tablet] .dt-actions .btn {
+  min-height: 60px;
+  font-size: 17px;
+}
+:where(html[data-view="dm"]) .dt-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 99;
+  background: rgba(0, 0, 0, 0.45);
+}
+
+/* Fights: number pad, Pick several, move buttons. */
+html[data-view="dm"] .fx-sel {
+  display: flex;
+  align-items: center;
+  gap: var(--dm-s2);
+}
+:where(html[data-view="dm"]) .fx-sel > span {
+  flex: 1;
+  min-width: 0;
+}
+:where(html[data-view="dm"]) .fx-pad {
+  display: grid;
+  gap: var(--dm-s2);
+}
+:where(html[data-view="dm"]) .fx-pad-top {
+  display: grid;
+  grid-template-columns: 1fr 84px;
+  gap: var(--dm-s2);
+}
+:where(html[data-view="dm"]) .fx-pad-value {
+  display: grid;
+  place-items: center;
+  min-height: 56px;
+  border: 1px solid var(--dm-border-strong);
+  border-radius: var(--dm-r-md);
+  background: var(--dm-bg-0);
+  font: 700 30px var(--dm-font-ui);
+  font-variant-numeric: tabular-nums;
+  color: var(--dm-text);
+}
+:where(html[data-view="dm"]) .fx-pad-keys {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--dm-s2);
+}
+html[data-view="dm"][data-tablet] .fx-pad .btn {
+  min-height: 54px;
+  font-size: 22px;
+  font-weight: 600;
+}
+html[data-view="dm"][data-tablet] .fx-pad-top .btn {
+  min-height: 56px;
+  font-size: 15px;
+}
+html[data-view="dm"][data-tablet] .fx-hit-btns .btn {
+  min-height: 56px;
+}
+:where(html[data-view="dm"]) .fx-move {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+html[data-view="dm"][data-tablet] .fx-move .btn.small {
+  min-height: 30px;
+  padding: 0 12px;
+  font-size: 12px;
+}
+
+/* Run game: swipe hint and the More menu. */
+:where(html[data-view="dm"]) .run-swipe-hint {
+  display: flex;
+  justify-content: space-between;
+  font: 500 13px var(--dm-font-ui);
+  color: var(--dm-text-3);
+}
+html[data-view="dm"][data-tablet] .run-main {
+  touch-action: pan-y;
+}
+:where(html[data-view="dm"]) .run-more {
+  position: relative;
+}
+:where(html[data-view="dm"]) .run-more-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+}
+:where(html[data-view="dm"]) .run-more-menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  z-index: 41;
+  display: grid;
+  gap: var(--dm-s2);
+  min-width: 200px;
+  padding: var(--dm-s2);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6);
+}
+:where(html[data-view="dm"]) .run-more-menu .btn {
+  justify-content: flex-start;
+}
+
+/* The console's top bar is full at tablet sizes with bigger buttons: the finder and
+   full screen become icons, and Practice (a desk-time thing) waits for tablet mode off. */
+html[data-view="dm"][data-tablet] .dm-top .dm-find-text,
+html[data-view="dm"][data-tablet] .dm-top .tablet-full-text,
+html[data-view="dm"][data-tablet] .dm-top .practice-menu {
+  display: none;
+}
+html[data-view="dm"][data-tablet] .dm-top {
+  gap: var(--dm-s2);
+}
+/* Square icon buttons grow to finger size instead of losing their icon to the padding. */
+html[data-view="dm"][data-tablet] .insp-btn,
+html[data-view="dm"][data-tablet] .btn.small.icon-only {
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  padding: 0;
+  justify-content: center;
+}
+html[data-view="dm"][data-tablet] .dm-brand-text {
+  display: none;
+}
+@media (max-width: 1240px) {
+  html[data-view="dm"][data-tablet] .dm-shell {
+    --dm-top-h: 116px;
+  }
+  html[data-view="dm"][data-tablet] .dm-top {
+    flex-wrap: wrap;
+    align-content: center;
+    row-gap: var(--dm-s2);
+    padding-block: var(--dm-s2);
+  }
+}

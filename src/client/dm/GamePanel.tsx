@@ -11,6 +11,7 @@ import { LinkIcon } from "../ui/icons";
 import { Field } from "./Field";
 import { HostingCosts } from "./HostingCosts";
 import { BuilderSettings } from "./BuilderSettings";
+import { TabletSetting } from "./TabletBits";
 
 export function GamePanel() {
   const { view, run, ident, toast } = useDm();
@@ -90,6 +91,7 @@ export function GamePanel() {
         ]}
       />
     <div className="panel-grid">
+      <TabletSetting />
       <section className="box">
         <h3>The campaign</h3>
         <div className="form">

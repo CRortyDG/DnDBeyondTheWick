@@ -17,6 +17,8 @@ import type { DmCommand } from "@/shared/commands";
 import type { Combatant, Fight, FightReminder, MonsterTemplate, Player } from "@/shared/types";
 import { useDm } from "./context";
 import { DiceButton } from "./DiceTray";
+import { useTablet } from "./tablet";
+import { FullScreenButton } from "./TabletBits";
 import "../ui/fight.css";
 
 type DmPlayer = Player & { hasKey: boolean };
@@ -61,6 +63,9 @@ function FightConsole({ f, onExit, run, toast }: { f: Fight; onExit: () => void;
   const [crit, setCrit] = useState(false);
   const [open, setOpen] = useState<string | null>(null);
   const amountRef = useRef<HTMLInputElement>(null);
+  // Tablet mode: a number pad instead of the on-screen keyboard, and a "Pick several" switch instead of Ctrl-click.
+  const tablet = useTablet();
+  const [multi, setMulti] = useState(false);
 
   // Forget selections of combatants who've left.
   const ids = f.order.map((c) => c.id).join(",");
@@ -157,7 +162,7 @@ function FightConsole({ f, onExit, run, toast }: { f: Fight; onExit: () => void;
   const gone = f.order.filter((c) => c.gone);
   const notIn = players.filter((p) => !p.archived && !f.order.some((c) => c.playerId === p.id));
   // A click picks just that row (click it again to let go); Ctrl, ⌘ or Shift adds to the pick, for a Fireball.
-  const pick = (id: string, add: boolean) =>
+  const pick = (id: string, add0: boolean, add = add0 || (tablet && multi)) =>
     setSel((xs) => (add ? (xs.includes(id) ? xs.filter((x) => x !== id) : [...xs, id]) : xs.length === 1 && xs[0] === id ? [] : [id]));
   // Enter on a focused row only ever picks it: it never lets go.
   const pickKey = (id: string, add: boolean) => setSel((xs) => (xs.includes(id) ? xs : add ? [...xs, id] : [id]));
@@ -181,6 +186,7 @@ function FightConsole({ f, onExit, run, toast }: { f: Fight; onExit: () => void;
           </div>
         </div>
         <span className="spacer" />
+        <FullScreenButton small />
         <FightMapButton />
         <DiceButton small />
         <span className="run-tv" title="What the TV shows">
@@ -256,7 +262,17 @@ function FightConsole({ f, onExit, run, toast }: { f: Fight; onExit: () => void;
 
           <aside className="fx-side">
             <section className="box fx-hit" aria-label="Damage and healing">
-              <div className="fx-sel">{sel.length ? `For: ${sel.map((id) => f.order.find((c) => c.id === id)?.name).join(", ")}` : "Click a row to pick who it's for. Ctrl-click to add more."}</div>
+              <div className="fx-sel">
+                <span>{sel.length ? `For: ${sel.map((id) => f.order.find((c) => c.id === id)?.name).join(", ")}` : tablet ? "Tap a row to pick who it's for." : "Click a row to pick who it's for. Ctrl-click to add more."}</span>
+                {tablet ? (
+                  <button className={`btn small${multi ? " on" : ""}`} type="button" aria-pressed={multi} onClick={() => setMulti((v) => !v)} title="Tap rows to add them to the pick, for a Fireball">
+                    {multi ? "☑" : "☐"} Pick several
+                  </button>
+                ) : null}
+              </div>
+              {tablet ? (
+                <NumberPad value={amount} onChange={setAmount} crit={crit} onCrit={() => setCrit((v) => !v)} />
+              ) : (
               <div className="fx-amount">
                 <input
                   ref={amountRef}
@@ -271,6 +287,7 @@ function FightConsole({ f, onExit, run, toast }: { f: Fight; onExit: () => void;
                   Crit
                 </button>
               </div>
+              )}
               <div className="fx-hit-btns">
                 <button className="btn primary" type="button" onClick={() => hit("damage")}>
                   Damage <span className="key">↵</span>
@@ -395,12 +412,13 @@ function Row({
   const { view } = useDm();
   const comp = c.kind === "companion" ? (view.state.companions ?? []).find((x) => x.id === c.companionId) : undefined;
   const [drag, setDrag] = useState(false);
+  const tablet = useTablet();
   const pct = hp.max > 0 ? Math.max(0, Math.min(100, (hp.cur / hp.max) * 100)) : 0;
   const others = f.order.filter((x) => x.id !== c.id && !x.gone);
   return (
     <li
       className={`fx-row${selected ? " sel" : ""}${current ? " cur" : ""}${isNext ? " next" : ""}${c.kind !== "player" && c.down && !c.deathSaves ? " down" : ""}${c.kind === "companion" ? " companion" : ""}${c.hidden ? " hidden" : ""}${drag ? " drag" : ""}`}
-      draggable
+      draggable={!tablet}
       onDragStart={(e) => {
         e.dataTransfer.setData("text/plain", c.id);
         e.dataTransfer.effectAllowed = "move";
@@ -425,9 +443,13 @@ function Row({
         aria-pressed={selected}
         onKeyDown={(e) => (e.key === "Enter" && e.target === e.currentTarget && !typing ? onPickKey(e.ctrlKey || e.metaKey || e.shiftKey) : null)}
       >
-        <span className="fx-grip" aria-hidden="true">
-          ⋮⋮
-        </span>
+        {tablet ? (
+          <MoveButtons c={c} f={f} />
+        ) : (
+          <span className="fx-grip" aria-hidden="true">
+            ⋮⋮
+          </span>
+        )}
         <InitInput c={c} />
         <div className="fx-name">
           <b>{c.name}</b>
@@ -584,6 +606,7 @@ function DeathSaves({ c }: { c: Combatant }) {
   const { run } = useDm();
   const ds = c.deathSaves ?? { ok: 0, fail: 0 };
   const mark = (m: "ok" | "fail" | "nat20" | "unok" | "unfail") => run({ type: "fight.deathSave", combatantId: c.id, mark: m });
+  const tablet = useTablet();
   return (
     <span className="fx-saves" aria-label={`Death saves: ${ds.ok} successes, ${ds.fail} failures`}>
       Saves
@@ -596,6 +619,17 @@ function DeathSaves({ c }: { c: Combatant }) {
       <button type="button" className="btn small" onClick={() => mark("nat20")}>
         Nat 20
       </button>
+      {/* No right-click on a touch screen: undo buttons instead. */}
+      {tablet && ds.ok ? (
+        <button type="button" className="btn small" onClick={() => mark("unok")} aria-label="Undo a success">
+          Undo ✓
+        </button>
+      ) : null}
+      {tablet && ds.fail ? (
+        <button type="button" className="btn small" onClick={() => mark("unfail")} aria-label="Undo a failure">
+          Undo ✗
+        </button>
+      ) : null}
     </span>
   );
 }
@@ -1091,5 +1125,61 @@ function FightMapButton() {
         ))}
       </select>
     </label>
+  );
+}
+
+/** Tablet mode: move a row up or down the turn order (dragging doesn't work well by touch). */
+function MoveButtons({ c, f }: { c: Combatant; f: Fight }) {
+  const { run } = useDm();
+  if (c.gone) return <span className="fx-move" aria-hidden="true" />;
+  const at = f.order.findIndex((x) => x.id === c.id);
+  let up = -1;
+  for (let i = at - 1; i >= 0; i--) if (!f.order[i].gone) { up = i; break; }
+  let down = -1;
+  for (let i = at + 1; i < f.order.length; i++) if (!f.order[i].gone) { down = i; break; }
+  // fight.move takes the combatant out, then puts it at "to": before the one above, or after the one below.
+  const move = (to: number) => (e: React.MouseEvent) => {
+    e.stopPropagation();
+    void run({ type: "fight.move", combatantId: c.id, to });
+  };
+  return (
+    <span className="fx-move" role="group" aria-label={`Move ${c.name}`}>
+      <button type="button" className="btn small" disabled={up < 0} onClick={move(up)} aria-label={`Move ${c.name} up`}>
+        ▲
+      </button>
+      <button type="button" className="btn small" disabled={down < 0} onClick={move(down)} aria-label={`Move ${c.name} down`}>
+        ▼
+      </button>
+    </span>
+  );
+}
+
+const PAD = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "⌫", "0", "C"];
+
+/** Tablet mode: a number pad for damage and healing, so no on-screen keyboard covers the fight. */
+function NumberPad({ value, onChange, crit, onCrit }: { value: string; onChange: (v: string) => void; crit: boolean; onCrit: () => void }) {
+  const press = (k: string) => {
+    if (k === "C") onChange("");
+    else if (k === "⌫") onChange(value.slice(0, -1));
+    else onChange((value + k).replace(/^0+(?=\d)/, "").slice(0, 4));
+  };
+  return (
+    <div className="fx-pad">
+      <div className="fx-pad-top">
+        <output className="fx-pad-value" aria-label="Amount">
+          {value || "0"}
+        </output>
+        <button className={`btn${crit ? " on" : ""}`} type="button" aria-pressed={crit} onClick={onCrit} title="Plays the crit moment on the TV">
+          Crit
+        </button>
+      </div>
+      <div className="fx-pad-keys">
+        {PAD.map((k) => (
+          <button key={k} type="button" className="btn" onClick={() => press(k)} aria-label={k === "⌫" ? "Delete a digit" : k === "C" ? "Clear" : k}>
+            {k}
+          </button>
+        ))}
+      </div>
+    </div>
   );
 }

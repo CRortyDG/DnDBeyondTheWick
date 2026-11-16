@@ -51,6 +51,8 @@ import { WorldPanel } from "./WorldPanel";
 import { partiesOf, tableParty } from "@/shared/world";
 import { BuilderPanel, usePendingDrafts } from "./BuilderPanel";
 import { TablesPanel } from "./TablesPanel";
+import { useTablet, useTabletAttr, useWakeLock } from "./tablet";
+import { FullScreenButton, TabletOffer } from "./TabletBits";
 import { DieIcon, SparkIcon, BoardIcon, BookIcon, CoinIcon, EyeIcon, GearIcon, GlobeIcon, ListIcon, MapIcon, PanelRightIcon, PeopleIcon, PinIcon, PlayIcon, QuillIcon, SearchIcon, ShipIcon, SkullIcon, StoreIcon, SwordIcon } from "./navIcons";
 
 type Tab = "world" | "bank" | "shop" | "board" | "scenes" | "discovery" | "leads" | "players" | "arrival" | "story" | "episodes" | "monsters" | "companions" | "tables" | "chronicle" | "builder" | "game";
@@ -427,6 +429,10 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
   // An ambient scene stands in for the black screen, as on the TV.
   const previewScene = tvView.live.ambient ? { ...baseScene, id: `ambient/${tvView.live.ambient.id}`, ambient: tvView.live.ambient } : baseScene;
   const session = s.sessions.find((x) => x.id === s.currentSessionId);
+  // Tablet mode (Settings → This device): bigger touch targets, and the screen stays awake while a session runs.
+  const tablet = useTablet();
+  useTabletAttr(tablet);
+  useWakeLock(tablet && !!session);
   const seated = s.world ? tableParty(s) : undefined;
   const liveShop = s.shops.find((x) => x.id === s.live.shopId);
 
@@ -493,6 +499,7 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
           <button className={`btn icon-only${railOpen ? " on" : ""}`} type="button" onClick={toggleRail} aria-pressed={railOpen} title={railOpen ? "Hide the TV panel" : "Show the TV panel"} aria-label="TV panel">
             <PanelRightIcon />
           </button>
+          <FullScreenButton />
           <span className="dm-top-sep" aria-hidden="true" />
           {s.practice ? null : <PracticeButton episodeId={(runningEp ?? chosenEp)?.id} episodeTitle={(runningEp ?? chosenEp)?.title} />}
           {session ? (
@@ -693,6 +700,7 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
       <DiceTray />
       <PlayerRollCards />
       <TvDiceBar />
+      <TabletOffer />
       <div className={`toast${toastMsg ? " show" : ""}`} role="status" aria-live="polite">
         {toastMsg?.text}
       </div>
