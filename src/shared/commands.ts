@@ -10,6 +10,7 @@ import { IMPORT_MAX } from "./bulkImport";
 import { SHOW_REF_RE } from "./assets";
 import { HANDOUT_BODY_MAX, HANDOUT_SIGN_MAX, HANDOUT_TITLE_MAX } from "./handout";
 import { storyDmCommands } from "./storySchema";
+import { inviteDmCommands } from "./inviteSchema";
 import { offscriptDmCommands } from "./offscriptSchema";
 import { CLIP_URL_RE, CLIP_VIDEO_MAX, INTRO_STEPS_MAX, SLIDE_TEXT_MAX, SLIDES_MAX, WELCOME_MAX } from "./arrival";
 import type { TokenColor } from "./types";
@@ -446,7 +447,7 @@ export const dmCommand = z.discriminatedUnion("type", [
   z.object({ type: z.literal("catalog.reset") }),
   z.object({ type: z.literal("item.remove"), itemId: id }),
 
-  z.object({ type: z.literal("session.start"), title: text(120).optional(), partyId: id.optional() }),
+  z.object({ type: z.literal("session.start"), title: text(120).optional(), partyId: id.optional(), inviteId: id.optional() }),
   // The shared world: parties, telling the table, the calendar and world news.
   /** The first one turns the campaign into a shared world (everyone so far becomes firstName's party). */
   z.object({ type: z.literal("party.add"), name: text(40), firstName: text(40).optional() }),
@@ -627,6 +628,9 @@ export const dmCommand = z.discriminatedUnion("type", [
 
   // The off-script kit.
   ...offscriptDmCommands,
+
+  // Session invites.
+  ...inviteDmCommands,
 ]);
 
 /** Commands a player may send about themselves. */
@@ -670,6 +674,10 @@ export type SystemCommand =
   | { type: "system.arrivalKey"; playerId: string; keyHash: string }
   /** First sign-in with a key on a name nobody has locked yet: the name is now tied to that key (trust on first use). */
   | { type: "system.autoLock"; playerId: string; keyHash: string }
+  /** From /api/invite: a phone claims a seat. keyHash: sha-256 of the key that phone keeps. playerId: a player whose saved sign-in on that phone the server checked. */
+  | { type: "system.inviteClaim"; inviteId: string; keyHash: string; name: string; character: string; playerId?: string }
+  /** From /api/invite: the phone holding entryId's key gives the seat back, or leaves the waitlist. */
+  | { type: "system.inviteDrop"; inviteId: string; entryId: string }
   /** The DM approved Worldbuilder drafts (see builderOps.ts). Built by the server from stored drafts, never sent by a client. */
   | { type: "system.builderApply"; ops: BuilderOp[] };
 

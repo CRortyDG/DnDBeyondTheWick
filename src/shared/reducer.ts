@@ -38,6 +38,8 @@ import type { Actor, Beat, BeatAction, Entry, EntryFact, Episode, FlyerText, Sta
 import type { z } from "zod";
 import { currentValue, madeIndex, sameValue, SUGGEST_FIELDS, type BuilderOp, type BuilderRef } from "./builderOps";
 import { storyOf } from "./story";
+import { autoMoves, claimsClosed, ENTRIES_MAX as INVITE_ENTRIES_MAX, INVITE_KEEP_MS, inviteOver, invitesOf, INVITES_MAX, NAME_MAX as INVITE_NAME_MAX, CHARACTER_MAX as INVITE_CHARACTER_MAX, openSeats, seated, waiting, WAITLIST_MAX } from "./invites";
+import type { Invite, InviteEntry } from "./types";
 import { monstersOf, reslotCombatant } from "./combat";
 import { noticesOf } from "./board";
 import { fillRanges, TABLES_MAX, tablesOf } from "./tables";
@@ -89,6 +91,8 @@ export interface Result {
   tokenId?: string;
   /** Created party / world event id. */
   partyId?: string;
+  /** Created invite id; the seat a claim made or found. */
+  inviteId?: string;
   eventId?: string;
   /** A note for whoever sent the command ("2 approved, 1 still needs you"). */
   info?: string;
@@ -1514,6 +1518,82 @@ function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
 
   // ---------- the shared world ----------
   const partyOf = (id: string): Party => partyById(s, id) ?? fail("That party isn't in this world.");
+
+  // ---------- session invites ----------
+  const inviteOf = (id: string): Invite => invitesOf(s).find((x) => x.id === id) ?? fail("That invite isn't here any more.");
+  const inviteEntry = (inv: Invite, id: string): InviteEntry => inv.entries.find((x) => x.id === id) ?? fail("That person isn't on this invite.");
+  /** Someone at the table, or on this invite, already goes by this name. */
+  const nameTaken = (name: string, inv: Invite | null, exceptPlayerId?: string) => {
+    const h = normaliseHandle(name);
+    if (!h) return false;
+    const atTable = s.players.some((x) => x.id !== exceptPlayerId && !x.archived && (x.handle === h || normaliseHandle(x.name) === h || (!!x.character && normaliseHandle(x.character) === h)));
+    const onInvite = !!inv?.entries.some((e) => (e.state === "in" || e.state === "wait" || e.state === "ask") && !e.playerId && normaliseHandle(e.name) === h);
+    return atTable || onInvite;
+  };
+  /** A seat becomes a player the moment they're in: their phone opens straight to the table, and the Arrival link is ready. */
+  const seatPlayer = (inv: Invite, e: InviteEntry) => {
+    if (e.playerId) {
+      const p = s.players.find((x) => x.id === e.playerId);
+      if (p) {
+        // A player who'd left the table and comes back through an invite.
+        if (p.archived) p.archived = false;
+        return;
+      }
+    }
+    const handle = normaliseHandle(e.name);
+    if (!handle || isReservedHandle(handle)) fail("Pick a different name.");
+    // The key this phone keeps for its seat is also the player's key, so the seat signs that phone in.
+    const p = createPlayer(handle, e.name, "invite", e.keyHash);
+    p.dropIn = false;
+    if (e.character) p.character = e.character.slice(0, CHARACTER_MAX);
+    // In a shared world a new character joins the party at the table (createPlayer); an invite's own party is set on game night.
+    e.playerId = p.id;
+    e.made = true;
+    // A shared world: they play with this invite's party on the night (session.start), not with whoever is seated now.
+    if (s.world) {
+      for (const party of partiesOf(s)) party.memberIds = party.memberIds.filter((x) => x !== p.id);
+      p.away = true;
+    }
+  };
+  /** Someone who never played gives their seat back: tidy the player this invite made for them away. */
+  const unseatPlayer = (e: InviteEntry) => {
+    if (!e.made || !e.playerId) return;
+    const p = s.players.find((x) => x.id === e.playerId);
+    if (!p || p.archived) return;
+    const played = s.sessions.some((x) => x.attendeeIds.includes(p.id) && x.id !== s.currentSessionId);
+    if (played || p.balanceCp !== 0) return;
+    // Still on another invite: keep them.
+    if (invitesOf(s).some((inv) => inv.entries.some((x) => x !== e && x.playerId === p.id && (x.state === "in" || x.state === "wait" || x.state === "ask")))) return;
+    p.archived = true;
+    for (const party of partiesOf(s)) party.memberIds = party.memberIds.filter((x) => x !== p.id);
+  };
+  /** A seat opened: the first in line moves up, until a little before the start (then the DM decides). */
+  const moveUp = (inv: Invite) => {
+    if (!autoMoves(inv, ctx.now)) return;
+    while (openSeats(inv) > 0) {
+      const next = waiting(inv)[0];
+      if (!next) break;
+      next.state = "in";
+      next.movedUpAt = ctx.now;
+      seatPlayer(inv, next);
+    }
+  };
+  /** Ended invites from long ago shrink to their history line: who came, nothing else. */
+  const tidyInvites = () => {
+    const list = invitesOf(s);
+    for (const inv of list) {
+      if (!inviteOver(inv, ctx.now) || ctx.now - inv.startsAt < INVITE_KEEP_MS) continue;
+      inv.entries = inv.entries.filter((e) => e.state === "in").map(({ keyHash: _k, ...e }) => e);
+      delete inv.address;
+    }
+    // Over the cap: the oldest ended invites go first.
+    if (list.length > INVITES_MAX) {
+      const ended = list.filter((x) => inviteOver(x, ctx.now)).sort((a, b) => a.startsAt - b.startsAt);
+      const drop = new Set(ended.slice(0, list.length - INVITES_MAX).map((x) => x.id));
+      s.invites = list.filter((x) => !drop.has(x.id));
+    }
+  };
+  const storyDate = (id: string | null | undefined) => (id ? (s.story?.dates ?? []).find((d) => d.id === id) : undefined);
   /** Seat a party: its members are at the table, everyone else is away. Each party keeps its own fog. */
   const playParty = (id: string) => {
     const party = partyOf(id);
@@ -2584,8 +2664,49 @@ function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
     // ---------- sessions ----------
     case "session.start": {
       if (s.currentSessionId) fail("A session is already running. End it first.");
-      if (cmd.partyId) playParty(cmd.partyId);
-      startSession(cmd.title);
+      const inv = cmd.inviteId ? inviteOf(cmd.inviteId) : undefined;
+      if (inv) {
+        if (inv.status === "cancelled") fail("That night was cancelled.");
+        if (inv.sessionId) fail("That invite's night has already been played.");
+        // Everyone with a seat is at the table tonight; everyone else is away.
+        const ids = seated(inv).map((e) => e.playerId).filter((x): x is string => !!x && s.players.some((p) => p.id === x && !p.archived));
+        if (s.world) {
+          let party = inv.partyId ? partyById(s, inv.partyId) : undefined;
+          // An open call in a shared world: the night's table becomes a party of its own.
+          if (!party) {
+            const list = (s.parties ??= []);
+            if (list.length >= PARTIES_MAX) fail(`A world holds up to ${PARTIES_MAX} parties. Pick a party for this invite, or remove an old party.`);
+            let name = inv.title.trim().slice(0, 40) || "Pick-up party";
+            for (let n = 2; list.some((x) => x.name.toLowerCase() === name.toLowerCase()); n++) name = `${inv.title.trim().slice(0, 34) || "Pick-up party"} ${n}`;
+            party = { id: nextId("pty"), name, color: PARTY_COLORS[list.length % PARTY_COLORS.length], memberIds: [], createdAt: ctx.now };
+            list.push(party);
+            inv.partyId = party.id;
+          }
+          for (const id of ids) {
+            if (party.memberIds.includes(id)) continue;
+            catchUp(s, id, party);
+            party.memberIds.push(id);
+            const p = player(id);
+            p.renown ??= s.renown ?? 0;
+          }
+          playParty(party.id);
+          // Tonight's table is the seats, even members of the party who didn't claim one stay home.
+          for (const p of s.players) if (!p.archived) p.away = !ids.includes(p.id);
+        } else {
+          if (cmd.partyId) playParty(cmd.partyId);
+          for (const p of s.players) if (!p.archived) p.away = !ids.includes(p.id);
+        }
+      } else if (cmd.partyId) playParty(cmd.partyId);
+      const started = startSession(cmd.title ?? inv?.title);
+      if (inv) {
+        inv.sessionId = started.id;
+        inv.status = "closed";
+        const d = storyDate(inv.storyDateId);
+        if (d && !d.sessionId) {
+          d.sessionId = started.id;
+          delete d.cancelled;
+        }
+      }
       // "You chose: …" for the lead the party voted to follow, once.
       const v = s.vote;
       if (v?.winnerId && !v.played) {
@@ -4038,7 +4159,295 @@ function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
       break;
     }
 
+    // ---------- session invites ----------
+    case "invite.add": {
+      const list = (s.invites ??= []);
+      tidyInvites();
+      if (list.length >= INVITES_MAX) fail(`Up to ${INVITES_MAX} invites. Delete some old ones first.`);
+      const f = cmd.invite;
+      if (f.partyId && !partyById(s, f.partyId)) fail("That party isn't in this world.");
+      if (f.storyDateId && !storyDate(f.storyDateId)) fail("That storyboard date isn't there any more.");
+      let code = ctx.token ? ctx.token() : nextId("inv") + "xxxxxxxx";
+      while (list.some((x) => x.code === code) && ctx.token) code = ctx.token();
+      const inv: Invite = {
+        id: nextId("inv"),
+        code,
+        title: f.title.trim() || "Game night",
+        date: f.date,
+        time: f.time,
+        ...(f.endTime ? { endTime: f.endTime } : {}),
+        startsAt: f.startsAt,
+        ...(f.endsAt ? { endsAt: f.endsAt } : {}),
+        place: (f.place ?? "").trim(),
+        ...(f.address?.trim() ? { address: f.address.trim() } : {}),
+        blurb: (f.blurb ?? "").trim(),
+        ...(f.art ? { art: f.art } : {}),
+        seats: f.seats ?? 5,
+        waitlist: f.waitlist ?? true,
+        ...(f.partyId ? { partyId: f.partyId } : {}),
+        showWho: f.showWho ?? true,
+        approve: f.approve ?? false,
+        ...(f.closesAt ? { closesAt: f.closesAt } : {}),
+        ...(f.storyDateId ? { storyDateId: f.storyDateId } : {}),
+        status: "open",
+        createdAt: ctx.now,
+        entries: [],
+      };
+      for (const pid of cmd.holdIds ?? []) {
+        const p = player(pid);
+        if (p.archived) continue;
+        if (inv.entries.length >= inv.seats) break;
+        inv.entries.push({ id: nextId("ie"), name: p.name, state: "in", held: true, playerId: p.id, at: ctx.now });
+      }
+      list.push(inv);
+      out.inviteId = inv.id;
+      break;
+    }
+    case "invite.update": {
+      const inv = inviteOf(cmd.inviteId);
+      const f = cmd.patch;
+      if (f.title !== undefined) inv.title = f.title.trim() || "Game night";
+      if (f.date !== undefined) inv.date = f.date;
+      if (f.time !== undefined) inv.time = f.time;
+      if (f.endTime !== undefined) {
+        if (f.endTime) inv.endTime = f.endTime;
+        else delete inv.endTime;
+      }
+      if (f.startsAt !== undefined) inv.startsAt = f.startsAt;
+      if (f.endsAt !== undefined) {
+        if (f.endsAt) inv.endsAt = f.endsAt;
+        else delete inv.endsAt;
+      }
+      if (f.place !== undefined) inv.place = f.place.trim();
+      if (f.address !== undefined) {
+        if (f.address.trim()) inv.address = f.address.trim();
+        else delete inv.address;
+      }
+      if (f.blurb !== undefined) inv.blurb = f.blurb.trim();
+      if (f.art !== undefined) {
+        if (f.art) inv.art = f.art;
+        else delete inv.art;
+      }
+      if (f.waitlist !== undefined) inv.waitlist = f.waitlist;
+      if (f.showWho !== undefined) inv.showWho = f.showWho;
+      if (f.approve !== undefined) inv.approve = f.approve;
+      if (f.partyId !== undefined) {
+        if (f.partyId && !partyById(s, f.partyId)) fail("That party isn't in this world.");
+        if (f.partyId) inv.partyId = f.partyId;
+        else delete inv.partyId;
+      }
+      if (f.closesAt !== undefined) {
+        if (f.closesAt) inv.closesAt = f.closesAt;
+        else delete inv.closesAt;
+      }
+      if (f.storyDateId !== undefined) {
+        if (f.storyDateId && !storyDate(f.storyDateId)) fail("That storyboard date isn't there any more.");
+        if (f.storyDateId) inv.storyDateId = f.storyDateId;
+        else delete inv.storyDateId;
+      }
+      if (f.seats !== undefined) {
+        if (f.seats < seated(inv).length) fail(`${seated(inv).length} people already have a seat. Take someone off first, or keep at least ${seated(inv).length} seats.`);
+        inv.seats = f.seats;
+        // More seats: the line moves up into them.
+        moveUp(inv);
+      }
+      break;
+    }
+    case "invite.remove": {
+      const inv = inviteOf(cmd.inviteId);
+      for (const e of inv.entries) if (e.state !== "out" && e.state !== "removed" && !inv.sessionId) unseatPlayer(e);
+      s.invites = invitesOf(s).filter((x) => x.id !== inv.id);
+      break;
+    }
+    case "invite.status": {
+      const inv = inviteOf(cmd.inviteId);
+      if (inv.sessionId && cmd.status !== "closed") fail("That night has already started.");
+      inv.status = cmd.status;
+      const d = storyDate(inv.storyDateId);
+      if (d && !d.sessionId) {
+        if (cmd.status === "cancelled") d.cancelled = true;
+        else if (d.cancelled) delete d.cancelled;
+      }
+      if (cmd.status === "open" && (inv.closesAt ?? inv.startsAt) <= ctx.now) delete inv.closesAt;
+      break;
+    }
+    case "invite.entry": {
+      const inv = inviteOf(cmd.inviteId);
+      const e = inviteEntry(inv, cmd.entryId);
+      switch (cmd.action) {
+        case "in":
+        case "ok": {
+          if (e.state === "in") break;
+          if (openSeats(inv) <= 0) fail(`All ${inv.seats} seats are taken. Add a seat or take someone off first.`);
+          const was = e.state;
+          e.state = "in";
+          if (was === "wait") e.movedUpAt = ctx.now;
+          seatPlayer(inv, e);
+          break;
+        }
+        case "wait": {
+          if (e.state === "wait") break;
+          const was = e.state;
+          if (waiting(inv).length >= WAITLIST_MAX) fail(`The waitlist holds up to ${WAITLIST_MAX}.`);
+          e.state = "wait";
+          delete e.movedUpAt;
+          if (was === "in") unseatPlayer(e);
+          break;
+        }
+        case "no":
+        case "remove": {
+          const was = e.state;
+          e.state = "removed";
+          e.outAt = ctx.now;
+          delete e.held;
+          if (was === "in") {
+            unseatPlayer(e);
+            moveUp(inv);
+          }
+          break;
+        }
+        case "up":
+        case "down": {
+          if (e.state !== "wait") fail("Only people on the waitlist have a place in line.");
+          const line = waiting(inv);
+          const i = line.findIndex((x) => x.id === e.id);
+          const j = cmd.action === "up" ? i - 1 : i + 1;
+          if (j < 0 || j >= line.length) break;
+          // Swap their claim times: the line is ordered by them.
+          const other = line[j];
+          [e.at, other.at] = [other.at, e.at];
+          if (e.at === other.at) e.at += cmd.action === "up" ? -1 : 1;
+          break;
+        }
+        case "told":
+          e.told = true;
+          break;
+      }
+      break;
+    }
+    case "invite.hold": {
+      const inv = inviteOf(cmd.inviteId);
+      const p = player(cmd.playerId);
+      const e = inv.entries.find((x) => x.playerId === p.id && x.state !== "removed" && x.state !== "out");
+      if (cmd.held) {
+        if (p.archived) fail(`${p.name} has left the table.`);
+        if (e?.state === "in") {
+          e.held = true;
+          break;
+        }
+        if (openSeats(inv) <= 0) fail(`All ${inv.seats} seats are taken. Add a seat first.`);
+        if (e) {
+          e.state = "in";
+          e.held = true;
+        } else {
+          if (inv.entries.length >= INVITE_ENTRIES_MAX) fail("This invite is full up.");
+          inv.entries.push({ id: nextId("ie"), name: p.name, state: "in", held: true, playerId: p.id, at: ctx.now });
+        }
+      } else if (e?.held) {
+        e.state = "removed";
+        e.outAt = ctx.now;
+        delete e.held;
+        moveUp(inv);
+      }
+      break;
+    }
+    case "invite.duplicate": {
+      const from = inviteOf(cmd.inviteId);
+      const list = (s.invites ??= []);
+      tidyInvites();
+      if (list.length >= INVITES_MAX) fail(`Up to ${INVITES_MAX} invites. Delete some old ones first.`);
+      let code = ctx.token ? ctx.token() : nextId("inv") + "xxxxxxxx";
+      while (list.some((x) => x.code === code) && ctx.token) code = ctx.token();
+      const { entries, sessionId: _s, storyDateId: _d, closesAt: _c, endTime: _e, endsAt: _x, ...rest } = structuredClone(from);
+      const inv: Invite = {
+        ...rest,
+        id: nextId("inv"),
+        code,
+        date: cmd.date,
+        time: cmd.time,
+        ...(cmd.endTime ? { endTime: cmd.endTime } : {}),
+        startsAt: cmd.startsAt,
+        ...(cmd.endsAt ? { endsAt: cmd.endsAt } : {}),
+        status: "open",
+        createdAt: ctx.now,
+        entries: entries
+          .filter((e) => e.held && e.state === "in" && e.playerId && s.players.some((p) => p.id === e.playerId && !p.archived))
+          .map((e) => ({ id: nextId("ie"), name: e.name, state: "in" as const, held: true, playerId: e.playerId, at: ctx.now })),
+      };
+      list.push(inv);
+      out.inviteId = inv.id;
+      break;
+    }
+
     // ---------- issued by the server ----------
+    case "system.inviteClaim": {
+      const inv = inviteOf(cmd.inviteId);
+      // The same phone again: nothing new (a double tap, a reload).
+      const mine = inv.entries.find((x) => x.keyHash === cmd.keyHash);
+      if (mine && mine.state !== "out") {
+        if (mine.state === "removed") fail("The DM took you off this one. Ask them if that's a mistake.", "removed");
+        out.entryId = mine.id;
+        break;
+      }
+      if (inv.status === "cancelled") fail("This game was cancelled.", "cancelled");
+      if (inv.sessionId) fail("This game has already started.", "closed");
+      if (claimsClosed(inv, ctx.now)) fail("Seats aren't being claimed any more. Ask the DM.", "closed");
+      const known = cmd.playerId ? s.players.find((p) => p.id === cmd.playerId && !p.archived) : undefined;
+      // A seat the DM saved for this player: it's theirs, on this phone.
+      const held = known ? inv.entries.find((x) => x.playerId === known.id && x.state !== "removed" && x.state !== "out") : undefined;
+      if (held) {
+        held.keyHash = cmd.keyHash;
+        out.entryId = held.id;
+        break;
+      }
+      if (known && inv.entries.some((x) => x.playerId === known.id && x.state === "removed")) fail("The DM took you off this one. Ask them if that's a mistake.", "removed");
+      if (inv.partyId && !(known && partyById(s, inv.partyId)?.memberIds.includes(known.id))) {
+        fail(`This invite is for ${partyById(s, inv.partyId)?.name ?? "one party"}. Open it on the phone you play on, or ask the DM.`, "party");
+      }
+      const live = inv.entries.filter((x) => x.state !== "out" && x.state !== "removed");
+      if (inv.entries.length >= INVITE_ENTRIES_MAX) fail("This invite can't take any more names.", "full");
+      const name = (known ? known.name : cmd.name).replace(/\s+/g, " ").trim().slice(0, INVITE_NAME_MAX);
+      const character = (known ? (known.character ?? "") : cmd.character).replace(/\s+/g, " ").trim().slice(0, INVITE_CHARACTER_MAX);
+      if (!name) fail("Type your name first.");
+      if (!known) {
+        const h = normaliseHandle(name);
+        if (!h || isReservedHandle(h)) fail("Pick a different name.");
+        if (nameTaken(name, inv)) fail(`Someone already goes by ${name} here. If that's you, open this link on the phone you play on. If not, add your last initial.`, "name");
+      }
+      const e: InviteEntry = { id: nextId("ie"), name, ...(character ? { character } : {}), state: "wait", keyHash: cmd.keyHash, at: ctx.now, ...(known ? { playerId: known.id } : {}) };
+      if (inv.approve) {
+        if (live.length >= inv.seats + WAITLIST_MAX) fail("The table and the waitlist are full.", "full");
+        e.state = "ask";
+      } else if (openSeats(inv) > 0) {
+        e.state = "in";
+      } else {
+        if (!inv.waitlist) fail("Every seat is taken.", "full");
+        if (waiting(inv).length >= WAITLIST_MAX) fail("The table and the waitlist are full.", "full");
+      }
+      // A mistake earlier (out, then claims again from the same phone) reuses that entry's place in history.
+      if (mine) inv.entries = inv.entries.filter((x) => x !== mine);
+      inv.entries.push(e);
+      if (e.state === "in") seatPlayer(inv, e);
+      out.entryId = e.id;
+      break;
+    }
+    case "system.inviteDrop": {
+      const inv = inviteOf(cmd.inviteId);
+      const e = inviteEntry(inv, cmd.entryId);
+      if (e.state === "out" || e.state === "removed") break;
+      if (inv.sessionId) fail("The game has started. Tell the DM.", "closed");
+      const was = e.state;
+      e.state = "out";
+      e.outAt = ctx.now;
+      delete e.held;
+      delete e.movedUpAt;
+      delete e.told;
+      if (was === "in") {
+        unseatPlayer(e);
+        moveUp(inv);
+      }
+      break;
+    }
     case "system.arrivalStep": {
       const a = arriving(cmd.playerId).arrival!;
       if (cmd.step === "open") a.openedAt ??= ctx.now;

@@ -48,7 +48,8 @@ export function readiness(g: GameState): ReadyItem[] {
     const unclaimed = seated.filter((p) => !p.arrival?.claimedAt).map((p) => p.name);
     if (unclaimed.length) out.push({ level: "check", text: `No seat claimed yet: ${unclaimed.join(", ")}.`, page: "arrival" });
   }
-  const open = seated.filter((p) => !p.keyHash).map((p) => p.name);
+  // The DM's copy of the game says hasKey instead of the key's hash.
+  const open = seated.filter((p) => !p.keyHash && !(p as { hasKey?: boolean }).hasKey).map((p) => p.name);
   if (open.length) out.push({ level: "check", text: `Not locked to a phone yet: ${open.join(", ")}. Anyone with the code could open their page. Their Arrival link locks it.`, page: "players" });
   if (!g.doorClosed) out.push({ level: "check", text: "The door is open: anyone with the campaign code can join as a new player.", page: "players" });
 

@@ -5121,3 +5121,277 @@ html[data-view="dm"][data-phone] .dm-drawer {
     width: 100%;
   }
 }
+
+/* ---------- Invites: one link per game night ---------- */
+:where(html[data-view="dm"]) .tag.gold {
+  background: var(--dm-gold-soft);
+  color: var(--dm-gold);
+}
+:where(html[data-view="dm"]) .invite-thumb {
+  flex: none;
+  width: 56px;
+  height: 34px;
+  border-radius: var(--dm-r-sm);
+  object-fit: cover;
+  border: 1px solid var(--dm-border-strong);
+}
+:where(html[data-view="dm"]) .invite-thumb.blank {
+  background: linear-gradient(135deg, var(--dm-bg-3), var(--dm-bg-2));
+}
+:where(html[data-view="dm"]) .invite-thumb.big {
+  width: 96px;
+  height: 54px;
+}
+:where(html[data-view="dm"]) .invite-row .row-main {
+  min-width: 0;
+  background: none;
+  border: 0;
+  padding: 0;
+  text-align: left;
+  color: inherit;
+  cursor: pointer;
+}
+:where(html[data-view="dm"]) .invite-row.is-cancelled .row-title {
+  text-decoration: line-through;
+  color: var(--dm-text-3);
+}
+:where(html[data-view="dm"]) .invite-count {
+  flex: none;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+:where(html[data-view="dm"]) .invites-past {
+  margin-top: var(--dm-s5);
+}
+:where(html[data-view="dm"]) .invites-past summary {
+  cursor: pointer;
+  color: var(--dm-text-2);
+  font-size: 13.5px;
+  margin-bottom: var(--dm-s2);
+}
+:where(html[data-view="dm"]) .invite-editor {
+  display: grid;
+  gap: var(--dm-s5);
+}
+:where(html[data-view="dm"]) .invite-editor h3 {
+  margin: 0 0 var(--dm-s3);
+  font-size: 14px;
+  font-weight: 600;
+}
+:where(html[data-view="dm"]) .invite-editor h4 {
+  margin: var(--dm-s4) 0 var(--dm-s2);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--dm-text-3);
+}
+:where(html[data-view="dm"]) .invite-form {
+  display: grid;
+  gap: var(--dm-s3);
+}
+:where(html[data-view="dm"]) .invite-form h3:not(:first-child) {
+  margin-top: var(--dm-s3);
+}
+:where(html[data-view="dm"]) .invite-two,
+:where(html[data-view="dm"]) .invite-three {
+  display: grid;
+  gap: var(--dm-s3);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+:where(html[data-view="dm"]) .invite-three {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+@media (max-width: 640px) {
+  :where(html[data-view="dm"]) .invite-two,
+  :where(html[data-view="dm"]) .invite-three {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+:where(html[data-view="dm"]) .invite-art {
+  display: flex;
+  align-items: center;
+  gap: var(--dm-s2);
+  flex-wrap: wrap;
+}
+:where(html[data-view="dm"]) .invite-art img {
+  width: 96px;
+  height: 54px;
+  object-fit: cover;
+  border-radius: var(--dm-r-sm);
+  border: 2px solid var(--dm-gold);
+}
+:where(html[data-view="dm"]) .invite-art-pick {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(88px, 1fr));
+  gap: var(--dm-s2);
+  margin-top: var(--dm-s2);
+}
+:where(html[data-view="dm"]) .invite-art-pick button {
+  padding: 0;
+  border: 2px solid transparent;
+  border-radius: var(--dm-r-sm);
+  background: none;
+  cursor: pointer;
+  overflow: hidden;
+}
+:where(html[data-view="dm"]) .invite-art-pick button.on {
+  border-color: var(--dm-gold);
+}
+:where(html[data-view="dm"]) .invite-art-pick img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+}
+:where(html[data-view="dm"]) .invite-holds {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+:where(html[data-view="dm"]) .chip-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--dm-bg-3);
+  border: 1px solid var(--dm-border-strong);
+  font-size: 12.5px;
+  color: var(--dm-text-2);
+  cursor: pointer;
+}
+:where(html[data-view="dm"]) .chip-check.on {
+  background: var(--dm-gold-soft);
+  border-color: var(--dm-gold-line);
+  color: var(--dm-gold);
+}
+:where(html[data-view="dm"]) .chip-check input {
+  margin: 0;
+}
+:where(html[data-view="dm"]) .invite-actions {
+  flex-wrap: wrap;
+}
+:where(html[data-view="dm"]) .invite-preview {
+  display: grid;
+  gap: var(--dm-s2);
+  max-width: 360px;
+}
+:where(html[data-view="dm"]) .invite-bubble {
+  background: #2b6ef6;
+  color: #fff;
+  border-radius: 16px;
+  padding: 9px 12px;
+  font-size: 13px;
+  line-height: 1.35;
+}
+:where(html[data-view="dm"]) .invite-card {
+  border-radius: 12px;
+  overflow: hidden;
+  background: #fff;
+  color: #111;
+}
+:where(html[data-view="dm"]) .invite-card img {
+  width: 100%;
+  height: 150px;
+  object-fit: cover;
+  display: block;
+}
+:where(html[data-view="dm"]) .invite-card div {
+  padding: 10px 12px;
+  font-size: 13px;
+  display: grid;
+}
+:where(html[data-view="dm"]) .invite-card span {
+  color: #666;
+  font-size: 12px;
+}
+:where(html[data-view="dm"]) .invite-people {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+:where(html[data-view="dm"]) .invite-person {
+  display: flex;
+  align-items: center;
+  gap: var(--dm-s2);
+  padding: var(--dm-s2) 0;
+  border-bottom: 1px solid var(--dm-border);
+  font-size: 13.5px;
+  min-height: 44px;
+}
+:where(html[data-view="dm"]) .invite-person:last-child {
+  border-bottom: 0;
+}
+:where(html[data-view="dm"]) .invite-person .pg-avatar {
+  width: 28px;
+  height: 28px;
+  font-size: 12px;
+  color: var(--dm-gold);
+}
+:where(html[data-view="dm"]) .invite-person-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+:where(html[data-view="dm"]) .invite-person.open {
+  color: var(--dm-text-3);
+  padding-left: 36px;
+}
+:where(html[data-view="dm"]) .invite-person.untold {
+  background: var(--dm-warn-soft);
+  margin: 0 calc(-1 * var(--dm-s2));
+  padding-left: var(--dm-s2);
+  padding-right: var(--dm-s2);
+  border-radius: var(--dm-r-sm);
+}
+:where(html[data-view="dm"]) .invite-hold {
+  margin-top: var(--dm-s3);
+}
+:where(html[data-view="dm"]) .invite-hold select {
+  flex: 1;
+  min-width: 0;
+}
+:where(html[data-view="dm"]) .invite-gone {
+  margin-top: var(--dm-s3);
+  font-size: 13px;
+}
+:where(html[data-view="dm"]) .invite-gone summary {
+  cursor: pointer;
+  color: var(--dm-text-3);
+}
+:where(html[data-view="dm"]) .invite-more {
+  display: grid;
+  gap: var(--dm-s3);
+  border-top: 1px solid var(--dm-border);
+  padding-top: var(--dm-s4);
+}
+:where(html[data-view="dm"]) .invite-more .inline {
+  flex-wrap: wrap;
+  align-items: flex-end;
+}
+:where(html[data-view="dm"]) .inline-fld {
+  margin: 0;
+}
+:where(html[data-view="dm"]) .ready-invite {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 12px;
+  border: 1px solid var(--dm-gold-line);
+  background: var(--dm-gold-soft);
+  border-radius: 10px;
+  font-size: 13.5px;
+  line-height: 1.45;
+  cursor: pointer;
+}
+:where(html[data-view="dm"]) .ready-invite input {
+  margin-top: 3px;
+}
+:where(html[data-view="dm"]) .invite-row .tag,
+:where(html[data-view="dm"]) .invite-person .tag {
+  white-space: nowrap;
+  flex: none;
+}
