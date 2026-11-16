@@ -102,7 +102,7 @@ const arrivalBody = z.discriminatedUnion("type", [
 const createBody = z.object({
   dmKeyHash: z.string().regex(/^[0-9a-f]{64}$/),
   name: z.string().trim().max(80).optional(),
-  from: z.union([z.enum(["blank", "candlefair"]), z.string().regex(/^preset:[a-z0-9]{10}$/)]).optional(),
+  from: z.union([z.enum(["blank", "candlefair", "marrowmere"]), z.string().regex(/^preset:[a-z0-9]{10}$/)]).optional(),
 });
 
 const ledgerRemoveBody = z.object({
