@@ -4141,8 +4141,10 @@ html[data-view="tv"] .practice-stripe .practice-tag {
   gap: 4px;
   font-size: 0.85rem;
 }
+:where(html[data-view="dm"]) .amb-tile-foot > span:first-child {
+  flex-basis: 100%;
+}
 :where(html[data-view="dm"]) .amb-tile-foot .btn {
-  margin-left: auto;
   font-size: 0.75rem;
   padding: 2px 6px;
 }
