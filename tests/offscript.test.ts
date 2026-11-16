@@ -10,7 +10,7 @@ import { projectPlayer, projectTv } from "@/shared/projection";
 import { apply, CommandError, LOOSE_ENDS, type Ctx } from "@/shared/reducer";
 import { freshStart, seedGame } from "@/shared/seed";
 import { prepOf } from "@/shared/episodeBuilder";
-import { AMBIENT } from "@/shared/ambient";
+import { AMBIENT, isStoryteller } from "@/shared/ambient";
 import { hereOf, hereView, needsReview, readyClues } from "@/shared/offscript";
 import { fightFrom, generate, RUMORS } from "@/shared/generators";
 import { blankGame } from "@/shared/presets";
@@ -258,6 +258,17 @@ describe("ambient scenes", () => {
     dm({ type: "show", ref: "board" });
     expect(outside()).not.toContain("The docks at dusk.");
     expect(listAssets(g).filter((a) => a.group === "Ambient")).toHaveLength(AMBIENT.length);
+  });
+
+  it("include storyteller scenes for a narrator's frame, shown like any other", () => {
+    const story = AMBIENT.filter(isStoryteller).map((a) => a.id);
+    expect(story).toEqual(["fireside", "flickering-candle", "wizard-study", "storybook", "embers"]);
+    // They come after the places, so the panel can give them one heading.
+    expect(AMBIENT.findIndex(isStoryteller)).toBe(AMBIENT.length - story.length);
+    dm({ type: "ambient.show", id: "fireside", caption: "Gather round the fire…" });
+    expect(projectTv(g, 1).live.ambient).toEqual({ id: "fireside", caption: "Gather round the fire…" });
+    const asset = listAssets(g).find((a) => a.ref === "ambient/fireside");
+    expect(asset?.sub).toBe("Storyteller scene");
   });
 
   it("each scene is small, loads nothing from outside, and holds still with reduce-motion on", () => {

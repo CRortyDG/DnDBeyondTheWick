@@ -4106,6 +4106,15 @@ html[data-view="tv"] .practice-stripe .practice-tag {
   grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
   gap: var(--dm-s2);
 }
+:where(html[data-view="dm"]) .amb-group {
+  grid-column: 1 / -1;
+  margin: var(--dm-s2) 0 0;
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--dm-text-2);
+}
 :where(html[data-view="dm"]) .amb-tile {
   display: flex;
   flex-direction: column;
@@ -4134,7 +4143,7 @@ html[data-view="tv"] .practice-stripe .practice-tag {
   position: absolute;
   inset: 0;
 }
-/* Eleven moving thumbnails would cost the DM's laptop for nothing: they hold still. */
+/* Sixteen moving thumbnails would cost the DM's laptop for nothing: they hold still. */
 :where(html[data-view="dm"]) .amb-thumb .ambient * {
   animation: none !important;
 }

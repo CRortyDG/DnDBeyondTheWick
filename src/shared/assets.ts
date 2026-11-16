@@ -15,7 +15,7 @@
 
 import { entriesOf, entryScene, findRef, kindInfo, slugify } from "./discovery";
 import { boardNotes, findBoardNote, noteRef, type BoardNote } from "./board";
-import { AMBIENT, ambientById, type AmbientId } from "./ambient";
+import { AMBIENT, ambientById, isStoryteller, type AmbientDef, type AmbientId } from "./ambient";
 import type { Beat, BeatAction, Entry, GameState, Pin, Scene, SceneKind } from "./types";
 
 export type AssetGame = Pick<GameState, "scenes" | "entries"> & Partial<Pick<GameState, "quick" | "monsters" | "notices" | "jobs" | "flyers">>;
@@ -157,8 +157,8 @@ export function resolveRef(g: AssetGame, ref: string | null | undefined): Asset 
   return entryAsset(g, hit.entry);
 }
 
-function ambientAsset(a: (typeof AMBIENT)[number]): Asset {
-  return { ref: `ambient/${a.id}`, label: a.label, group: "Ambient", sub: "Ambient scene", ambient: a.id };
+function ambientAsset(a: AmbientDef): Asset {
+  return { ref: `ambient/${a.id}`, label: a.label, group: "Ambient", sub: isStoryteller(a) ? "Storyteller scene" : "Ambient scene", ambient: a.id };
 }
 
 function pinLabel(p: Pin): string {

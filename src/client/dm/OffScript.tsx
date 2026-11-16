@@ -6,8 +6,8 @@
 // DM-only. Nothing in here changes the TV unless the DM presses a Show,
 // Deliver-on-TV or Met-now button; everything else is the DM's own notes.
 
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { AMBIENT, ambientOfRef } from "@/shared/ambient";
+import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { AMBIENT, ambientOfRef, isStoryteller } from "@/shared/ambient";
 import { refForScene, resolveRef } from "@/shared/assets";
 import { entriesOf, kindInfo, stageLabel } from "@/shared/discovery";
 import { capturesOf, cluesOf, hereOf, hereView, placeTable, readyClues } from "@/shared/offscript";
@@ -602,8 +602,10 @@ function ScenesSection() {
         <input className="fld" value={caption} maxLength={80} placeholder="The coast road, dusk." onChange={(e) => setCaption(e.target.value)} />
       </label>
       <div className="amb-grid">
-        {AMBIENT.map((a) => (
-          <div key={a.id} className={`amb-tile${liveAmb === a.id ? " live" : ""}`}>
+        {AMBIENT.map((a, i) => (
+          <Fragment key={a.id}>
+          {isStoryteller(a) && !(i && isStoryteller(AMBIENT[i - 1])) ? <h4 className="amb-group">Storyteller</h4> : null}
+          <div className={`amb-tile${liveAmb === a.id ? " live" : ""}`}>
             <button type="button" className="amb-thumb" aria-label={`Show ${a.label} on the TV`} onClick={() => void run({ type: "ambient.show", id: a.id, caption: caption.trim() })}>
               <AmbientScene id={a.id} />
             </button>
@@ -628,6 +630,7 @@ function ScenesSection() {
               ) : null}
             </div>
           </div>
+          </Fragment>
         ))}
       </div>
     </section>
@@ -1033,7 +1036,14 @@ export function PlaceSceneFields({ place }: { place: Entry }) {
         <select className="fld" value={place.place?.scene ?? ""} onChange={(e) => void run({ type: "place.setup", entryId: place.id, scene: e.target.value || null })}>
           <option value="">None</option>
           <optgroup label="Ambient scenes">
-            {AMBIENT.map((a) => (
+            {AMBIENT.filter((a) => !isStoryteller(a)).map((a) => (
+              <option key={a.id} value={`ambient/${a.id}`}>
+                {a.label}
+              </option>
+            ))}
+          </optgroup>
+          <optgroup label="Storyteller scenes">
+            {AMBIENT.filter(isStoryteller).map((a) => (
               <option key={a.id} value={`ambient/${a.id}`}>
                 {a.label}
               </option>
