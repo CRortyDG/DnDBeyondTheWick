@@ -1,0 +1,5 @@
+# Static pages (the app shell) skip the Worker, so they need the same headers it adds to /api and /arrive.
+/*
+  Referrer-Policy: no-referrer
+  X-Robots-Tag: noindex, nofollow
+  X-Content-Type-Options: nosniff
