@@ -4557,3 +4557,13 @@ html[data-view="dm"][data-tablet] .dm-brand-text {
     padding-block: var(--dm-s2);
   }
 }
+
+/* Phones: the Bank's amount hint takes its own line instead of a one-word column beside Pay everyone. */
+@media (max-width: 520px) {
+  :where(html[data-view="dm"]) .bank-amount-foot {
+    flex-wrap: wrap;
+  }
+  :where(html[data-view="dm"]) .bank-amount-foot .note {
+    flex-basis: 100%;
+  }
+}
