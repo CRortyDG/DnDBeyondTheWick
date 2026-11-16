@@ -5,10 +5,12 @@
 // and a choice to skip the TV moment. Also the progress bar and the history.
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { progressOf, ranksOf, renownOf } from "@/shared/renown";
-import type { RenownChange } from "@/shared/types";
-import { partyName } from "@/shared/world";
+import { pointsOf, progressOf, rankForPoints, ranksOf, renownOf, thresholdsOf } from "@/shared/renown";
+import type { GameState, RenownChange } from "@/shared/types";
+import { characterPoints, partyName } from "@/shared/world";
 import { useDm } from "./context";
+import { Drawer } from "./Drawer";
+import { MenuItem, RowMenu } from "./RowMenu";
 
 /** "Known in town: 4 / 8 points to Trusted" and a small bar. */
 export function RenownProgress() {
@@ -100,12 +102,16 @@ export function RenownControl({ onDone }: { onDone?: () => void }) {
 
 const SOURCE: Record<RenownChange["source"], string> = { job: "Job", award: "Award", set: "Set by hand" };
 
-/** Every change to the Renown points, newest first, like the Bank ledger. */
+const signed = (n: number) => (n > 0 ? `+${n}` : n < 0 ? `−${-n}` : "0");
+
+/** Every change to the Renown points, newest first, like the Bank ledger. Each line can be fixed or undone. */
 export function RenownHistory() {
   const { view } = useDm();
   const log = view.state.renownLog ?? [];
   const ranks = ranksOf(view.state);
   const rows = useMemo(() => [...log].reverse(), [log]);
+  const [open, setOpen] = useState<{ id: string; mode: "edit" | "undo" } | null>(null);
+  const editing = open ? log.find((x) => x.id === open.id) : undefined;
   return (
     <details className="renown-history">
       <summary>Renown history ({log.length})</summary>
@@ -119,29 +125,155 @@ export function RenownHistory() {
               <th className="num">Points</th>
               <th>Reason</th>
               <th className="num">Total</th>
+              <th>
+                <span className="sr-only">Actions</span>
+              </th>
             </tr>
           </thead>
           <tbody>
             {rows.map((e) => (
-              <tr key={e.id}>
+              <tr key={e.id} className={open?.id === e.id ? "on" : undefined}>
                 <td>{e.chapter !== undefined ? e.chapter : <span className="note">before play</span>}</td>
                 <td>
                   {SOURCE[e.source]}
                   {e.label ? `: ${e.label}` : ""}
                   {e.partyId ? <span className="note"> · {partyName(view.state, e.partyId) ?? "a past party"}</span> : null}
                 </td>
-                <td className={`num ${e.amount < 0 ? "neg" : "pos"}`}>{e.amount > 0 ? `+${e.amount}` : e.amount < 0 ? `−${-e.amount}` : "0"}</td>
+                <td className={`num ${e.amount < 0 ? "neg" : "pos"}`}>{signed(e.amount)}</td>
                 <td>
                   {e.reason}
                   {e.rankTo !== e.rankFrom ? <span className="note">{e.reason ? " · " : ""}now {ranks[e.rankTo]?.name}</span> : null}
+                  {e.edited ? <span className="note"> · edited</span> : null}
                 </td>
                 <td className="num">{e.total}</td>
+                <td className="renown-history-menu">
+                  <RowMenu label={`Renown ${signed(e.amount)}${e.reason ? `: ${e.reason}` : ""}`}>
+                    <MenuItem onClick={() => setOpen({ id: e.id, mode: "edit" })}>{e.source === "set" ? "Edit reason" : "Edit"}</MenuItem>
+                    <MenuItem danger onClick={() => setOpen({ id: e.id, mode: "undo" })}>
+                      {e.source === "set" ? "Remove from history" : "Undo"}
+                    </MenuItem>
+                  </RowMenu>
+                </td>
               </tr>
             ))}
           </tbody>
         </table>
       ) : null}
+      {editing && open ? <RenownChangeDrawer key={`${editing.id}-${open.mode}`} e={editing} mode={open.mode} onClose={() => setOpen(null)} /> : null}
     </details>
+  );
+}
+
+/**
+ * What putting delta points on change e's people would do to the rank: reach a new one,
+ * or fall short of the one they hold (which only lowers it if the DM says so).
+ */
+function rankEffect(s: GameState, e: RenownChange, delta: number): { up: number | null; down: number | null; points: number } {
+  const who = s.world && e.playerIds?.length ? s.players.filter((p) => e.playerIds!.includes(p.id)) : null;
+  const people = who?.length ? who.map((p) => ({ rank: p.renown ?? renownOf(s), points: characterPoints(s, p) })) : [{ rank: renownOf(s), points: pointsOf(s) }];
+  let up: number | null = null;
+  let down: number | null = null;
+  for (const p of people) {
+    const reach = rankForPoints(s, Math.max(0, p.points + delta));
+    if (reach > p.rank) up = Math.max(up ?? 0, reach);
+    if (reach < p.rank) down = Math.min(down ?? 99, reach);
+  }
+  return { up, down, points: Math.max(0, people[0].points + delta) };
+}
+
+/** Fix a line's points and reason, or undo it, with the rank decision spelled out. */
+function RenownChangeDrawer({ e, mode, onClose }: { e: RenownChange; mode: "edit" | "undo"; onClose: () => void }) {
+  const { view, run } = useDm();
+  const s = view.state;
+  const ranks = ranksOf(s);
+  const isSet = e.source === "set";
+  const [amount, setAmount] = useState(String(e.amount));
+  const [reason, setReason] = useState(e.reason);
+  // An accident that also raised the rank: lowering it back is the likely fix.
+  const [lower, setLower] = useState(e.rankTo > e.rankFrom);
+  const [tv, setTv] = useState(true);
+  const raw = amount.trim().replace("−", "-");
+  const n = /^[+-]?\d{1,2}$/.test(raw) ? Number(raw) : NaN;
+  const okAmount = isSet || (Number.isInteger(n) && Math.abs(n) <= 50 && (e.source === "job" ? n >= 0 : n !== 0));
+  const delta = mode === "undo" ? (isSet ? 0 : -e.amount) : isSet || !okAmount ? 0 : n - e.amount;
+  const fx = rankEffect(s, e, delta);
+  const many = !!(s.world && e.playerIds && e.playerIds.length > 0);
+  const changed = mode === "undo" || delta !== 0 || reason.trim() !== e.reason;
+  const from = `${SOURCE[e.source]}${e.label ? `: ${e.label}` : ""}${e.chapter !== undefined ? ` · Chapter ${e.chapter}` : ""}`;
+
+  const save = async () => {
+    if (!okAmount || !changed) return;
+    const lowerIt = fx.down !== null && lower;
+    const ok =
+      mode === "undo"
+        ? await run({ type: "renown.undo", changeId: e.id, ...(lowerIt ? { lower: true } : {}) }, isSet ? "Removed from the history." : `Undone. That ${signed(e.amount)} is gone.`)
+        : await run(
+            { type: "renown.edit", changeId: e.id, ...(isSet ? {} : { amount: n }), reason: reason.trim(), ...(lowerIt ? { lower: true } : {}), ...(fx.up !== null && !tv ? { tv: false } : {}) },
+            "Renown history fixed.",
+          );
+    if (ok) onClose();
+  };
+
+  return (
+    <Drawer title={mode === "undo" ? (isSet ? "Remove from history" : "Undo Renown change") : "Edit Renown change"} subtitle={from} onClose={onClose} closeLabel="Cancel">
+      <div className="box renown-fix">
+        {mode === "edit" ? (
+          <>
+            {isSet ? (
+              <p className="note">A rank you set by hand. Its points follow the rank, so only the reason changes here. To change the rank itself, use − and + above.</p>
+            ) : (
+              <label>
+                Points {e.source === "job" ? "(0 or more)" : "(use - to take away)"}
+                <input className="fld amt" inputMode="numeric" value={amount} onChange={(ev) => setAmount(ev.target.value)} aria-invalid={!okAmount} />
+              </label>
+            )}
+            <label>
+              Reason {e.source === "award" || isSet ? "(also fixed in the Chronicle)" : ""}
+              <input className="fld" value={reason} maxLength={200} onChange={(ev) => setReason(ev.target.value)} />
+            </label>
+          </>
+        ) : isSet ? (
+          <p className="note">This only takes the line out of the history. The rank and points stay; change them with − and + above.</p>
+        ) : (
+          <p>
+            Takes {signed(e.amount)} back off {many ? "everyone who got it" : "the party"} and removes the line{e.source === "award" ? " and its Chronicle entry" : ""}.
+          </p>
+        )}
+
+        {delta !== 0 ? (
+          <p className="note">
+            {many ? `Their points move by ${signed(delta)}.` : `Points go from ${pointsOf(s)} to ${fx.points}.`} Later totals in the history move with it.
+          </p>
+        ) : null}
+
+        {fx.down !== null ? (
+          <div className="renown-fix-rank">
+            <p>
+              That's below what {many ? "their rank needs" : `${ranks[renownOf(s)].name} needs (${thresholdsOf(s)[renownOf(s)]})`}. Falling short never lowers the rank on its own.
+            </p>
+            <label className="check">
+              <input type="checkbox" checked={lower} onChange={(ev) => setLower(ev.target.checked)} /> Also lower the rank to {ranks[fx.down].name}
+            </label>
+            {lower ? <p className="note">Quiet: no TV moment, and the rank-up's Chronicle line goes if this change caused it.</p> : null}
+          </div>
+        ) : null}
+
+        {fx.up !== null ? (
+          <div className="renown-fix-rank">
+            <p>This reaches {ranks[fx.up].name}.</p>
+            <label className="check">
+              <input type="checkbox" checked={tv} onChange={(ev) => setTv(ev.target.checked)} /> Play the Renown moment on the TV
+            </label>
+          </div>
+        ) : null}
+
+        <div className="fx-add-row">
+          <button className={`btn ${mode === "undo" ? "danger" : "primary"}`} type="button" disabled={!okAmount || !changed} onClick={() => void save()}>
+            {mode === "undo" ? (isSet ? "Remove" : "Undo it") : "Save"}
+          </button>
+        </div>
+      </div>
+    </Drawer>
   );
 }
 

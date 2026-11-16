@@ -4567,3 +4567,12 @@ html[data-view="dm"][data-tablet] .dm-brand-text {
     flex-basis: 100%;
   }
 }
+
+/* Fixing a Renown history line: the ⋯ menu column and the drawer. */
+:where(html[data-view="dm"]) .renown-history-table td.renown-history-menu { width: 1%; padding: 0 2px; vertical-align: middle; }
+:where(html[data-view="dm"]) .renown-history-table tr.on td { background: var(--dm-gold-soft); }
+:where(html[data-view="dm"]) .renown-fix { display: grid; gap: var(--dm-s3); }
+:where(html[data-view="dm"]) .renown-fix label:not(.check) { display: grid; gap: 4px; }
+:where(html[data-view="dm"]) .renown-fix .amt { max-width: 6em; }
+:where(html[data-view="dm"]) .renown-fix-rank { display: grid; gap: var(--dm-s2); padding: var(--dm-s2) var(--dm-s3); border: 1px solid var(--dm-border); border-radius: var(--dm-r-sm); }
+:where(html[data-view="dm"]) .renown-fix-rank p { margin: 0; }

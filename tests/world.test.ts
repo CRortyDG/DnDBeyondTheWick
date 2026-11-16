@@ -245,6 +245,30 @@ describe("party things", () => {
     expect(phone("p2").renown.progress).toMatchObject({ points: 2 });
   });
 
+  it("fixing a Renown line changes the characters who got it, here or away", () => {
+    twoParties();
+    dm({ type: "party.play", partyId: B });
+    dm({ type: "renown.points", amount: 5, reason: "Saved the sons", tv: false });
+    const wrong = g.renownLog!.at(-1)!.id;
+    dm({ type: "party.play", partyId: A });
+    dm({ type: "player.update", playerId: "p1", patch: { away: true } });
+    dm({ type: "renown.points", amount: 2, tv: false });
+    // Party B's award was meant to be 3: Brin (away) and p3 drop, p2 at the table doesn't.
+    dm({ type: "renown.edit", changeId: wrong, amount: 3, lower: true });
+    const pl = (id: string) => g.players.find((p) => p.id === id)!;
+    expect(pl("p1").renownPoints).toBe(3);
+    expect(pl("p3").renownPoints).toBe(3);
+    expect(pl("p1").renown).toBe(1);
+    expect(pl("p2").renownPoints).toBe(2);
+    expect(g.renownPoints).toBe(2);
+    // The later line was party A's (p2 only), so its total stays.
+    expect(g.renownLog!.at(-1)!.total).toBe(2);
+    dm({ type: "renown.undo", changeId: wrong, lower: true });
+    expect(pl("p3").renownPoints).toBe(0);
+    expect(pl("p3").renown).toBe(0);
+    expect(pl("p2").renownPoints).toBe(2);
+  });
+
   it("leads and votes belong to the party at the table", () => {
     twoParties();
     dm({ type: "party.play", partyId: A });

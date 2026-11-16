@@ -31,7 +31,7 @@ import { applyStory, isStoryCommand } from "./storyReducer";
 import { ambientById } from "./ambient";
 import { capturesOf, CAPTURES_MAX, cluesOf, CLUES_MAX, hereRecord, writeHere } from "./offscript";
 import type { Capture, Clue } from "./types";
-import { catchUp, materialize, partiesFor, partiesOf, PARTIES_MAX, PARTY_COLORS, partyById, presentIds, recordKnowledge, seedKnowledge, tableParty, tellTable, tidyLive, WORLD_EVENTS_MAX } from "./world";
+import { catchUp, characterPoints, materialize, partiesFor, partiesOf, PARTIES_MAX, PARTY_COLORS, partyById, presentIds, recordKnowledge, seedKnowledge, tableParty, tablePoints, tableRenown, tellTable, tidyLive, WORLD_EVENTS_MAX } from "./world";
 import { pendingPlacement, STORY_SECTION, syncStoryStatus } from "./episodeBuilder";
 import type { Flyer, Party, WorldEvent } from "./types";
 import type { Actor, Beat, BeatAction, Entry, EntryFact, Episode, FlyerText, Stage, GameState, Item, ItemTier, Job, Lead, LedgerEntry, LedgerKind, MapData, MapToken, Note, Pin, PinLink, Player, Rental, RenownChange, Scene, Session, SessionRun, Shop, StoryBlock, TradeRequest, Vote } from "./types";
@@ -96,6 +96,12 @@ export interface Result {
 
 function fail(msg: string, code?: string): never {
   throw new CommandError(msg, code);
+}
+
+/** The Chronicle line for a Renown award: "Renown +2: Saved Winterfest." */
+function awardLine(amount: number, why: string): string {
+  const sign = amount > 0 ? `+${amount}` : `−${-amount}`;
+  return `Renown ${sign}${why ? `: ${why}` : ""}.`.replace(/([.!?])\.$/, "$1");
 }
 
 export function isDmCommand(type: string): boolean {
@@ -170,6 +176,10 @@ function importBulk(input: GameState, cmd: Extract<Command, { type: "import.bulk
 
 /** A person's DM-only notes (the Worldbuilder writes these too). */
 const PERSON_NOTES = ["wants", "knows", "voice", "look", "quirk"] as const;
+/** Pressing Long rest again within this long doesn't log a second rest. */
+const REST_REPEAT_MS = 30 * 60_000;
+/** "Ana", "Ana and Bo", "Ana, Bo and Cy". */
+const listNames = (names: string[]) => (names.length < 2 ? names.join("") : `${names.slice(0, -1).join(", ")} and ${names.at(-1)}`);
 
 /**
  * Approved Worldbuilder drafts. Each op runs as the DM command that makes the
@@ -560,6 +570,54 @@ function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
     logRenown({ ...c, amount, rankFrom: was, rankTo: renownOf(s) });
   };
 
+  /**
+   * Fixing the Renown history: put delta more points (or fewer) on everyone who got
+   * change e, and move the totals of the later lines they share. A new rank reached is
+   * raised as usual (Chronicle, TV unless tv is false); falling short only lowers it with lower.
+   */
+  const shiftRenown = (e: RenownChange, delta: number, lower: boolean, tv: boolean | undefined) => {
+    if (!delta) return;
+    const clamp = (n: number) => Math.max(0, Math.min(RENOWN_POINTS_MAX * 2, n));
+    const log = s.renownLog ?? [];
+    const who = e.playerIds?.length ? new Set(e.playerIds) : null;
+    const shares = (x: RenownChange) => !s.world || !who || !x.playerIds?.length || x.playerIds.some((id) => who.has(id));
+    for (const x of log.slice(log.indexOf(e))) if (shares(x)) x.total = clamp(x.total + delta);
+    const nextRank = (rank: number, points: number) => {
+      const reach = rankForPoints(s, points);
+      return reach > rank || (lower && reach < rank) ? reach : rank;
+    };
+    if (s.world && who) {
+      // Each character who got it, here or not; then the table is worked out again.
+      for (const p of s.players) {
+        if (!who.has(p.id)) continue;
+        const pts = clamp(characterPoints(s, p) + delta);
+        p.renown = nextRank(p.renown ?? renownOf(s), pts);
+        p.renownPoints = pts;
+      }
+      const here = presentIds(s);
+      if (!here.some((id) => who.has(id))) return;
+      setRank(tableRenown(s, here), undefined, tv);
+      s.renownPoints = tablePoints(s, here);
+      return;
+    }
+    const pts = clamp(pointsOf(s) + delta);
+    setRank(nextRank(renownOf(s), pts), undefined, tv);
+    s.renownPoints = pts;
+  };
+  /** The DM's own untouched Chronicle line written with change e, if it's still there. */
+  const renownNote = (e: RenownChange, test: (text: string) => boolean) =>
+    (s.notes ?? []).find((n) => n.authorId === DM_AUTHOR && n.createdAt === e.at && n.editedAt === undefined && test(n.text));
+  const dropNote = (n: Note | undefined) => {
+    if (n) s.notes = (s.notes ?? []).filter((x) => x !== n);
+  };
+  /** The rank-up line change e wrote, once the rank it reached is gone again. */
+  const dropRankUpNote = (e: RenownChange) => {
+    if (e.rankTo <= e.rankFrom) return;
+    const name = ranksOf(s)[e.rankTo]?.name;
+    if (name && renownOf(s) < e.rankTo) dropNote(renownNote(e, (t) => t.startsWith(`Renown: the party is now ${name}.`)));
+  };
+  const renownChange = (changeId: string) => (s.renownLog ?? []).find((x) => x.id === changeId) ?? fail("That Renown change isn't in the history any more.", "recheck");
+
   const move = (p: Player, amountCp: number, note: string, kind: LedgerKind, extra: Partial<LedgerEntry> = {}) => {
     p.balanceCp += amountCp;
     ledger.push({
@@ -932,6 +990,15 @@ function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
     if (!pl || (s.notes ?? []).length >= NOTES_MAX) return;
     const n = addNote(DM_AUTHOR, "The DM", `The party went to ${pl.name}.`, [pl.name], undefined);
     n.hidden = true;
+  };
+  /** A long rest gets a line in the Chronicle. A second press soon after (same chapter) doesn't add another. */
+  const logRest = (who: Player[] | null) => {
+    if ((s.notes ?? []).length >= NOTES_MAX) return;
+    const names = (who ?? []).map((p) => p.character?.trim() || p.name);
+    const text = who && names.length ? `${listNames(names)} took a long rest.` : "The party took a long rest.";
+    const last = (s.notes ?? []).at(-1);
+    if (last && last.authorId === DM_AUTHOR && last.text === text && last.sessionId === chapterOf(undefined) && ctx.now - last.createdAt < REST_REPEAT_MS) return;
+    addNote(DM_AUTHOR, "The DM", text, [], undefined);
   };
   /** Showing a place, or its pin on a map, means the party is there. */
   const followShown = (a: { entry?: Entry; pin?: Pin; scene?: Scene }) => {
@@ -2062,9 +2129,57 @@ function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
     }
     case "renown.points": {
       const why = cmd.reason?.trim() ?? "";
-      const sign = cmd.amount > 0 ? `+${cmd.amount}` : `−${-cmd.amount}`;
-      chronicle(`Renown ${sign}${why ? `: ${why}` : ""}.`.replace(/([.!?])\.$/, "$1"));
+      chronicle(awardLine(cmd.amount, why));
       addRenown(cmd.amount, { source: "award", reason: why }, cmd.tv);
+      break;
+    }
+    case "renown.edit": {
+      const e = renownChange(cmd.changeId);
+      const why = cmd.reason === undefined ? e.reason : cmd.reason.trim();
+      const amount = e.source === "set" || cmd.amount === undefined ? e.amount : cmd.amount;
+      if (e.source === "award" && amount === 0) fail("Give or take at least one point, or undo it instead.");
+      if (e.source === "job" && amount < 0) fail("A job can't take Renown away. Set it to 0 or undo it.");
+      if (amount === e.amount && why === e.reason) break;
+      // Its Chronicle line says the new points and reason.
+      if (e.source === "award") {
+        const n = renownNote(e, (t) => t === awardLine(e.amount, e.reason));
+        if (n) n.text = awardLine(amount, why);
+      } else if (e.source === "job" && amount !== e.amount) {
+        const tail = ` +${e.amount} Renown.`;
+        const n = renownNote(e, (t) => t.startsWith("Job done:") && (e.amount ? t.endsWith(tail) : true));
+        if (n) n.text = (e.amount ? n.text.slice(0, -tail.length) : n.text) + (amount ? ` +${amount} Renown.` : "");
+      } else if (e.source === "set" && why !== e.reason) {
+        const name = ranksOf(s)[e.rankTo]?.name;
+        const n = name ? renownNote(e, (t) => t.startsWith(`Renown: the party is now ${name}.`)) : undefined;
+        const head = `Renown: the party is now ${name}.`;
+        if (n) {
+          if (why || e.rankTo > e.rankFrom) n.text = `${head} ${why || `${ranksOf(s)[e.rankTo].meaning}.`}`;
+          else dropNote(n);
+        } else if (why && name) chronicle(`${head} ${why}`);
+      }
+      const delta = amount - e.amount;
+      e.amount = amount;
+      e.reason = why;
+      e.edited = ctx.now;
+      const rankWas = renownOf(s);
+      shiftRenown(e, delta, !!cmd.lower, cmd.tv);
+      dropRankUpNote(e);
+      // The line says the rank it leaves the party at now.
+      if (renownOf(s) !== rankWas) e.rankTo = renownOf(s);
+      break;
+    }
+    case "renown.undo": {
+      const e = renownChange(cmd.changeId);
+      if (e.source === "award") dropNote(renownNote(e, (t) => t === awardLine(e.amount, e.reason)));
+      else if (e.source === "job" && e.amount) {
+        const tail = ` +${e.amount} Renown.`;
+        const n = renownNote(e, (t) => t.startsWith("Job done:") && t.endsWith(tail));
+        if (n) n.text = n.text.slice(0, -tail.length);
+      }
+      // A rank set by hand only leaves the history: undo it with − / + instead.
+      if (e.source !== "set") shiftRenown(e, -e.amount, !!cmd.lower, false);
+      dropRankUpNote(e);
+      s.renownLog = (s.renownLog ?? []).filter((x) => x !== e);
       break;
     }
     case "renown.progress":
@@ -2330,6 +2445,7 @@ function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
         p.hp.cur = p.hp.max;
         p.hp.temp = 0;
       }
+      logRest(cmd.playerIds ? who : null);
       break;
     }
 
