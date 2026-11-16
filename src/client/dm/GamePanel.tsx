@@ -21,7 +21,7 @@ export function GamePanel() {
   const download = () => downloadBackup(ident, toast);
 
   const origin = originOf(s);
-  const startLabel = origin.kind === "blank" ? "a blank campaign" : origin.kind === "candlefair" ? "the original Candlefair" : `the preset \u201c${origin.name}\u201d`;
+  const startLabel = origin.kind === "blank" ? "a blank campaign" : origin.kind === "candlefair" ? "the original Candlefair" : origin.kind === "marrowmere" ? "The Bell under Marrowmere" : `the preset \u201c${origin.name}\u201d`;
   const reset = async (mode: "play" | "all") => {
     const msg =
       mode === "play"

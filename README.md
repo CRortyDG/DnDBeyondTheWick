@@ -4,6 +4,8 @@ A table companion for **Tales from the Flickering Candle**. It runs next to D&D 
 
 Anyone can start a campaign from the front page. Each campaign has a short code (like `wick7kq`) and its own DM key.
 
+A new campaign starts blank, from a saved preset, or from the premade starter **The Bell under Marrowmere**: an original lake-town campaign with a map, portraits, an Arrival intro, three shops, people and places to discover, two monsters, job flyers, a rumor table and the episode-one run sheet "The Bell That Rang Twice". Its content is in `src/server/seed-marrowmere.ts` and its pictures in `public/art/marrowmere/`. Campaigns that started from Candlefair (before this) keep their Candlefair content, and **Reset everything** still returns them to it.
+
 | Who | Open | What it does |
 | --- | --- | --- |
 | Anyone | `https://dnd.calebs.garden/` | Join a table with its campaign code, or start a new campaign. |

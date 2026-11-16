@@ -8,7 +8,7 @@ import { emptyStory } from "./story";
 import type { GameState, Player } from "./types";
 
 /** Where a campaign started. Missing on campaigns made before presets: they started as Candlefair. */
-export type Origin = { kind: "blank" } | { kind: "candlefair" } | { kind: "preset"; code: string; name: string };
+export type Origin = { kind: "blank" } | { kind: "candlefair" } | { kind: "marrowmere" } | { kind: "preset"; code: string; name: string };
 
 export function originOf(g: Pick<GameState, "origin">): Origin {
   return g.origin ?? { kind: "candlefair" };

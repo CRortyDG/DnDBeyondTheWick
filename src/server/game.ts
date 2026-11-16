@@ -3,6 +3,7 @@ import { displayNameFrom, isReservedHandle, normaliseGameId, normaliseHandle } f
 import { projectDm, projectPlayer, projectTv, type View } from "@/shared/projection";
 import { apply, CommandError } from "@/shared/reducer";
 import { blankGame, candlefairGame, fromPreset } from "@/shared/presets";
+import { marrowmereGame } from "./seed-marrowmere";
 import { seatedCount, seatsOf } from "@/shared/seed";
 import type { Actor, GameState, LedgerEntry } from "@/shared/types";
 import { isDmKey, keyMatches, makeToken, sha256 } from "./auth";
@@ -197,13 +198,14 @@ export async function hello(gameRaw: string | null, rawPlayer: string | null, ke
   return { status: "ok", view: await viewFor(store, game, actorOf(who)), handle: normaliseHandle(rawPlayer ?? "") };
 }
 
-/** Where a new campaign starts: "blank" (the default), "candlefair", or "preset:<code>". */
+/** Where a new campaign starts: "blank" (the default), "candlefair", "marrowmere", or "preset:<code>". */
 export type StartFrom = string | undefined;
 
 /** The starting state for a campaign, blank by default. A preset is loaded from the preset store. */
 export async function startingState(store: Store, game: string, name: string | undefined, from: StartFrom): Promise<GameState> {
   if (!from || from === "blank") return blankGame(game, name);
   if (from === "candlefair") return candlefairGame(game, name);
+  if (from === "marrowmere") return marrowmereGame(game, name);
   if (from.startsWith("preset:")) {
     if (!store.presets) throw new HttpError(503, "Presets aren't available here.");
     const p = await loadPreset(store.presets, from.slice(7));

@@ -158,7 +158,7 @@ function StartForm({ onCreated, onBack }: { onCreated: (c: { game: string; key: 
   const [code, setCode] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  // "blank", "candlefair", or a preset code.
+  // "blank", "marrowmere" (the premade starter), or a preset code.
   const [from, setFrom] = useState("blank");
   const [mine] = useState(devicePresets);
   const codeChars = code.trim().replace(/[^a-z0-9]/gi, "").length;
@@ -184,7 +184,7 @@ function StartForm({ onCreated, onBack }: { onCreated: (c: { game: string; key: 
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
-                from: from === "blank" || from === "candlefair" ? from : `preset:${from}`,
+                from: from === "blank" || from === "marrowmere" ? from : `preset:${from}`,
                 ...(name.trim() ? { name: name.trim() } : {}),
                 ...(code.trim() ? { code: code.trim() } : {}),
               }),
@@ -206,7 +206,7 @@ function StartForm({ onCreated, onBack }: { onCreated: (c: { game: string; key: 
             value={name}
             onChange={(e) => setName(e.target.value)}
             maxLength={80}
-            placeholder={from === "candlefair" ? "Tales from the Flickering Candle" : "A new campaign"}
+            placeholder={from === "marrowmere" ? "The Bell under Marrowmere" : "A new campaign"}
           />
         </label>
         <StartFrom from={from} onFrom={setFrom} mine={mine} />
@@ -246,7 +246,7 @@ function StartForm({ onCreated, onBack }: { onCreated: (c: { game: string; key: 
 }
 
 /**
- * What the campaign starts with: nothing (the default), the built-in Candlefair
+ * What the campaign starts with: nothing (the default), the premade Marrowmere
  * setup, a preset this device saved, or a preset code someone gave you.
  */
 function StartFrom({ from, onFrom, mine }: { from: string; onFrom: (f: string) => void; mine: { code: string; name: string }[] }) {
@@ -254,7 +254,7 @@ function StartFrom({ from, onFrom, mine }: { from: string; onFrom: (f: string) =
   const [found, setFound] = useState<PresetInfo | null>(null);
   const [lookErr, setLookErr] = useState<string | null>(null);
   const clean = typed.trim().toLowerCase();
-  const usingTyped = from !== "blank" && from !== "candlefair" && !mine.some((p) => p.code === from);
+  const usingTyped = from !== "blank" && from !== "marrowmere" && !mine.some((p) => p.code === from);
   useEffect(() => {
     setFound(null);
     setLookErr(null);
@@ -283,7 +283,7 @@ function StartFrom({ from, onFrom, mine }: { from: string; onFrom: (f: string) =
     <fieldset className="hm-from">
       <legend className="hm-label">Start from</legend>
       {option("blank", "A blank campaign", "Nothing set up: no shops, people, maps or episodes. Build it your way.")}
-      {option("candlefair", "Candlefair", "The Flickering Candle starter: shops, maps, people, the episode-one run sheet, monsters and the storyboard.")}
+      {option("marrowmere", "The Bell under Marrowmere", "A ready-to-run starter: a lake town on stilts, a missing bellringer, shops, a map, people to discover, monsters and the episode-one run sheet.")}
       {mine.map((p) => option(p.code, p.name, `Your preset · code ${p.code}`))}
       <label className={`hm-opt${usingTyped ? " on" : ""}`}>
         <input type="radio" name="from" checked={usingTyped} onChange={() => onFrom(found ? found.code : "")} />
