@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { markTabletOffered, setTabletMode, shouldOfferTablet, toggleFullScreen, useFullScreen, useTablet, type TabletMode, useTabletMode } from "./tablet";
+import { markTabletOffered, setLayoutMode, setTabletMode, shouldOfferTablet, toggleFullScreen, useFullScreen, useLayoutMode, usePhone, useTablet, type LayoutMode, type TabletMode, useTabletMode } from "./tablet";
 
 /** Full screen hides the browser's bars. Only shown in tablet mode, where the room matters most. */
 export function FullScreenButton({ small }: { small?: boolean }) {
@@ -65,13 +65,34 @@ const MODES: { id: TabletMode; label: string }[] = [
   { id: "auto", label: "Only when folded" },
 ];
 
+const LAYOUTS: { id: LayoutMode; label: string }[] = [
+  { id: "auto", label: "Auto" },
+  { id: "phone", label: "Phone" },
+  { id: "desktop", label: "Desktop" },
+];
+
 /** Settings → This device. */
 export function TabletSetting() {
   const mode = useTabletMode();
+  const layout = useLayoutMode();
+  const phone = usePhone();
   return (
     <section className="box tablet-setting">
       <h3>This device</h3>
       <p className="note">Only changes this screen. Your players and the TV don&rsquo;t see a difference.</p>
+      <div className="tablet-setting-row">
+        <span id="layout-mode-label">Layout</span>
+        <div className="seg" role="radiogroup" aria-labelledby="layout-mode-label">
+          {LAYOUTS.map((m) => (
+            <button key={m.id} type="button" role="radio" aria-checked={layout === m.id} className={`btn small${layout === m.id ? " on" : ""}`} onClick={() => setLayoutMode(m.id)}>
+              {m.label}
+            </button>
+          ))}
+        </div>
+      </div>
+      <p className="note">
+        Phone layout: one slim top bar with a ⋯ menu, pages and the TV panel along the bottom, and a number pad in fights. Auto uses it on narrow screens{phone ? " (like this one)" : ""}.
+      </p>
       <div className="tablet-setting-row">
         <span id="tablet-mode-label">Tablet mode</span>
         <div className="seg" role="radiogroup" aria-labelledby="tablet-mode-label">

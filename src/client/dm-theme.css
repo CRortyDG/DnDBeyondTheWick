@@ -4576,3 +4576,463 @@ html[data-view="dm"][data-tablet] .dm-brand-text {
 :where(html[data-view="dm"]) .renown-fix .amt { max-width: 6em; }
 :where(html[data-view="dm"]) .renown-fix-rank { display: grid; gap: var(--dm-s2); padding: var(--dm-s2) var(--dm-s3); border: 1px solid var(--dm-border); border-radius: var(--dm-r-sm); }
 :where(html[data-view="dm"]) .renown-fix-rank p { margin: 0; }
+
+/* ===========================================================================
+   Phone layout (Settings → This device; automatic under 700px). DmApp puts
+   data-phone (and data-tablet, for the touch rules) on <html>.
+   One slim top bar, pages and the TV panel along the bottom, sheets for the rest.
+   =========================================================================== */
+html[data-view="dm"][data-phone] .dm-shell {
+  --dm-top-h: 56px;
+  --pm-bar-h: 62px;
+}
+html[data-view="dm"][data-phone] .dm-shell > .pm-top {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: var(--dm-s2);
+  height: auto;
+  min-height: 56px;
+  padding: 6px 10px;
+  padding-top: max(6px, env(safe-area-inset-top));
+}
+html[data-view="dm"][data-phone] .pm-top .dm-brand {
+  flex: 1 1 auto;
+  min-width: 0;
+  gap: var(--dm-s2);
+}
+html[data-view="dm"][data-phone] .pm-top .dm-brand-text {
+  display: block;
+  min-width: 0;
+}
+html[data-view="dm"][data-phone] .pm-top .dm-title {
+  font: 600 15px var(--dm-font-ui);
+  letter-spacing: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+html[data-view="dm"][data-phone] .pm-top .dm-subtitle {
+  display: none;
+}
+/* Live / Reconnecting shrinks to a dot under the name. */
+html[data-view="dm"][data-phone] .pm-top > .conn {
+  position: absolute;
+  left: 40px;
+  bottom: 7px;
+  width: 8px;
+  height: 8px;
+  min-height: 0;
+  padding: 0;
+  overflow: hidden;
+  color: transparent;
+  border-radius: 50%;
+  background: var(--dm-danger);
+}
+html[data-view="dm"][data-phone] .pm-top > .conn.ok {
+  background: #5fbf72;
+}
+html[data-view="dm"][data-phone] .pm-top > .conn::before {
+  display: none;
+}
+html[data-view="dm"][data-phone] .pm-top > .spacer {
+  flex: 0 0 0;
+}
+/* Dice is an icon here; the main button keeps its words. */
+html[data-view="dm"][data-phone] .pm-top > .btn {
+  flex: none;
+  min-height: 44px;
+  font-size: 14px;
+  white-space: nowrap;
+}
+html[data-view="dm"][data-phone] .pm-top > .btn:not(.primary) {
+  width: 44px;
+  padding: 0;
+  justify-content: center;
+  font-size: 0;
+  position: relative;
+}
+html[data-view="dm"][data-phone] .pm-top > .btn:not(.primary) svg {
+  width: 20px;
+  height: 20px;
+}
+html[data-view="dm"][data-phone] .pm-top > .btn .badge {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  font-size: 10px;
+}
+html[data-view="dm"][data-phone] .pm-top > .btn.primary {
+  padding: 0 14px;
+}
+:where(html[data-view="dm"]) .pm-dot-badge {
+  position: absolute;
+  top: 7px;
+  right: 7px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--dm-wax, #c0432f);
+}
+
+/* Sheets: rise from the bottom over a dimmed page. */
+:where(html[data-view="dm"]) .pm-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  background: rgba(0, 0, 0, 0.55);
+}
+html[data-view="dm"][data-phone] .pm-sheet,
+html[data-view="dm"][data-phone] .pm-more.open {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 61;
+  max-height: 85vh;
+  max-height: 85dvh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  margin: 0;
+  padding: 6px 16px calc(20px + env(safe-area-inset-bottom));
+  background: var(--dm-bg-2);
+  border: 1px solid var(--dm-border-strong);
+  border-bottom: 0;
+  border-radius: 16px 16px 0 0;
+  box-shadow: 0 -12px 40px rgba(0, 0, 0, 0.5);
+}
+:where(html[data-view="dm"]) .pm-grab {
+  width: 40px;
+  height: 4px;
+  margin: 4px auto 10px;
+  border-radius: 2px;
+  background: var(--dm-border-strong);
+}
+:where(html[data-view="dm"]) .pm-h {
+  margin: var(--dm-s4) 4px var(--dm-s2);
+  font: 600 11px var(--dm-font-ui);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--dm-text-3);
+}
+
+/* ⋯ menu: the top bar's other buttons, as full-width rows. Closed, it is invisible
+   but stays mounted (display: contents) so the panels its buttons open stay up. */
+html[data-view="dm"][data-phone] .pm-more:not(.open) {
+  display: contents;
+}
+html[data-view="dm"][data-phone] .pm-more:not(.open) > .btn,
+html[data-view="dm"][data-phone] .pm-more:not(.open) > a.btn,
+html[data-view="dm"][data-phone] .pm-more:not(.open) > select,
+html[data-view="dm"][data-phone] .pm-more:not(.open) > .dm-find,
+html[data-view="dm"][data-phone] .pm-more:not(.open) > .dm-top-sep,
+html[data-view="dm"][data-phone] .pm-more:not(.open) > .run-pick,
+html[data-view="dm"][data-phone] .pm-more:not(.open) > .renown-chip-wrap > .btn,
+html[data-view="dm"][data-phone] .pm-more:not(.open) > .practice-menu > .btn {
+  display: none;
+}
+html[data-view="dm"][data-phone] .pm-more.open {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+}
+html[data-view="dm"][data-phone] .pm-more.open .dm-top-sep {
+  display: block;
+  width: auto;
+  height: 1px;
+  margin: 6px 0;
+  background: var(--dm-border);
+}
+html[data-view="dm"][data-phone] .pm-more.open > .btn,
+html[data-view="dm"][data-phone] .pm-more.open > a.btn,
+html[data-view="dm"][data-phone] .pm-more.open > .dm-find,
+html[data-view="dm"][data-phone] .pm-more.open > .renown-chip-wrap > .btn,
+html[data-view="dm"][data-phone] .pm-more.open > .practice-menu > .btn,
+html[data-view="dm"][data-phone] .pm-more.open .run-pick .btn {
+  display: flex;
+  width: 100%;
+  min-height: 48px;
+  justify-content: flex-start;
+  gap: 12px;
+  padding: 0 14px;
+  font-size: 15px;
+  position: relative;
+}
+html[data-view="dm"][data-phone] .pm-more.open .btn.primary {
+  justify-content: center;
+}
+html[data-view="dm"][data-phone] .pm-more.open > select,
+html[data-view="dm"][data-phone] .pm-more.open .run-pick select {
+  width: 100%;
+  min-height: 48px;
+}
+html[data-view="dm"][data-phone] .pm-more.open .run-pick {
+  display: grid;
+  gap: 4px;
+}
+html[data-view="dm"][data-phone] .pm-more.open .renown-chip-wrap,
+html[data-view="dm"][data-phone] .pm-more.open .practice-menu {
+  display: block;
+}
+html[data-view="dm"][data-phone] .pm-more .dm-find-text {
+  display: inline;
+}
+html[data-view="dm"][data-phone] .pm-more .badge {
+  margin-left: auto;
+}
+/* Icon-only top bar buttons get their names back as rows. */
+html[data-view="dm"][data-phone] .pm-more.open > .btn.icon-only {
+  width: 100%;
+  height: auto;
+}
+html[data-view="dm"][data-phone] .pm-more.open > .btn.icon-only::after {
+  content: attr(aria-label);
+}
+/* Popovers that hung under their top-bar button become sheets. */
+html[data-view="dm"][data-phone] .renown-pop,
+html[data-view="dm"][data-phone] .practice-pop {
+  position: fixed;
+  left: 8px;
+  right: 8px;
+  top: auto;
+  bottom: calc(var(--pm-bar-h) + 8px);
+  width: auto;
+  max-height: 75vh;
+  overflow-y: auto;
+  transform: none !important;
+  z-index: 70;
+}
+
+/* Pages: no sidebar; the page gets the whole width and room above the tab bar. */
+html[data-view="dm"][data-phone] .dm-body,
+html[data-view="dm"][data-phone] .rail-open .dm-body {
+  display: block;
+}
+html[data-view="dm"][data-phone] .dm-side {
+  display: none;
+}
+html[data-view="dm"][data-phone] .dm-main {
+  padding: var(--dm-s3) var(--dm-s4) calc(var(--pm-bar-h) + 32px + env(safe-area-inset-bottom));
+}
+
+/* The tab bar. */
+:where(html[data-view="dm"]) .pm-bar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 62;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  height: calc(var(--pm-bar-h, 62px) + env(safe-area-inset-bottom));
+  padding-bottom: env(safe-area-inset-bottom);
+  background: var(--dm-bg-1);
+  border-top: 1px solid var(--dm-border);
+}
+:where(html[data-view="dm"]) .pm-tab {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  gap: 3px;
+  min-width: 0;
+  padding: 0 2px;
+  border: 0;
+  background: none;
+  color: var(--dm-text-3);
+  font: 500 11px var(--dm-font-ui);
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+:where(html[data-view="dm"]) .pm-tab > span:not(.badge) {
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+:where(html[data-view="dm"]) .pm-tab.on {
+  color: var(--dm-gold);
+}
+:where(html[data-view="dm"]) .pm-tab.on::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 28%;
+  right: 28%;
+  height: 2px;
+  border-radius: 2px;
+  background: currentColor;
+}
+:where(html[data-view="dm"]) .pm-tab .badge,
+:where(html[data-view="dm"]) .pm-tile .badge {
+  position: absolute;
+  top: 6px;
+  left: calc(50% + 6px);
+  font-size: 10px;
+}
+
+/* Pages sheet: every page as a tile, in its group. */
+html[data-view="dm"][data-phone] .pm-pages {
+  z-index: 61;
+  bottom: calc(var(--pm-bar-h) + env(safe-area-inset-bottom));
+  padding-bottom: 16px;
+}
+:where(html[data-view="dm"]) .pm-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--dm-s2);
+}
+:where(html[data-view="dm"]) .pm-tile {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  min-height: 76px;
+  padding: 14px 4px 10px;
+  border: 1px solid var(--dm-border);
+  border-radius: var(--dm-r-lg, 12px);
+  background: var(--dm-bg-1);
+  color: var(--dm-text);
+  font: 500 12.5px var(--dm-font-ui);
+  text-align: center;
+  touch-action: manipulation;
+}
+:where(html[data-view="dm"]) .pm-tile svg {
+  color: var(--dm-text-2);
+}
+:where(html[data-view="dm"]) .pm-tile.on {
+  border-color: var(--dm-gold);
+  color: var(--dm-gold);
+}
+:where(html[data-view="dm"]) .pm-tile.on svg {
+  color: var(--dm-gold);
+}
+
+/* TV sheet: the TV panel, above the tab bar. */
+html[data-view="dm"][data-phone] .dm-rail.pm-tv {
+  position: fixed;
+  top: auto;
+  bottom: calc(var(--pm-bar-h) + env(safe-area-inset-bottom));
+  height: auto;
+  max-height: calc(100dvh - var(--pm-bar-h) - 48px);
+  display: flex;
+  flex-direction: column;
+  gap: var(--dm-s3);
+  border-left: 0;
+}
+html[data-view="dm"][data-phone] .dm-rail.pm-tv > * {
+  flex: none;
+}
+:where(html[data-view="dm"]) .pm-sheet-head {
+  position: relative;
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: -6px;
+}
+:where(html[data-view="dm"]) .pm-sheet-head .pm-grab {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  transform: translateX(-50%);
+}
+html[data-view="dm"][data-phone] .pm-tv .dm-keys {
+  display: none;
+}
+
+/* Overlays that sat at the bottom of the screen move above the tab bar. */
+html[data-view="dm"][data-phone] .toast {
+  bottom: calc(var(--pm-bar-h, 62px) + 16px + env(safe-area-inset-bottom));
+}
+/* Tablet mode's sizes are for a 13" screen; on a phone, keep text at phone size. */
+html[data-view="dm"][data-phone] .btn,
+html[data-view="dm"][data-phone] .fld,
+html[data-view="dm"][data-phone] .btn.small {
+  font-size: 14px;
+}
+html[data-view="dm"][data-phone] .btn.small {
+  min-height: 40px;
+  padding: 4px 12px;
+}
+/* The top bar is its own layer; lift it over the tab bar while its menu is open. */
+html[data-view="dm"][data-phone] .dm-shell > .pm-top.more-open {
+  z-index: 70;
+}
+/* ⋯ menu rows: one quiet list style, whatever the button looked like in the top bar. */
+html[data-view="dm"][data-phone] .pm-more.open > .btn:not(.primary),
+html[data-view="dm"][data-phone] .pm-more.open > a.btn,
+html[data-view="dm"][data-phone] .pm-more.open > .dm-find,
+html[data-view="dm"][data-phone] .pm-more.open > .renown-chip-wrap > .btn,
+html[data-view="dm"][data-phone] .pm-more.open > .practice-menu > .btn,
+html[data-view="dm"][data-phone] .pm-more.open .run-pick .btn:not(.primary) {
+  min-height: 46px;
+  border: 0;
+  border-radius: var(--dm-r-md);
+  background: transparent;
+  color: var(--dm-text);
+  box-shadow: none;
+}
+html[data-view="dm"][data-phone] .pm-more.open .btn svg {
+  width: 18px;
+  height: 18px;
+  color: var(--dm-text-2);
+}
+html[data-view="dm"][data-phone] .pm-more.open .dm-find-text {
+  color: var(--dm-text);
+}
+html[data-view="dm"][data-phone] .pm-more.open .tablet-full-text,
+html[data-view="dm"][data-phone] .pm-more.open .renown-chip-name {
+  display: inline;
+}
+html[data-view="dm"][data-phone] .pm-more.open .renown-chip::before {
+  content: "Renown:";
+  order: 1;
+  color: var(--dm-text);
+}
+html[data-view="dm"][data-phone] .pm-more.open .renown-chip > * {
+  order: 2;
+}
+/* The TV panel lives in the tab bar on phones. */
+html[data-view="dm"][data-phone] .pm-more > .btn[aria-label="TV panel"] {
+  display: none;
+}
+html[data-view="dm"][data-phone] .pm-top .dm-brand > svg {
+  display: none;
+}
+html[data-view="dm"][data-phone] .pm-top .dm-brand {
+  padding-left: 14px;
+}
+html[data-view="dm"][data-phone] .pm-top > .conn {
+  left: 10px;
+  bottom: auto;
+  top: 50%;
+  margin-top: -4px;
+}
+
+/* Fights on a phone: the damage box shows only its "Tap a row" line until you pick someone, then rises as a sheet. */
+html[data-view="dm"][data-phone] .fx-hit:not(.pm-sheet) > :not(.fx-sel) {
+  display: none;
+}
+html[data-view="dm"][data-phone] .fx-pad-sheet {
+  display: grid;
+  gap: var(--dm-s2);
+  z-index: 61;
+}
+html[data-view="dm"][data-phone] .fx-pad-sheet .fx-sel {
+  font: 600 16px var(--dm-font-ui);
+  color: var(--dm-text);
+}
+html[data-view="dm"][data-phone] .fx-pad-sheet .fx-pad .btn {
+  min-height: 50px;
+  font-size: 20px;
+}
+html[data-view="dm"][data-phone] .fx-pad-sheet .fx-hit-btns .btn {
+  min-height: 52px;
+  font-size: 16px;
+}
+html[data-view="dm"][data-phone] .fx-side > p.note.hint {
+  display: none;
+}
