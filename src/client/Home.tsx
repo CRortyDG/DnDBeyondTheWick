@@ -1,110 +1,247 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { describeCounts } from "@/shared/presets";
 import { devicePresets, presetInfo, type PresetInfo } from "./presets";
 import { dmLink, hrefFor } from "./api";
-import { Notice } from "./ui/Notice";
+import { CandleIcon } from "./ui/icons";
+
+/** A DM-picked campaign code needs this many letters or numbers (the server checks too: limits.ts pickedCodeProblem). */
+const PICKED_CODE_MIN = 8;
 
 /**
- * The front page, with no ?game=: start a new campaign, or join one with its code.
+ * The front page, with no ?game=: join a campaign with its code, or start one as the DM.
  * Starting one makes a new campaign and a DM key, and shows the DM's private link once.
+ * Styles: landing-theme.css (html[data-view="landing"]).
  */
 export function Home() {
   const [created, setCreated] = useState<{ game: string; key: string } | null>(null);
-  if (created) return <SaveLink game={created.game} dmKey={created.key} />;
+  const [starting, setStarting] = useState(false);
+  if (created) {
+    return (
+      <HomeShell>
+        <SaveLink game={created.game} dmKey={created.key} />
+      </HomeShell>
+    );
+  }
+  if (starting) {
+    return (
+      <HomeShell>
+        <StartForm onCreated={setCreated} onBack={() => setStarting(false)} />
+      </HomeShell>
+    );
+  }
   return (
-    <>
-      <Notice title="Pull up a chair">
-        <JoinForm />
-        <StartForm onCreated={setCreated} />
-      </Notice>
-    </>
+    <HomeShell intro>
+      <div className="hm-grid">
+        <JoinCard />
+        <DmCard onStart={() => setStarting(true)} />
+      </div>
+      <ol className="hm-steps" aria-label="How a game night works">
+        <li>
+          <b>1</b>
+          <span>The DM starts a campaign and gets a private link.</span>
+        </li>
+        <li>
+          <b>2</b>
+          <span>A TV or laptop shows the table for everyone.</span>
+        </li>
+        <li>
+          <b>3</b>
+          <span>Players join on their phones with the code.</span>
+        </li>
+      </ol>
+    </HomeShell>
   );
 }
 
-function JoinForm() {
+/** The page frame: the candle and name on top, the content below. Also used by the "Who's at the table?" page. */
+export function HomeShell({ intro, children }: { intro?: boolean; children: ReactNode }) {
+  return (
+    <main className="hm-page">
+      <header className={`hm-brand${intro ? " big" : ""}`}>
+        <span className="hm-mark" aria-hidden="true">
+          <CandleIcon size={intro ? 30 : 22} />
+        </span>
+        <span className="hm-name">Candlefair</span>
+        {intro ? <p className="hm-tagline">A table companion for D&amp;D played in person: phones in hand, the world on the TV.</p> : null}
+      </header>
+      {children}
+    </main>
+  );
+}
+
+function JoinCard() {
   const [code, setCode] = useState("");
   const clean = code.trim().toLowerCase().replace(/[^a-z0-9-]+/g, "");
   return (
-    <form
-      className="form"
-      onSubmit={(e) => {
-        e.preventDefault();
-        if (clean) window.location.href = hrefFor(clean);
-      }}
-    >
-      <p>Joining a table? Enter the campaign code your DM gave you.</p>
-      <label>
-        Campaign code
-        <input className="fld big" value={code} onChange={(e) => setCode(e.target.value)} autoComplete="off" autoCapitalize="none" spellCheck={false} maxLength={40} />
-      </label>
-      <button className="btn primary big" type="submit" disabled={!clean}>
-        Join
-      </button>
-    </form>
+    <section className="hm-card hm-join" aria-labelledby="hm-join-title">
+      <div className="hm-card-head">
+        <span className="hm-kicker">Players</span>
+        <h1 id="hm-join-title">Join a table</h1>
+        <p>Enter the campaign code your DM gave you.</p>
+      </div>
+      <form
+        className="hm-form"
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (clean) window.location.href = hrefFor(clean);
+        }}
+      >
+        <label className="hm-field">
+          <span className="hm-label">Campaign code</span>
+          <input
+            className="hm-input hm-code"
+            value={code}
+            onChange={(e) => setCode(e.target.value)}
+            autoComplete="off"
+            autoCapitalize="none"
+            autoCorrect="off"
+            spellCheck={false}
+            enterKeyHint="go"
+            maxLength={40}
+            placeholder="e.g. misty-harbor-42"
+          />
+        </label>
+        <button className="hm-btn primary" type="submit" disabled={!clean}>
+          Join
+        </button>
+      </form>
+    </section>
   );
 }
 
-function StartForm({ onCreated }: { onCreated: (c: { game: string; key: string }) => void }) {
-  const [open, setOpen] = useState(false);
+/** Campaigns this device holds a DM key for, newest code last. Read from the slots readIdent saves. */
+function deviceCampaigns(): string[] {
+  const out: string[] = [];
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i) ?? "";
+      const m = /^cf-key:([a-z0-9-]+):dm$/.exec(k);
+      if (m && localStorage.getItem(k)) out.push(m[1]);
+    }
+  } catch {}
+  return out.sort();
+}
+
+function DmCard({ onStart }: { onStart: () => void }) {
+  const [mine] = useState(deviceCampaigns);
+  return (
+    <section className="hm-card hm-dm" aria-labelledby="hm-dm-title">
+      <div className="hm-card-head">
+        <span className="hm-kicker">Dungeon Master</span>
+        <h2 id="hm-dm-title">Run a game</h2>
+        <p>Start a campaign in a minute. No accounts: you get a private DM link instead.</p>
+      </div>
+      {mine.length ? (
+        <div className="hm-mine">
+          <span className="hm-label">Your campaigns on this device</span>
+          <ul>
+            {mine.map((g) => (
+              <li key={g}>
+                <a href={hrefFor(g, "DM")}>
+                  <span className="hm-mine-code">{g}</span>
+                  <span className="hm-mine-go">Open DM view</span>
+                </a>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+      <button className={`hm-btn${mine.length ? "" : " primary"}`} type="button" onClick={onStart}>
+        Start a new campaign
+      </button>
+    </section>
+  );
+}
+
+function StartForm({ onCreated, onBack }: { onCreated: (c: { game: string; key: string }) => void; onBack: () => void }) {
   const [name, setName] = useState("");
   const [code, setCode] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   // "blank", "candlefair", or a preset code.
   const [from, setFrom] = useState("blank");
-  const mine = devicePresets();
-  if (!open) {
-    return (
-      <p className="landing-links">
-        <button className="btn" type="button" onClick={() => setOpen(true)}>
-          I&rsquo;m a DM: start a new campaign
-        </button>
-      </p>
-    );
-  }
+  const [mine] = useState(devicePresets);
+  const codeChars = code.trim().replace(/[^a-z0-9]/gi, "").length;
+  const codeShort = code.trim() !== "" && codeChars < PICKED_CODE_MIN;
   return (
-    <form
-      className="form"
-      onSubmit={async (e) => {
-        e.preventDefault();
-        setBusy(true);
-        setErr(null);
-        try {
-          const r = await fetch("/api/create", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              from: from === "blank" || from === "candlefair" ? from : `preset:${from}`,
-              ...(name.trim() ? { name: name.trim() } : {}),
-              ...(code.trim() ? { code: code.trim() } : {}),
-            }),
-          });
-          const data = (await r.json().catch(() => ({}))) as { game?: string; key?: string; error?: string };
-          if (!r.ok || !data.game || !data.key) throw new Error(data.error ?? "Couldn't start the campaign. Try again.");
-          onCreated({ game: data.game, key: data.key });
-        } catch (e2) {
-          setErr(e2 instanceof Error ? e2.message : String(e2));
-        } finally {
-          setBusy(false);
-        }
-      }}
-    >
-      <h2>Start a campaign</h2>
-      <p>You&rsquo;ll get a private DM link. Anyone with it can run this campaign, so keep it safe.</p>
-      <label>
-        Campaign name
-        <input className="fld" value={name} onChange={(e) => setName(e.target.value)} maxLength={80} placeholder={from === "candlefair" ? "Tales from the Flickering Candle" : "A new campaign"} />
-      </label>
-      <StartFrom from={from} onFrom={setFrom} mine={mine} />
-      <label>
-        Campaign code (optional)
-        <input className="fld" value={code} onChange={(e) => setCode(e.target.value)} maxLength={40} autoCapitalize="none" spellCheck={false} placeholder="Blank for a random one, or 8+ letters" />
-      </label>
-      {err ? <p className="error-text">{err}</p> : null}
-      <button className="btn primary" type="submit" disabled={busy || from === ""}>
-        {busy ? "Starting…" : "Start the campaign"}
+    <section className="hm-card hm-start" aria-labelledby="hm-start-title">
+      <button className="hm-back" type="button" onClick={onBack}>
+        <span aria-hidden="true">&larr;</span> Back
       </button>
-    </form>
+      <div className="hm-card-head">
+        <span className="hm-kicker">Dungeon Master</span>
+        <h1 id="hm-start-title">Start a campaign</h1>
+        <p>You&rsquo;ll get a private DM link. Anyone with it can run this campaign, so keep it safe.</p>
+      </div>
+      <form
+        className="hm-form"
+        onSubmit={async (e) => {
+          e.preventDefault();
+          setBusy(true);
+          setErr(null);
+          try {
+            const r = await fetch("/api/create", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                from: from === "blank" || from === "candlefair" ? from : `preset:${from}`,
+                ...(name.trim() ? { name: name.trim() } : {}),
+                ...(code.trim() ? { code: code.trim() } : {}),
+              }),
+            });
+            const data = (await r.json().catch(() => ({}))) as { game?: string; key?: string; error?: string };
+            if (!r.ok || !data.game || !data.key) throw new Error(data.error ?? "Couldn't start the campaign. Try again.");
+            onCreated({ game: data.game, key: data.key });
+          } catch (e2) {
+            setErr(e2 instanceof Error ? e2.message : String(e2));
+          } finally {
+            setBusy(false);
+          }
+        }}
+      >
+        <label className="hm-field">
+          <span className="hm-label">Campaign name</span>
+          <input
+            className="hm-input"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            maxLength={80}
+            placeholder={from === "candlefair" ? "Tales from the Flickering Candle" : "A new campaign"}
+          />
+        </label>
+        <StartFrom from={from} onFrom={setFrom} mine={mine} />
+        <details className="hm-more" open={code !== "" || undefined}>
+          <summary>Pick your own campaign code</summary>
+          <label className="hm-field">
+            <span className="hm-label">Campaign code (optional)</span>
+            <input
+              className="hm-input hm-code"
+              value={code}
+              onChange={(e) => setCode(e.target.value)}
+              maxLength={40}
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
+              placeholder="Leave blank for a random one"
+              aria-describedby="hm-code-hint"
+            />
+            <span id="hm-code-hint" className={`hm-hint${codeShort ? " warn" : ""}`}>
+              {codeShort
+                ? `${codeChars} of ${PICKED_CODE_MIN} letters or numbers: a code you pick needs ${PICKED_CODE_MIN}+ so it can’t be guessed.`
+                : `Players type this to join. ${PICKED_CODE_MIN}+ letters or numbers; dashes are fine.`}
+            </span>
+          </label>
+        </details>
+        {err ? (
+          <p className="hm-error" role="alert">
+            {err}
+          </p>
+        ) : null}
+        <button className="hm-btn primary" type="submit" disabled={busy || from === ""}>
+          {busy ? "Starting…" : "Start the campaign"}
+        </button>
+      </form>
+    </section>
   );
 }
 
@@ -134,34 +271,44 @@ function StartFrom({ from, onFrom, mine }: { from: string; onFrom: (f: string) =
     if (usingTyped) onFrom(found ? found.code : "");
   }, [found, usingTyped]);
   const option = (value: string, title: string, note: string) => (
-    <label className={`start-from-opt${from === value ? " on" : ""}`} key={value}>
+    <label className={`hm-opt${from === value ? " on" : ""}`} key={value}>
       <input type="radio" name="from" value={value} checked={from === value} onChange={() => onFrom(value)} />
-      <span>
+      <span className="hm-opt-text">
         <b>{title}</b>
-        <span className="note">{note}</span>
+        <span>{note}</span>
       </span>
     </label>
   );
   return (
-    <fieldset className="start-from">
-      <legend>Start from</legend>
+    <fieldset className="hm-from">
+      <legend className="hm-label">Start from</legend>
       {option("blank", "A blank campaign", "Nothing set up: no shops, people, maps or episodes. Build it your way.")}
       {option("candlefair", "Candlefair", "The Flickering Candle starter: shops, maps, people, the episode-one run sheet, monsters and the storyboard.")}
       {mine.map((p) => option(p.code, p.name, `Your preset · code ${p.code}`))}
-      <label className={`start-from-opt${usingTyped ? " on" : ""}`}>
+      <label className={`hm-opt${usingTyped ? " on" : ""}`}>
         <input type="radio" name="from" checked={usingTyped} onChange={() => onFrom(found ? found.code : "")} />
-        <span>
+        <span className="hm-opt-text">
           <b>A preset code</b>
-          <span className="note">Someone gave you one, or you saved it on another device.</span>
+          <span>Someone gave you one, or you saved it on another device.</span>
           {usingTyped ? (
             <>
-              <input className="fld" value={typed} onChange={(e) => setTyped(e.target.value)} maxLength={10} autoCapitalize="none" spellCheck={false} placeholder="10 letters and numbers" aria-label="Preset code" />
+              <input
+                className="hm-input hm-code"
+                value={typed}
+                onChange={(e) => setTyped(e.target.value)}
+                maxLength={10}
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
+                placeholder="10 letters and numbers"
+                aria-label="Preset code"
+              />
               {found ? (
-                <span className="note">
+                <span className="hm-found">
                   <b>{found.name}</b>: {describeCounts(found.counts)}.
                 </span>
               ) : lookErr ? (
-                <span className="error-text">{lookErr}</span>
+                <span className="hm-error">{lookErr}</span>
               ) : null}
             </>
           ) : null}
@@ -177,17 +324,20 @@ function SaveLink({ game, dmKey }: { game: string; dmKey: string }) {
   const [copied, setCopied] = useState(false);
   const [saved, setSaved] = useState(false);
   return (
-    <Notice title="Save your DM link">
-      <p>
-        This link opens the DM view of <b>{game}</b>. It&rsquo;s the only way in: there are no accounts and no password reset, so if you lose it, the campaign
-        can&rsquo;t be run again. Save it somewhere safe, like your password manager or an email to yourself.
-      </p>
-      <p className="note" style={{ wordBreak: "break-all" }}>
+    <section className="hm-card hm-save" aria-labelledby="hm-save-title">
+      <div className="hm-card-head">
+        <span className="hm-kicker ok">Campaign ready</span>
+        <h1 id="hm-save-title">Save your DM link</h1>
+        <p>
+          It&rsquo;s the only way into the DM view: there are no accounts and no password reset. Keep it in your password manager or email it to yourself.
+        </p>
+      </div>
+      <div className="hm-link">
         <code>{link}</code>
-      </p>
-      <div className="form">
+      </div>
+      <div className="hm-row">
         <button
-          className="btn"
+          className="hm-btn"
           type="button"
           onClick={async () => {
             try {
@@ -199,26 +349,26 @@ function SaveLink({ game, dmKey }: { game: string; dmKey: string }) {
         >
           {copied ? "Copied" : "Copy the link"}
         </button>
-        <a className="btn" href={`mailto:?subject=${encodeURIComponent(`DM link for ${game}`)}&body=${encodeURIComponent(link)}`} onClick={() => setSaved(true)}>
+        <a className="hm-btn" href={`mailto:?subject=${encodeURIComponent(`DM link for ${game}`)}&body=${encodeURIComponent(link)}`} onClick={() => setSaved(true)}>
           Email it to myself
         </a>
-        <label className="check">
-          <input type="checkbox" checked={saved} onChange={(e) => setSaved(e.target.checked)} /> I&rsquo;ve saved it
-        </label>
-        <a
-          className={`btn primary${saved ? "" : " disabled"}`}
-          aria-disabled={!saved}
-          href={saved ? link : undefined}
-          onClick={(e) => {
-            if (!saved) e.preventDefault();
-          }}
-        >
-          Open the DM view
-        </a>
       </div>
-      <p className="note">
-        Players join at this site with the code <b>{game}</b>, or with the links in the DM view.
+      <label className="hm-check">
+        <input type="checkbox" checked={saved} onChange={(e) => setSaved(e.target.checked)} /> I&rsquo;ve saved it somewhere safe
+      </label>
+      <a
+        className={`hm-btn primary${saved ? "" : " disabled"}`}
+        aria-disabled={!saved}
+        href={saved ? link : undefined}
+        onClick={(e) => {
+          if (!saved) e.preventDefault();
+        }}
+      >
+        Open the DM view
+      </a>
+      <p className="hm-foot">
+        Players join on this site with the code <b className="hm-pill">{game}</b>
       </p>
-    </Notice>
+    </section>
   );
 }

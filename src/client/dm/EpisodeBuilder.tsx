@@ -128,6 +128,30 @@ export function AddStoryBeat({ ep }: { ep: Episode }) {
 // ---------------------------------------------------------------------------
 // Cast and props, and the prep checklist
 
+/** Type your own item onto the prep checklist. */
+function PrepAdd({ episodeId }: { episodeId: string }) {
+  const { run } = useDm();
+  const [text, setText] = useState("");
+  const add = async () => {
+    const t = text.trim();
+    if (t && (await run({ type: "episode.prepNote", episodeId, text: t }))) setText("");
+  };
+  return (
+    <form
+      className="prep-add"
+      onSubmit={(e) => {
+        e.preventDefault();
+        void add();
+      }}
+    >
+      <input className="fld" placeholder="Add your own item, e.g. Need a name for the guard" maxLength={300} value={text} onChange={(e) => setText(e.target.value)} aria-label="Add a prep item" />
+      <button className="btn" type="submit" disabled={!text.trim()}>
+        Add
+      </button>
+    </form>
+  );
+}
+
 export function CastAndPrep({ ep }: { ep: Episode }) {
   const { run } = useDm();
   const g = useGame();
@@ -188,6 +212,7 @@ export function CastAndPrep({ ep }: { ep: Episode }) {
         ) : (
           <p className="note">Nothing left to prep.</p>
         )}
+        <PrepAdd episodeId={ep.id} />
         {closed.length ? (
           <>
             <button type="button" className="linkish note" aria-expanded={showDone} onClick={() => setShowDone((v) => !v)}>

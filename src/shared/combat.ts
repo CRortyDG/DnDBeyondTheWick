@@ -112,7 +112,10 @@ export function insertSorted<T extends Pick<Combatant, "init" | "initBonus">>(or
 
 /** Whose turn can come up: everyone but monsters that are down. Players at 0 still roll death saves. */
 export function canAct(c: Combatant): boolean {
-  return !(c.kind === "monster" && (c.down || c.gone));
+  if (c.kind === "monster") return !(c.down || c.gone);
+  // A companion at 0 with death saves still gets a turn (to roll); one that died doesn't.
+  if (c.kind === "companion") return !c.gone && !(c.down && !c.deathSaves);
+  return true;
 }
 
 /** The next combatant after index i who can act, and whether we went past the end of the round. */
@@ -176,7 +179,7 @@ function startTurn(f: Fight, c: Combatant, step: FightStep, h: TurnHooks, tpl: (
   tick(f, c, "start", step, h);
   delete c.concDc;
   const t = tpl(c.templateId);
-  if (c.kind === "monster" && t) {
+  if ((c.kind === "monster" || c.kind === "companion") && t) {
     for (const a of t.abilities) {
       if (a.recharge && (c.spent[a.id] ?? 0) > 0) {
         h.remind("recharge", `${c.name}: roll d6 for ${a.name}: recharges on ${rechargeText(a.recharge)}.`, { combatantId: c.id, abilityId: a.id });
@@ -244,7 +247,7 @@ export function nextTurn(f: Fight, h: TurnHooks, tpl: (id?: string) => MonsterTe
   if (nx.wrapped) {
     f.round += 1;
     for (const c of f.order) {
-      if (c.kind === "monster" && c.down && !c.gone) {
+      if ((c.kind === "monster" || (c.kind === "companion" && !c.deathSaves)) && c.down && !c.gone) {
         c.gone = true;
         step.gone.push(c.id);
       }
@@ -453,7 +456,7 @@ export interface PublicCondition {
 
 export interface PublicCombatant {
   id: string;
-  kind: "player" | "monster";
+  kind: "player" | "monster" | "companion";
   /** The TV name: the display name until revealed. */
   name: string;
   /** Players only: whose seat this is (lets a phone find itself). */
@@ -537,6 +540,14 @@ function publicCombatant(game: GameState, c: Combatant, art: (sceneId: string) =
     const h = healthState(c.hp, c.maxHp);
     out.health = c.down ? "down" : h;
     out.down = c.down;
+  } else if (c.kind === "companion") {
+    // An HP bar if the DM chose one for this companion, else a state.
+    const comp = (game.companions ?? []).find((x) => x.id === c.companionId);
+    const t = comp ? (game.companionTemplates ?? []).find((x) => x.id === comp.templateId) : undefined;
+    if (t?.tvHealth === "hp" && !t.hidden.includes("hp")) out.hp = { cur: c.hp, max: c.maxHp, temp: c.tempHp };
+    else out.health = c.down ? "down" : healthState(c.hp, c.maxHp);
+    out.down = c.down;
+    if (c.down && c.deathSaves) out.deathSaves = { ...c.deathSaves };
   } else {
     const p = game.players.find((x) => x.id === c.playerId);
     if (p) out.playerId = p.id;
@@ -631,7 +642,7 @@ export function changeHp(f: Fight, c: Combatant, p: Player | undefined, mode: "d
   const name = tvName(c);
   if (mode === "damage") {
     if (crit) h.moment("crit", name);
-    if (isPlayer && wasDown) {
+    if ((isPlayer || (c.kind === "companion" && c.deathSaves)) && wasDown) {
       // Damage at 0 HP is a failed death save (two on a crit).
       const ds = (c.deathSaves ??= { ok: 0, fail: 0 });
       ds.fail = Math.min(3, ds.fail + (crit ? 2 : 1));
@@ -644,6 +655,12 @@ export function changeHp(f: Fight, c: Combatant, p: Player | undefined, mode: "d
       if (isPlayer) {
         c.deathSaves = { ok: 0, fail: 0 };
         h.moment("playerDown", name);
+      } else if (c.kind === "companion") {
+        c.down = true;
+        h.moment("playerDown", name);
+        if ((c.atZero ?? "saves") === "saves") c.deathSaves = { ok: 0, fail: 0 };
+        else delete c.deathSaves;
+        h.remind("death", `${c.name} is down. Unconscious with death saves, or dead? Choose on their row.`, { combatantId: c.id });
       } else {
         c.down = true;
         h.moment("monsterDown", name);
@@ -678,5 +695,10 @@ export function markDeathSave(c: Combatant, p: Player | undefined, mark: "ok" | 
     const hp = playerHp(p);
     hp.cur = Math.max(1, hp.cur);
     delete c.deathSaves;
+  } else if (mark === "nat20" && c.kind === "companion") {
+    c.hp = Math.max(1, c.hp);
+    c.down = false;
+    delete c.deathSaves;
+    delete c.gone;
   }
 }

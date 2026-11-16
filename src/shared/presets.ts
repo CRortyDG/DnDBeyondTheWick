@@ -24,7 +24,7 @@ export function townOf(g: Pick<GameState, "town">): string {
  * and the server's seed-*.ts). A blank campaign starts with all of them done, so
  * none of that content arrives later. A test checks that a blank campaign stays empty.
  */
-export const CONTENT_UPGRADES = ["jobs", "jobs-artum", "board-notes", "stinger", "monsters", "fight-beat", "discovery-seed", "story-seed", "offscript-seed"];
+export const CONTENT_UPGRADES = ["jobs", "jobs-artum", "board-notes", "stinger", "monsters", "fight-beat", "discovery-seed", "story-seed", "offscript-seed", "companions"];
 
 export const PRESET_CODE = /^[a-z0-9]{10}$/;
 export const PRESET_NAME_MAX = 60;

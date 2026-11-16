@@ -336,6 +336,8 @@ export function prepOf(g: G, ep: Episode): PrepItem[] {
   // Portable clues: about ten a session, five at the very least (see offscript.ts).
   const clues = (g.clues ?? []).filter((c) => c.episodeId === ep.id && c.status !== "dropped").length;
   if (clues < 5) push("clues", clues ? `Only ${clues} clue${clues === 1 ? "" : "s"} written for this episode. Aim for 5 or more.` : "No clues written for this episode yet. Aim for 5 or more.");
+  // The DM's own items (practice notes land here).
+  for (const n of ep.prepNotes ?? []) push(`note:${n.id}`, n.text);
   return out;
 }
 

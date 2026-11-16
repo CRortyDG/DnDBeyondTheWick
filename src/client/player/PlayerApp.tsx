@@ -16,6 +16,7 @@ import { Jobs } from "./Jobs";
 import { Discovery, useDiscoverySeen } from "./Discovery";
 import { Dice } from "./Dice";
 import { FightCard } from "./FightCard";
+import { CompanionStrip } from "./Companions";
 import { Maps } from "./PhoneMap";
 import { Sheet, useConfirm } from "./Sheet";
 import { NAV_ICONS, PlayerNav, type Screen } from "./PlayerNav";
@@ -140,8 +141,10 @@ function PlayerScreen({ view, online, send, ident, setIdent }: { view: PlayerVie
   const screen = (screenPick === "map" && !hasMaps) || (screenPick === "fight" && !view.fight) ? fallback : screenPick;
   // A fight opens its own screen when it starts, and again whenever it's your turn.
   const f = view.fight;
-  const myTurn = !!f && f.status === "running" && !!view.myFight && f.currentId === view.myFight.combatantId;
-  const upNext = !!f && f.status === "running" && !!view.myFight && f.nextId === view.myFight.combatantId && !myTurn;
+  // My turn, or the turn of a companion I run.
+  const mineIds = new Set([view.myFight?.combatantId, ...view.myCompanions.map((c) => c.combatantId)].filter((x): x is string => !!x));
+  const myTurn = !!f && f.status === "running" && !!f.currentId && mineIds.has(f.currentId);
+  const upNext = !!f && f.status === "running" && !!f.nextId && mineIds.has(f.nextId) && !myTurn;
   useEffect(() => {
     if (f?.id) setScreenPick("fight");
   }, [f?.id]);
@@ -327,6 +330,7 @@ function PlayerScreen({ view, online, send, ident, setIdent }: { view: PlayerVie
       ) : null}
       {view.world ? <WorldStrip world={view.world} /> : null}
       <DecisionBanners view={view} />
+      {screen !== "fight" ? <CompanionStrip view={view} send={send} /> : null}
       {f && screen !== "fight" ? (
         <button type="button" className={`pl-fight-strip${myTurn ? " turn" : upNext ? " next" : ""}`} onClick={() => setScreen("fight")}>
           <span className="pl-fight-strip-k">{myTurn ? "Your turn!" : upNext ? "You’re up next" : f.status === "setup" ? "Roll initiative" : f.status === "over" ? "Fight over" : "Fight"}</span>
@@ -541,6 +545,7 @@ function PlayerScreen({ view, online, send, ident, setIdent }: { view: PlayerVie
       ) : null}
       {view.world ? <WorldStrip world={view.world} /> : null}
       <DecisionBanners view={view} />
+      {screen !== "fight" ? <CompanionStrip view={view} send={send} /> : null}
       {f && screen !== "fight" ? (
         <button type="button" className={`pl-fight-strip${myTurn ? " turn" : upNext ? " next" : ""}`} onClick={() => setScreen("fight")}>
           <span className="pl-fight-strip-k">{myTurn ? "Your turn!" : upNext ? "You’re up next" : f.status === "setup" ? "Roll initiative" : f.status === "over" ? "Fight over" : "Fight"}</span>

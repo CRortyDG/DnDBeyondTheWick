@@ -2,7 +2,7 @@ import { z } from "zod";
 import { MERCHANT_SIGIL_SVG } from "./art/merchant-sigil";
 import { ARTUM_SVG, CHEF_SVG, MAGS_WICK_SVG } from "./art/portraits";
 import { isDmKey, KEY_HEADER, newDmKey, sha256 } from "./auth";
-import { actorOf, createGame, execute, startingState, hello, HttpError, identify, MAX_STATE_CHARS, parseClientCommand, viewFor } from "./game";
+import { actorOf, createGame, execute, startingState, hello, HttpError, identify, identifyPractice, MAX_STATE_CHARS, parseClientCommand, viewFor } from "./game";
 import type { Store } from "./store";
 import { CHARACTER_MAX, isToken, playerByToken, projectArrival, WHY_MAX } from "@/shared/arrival";
 import { STARTER_IDS } from "@/shared/starters";
@@ -79,7 +79,7 @@ async function guard(fn: () => Promise<Response>): Promise<Response> {
 }
 
 /** Keep a copy of the whole game before something that replaces it. Never stops the action itself. */
-async function snapshot(store: Store, game: string, reason: string) {
+export async function snapshot(store: Store, game: string, reason: string) {
   if (!store.saveSnapshot) return;
   try {
     const { state } = await store.read(game);
@@ -123,6 +123,11 @@ export async function handleApi(req: Request, store: Store): Promise<Response> {
     if (carriesBuilderKey(req)) throw new HttpError(403, "A Worldbuilder key only works on the Worldbuilder API.", "wrong-door");
 
     const { game, player, key } = params(req);
+
+    // A practice room answers only practice requests, and a live room never does (see practice.ts).
+    const practice = url.searchParams.get("practice") === "1";
+    if (practice !== !!store.practiceMode) throw new HttpError(404, "No game here yet.", "no-game");
+    if (store.practiceMode) return practiceRoomApi(req, store, game, player, key);
 
     // First contact on page load: identifies the caller, creating ?player= names as needed.
     if (path === "/api/hello" && method === "POST") {
@@ -352,6 +357,59 @@ export async function handleApi(req: Request, store: Store): Promise<Response> {
 
     throw new HttpError(404, "Not found.");
   });
+}
+
+/**
+ * Inside a practice room. Every request needs the DM key; ?player= only picks
+ * which screen to show (the DM console, the TV, a stand-in's phone). Nothing
+ * that reaches outside the game (presets, backups, keys, Arrival links) works here.
+ */
+async function practiceRoomApi(req: Request, store: Store, game: string, player: string | null, key: string | null): Promise<Response> {
+  const url = new URL(req.url);
+  const path = url.pathname;
+  const method = req.method;
+  const who = async () => {
+    const { state, version } = await store.read(game);
+    if (!state) throw new HttpError(404, "Practice has ended.", "no-game");
+    const w = identifyPractice(state, player, key, await store.dmKeyHash(game));
+    if (w.kind === "invalid") throw new HttpError(401, "Practice needs the DM key.", "bad-key");
+    if (w.kind !== "dm" && w.kind !== "tv" && w.kind !== "player") throw new HttpError(404, "There's no stand-in by that name.", "unknown");
+    return { state, version, actor: actorOf(w) };
+  };
+  if (path === "/api/hello" && method === "POST") {
+    try {
+      const { actor } = await who();
+      return json({ status: "ok", view: await viewFor(store, game, actor) });
+    } catch (e) {
+      if (e instanceof HttpError && e.code === "no-game") return miss(json({ status: "no-game" }));
+      if (e instanceof HttpError) return miss(json({ status: "invalid" }));
+      throw e;
+    }
+  }
+  if (path === "/api/view" && method === "GET") {
+    const { actor } = await who();
+    return json(await viewFor(store, game, actor));
+  }
+  if (path === "/api/command" && method === "POST") {
+    const { actor } = await who();
+    const cmd = parseClientCommand(actor, await readJson(req));
+    if (cmd.type === "me.lock") throw new HttpError(400, "Stand-ins can't lock a name.");
+    const r = await execute(store, game, actor, cmd);
+    return json({ ok: true, version: r.version, ...(r.info ? { info: r.info } : {}) });
+  }
+  if (path === "/api/version" && method === "GET") {
+    await who();
+    return json({ version: await store.version(game) });
+  }
+  const art = /^\/api\/art\/([a-z0-9-]+)$/.exec(path);
+  if (art && method === "GET") {
+    const svg = GATED[art[1]];
+    if (!svg) return new Response("Not found", { status: 404, headers: { "Cache-Control": "no-store" } });
+    // Every practice screen holds the DM key, so it may see the art (what it's sent decides what it shows).
+    if (!isDmKey(key, await store.dmKeyHash(game))) return miss(new Response("Not found", { status: 404, headers: { "Cache-Control": "no-store" } }));
+    return new Response(svg, { headers: { "Content-Type": "image/svg+xml", "Cache-Control": "private, max-age=300" } });
+  }
+  throw new HttpError(404, "That isn't available in practice.");
 }
 
 /**

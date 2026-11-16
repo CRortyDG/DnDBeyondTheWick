@@ -4,7 +4,8 @@ import { OffScriptButton } from "./OffScript";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement } from "react";
 import type { DmCommand } from "@/shared/commands";
 import type { DmView } from "@/shared/projection";
-import { api, absoluteHref, authHeaders, hrefFor, rememberKey, type Ident } from "../api";
+import { api, absoluteHref, authHeaders, hrefFor, practiceHref, rememberKey, type Ident } from "../api";
+import { PracticeBar, PracticeButton } from "./Practice";
 import { useGame, type CallResult } from "../useGame";
 import { Notice } from "../ui/Notice";
 import { Purse } from "../ui/Purse";
@@ -41,6 +42,7 @@ import { FightScreen } from "./FightScreen";
 import { Storyboard } from "./Storyboard";
 import { StoryPanel } from "./StoryPanel";
 import { MonstersPanel } from "./MonstersPanel";
+import { CompanionsPanel } from "./CompanionsPanel";
 import { FightOverlay } from "../ui/FightOverlay";
 import { DiceButton, DiceTray, PlayerRollCards, TvDiceBar } from "./DiceTray";
 import { Finder, QuickBar, quickKey, typing } from "./QuickBar";
@@ -51,7 +53,7 @@ import { BuilderPanel, usePendingDrafts } from "./BuilderPanel";
 import { TablesPanel } from "./TablesPanel";
 import { DieIcon, SparkIcon, BoardIcon, BookIcon, CoinIcon, EyeIcon, GearIcon, GlobeIcon, ListIcon, MapIcon, PanelRightIcon, PeopleIcon, PinIcon, PlayIcon, QuillIcon, SearchIcon, ShipIcon, SkullIcon, StoreIcon, SwordIcon } from "./navIcons";
 
-type Tab = "world" | "bank" | "shop" | "board" | "scenes" | "discovery" | "leads" | "players" | "arrival" | "story" | "episodes" | "monsters" | "tables" | "chronicle" | "builder" | "game";
+type Tab = "world" | "bank" | "shop" | "board" | "scenes" | "discovery" | "leads" | "players" | "arrival" | "story" | "episodes" | "monsters" | "companions" | "tables" | "chronicle" | "builder" | "game";
 type NavItem = { id: Tab; label: string; icon: (p: { size?: number }) => ReactElement; key?: string };
 /** The DM pages, grouped by when you reach for them. */
 const NAV: { group: string; items: NavItem[] }[] = [
@@ -72,6 +74,7 @@ const NAV: { group: string; items: NavItem[] }[] = [
       { id: "scenes", label: "Maps & props", icon: MapIcon },
       { id: "board", label: "Notice board", icon: BoardIcon },
       { id: "monsters", label: "Monsters", icon: SkullIcon },
+      { id: "companions", label: "Companions", icon: PeopleIcon },
       { id: "tables", label: "Random tables", icon: DieIcon },
     ],
   },
@@ -89,7 +92,7 @@ const NAV: { group: string; items: NavItem[] }[] = [
 const SETTINGS: NavItem = { id: "game", label: "Settings", icon: GearIcon };
 const ALL_TABS: Tab[] = [...NAV.flatMap((g) => g.items.map((i) => i.id)), SETTINGS.id];
 /** Pages that draw their own header (with summary and buttons). */
-const OWN_HEAD = new Set<Tab>(["world", "bank", "players", "arrival", "shop", "discovery", "leads", "scenes", "board", "monsters", "tables", "episodes", "story", "chronicle", "builder", "game"]);
+const OWN_HEAD = new Set<Tab>(["world", "bank", "players", "arrival", "shop", "discovery", "leads", "scenes", "board", "monsters", "companions", "tables", "episodes", "story", "chronicle", "builder", "game"]);
 const PAGE_LABEL = Object.fromEntries([...NAV.flatMap((g) => g.items), SETTINGS].map((i) => [i.id, i.label])) as Record<Tab, string>;
 
 /** The page in the address (#page=discovery), so a reload keeps your place. */
@@ -130,7 +133,7 @@ export function DmApp({ ident: initial }: { ident: Ident }) {
   if (g.phase === "invalid") {
     return <KeyPrompt game={ident.game} onKey={(key) => (rememberKey(ident, key), setIdent({ ...ident, key }))} wrong={!!ident.key} />;
   }
-  if (g.phase === "no-game") return <NoCampaign game={ident.game} />;
+  if (g.phase === "no-game") return ident.practice ? <PracticeOver game={ident.game} /> : <NoCampaign game={ident.game} />;
   if (!g.view || g.view.role !== "dm") {
     if (g.phase === "error") return <Notice title="Can't reach the server">{g.error ?? "Trying again"}...</Notice>;
     return <div className="dm-root" aria-busy="true" />;
@@ -161,6 +164,17 @@ function KeyPrompt({ game, onKey, wrong }: { game: string; onKey: (k: string) =>
           Game: <b>{game}</b>. The key is saved on this device only.
         </p>
       </form>
+    </Notice>
+  );
+}
+
+function PracticeOver({ game }: { game: string }) {
+  return (
+    <Notice title="No practice going">
+      <p>This practice copy has ended (or never started). The live game is as you left it.</p>
+      <a className="btn primary" href={hrefFor(game, "DM")}>
+        Back to the live game
+      </a>
     </Notice>
   );
 }
@@ -417,7 +431,8 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
   const liveShop = s.shops.find((x) => x.id === s.live.shopId);
 
   const openTv = () => {
-    window.open(hrefFor(ident.game, "TV"), "candlefair-tv", "popup,width=1280,height=720");
+    if (s.practice) window.open(practiceHref(ident.game, "TV"), `candlefair-practice-tv-${ident.game}`, "popup,width=1280,height=720");
+    else window.open(hrefFor(ident.game, "TV"), "candlefair-tv", "popup,width=1280,height=720");
   };
 
   const episodes = s.episodes ?? [];
@@ -479,6 +494,7 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
             <PanelRightIcon />
           </button>
           <span className="dm-top-sep" aria-hidden="true" />
+          {s.practice ? null : <PracticeButton episodeId={(runningEp ?? chosenEp)?.id} episodeTitle={(runningEp ?? chosenEp)?.title} />}
           {session ? (
             <button className="btn" type="button" onClick={() => setEnding(true)}>
               End session
@@ -579,6 +595,7 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
               {tab === "story" ? <StoryPanel onOpen={(id) => setStoryOpen(id ?? "")} /> : null}
               {tab === "episodes" ? <EpisodesPanel onRun={startRun} /> : null}
               {tab === "monsters" ? <MonstersPanel onFight={openFight} /> : null}
+              {tab === "companions" ? <CompanionsPanel /> : null}
               {tab === "chronicle" ? <ChroniclePanel /> : null}
               {tab === "tables" ? <TablesPanel /> : null}
               {tab === "builder" ? <BuilderPanel onCount={recountDrafts} /> : null}
@@ -670,6 +687,7 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
 
   return (
     <DmContext.Provider value={ctx}>
+      {s.practice ? <PracticeBar practice={s.practice} /> : null}
       {screen}
       {tableMap ? <TableMap sceneId={tableMap} onClose={closeTable} /> : null}
       <DiceTray />

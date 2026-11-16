@@ -22,6 +22,8 @@ import { boardNotes, cleanLook, cleanPlace, defaultWidth, NOTICES_MAX, placeFor,
 import { decodeBits, emptyBits, encodeBits, fullBits } from "./fog";
 import { addPartyTokens, freeSpot, snapToGrid, syncFightTokens, tokensOf, TOKENS_MAX } from "./tokens";
 import { levelLine } from "./levels";
+import { applyPractice, isPracticeCommand, trackPractice } from "./practice";
+import { applyCompanion, attachCompanion, companionsWith, companionTemplatesOf, endSessionCompanions, isCompanionCommand, rentalEnded } from "./companions";
 import { applyFight, isFightCommand, startFightFromBeat, type FightHelpers } from "./combatReducer";
 import type { Notice, NotePlace } from "./types";
 import { beatSuggestions, entryRef, freeQuickKey, liveRef, QUICK_KEYS, quickOf, RECENT_MAX, refForScene, renameRefs, resolveRef, sceneSlug, uniqueSceneSlug } from "./assets";
@@ -32,7 +34,7 @@ import type { Capture, Clue } from "./types";
 import { catchUp, materialize, partiesFor, partiesOf, PARTIES_MAX, PARTY_COLORS, partyById, presentIds, recordKnowledge, seedKnowledge, tableParty, tellTable, tidyLive, WORLD_EVENTS_MAX } from "./world";
 import { pendingPlacement, STORY_SECTION, syncStoryStatus } from "./episodeBuilder";
 import type { Flyer, Party, WorldEvent } from "./types";
-import type { Actor, Beat, BeatAction, Entry, EntryFact, Episode, FlyerText, Stage, GameState, Item, ItemTier, Job, Lead, LedgerEntry, LedgerKind, MapData, MapToken, Note, Pin, PinLink, Player, RenownChange, Scene, Session, SessionRun, Shop, StoryBlock, TradeRequest, Vote } from "./types";
+import type { Actor, Beat, BeatAction, Entry, EntryFact, Episode, FlyerText, Stage, GameState, Item, ItemTier, Job, Lead, LedgerEntry, LedgerKind, MapData, MapToken, Note, Pin, PinLink, Player, Rental, RenownChange, Scene, Session, SessionRun, Shop, StoryBlock, TradeRequest, Vote } from "./types";
 import type { z } from "zod";
 import { currentValue, madeIndex, sameValue, SUGGEST_FIELDS, type BuilderOp, type BuilderRef } from "./builderOps";
 import { storyOf } from "./story";
@@ -106,6 +108,13 @@ export function isDmCommand(type: string): boolean {
  * and whatever the table learned goes into the memories of those present.
  */
 export function apply(input: GameState, cmd: Command, ctx: Ctx): Result {
+  const out = applyWorld(input, cmd, ctx);
+  // A rehearsal times each beat and fight as it goes.
+  if (out.state.practice) trackPractice(out.state, ctx.now);
+  return out;
+}
+
+function applyWorld(input: GameState, cmd: Command, ctx: Ctx): Result {
   if (!input.world) return applyOne(input, cmd, ctx);
   let base = input;
   if (ctx.actor.role === "player" && cmd.type.startsWith("me.")) {
@@ -623,6 +632,14 @@ function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
    * Take stock, write the ledger, and do whatever this kind of item does:
    * place an order, start a rental or lessons, post a flyer. Checks are the caller's job.
    */
+  /** A rental stops (a hireling let go or dead). */
+  const endRental = (rid: string) => {
+    const r = s.rentals.find((x) => x.id === rid);
+    if (r && r.active) {
+      r.active = false;
+      r.endedAt = ctx.now;
+    }
+  };
   const fulfil = (p: Player, it: Item, qty: number, chargeCp: number, extra: Partial<LedgerEntry> = {}, more: { question?: string; flyer?: FlyerText; rewardCp?: number } = {}) => {
     if (it.kind === "earned") fail(`${it.name} can't be bought. You grant it.`);
     if (it.kind === "project") fail(`${it.name} is a project: contribute to it instead.`);
@@ -633,8 +650,15 @@ function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
     const ledgerExtra: Partial<LedgerEntry> = { itemId: it.id, ...(chargeCp !== listCp ? { listCp } : {}), ...extra };
     const question = more.question?.trim();
     if (it.kind === "recurring") {
-      move(p, -chargeCp, `Rented ${it.name} (first month)${haggled}`, "rent", ledgerExtra);
-      s.rentals.push({ id: nextId("rn"), itemId: it.id, itemName: it.name, playerId: p.id, monthlyCp: priceOf(s, it), startedAt: ctx.now, paidThrough: coversSession(), active: true });
+      const hireling = it.companionTemplateId ? companionTemplatesOf(s).find((t) => t.id === it.companionTemplateId) : undefined;
+      move(p, -chargeCp, hireling ? `Hired ${hireling.name} (this session)${haggled}` : `Rented ${it.name} (first month)${haggled}`, "rent", ledgerExtra);
+      const rental: Rental = { id: nextId("rn"), itemId: it.id, itemName: it.name, playerId: p.id, monthlyCp: priceOf(s, it), startedAt: ctx.now, paidThrough: coversSession(), active: true };
+      s.rentals.push(rental);
+      // A hireling: they join the party, run by whoever hired them, until let go.
+      if (hireling) {
+        rental.hire = true;
+        attachCompanion(s, hireling, p.id, "until", { now: ctx.now, nextId }, { hire: { rentalId: rental.id, buyerId: p.id } });
+      }
     } else if (it.kind === "training") {
       const of = it.installments ?? 1;
       const totalCp = priceOf(s, it) - listCp + chargeCp;
@@ -1171,6 +1195,8 @@ function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
       return s.notes![s.notes!.length - 1].id;
     },
     showScene: (id) => showScene(id),
+    task: (text) => task(text),
+    endRental: (rid) => endRental(rid),
   };
   const fireAction = (a: BeatAction) => {
     if (a.type === "scene") {
@@ -1487,6 +1513,30 @@ function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
     syncFightTokens(s, nextId);
     if (cmd.type === "fight.end" && !wasOver) noteMonsters(true);
     else if (cmd.type === "fight.patch") noteMonsters(false);
+    return out;
+  }
+
+  if (isCompanionCommand(cmd)) {
+    const c = cmd;
+    if (c.type === "companion.keep") {
+      // Session end: keep a hireling for the next session. The buyer pays now, once per session.
+      const comp = companionsWith(s).find((x) => x.id === c.companionId) ?? fail("That companion isn't with the party.");
+      const r = (comp.hire && s.rentals.find((x) => x.id === comp.hire!.rentalId && x.active)) || fail(`${comp.name} isn't a hireling.`);
+      const through = (s.sessions.find((x) => x.id === s.currentSessionId) ?? s.sessions.at(-1))?.number ?? 0;
+      if (r.paidThrough > through) fail(`${comp.name} is already paid for the next session.`);
+      const p = player(r.playerId);
+      move(p, -r.monthlyCp, `Kept ${comp.name} on (${r.itemName})`, "rent", { itemId: r.itemId });
+      r.paidThrough = through + 1;
+      out.info = `${comp.name} stays on. ${p.name} paid ${formatCp(r.monthlyCp)}.`;
+    } else {
+      applyCompanion(s, c, { now: ctx.now, nextId, fail, task: (t) => task(t), endRental });
+    }
+    syncFightTokens(s, nextId);
+    return out;
+  }
+
+  if (isPracticeCommand(cmd)) {
+    applyPractice(s, cmd, { now: ctx.now, rand, nextId, fail });
     return out;
   }
 
@@ -1904,6 +1954,7 @@ function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
       const r = s.rentals.find((x) => x.id === cmd.rentalId) ?? fail("That rental doesn't exist.");
       r.active = false;
       r.endedAt = ctx.now;
+      rentalEnded(s, r.id, ctx.now);
       break;
     }
     case "training.cancel": {
@@ -2429,6 +2480,8 @@ function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
       }
       cur.endedAt = ctx.now;
       s.currentSessionId = null;
+      // Companions who came along for the night go home.
+      endSessionCompanions(s, ctx.now);
       // Done jobs stay up (stamped DONE) for one whole session, then come down.
       for (const j of jobs) if (j.status === "done" && j.pinned && (j.doneAt ?? 0) < cur.startedAt) j.pinned = false;
       showScene(homeScene());
@@ -3063,6 +3116,19 @@ function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
       if (keys.length > 300) for (const k of keys.slice(0, keys.length - 300)) delete prep[k];
       break;
     }
+    case "episode.prepNote": {
+      const ep = episode(cmd.episodeId);
+      const notes = (ep.prepNotes ??= []);
+      if (cmd.noteId) {
+        ep.prepNotes = notes.filter((n) => n.id !== cmd.noteId);
+        if (ep.prep) delete ep.prep[`note:${cmd.noteId}`];
+      } else if (cmd.text) {
+        if (notes.length >= 100) fail("This checklist is full. Tick off or remove a few first.");
+        notes.push({ id: nextId("pn"), text: cmd.text, at: ctx.now });
+      } else fail("Write the item first.");
+      if (!ep.prepNotes?.length) delete ep.prepNotes;
+      break;
+    }
     case "run.story": {
       const ep = episode(cmd.episodeId);
       const b = ep.beats.find((x) => x.id === cmd.beatId) ?? fail("That beat doesn't exist.");
@@ -3666,6 +3732,7 @@ function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
       if (!r.active) fail("You already gave that up.");
       r.active = false;
       r.endedAt = ctx.now;
+      rentalEnded(s, r.id, ctx.now);
       break;
     }
     case "me.requestGive": {

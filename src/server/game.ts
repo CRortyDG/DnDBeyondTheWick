@@ -55,6 +55,22 @@ function byName(state: GameState | null, handle: string) {
   return hits.length === 1 ? hits[0] : undefined;
 }
 
+/**
+ * Who is asking, in a practice room. Every screen there is the DM's own: the
+ * DM key is required for all of them, and ?player= only says which screen to
+ * show (the DM console, the TV, or a stand-in's phone). No name is ever created.
+ */
+export function identifyPractice(state: GameState | null, rawPlayer: string | null, key: string | null, dmKeyHash: string | null): Who {
+  if (!isDmKey(key, dmKeyHash)) return { kind: "invalid" };
+  const lower = (rawPlayer ?? "").trim().toLowerCase();
+  if (lower === "dm") return { kind: "dm" };
+  if (lower === "tv") return { kind: "tv" };
+  const handle = normaliseHandle(rawPlayer ?? "");
+  const p = handle ? state?.players.find((x) => x.handle === handle) : undefined;
+  if (!p) return { kind: "unknown", handle, name: displayNameFrom(rawPlayer ?? "") };
+  return { kind: "player", playerId: p.id };
+}
+
 export function actorOf(who: Who): Actor {
   if (who.kind === "dm") return { role: "dm" };
   if (who.kind === "tv") return { role: "tv" };
