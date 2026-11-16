@@ -4,8 +4,8 @@ import { dmCommand, type Command } from "@/shared/commands";
 import { projectPlayer, projectTv } from "@/shared/projection";
 import { apply, type Ctx } from "@/shared/reducer";
 import { seedGame } from "@/shared/seed";
-import { initials, snapToGrid } from "@/shared/tokens";
-import { fogLayout } from "@/shared/fog";
+import { initials, monsterKey, snapToGrid } from "@/shared/tokens";
+import { decodeBits, encodeBits, fogLayout, setBit } from "@/shared/fog";
 import { hydrate } from "@/server/store";
 import type { GameState, MapToken } from "@/shared/types";
 
@@ -228,5 +228,103 @@ describe("known maps on phones", () => {
   it("only maps: portraits and handouts never show up here", () => {
     const g = run(game(), [{ type: "scene.show", sceneId: "s-symbol" }, { type: "scene.show", sceneId: "s-extra" }]);
     expect(known(g)).toEqual([]);
+  });
+});
+
+describe("monsters placed before the fight", () => {
+  const placed = (g: GameState) => tokens(g).filter((t) => t.kind === "monster");
+  const start = (g: GameState, count = 2) => run(g, [{ type: "fight.start", groups: [{ templateId: GREMLIN, count }] }]);
+
+  it("a placed token named like the monster becomes its fight token, in the same spot, with no second copy", () => {
+    let g = run(game(), [
+      { type: "scene.show", sceneId: MAP },
+      { type: "token.add", sceneId: MAP, kind: "monster", name: "Pudding Gremlins", x: 0.2, y: 0.2, hidden: true },
+    ]);
+    const before = placed(g)[0];
+    g = start(g, 1);
+    const foe = g.fight!.order.find((c) => c.kind === "monster")!;
+    expect(placed(g)).toHaveLength(1);
+    const t = placed(g)[0];
+    expect(t.id).toBe(before.id);
+    expect(t.combatantId).toBe(foe.id);
+    expect([t.x, t.y]).toEqual([before.x, before.y]);
+    // On the TV now, under the name the TV knows it by.
+    expect(tvMap(g).tokens.find((x) => x.id === t.id)?.name).toBe("Something in the pudding");
+  });
+
+  it("plain \"Monster\" tokens are taken by any monster; other names stay as they were; extra monsters get new tokens", () => {
+    let g = run(game(), [
+      { type: "scene.show", sceneId: MAP },
+      { type: "token.add", sceneId: MAP, kind: "monster", name: "Monster", x: 0.2, y: 0.2, hidden: true },
+      { type: "token.add", sceneId: MAP, kind: "monster", name: "Statue", x: 0.8, y: 0.8, hidden: true },
+    ]);
+    g = start(g, 2);
+    const statue = placed(g).find((t) => t.name === "Statue")!;
+    expect(statue.combatantId).toBeUndefined();
+    expect(statue.hidden).toBe(true);
+    const fight = placed(g).filter((t) => t.combatantId);
+    expect(fight).toHaveLength(2);
+    expect(new Set(fight.map((t) => t.combatantId)).size).toBe(2);
+    expect(fight.some((t) => t.x === 0.2 && t.y === 0.2)).toBe(true);
+    // The fight is called off: its tokens go, the statue stays.
+    g = run(g, [{ type: "fight.cancel" }]);
+    expect(placed(g).map((t) => t.name)).toEqual(["Statue"]);
+  });
+
+  it("a monster added during the fight takes a token placed for it", () => {
+    let g = run(game(), [{ type: "scene.show", sceneId: MAP }, { type: "fight.start" }]);
+    g = run(g, [{ type: "token.add", sceneId: MAP, kind: "monster", name: "Monster", x: 0.3, y: 0.3, hidden: true }]);
+    expect(placed(g)[0].combatantId).toBeUndefined();
+    g = run(g, [{ type: "fight.add", templateId: GREMLIN, count: 1 }]);
+    expect(placed(g)).toHaveLength(1);
+    expect(placed(g)[0].combatantId).toBe(g.fight!.order.find((c) => c.kind === "monster")!.id);
+  });
+});
+
+describe("fight tokens and the fog", () => {
+  const ART = "/api/files/t/0123456789abcdef01234567.webp";
+  const GRID = { snap: true, lines: false, cell: 0.1, ox: 0, oy: 0, aspect: 1 };
+  function foggedMap(clearCells: [number, number][]): GameState {
+    let g = run(game(), [
+      { type: "scene.update", sceneId: MAP, patch: { art: { url: ART } } },
+      { type: "scene.show", sceneId: MAP },
+      { type: "map.grid", sceneId: MAP, grid: GRID },
+      { type: "fog.setup", sceneId: MAP, layout: fogLayout(GRID, 1), tiles: { cols: 1, rows: 1, urls: [ART], src: ART } },
+    ]);
+    const f = g.scenes.find((s) => s.id === MAP)!.map!.fog!;
+    const b = decodeBits(f.bits, f.cols, f.rows);
+    for (const [c, r] of clearCells) setBit(b, r * f.cols + c, true);
+    return run(g, [{ type: "fog.bits", sceneId: MAP, bits: encodeBits(b) }]);
+  }
+
+  it("puts the fight's monsters where the fog is clear, so the TV shows them", () => {
+    // Only the bottom-left corner is clear; the middle is still fogged.
+    const cells: [number, number][] = [];
+    for (let c = 0; c < 5; c++) for (let r = 6; r < 10; r++) cells.push([c, r]);
+    let g = foggedMap(cells);
+    g = run(g, [{ type: "fight.start", groups: [{ templateId: GREMLIN, count: 2 }] }]);
+    const foes = tokens(g).filter((t) => t.combatantId);
+    expect(foes).toHaveLength(2);
+    const tv = tvMap(g).tokens;
+    for (const t of foes) expect(tv.some((x) => x.id === t.id)).toBe(true);
+  });
+
+  it("goes near the party when they're on the map", () => {
+    let g = run(game(), [{ type: "scene.show", sceneId: MAP }, { type: "token.party", sceneId: MAP, x: 0.2, y: 0.8 }]);
+    g = run(g, [{ type: "fight.start", groups: [{ templateId: GREMLIN, count: 1 }] }]);
+    const foe = tokens(g).find((t) => t.combatantId)!;
+    expect(foe.x).toBeLessThan(0.45);
+    expect(foe.y).toBeLessThan(0.8);
+    expect(foe.y).toBeGreaterThan(0.5);
+  });
+});
+
+describe("monsterKey", () => {
+  it("matches a placed token's name to a fight's monster", () => {
+    expect(monsterKey("Goblin A")).toBe("goblin");
+    expect(monsterKey("Goblins")).toBe("goblin");
+    expect(monsterKey("  goblin 3 ")).toBe("goblin");
+    expect(monsterKey("Cutlass")).toBe("cutlass");
+    expect(monsterKey("Bass")).toBe("bass");
   });
 });

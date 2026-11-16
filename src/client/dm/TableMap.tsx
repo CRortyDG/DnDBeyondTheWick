@@ -320,7 +320,7 @@ function Table({ scene, onClose }: { scene: Scene; onClose: () => void }) {
         <button type="button" className="btn" onClick={() => void addParty()} title="A token for everyone at the table who hasn't one here">
           Add party
         </button>
-        <button type="button" className="btn" onClick={() => void addOne("monster")} title="Starts hidden; press H or untick Hidden to show it">
+        <button type="button" className="btn" onClick={() => void addOne("monster")} title="Set up a monster before the fight. It stays hidden until a fight starts and a monster takes its spot">
           Add monster
         </button>
         <button type="button" className="btn" onClick={() => void addOne("npc")}>
@@ -540,7 +540,8 @@ function Table({ scene, onClose }: { scene: Scene; onClose: () => void }) {
           ) : (
             <div className="note">
               <p>Drag a token to move it; the TV follows when you let go. Arrows move the selected token a square, H hides or shows it, Delete removes it.</p>
-              <p>Faded tokens are hidden: only you see them. Monsters you add start hidden. In a fight, everyone fighting gets a token on the map that's on the TV.</p>
+              <p>Faded tokens are hidden: only you see them.</p>
+              <p>In a fight, everyone fighting gets a token on the map that's on the TV. Monsters you add here are for setting up first: they stay hidden, and when the fight starts, a monster with the same name takes the spot (Goblin A takes a token called Goblin). Any monster takes one still called Monster.</p>
               {!tokens.length ? <p>No tokens yet. Press Add party to put everyone on the map.</p> : null}
             </div>
           )}
@@ -618,6 +619,13 @@ function TokenFields({ scene, token, onRemoved }: { scene: Scene; token: MapToke
       {fromFight ? <p className="note">Its name and whether the TV sees it follow the fight screen (reveal or hide it there).</p> : null}
       {player ? <p className="note">Shows their character name.</p> : null}
       {!player && !fromFight ? <Field label="Name (the TV shows this)" value={token.name} onCommit={(v) => patch({ name: v })} /> : null}
+      {token.kind === "monster" && !fromFight ? (
+        <p className="note">
+          {/^\s*(monster)?\s*$/i.test(token.name)
+            ? "When a fight starts, the first monster without a token takes this spot."
+            : `When a fight starts, a monster called ${token.name.trim()} takes this spot. Rename it Monster to let any monster have it.`}
+        </p>
+      ) : null}
       <Field label="Letters on the token" value={token.label} placeholder={face.label} hint="Up to 3; empty uses the initials" onCommit={(v) => (v.length > 3 ? false : patch({ label: v }))} />
       <div className="tm-colors" role="radiogroup" aria-label="Colour">
         {TOKEN_COLORS.map((c) => (
