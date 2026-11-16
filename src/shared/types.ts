@@ -705,6 +705,10 @@ export interface TradeRequest {
   decidedAt?: number;
   /** Decline reason the player sees. */
   reason?: string;
+  /** The DM took it off the player's shop history (it stays in the DM's). */
+  hidden?: boolean;
+  /** The DM reopened it after declining it by mistake. */
+  reopenedAt?: number;
   /** What was actually charged (differs from totalCp after haggling). */
   chargedCp?: number;
   /** Service or training: the player's answer to the item's prompt. */

@@ -280,3 +280,57 @@ describe("odds and ends", () => {
     expect(upgrade(old).requests).toEqual([]);
   });
 });
+
+describe("shop history: fixing a decision", () => {
+  it("reopens a mistaken decline, holds the gold again, and approves it after all", () => {
+    as(P1, buy("Shield")); // 10 gp
+    const id = pending()[0].id;
+    as(DM, { type: "request.decline", requestId: id, reason: "oops" });
+    expect(availableCp(g, "p1")).toBe(30 * GP);
+    as(DM, { type: "request.reopen", requestId: id });
+    const r = g.requests.find((x) => x.id === id)!;
+    expect(r).toMatchObject({ status: "pending" });
+    expect(r.reason).toBeUndefined();
+    expect(r.decidedAt).toBeUndefined();
+    expect(availableCp(g, "p1")).toBe(20 * GP);
+    expect(projectPlayer(g, 1, "p1", []).myRequests[0]).toMatchObject({ status: "pending" });
+    as(DM, { type: "request.approve", requestId: id });
+    expect(bal("p1")).toBe(20 * GP);
+    expect(g.requests.find((x) => x.id === id)!.status).toBe("approved");
+    expect(fails(DM, { type: "request.reopen", requestId: id }).message).toMatch(/Only a declined request/);
+  });
+
+  it("won't reopen what the player can no longer afford", () => {
+    as(P1, buy("Longsword")); // 15 gp
+    const id = pending()[0].id;
+    as(DM, { type: "request.decline", requestId: id, reason: "" });
+    as(DM, { type: "money.adjust", playerId: "p1", amountCp: -20 * GP, note: "" });
+    expect(fails(DM, { type: "request.reopen", requestId: id }).message).toMatch(/only has 10 gp free now, not 15 gp/);
+    expect(g.requests.find((x) => x.id === id)!.status).toBe("declined");
+  });
+
+  it("edits the reason, hides a line from the phone, and removes it", () => {
+    as(P1, buy("Shield"));
+    const id = pending()[0].id;
+    as(DM, { type: "request.decline", requestId: id, reason: "no" });
+    as(DM, { type: "request.reason", requestId: id, reason: "  Come back tomorrow " });
+    expect(projectPlayer(g, 1, "p1", []).myRequests[0].reason).toBe("Come back tomorrow");
+    as(DM, { type: "request.reason", requestId: id, reason: "" });
+    expect(projectPlayer(g, 1, "p1", []).myRequests[0].reason).toBeUndefined();
+    as(DM, { type: "request.hide", requestId: id, hidden: true });
+    expect(projectPlayer(g, 1, "p1", []).myRequests).toHaveLength(0);
+    expect(g.requests.find((x) => x.id === id)!.hidden).toBe(true);
+    as(DM, { type: "request.hide", requestId: id, hidden: false });
+    expect(projectPlayer(g, 1, "p1", []).myRequests).toHaveLength(1);
+    as(DM, { type: "request.remove", requestId: id });
+    expect(g.requests.find((x) => x.id === id)).toBeUndefined();
+  });
+
+  it("leaves waiting requests alone, and players can't use these", () => {
+    as(P1, buy("Shield"));
+    const id = pending()[0].id;
+    expect(fails(DM, { type: "request.hide", requestId: id, hidden: true }).message).toMatch(/still waiting/);
+    expect(fails(DM, { type: "request.remove", requestId: id }).message).toMatch(/still waiting/);
+    expect(() => as(P1, { type: "request.remove", requestId: id } as Command)).toThrow();
+  });
+});

@@ -7,10 +7,11 @@ import { bothNames } from "@/shared/arrival";
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { formatCp, parseAmount } from "@/shared/money";
-import { pendingRequests } from "@/shared/requests";
+import { availableCp, pendingRequests } from "@/shared/requests";
 import { firstChargeCp, raisedCp } from "@/shared/progress";
 import type { FlyerText, TradeRequest } from "@/shared/types";
 import { useDm } from "./context";
+import { MenuItem, RowMenu } from "./RowMenu";
 import { BOARD_SLOTS, jobsOf, pinnedCount, rankName } from "@/shared/renown";
 
 const MUTE_SLOT = "cf-inbox-muted";
@@ -114,7 +115,6 @@ export function Inbox() {
 function InboxDrawer({ pending, muted, onMute, onClose }: { pending: TradeRequest[]; muted: boolean; onMute: () => void; onClose: () => void }) {
   const { view, run, call, toast } = useDm();
   const s = view.state;
-  const recent = s.requests.filter((r) => r.status !== "pending").slice(-6).reverse();
   const panel = useRef<HTMLDivElement>(null);
 
   // Esc closes the drawer first, before the DM view (or run sheet) sees it.
@@ -165,24 +165,7 @@ function InboxDrawer({ pending, muted, onMute, onClose }: { pending: TradeReques
         </ul>
         <Tasks />
         <BoardFlyers />
-        {recent.length ? (
-          <>
-            <h3>Recently</h3>
-            <ul className="inbox-recent">
-              {recent.map((r) => (
-                <li key={r.id}>
-                  <span>
-                    {r.playerName}: {describe(r)}
-                  </span>
-                  <span className={`req-status st-${r.status}`}>
-                    {r.status}
-                    {r.chargedCp !== undefined && r.kind === "buy" ? ` · ${formatCp(r.chargedCp)}` : ""}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          </>
-        ) : null}
+        <ShopHistory />
       </aside>
     </div>
   );
@@ -459,5 +442,196 @@ function JobAsk({ r }: { r: TradeRequest }) {
         <div className="note">That flyer has come down.</div>
       )}
     </>
+  );
+}
+
+const STATUS_WORD = {
+  pending: "waiting",
+  approved: "approved",
+  declined: "declined",
+  cancelled: "cancelled",
+} as const;
+
+/**
+ * Every decided request, newest first, each with a ⋯ menu: reopen a decline that
+ * was a mistake, fix its reason, keep it off the player's phone, or remove it.
+ */
+function ShopHistory() {
+  const { view } = useDm();
+  const s = view.state;
+  const decided = s.requests.filter((r) => r.status !== "pending").reverse();
+  const [who, setWho] = useState("");
+  const [all, setAll] = useState(false);
+  const [open, setOpen] = useState<{ id: string; mode: HistoryMode } | null>(null);
+  if (!decided.length) return null;
+  const people = [...new Map(decided.map((r) => [r.playerId, s.players.find((p) => p.id === r.playerId)?.name ?? r.playerName])).entries()];
+  const mine = who ? decided.filter((r) => r.playerId === who) : decided;
+  const shown = all ? mine : mine.slice(0, 6);
+  return (
+    <>
+      <div className="inbox-history-head">
+        <h3>Shop history</h3>
+        {people.length > 1 ? (
+          <select className="fld small" value={who} onChange={(e) => (setWho(e.target.value), setOpen(null))} aria-label="Whose history">
+            <option value="">Everyone</option>
+            {people.map(([id, name]) => (
+              <option key={id} value={id}>
+                {name}
+              </option>
+            ))}
+          </select>
+        ) : null}
+      </div>
+      <ul className="inbox-recent inbox-history">
+        {shown.map((r) => {
+          const who = s.players.find((p) => p.id === r.playerId)?.name ?? r.playerName;
+          return (
+            <li key={r.id} className={`${r.hidden ? "is-hidden" : ""}${open?.id === r.id ? " on" : ""}`}>
+              <div className="inbox-history-row">
+                <span>
+                  {who}: {describe(r)}
+                  {r.status === "declined" && r.reason ? <span className="note"> · “{r.reason}”</span> : null}
+                  {r.hidden ? <span className="note"> · hidden from their phone</span> : null}
+                </span>
+                <span className="inline nowrap">
+                  <span className={`req-status st-${r.status}`}>
+                    {STATUS_WORD[r.status]}
+                    {r.chargedCp !== undefined && r.kind === "buy" ? ` · ${formatCp(r.chargedCp)}` : ""}
+                  </span>
+                  <RowMenu label={`${who}: ${describe(r)}`}>
+                    {r.status === "declined" ? <MenuItem onClick={() => setOpen({ id: r.id, mode: "reopen" })}>Reopen to approve</MenuItem> : null}
+                    {r.status === "declined" ? <MenuItem onClick={() => setOpen({ id: r.id, mode: "reason" })}>Edit reason</MenuItem> : null}
+                    <MenuItem onClick={() => setOpen({ id: r.id, mode: "hide" })}>{r.hidden ? "Show on their phone" : "Hide from their phone"}</MenuItem>
+                    <MenuItem danger onClick={() => setOpen({ id: r.id, mode: "remove" })}>
+                      Remove from history
+                    </MenuItem>
+                  </RowMenu>
+                </span>
+              </div>
+              {open?.id === r.id ? <HistoryFix key={open.mode} r={r} mode={open.mode} onClose={() => setOpen(null)} /> : null}
+            </li>
+          );
+        })}
+      </ul>
+      {shown.length < mine.length ? (
+        <button type="button" className="btn small" onClick={() => setAll(true)}>
+          Show all {mine.length}
+        </button>
+      ) : null}
+    </>
+  );
+}
+
+type HistoryMode = "reopen" | "reason" | "hide" | "remove";
+
+function HistoryFix({ r, mode, onClose }: { r: TradeRequest; mode: HistoryMode; onClose: () => void }) {
+  const { view, run } = useDm();
+  const s = view.state;
+  const p = s.players.find((x) => x.id === r.playerId);
+  const name = p?.name ?? r.playerName;
+  const [reason, setReason] = useState(r.reason ?? "");
+  const hold = r.totalCp + (r.rewardCp ?? 0);
+  const free = p ? availableCp(s, p.id) : 0;
+  const go = async (ok: Promise<boolean>) => {
+    if (await ok) onClose();
+  };
+  return (
+    <div className="inbox-fix">
+      {mode === "reopen" ? (
+        <>
+          <p>
+            Puts it back at the top of your requests, waiting, so you can approve it after all (or decline it again).
+            {r.kind !== "job" && hold ? ` It holds ${formatCp(hold)} of ${name}'s gold again until you decide.` : ""} The “Declined” line leaves {name}&rsquo;s phone.
+          </p>
+          {r.kind !== "job" && hold > free ? (
+            <p className="inbox-warn">
+              {name} only has {formatCp(Math.max(0, free))} free now. Give them the gold first, or ask them to request it again.
+            </p>
+          ) : null}
+          <div className="inline">
+            <button type="button" className="btn primary" disabled={!p || (r.kind !== "job" && hold > free)} onClick={() => void go(run({ type: "request.reopen", requestId: r.id }, "Reopened. It's waiting at the top of your requests."))}>
+              Reopen it
+            </button>
+            <button type="button" className="btn" onClick={onClose}>
+              Cancel
+            </button>
+          </div>
+        </>
+      ) : mode === "reason" ? (
+        <form
+          className="inline"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void go(
+              run(
+                {
+                  type: "request.reason",
+                  requestId: r.id,
+                  reason: reason.trim(),
+                },
+                reason.trim() ? "Reason updated." : "Reason removed.",
+              ),
+            );
+          }}
+        >
+          <label className="grow">
+            Reason {name} sees (leave empty for none)
+            <input className="fld" autoFocus value={reason} maxLength={120} onChange={(e) => setReason(e.target.value)} />
+          </label>
+          <button type="submit" className="btn primary" disabled={reason.trim() === (r.reason ?? "")}>
+            Save
+          </button>
+          <button type="button" className="btn" onClick={onClose}>
+            Cancel
+          </button>
+        </form>
+      ) : mode === "hide" ? (
+        <>
+          <p>
+            {r.hidden
+              ? `Puts it back in ${name}'s shop history on their phone.`
+              : `Takes it off ${name}'s shop history on their phone. You still see it here, and nothing else changes${r.status === "approved" ? ": the gold, the item and the Bank ledger stay as they are" : ""}.`}
+          </p>
+          <div className="inline">
+            <button
+              type="button"
+              className="btn primary"
+              onClick={() =>
+                void go(
+                  run(
+                    {
+                      type: "request.hide",
+                      requestId: r.id,
+                      hidden: !r.hidden,
+                    },
+                    r.hidden ? "Back on their phone." : "Hidden from their phone.",
+                  ),
+                )
+              }
+            >
+              {r.hidden ? "Show it" : "Hide it"}
+            </button>
+            <button type="button" className="btn" onClick={onClose}>
+              Cancel
+            </button>
+          </div>
+        </>
+      ) : (
+        <>
+          <p>
+            Gone for good, from your history and {name}&rsquo;s phone.
+            {r.status === "approved" ? " The purchase itself stays: the gold, the item and the Bank ledger line don't change. To give the gold back, use the Bank." : ""}
+          </p>
+          <div className="inline">
+            <button type="button" className="btn danger" onClick={() => void go(run({ type: "request.remove", requestId: r.id }, "Removed from the history."))}>
+              Remove it
+            </button>
+            <button type="button" className="btn" onClick={onClose}>
+              Cancel
+            </button>
+          </div>
+        </>
+      )}
+    </div>
   );
 }
