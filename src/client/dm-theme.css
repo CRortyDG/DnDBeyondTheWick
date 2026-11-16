@@ -1109,6 +1109,10 @@ html[data-view="dm"] {
   border-radius: var(--dm-r-md);
   box-shadow: 0 16px 40px rgba(0, 0, 0, 0.55);
 }
+:where(html[data-view="dm"]) .row-menu-pop.up {
+  top: auto;
+  bottom: calc(100% + 4px);
+}
 :where(html[data-view="dm"]) .row-menu-item {
   display: flex;
   align-items: center;
@@ -5035,4 +5039,74 @@ html[data-view="dm"][data-phone] .fx-pad-sheet .fx-hit-btns .btn {
 }
 html[data-view="dm"][data-phone] .fx-side > p.note.hint {
   display: none;
+}
+
+/* ---------- Discovery on a phone ---------- */
+
+/* Menu items big enough for a thumb. */
+html[data-view="dm"][data-phone] .row-menu-item,
+html[data-view="dm"][data-tablet] .row-menu-item {
+  min-height: 44px;
+  font-size: 14px;
+}
+/* The editor drawer stops at the tab bar, so its last fields and buttons aren't under it. */
+html[data-view="dm"][data-phone] .dm-drawer {
+  bottom: calc(var(--pm-bar-h, 62px) + env(safe-area-inset-bottom));
+  border-bottom: 1px solid var(--dm-border);
+}
+
+@media (max-width: 700px) {
+  /* A row: picture and name, then its tags, then stage, key, Show and ⋯ on one line. */
+  :where(html[data-view="dm"]) .people-list .scene-row {
+    gap: 6px;
+  }
+  :where(html[data-view="dm"]) .people-list .row-main {
+    flex-basis: calc(100% - 52px);
+  }
+  :where(html[data-view="dm"]) .people-list .row-meta {
+    flex: 1 1 100%;
+    flex-wrap: wrap;
+    padding-left: 44px;
+  }
+  :where(html[data-view="dm"]) .people-list .row-meta:empty {
+    display: none;
+  }
+  :where(html[data-view="dm"]) .people-list .stage-pick {
+    flex: 1 1 0;
+    min-width: 92px;
+    max-width: 150px;
+  }
+  :where(html[data-view="dm"]) .people-list .stage-select {
+    width: 100%;
+  }
+  :where(html[data-view="dm"]) .people-list .quick-key-select {
+    width: 76px;
+  }
+  :where(html[data-view="dm"]) .people-list .row-menu {
+    margin-left: auto;
+  }
+  /* Three counts fit on one line. */
+  :where(html[data-view="dm"]) .people-panel .pg-stats > div {
+    flex: 1 1 0;
+    padding: 8px 12px;
+  }
+  /* Filters: the two switches line up on the left, one per line. */
+  :where(html[data-view="dm"]) .discovery-filters > .spacer {
+    display: none;
+  }
+  :where(html[data-view="dm"]) .discovery-filters > label.check {
+    flex: 1 1 100%;
+  }
+  /* Add: kind and name share a line (the name gets the room), the buttons go below. */
+  :where(html[data-view="dm"]) .people-panel .pg-inline-form input.fld {
+    flex: 1 1 160px;
+  }
+  /* The editor: one field per line, each the drawer's full width. */
+  :where(html[data-view="dm"]) .person-editor .inline > label:not(.check) {
+    flex: 1 1 100%;
+    min-width: 0;
+  }
+  :where(html[data-view="dm"]) .person-editor .inline > label > .fld {
+    width: 100%;
+  }
 }
