@@ -20,6 +20,7 @@ import { LevelUpButton, LevelUpDialog } from "./LevelUp";
 import { useTablet } from "./tablet";
 import { FullScreenButton } from "./TabletBits";
 import { DiceButton } from "./DiceTray";
+import { ambientById } from "@/shared/ambient";
 import { ClueLeftovers, OffScriptPanel, QuickCapture, TurnNotesInto, useOffScriptKeys, type OffTab } from "./OffScript";
 import { hereOf } from "@/shared/offscript";
 import type { GameState } from "@/shared/types";
@@ -164,7 +165,7 @@ export function RunGame({ onExit, onFight }: { onExit: () => void; onFight?: () 
         <span className="spacer" />
         <FullScreenButton small />
         <span className="run-tv" title="What the TV shows">
-          TV: {s.live.recapSessionId ? "Previously on…" : s.live.shopOpen ? "the shop" : (live?.label ?? "–")}
+          TV: {s.live.recapSessionId ? "Previously on…" : s.live.shopOpen ? "the shop" : (ambientById(s.live.ambient?.id)?.label ?? live?.label ?? "–")}
           {s.live.purseVisible ? " · purse" : ""}
         </span>
         <button className={`btn small here-chip${here ? "" : " none"}`} type="button" title="Where the party is (opens the off-script panel)" onClick={() => (setOffTab("here"), setOffOpen(true))}>

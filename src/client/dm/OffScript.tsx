@@ -187,7 +187,7 @@ function DefaultScene({ place }: { place: Entry }) {
           </button>
         </>
       ) : (
-        <span className="note">{place.name} has no TV scene yet. Under Scenes, press “Use here” on one.</span>
+        <span className="note">{place.name} has no TV scene yet. Under Scenes, press “Set as default” on one.</span>
       )}
     </div>
   );
@@ -593,7 +593,10 @@ function ScenesSection() {
   const placeScene = ambientOfRef(here?.place?.scene);
   return (
     <section className="offscript-sec" aria-label="Scenes">
-      <p className="note">Click a scene to put it on the TV. The caption is optional.</p>
+      <p className="note">
+        Click a picture (or its Show button) to put it on the TV. The caption is optional.
+        {here ? <> “Set as default” only saves it as {here.name}’s usual scene, for <span className="key">V</span> later. It doesn’t show it.</> : null}
+      </p>
       <label className="offscript-caption">
         <span className="note">Caption on the TV</span>
         <input className="fld" value={caption} maxLength={80} placeholder="The coast road, dusk." onChange={(e) => setCaption(e.target.value)} />
@@ -606,15 +609,21 @@ function ScenesSection() {
             </button>
             <div className="amb-tile-foot">
               <span>{a.label}</span>
-              {liveAmb === a.id ? <span className="tag">on the TV</span> : null}
+              {liveAmb === a.id ? (
+                <span className="tag">on the TV</span>
+              ) : (
+                <button type="button" className="btn tiny primary" onClick={() => void run({ type: "ambient.show", id: a.id, caption: caption.trim() })}>
+                  Show
+                </button>
+              )}
               {here ? (
                 <button
                   type="button"
                   className={`btn tiny${placeScene === a.id ? " on" : ""}`}
-                  title={`Make this ${here.name}'s scene`}
+                  title={`Save as ${here.name}’s usual scene (doesn’t show it)`}
                   onClick={() => void run({ type: "place.setup", entryId: here.id, scene: placeScene === a.id ? null : `ambient/${a.id}`, caption: caption.trim() || null }, placeScene === a.id ? undefined : `${a.label} is now ${here.name}'s scene.`)}
                 >
-                  {placeScene === a.id ? "Here’s scene ✓" : "Use here"}
+                  {placeScene === a.id ? "Default ✓" : "Set as default"}
                 </button>
               ) : null}
             </div>
