@@ -11,6 +11,8 @@
 // 16–23 s  she walks her cart toward the Trollbark
 // 23–25 s  one more lantern flickers to life
 // 25 s+    "End of episode one"
+//
+// With Reduce Motion on, the same timeline plays as slow fades (see globals.css).
 
 const STARS: [number, number, number][] = [
   [120, 90, 2], [260, 180, 1.5], [410, 70, 2.2], [560, 150, 1.4], [700, 60, 1.8], [860, 130, 1.3], [1010, 80, 2],

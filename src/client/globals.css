@@ -3945,13 +3945,46 @@ input.fld.inline-input {
   from { transform: translate(0, -20px); }
   to { transform: translate(24px, 40px); }
 }
+/* Reduce Motion (often on for iPhones and some TVs): the DM pressed play, so the
+   story still plays on the same timeline, but as slow fades with nothing
+   zooming, walking, jumping or looping. It used to skip straight to the end. */
 @media (prefers-reduced-motion: reduce) {
-  .stinger *,
-  .stinger {
-    animation-duration: 1ms !important;
-    animation-delay: 0s !important;
-    animation-iteration-count: 1 !important;
+  .stg-star,
+  .stg-glow,
+  .stg-flicker,
+  .stg-smoke,
+  .stg-snow,
+  .stg-bob,
+  .stg-wheel,
+  .stg-child,
+  .stg-child-arm,
+  .stg-woman-arm {
+    animation: none;
   }
+  .stg-gift {
+    animation: none;
+    opacity: 0;
+  }
+  .stg-inn {
+    animation-name: stg-inn-still;
+  }
+  .stg-walker {
+    animation-name: stg-walk-still;
+  }
+  .stg-last-flame,
+  .stg-last-glow {
+    animation: stg-fade-in 1.2s ease-in 23.2s both;
+  }
+}
+@keyframes stg-inn-still {
+  0% { opacity: 0; }
+  15.8% { opacity: 1; }
+  80% { opacity: 1; }
+  94.7%, 100% { opacity: 0; }
+}
+@keyframes stg-walk-still {
+  from { opacity: 1; }
+  to { opacity: 0; }
 }
 .arrival-pick {
   margin: 0 0 6px;

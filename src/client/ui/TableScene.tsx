@@ -12,7 +12,12 @@ const QR_MS = 8000;
  * claim their seats. When the last one lights, every candle flares and the
  * title fades in, then it holds.
  */
-export function TableScene({ table }: { table?: TableView }) {
+export function TableScene({ table: fresh }: { table?: TableView }) {
+  // The TV only gets the table while it's the live scene, so as it fades out the
+  // data is gone: hold the last one, or the title flashes back to the default.
+  const held = useRef(fresh);
+  if (fresh) held.current = fresh;
+  const table = held.current;
   const seats = table?.seats ?? [];
   const all = seats.length > 0 && seats.every((s) => s.lit);
 
