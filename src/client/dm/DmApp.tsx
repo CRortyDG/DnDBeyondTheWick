@@ -1,5 +1,6 @@
 
 import { reviewCount } from "./ReviewMadeUp";
+import { pendingRequests } from "@/shared/requests";
 import { OffScriptButton } from "./OffScript";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement } from "react";
 import type { DmCommand } from "@/shared/commands";
@@ -51,7 +52,7 @@ import { WorldPanel } from "./WorldPanel";
 import { partiesOf, tableParty } from "@/shared/world";
 import { BuilderPanel, usePendingDrafts } from "./BuilderPanel";
 import { TablesPanel } from "./TablesPanel";
-import { useTablet, useTabletAttr, useWakeLock } from "./tablet";
+import { usePhone, usePhoneAttr, useTablet, useTabletAttr, useWakeLock } from "./tablet";
 import { FullScreenButton, TabletOffer } from "./TabletBits";
 import { DieIcon, SparkIcon, BoardIcon, BookIcon, CoinIcon, EyeIcon, GearIcon, GlobeIcon, ListIcon, MapIcon, PanelRightIcon, PeopleIcon, PinIcon, PlayIcon, QuillIcon, SearchIcon, ShipIcon, SkullIcon, StoreIcon, SwordIcon } from "./navIcons";
 
@@ -432,6 +433,18 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
   // Tablet mode (Settings → This device): bigger touch targets, and the screen stays awake while a session runs.
   const tablet = useTablet();
   useTabletAttr(tablet);
+  // Phone layout (Settings → This device, automatic on narrow screens): slim top bar, tabs along the bottom.
+  const phone = usePhone();
+  usePhoneAttr(phone);
+  const [moreOpen, setMoreOpen] = useState(false);
+  const [pagesOpen, setPagesOpen] = useState(false);
+  const [tvOpen, setTvOpen] = useState(false);
+  const pickPage = useCallback((t: Tab) => {
+    setTab(t);
+    setPagesOpen(false);
+    setTvOpen(false);
+    window.scrollTo(0, 0);
+  }, []);
   useWakeLock(tablet && !!session);
   const seated = s.world ? tableParty(s) : undefined;
   const liveShop = s.shops.find((x) => x.id === s.live.shopId);
@@ -445,6 +458,26 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
   const runningEp = session?.run ? episodes.find((e) => e.id === session.run!.episodeId) : undefined;
   const chosenEp = episodes.find((e) => e.id === pickEpisode) ?? episodes[0];
 
+  // Phone layout: the one button that matters right now sits in the top bar; the rest live under ⋯.
+  const primary = s.fight ? (
+    <button className="btn primary" type="button" onClick={openFight}>
+      <SwordIcon /> Fight
+    </button>
+  ) : runningEp ? (
+    <button className="btn primary" type="button" onClick={() => startRun(runningEp.id)}>
+      <PlayIcon size={12} /> Resume
+    </button>
+  ) : !session ? (
+    <button className="btn primary" type="button" onClick={() => (readiness(s).length ? setReady(true) : void run({ type: "session.start" }, "Session started. The TV is back on the notice board."))}>
+      Start session {nextSessionNumber(s)}
+    </button>
+  ) : chosenEp ? (
+    <button className="btn primary" type="button" onClick={() => startRun(chosenEp.id)} title={`Run “${chosenEp.title}”`}>
+      <PlayIcon size={12} /> Run
+    </button>
+  ) : null;
+  const showRail = phone ? tvOpen : railOpen;
+
   // The fight screen and run-game mode replace the console; the dice tray and toasts stay put across all three.
   const screen =
     fightOpen && s.fight ? (
@@ -452,101 +485,209 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
     ) : runOpen && session?.run ? (
       <RunGame onExit={leaveRun} onFight={openFight} />
     ) : (
-      <div className={`dm-root dm-shell${railOpen ? " rail-open" : ""}`}>
-        <header className="dm-top">
-          <div className="dm-brand">
-            <CandleIcon size={22} />
-            <div className="dm-brand-text">
-              <div className="dm-title">{s.name}</div>
-              <div className="dm-subtitle">
-                {seated ? (
-                  <>
-                    <span className="party-dot" style={{ background: seated.color }} aria-hidden="true" /> {seated.name} ·{" "}
-                  </>
-                ) : null}
-                {session ? `${session.title} · running` : "Between sessions"}
+      <div className={`dm-root dm-shell${railOpen && !phone ? " rail-open" : ""}`}>
+        {phone ? (
+          <header className={`dm-top pm-top${moreOpen ? " more-open" : ""}`}>
+            <div className="dm-brand">
+              <CandleIcon size={22} />
+              <div className="dm-brand-text">
+                <div className="dm-title">{s.name}</div>
+                <div className="dm-subtitle">
+                  {seated ? (
+                    <>
+                      <span className="party-dot" style={{ background: seated.color }} aria-hidden="true" /> {seated.name} ·{" "}
+                    </>
+                  ) : null}
+                  {session ? `${session.title} · running` : "Between sessions"}
+                </div>
               </div>
             </div>
-          </div>
-          <span className={`conn${online ? " ok" : ""}`} role="status">
-            {online ? "Live" : "Reconnecting"}
-          </span>
-          <span className="spacer" />
-          <button type="button" className="dm-find" onClick={() => setFinder({})} title="Find anything to show on the TV">
-            <SearchIcon />
-            <span className="dm-find-text">Find or show anything</span>
-            <span className="key">/</span>
-          </button>
-          <RenownChip />
-          <OffScriptButton enabled={!runOpen && !finder && storyOpen === null && !editingMap} />
-          <Inbox />
-          {ending && session ? <EndSessionDialog session={session} onClose={() => setEnding(false)} /> : null}
-          {ready && !session ? <ReadyDialog onClose={() => setReady(false)} onGo={(page) => setTab(page)} /> : null}
-          {s.fight ? null : (
-            <button className="btn icon-only" type="button" onClick={startFight} title="Start a fight: Roll initiative! on the TV and phones" aria-label="Start fight">
-              <SwordIcon />
+            <span className={`conn${online ? " ok" : ""}`} role="status">
+              {online ? "Live" : "Reconnecting"}
+            </span>
+            <span className="spacer" />
+            <DiceButton />
+            {primary}
+            <button className={`btn icon-only pm-more-btn${moreOpen ? " on" : ""}`} type="button" aria-expanded={moreOpen} onClick={() => setMoreOpen((v) => !v)} aria-label="More">
+              <MoreIcon />
+              {pendingRequests(s).length + s.tasks.filter((t) => !t.done).length ? <span className="pm-dot-badge" aria-hidden="true" /> : null}
             </button>
-          )}
-          <DiceButton />
-          {s.vttUrl ? (
-            <a className="btn icon-only" href={s.vttUrl} target="_blank" rel="noopener noreferrer" title="Launch VTT" aria-label="Launch VTT">
-              <DiceIcon />
-            </a>
-          ) : null}
-          <button className="btn icon-only" type="button" onClick={openTv} title={`Open the TV window: ${absoluteHref(ident.game, "TV")}`} aria-label="Open TV window">
-            <TvIcon />
-          </button>
-          <button className={`btn icon-only${railOpen ? " on" : ""}`} type="button" onClick={toggleRail} aria-pressed={railOpen} title={railOpen ? "Hide the TV panel" : "Show the TV panel"} aria-label="TV panel">
-            <PanelRightIcon />
-          </button>
-          <FullScreenButton />
-          <span className="dm-top-sep" aria-hidden="true" />
-          {s.practice ? null : <PracticeButton episodeId={(runningEp ?? chosenEp)?.id} episodeTitle={(runningEp ?? chosenEp)?.title} />}
-          {session ? (
-            <button className="btn" type="button" onClick={() => setEnding(true)}>
-              End session
-            </button>
-          ) : null}
-          {runningEp ? (
-            <button className={`btn${s.fight ? "" : " primary"}`} type="button" onClick={() => startRun(runningEp.id)}>
-              <PlayIcon size={12} /> Resume {runningEp.title}
-            </button>
-          ) : chosenEp ? (
-            <span className="run-pick">
-              {episodes.length > 1 ? (
-                <select className="fld" aria-label="Episode to run" value={chosenEp.id} onChange={(e) => setPickEpisode(e.target.value)}>
-                  {episodes.map((e) => (
-                    <option key={e.id} value={e.id}>
-                      {e.title}
+            {moreOpen ? <div className="pm-scrim" role="presentation" onClick={() => setMoreOpen(false)} /> : null}
+            {/* Always mounted, so O and I keep working and their panels outlive the menu. */}
+            <div className={`pm-more${moreOpen ? " open" : ""}`} role={moreOpen ? "menu" : undefined} aria-label="More" onClickCapture={(e) => {
+              // Let selects be changed; any button closes the menu after it does its job.
+              if ((e.target as HTMLElement).closest("button, a")) setTimeout(() => setMoreOpen(false), 0);
+            }}>
+              {moreOpen ? <div className="pm-grab" aria-hidden="true" /> : null}
+              <button type="button" className="dm-find" onClick={() => setFinder({})} title="Find anything to show on the TV">
+                <SearchIcon />
+                <span className="dm-find-text">Find or show anything</span>
+                <span className="key">/</span>
+              </button>
+              <RenownChip />
+              <OffScriptButton enabled={!runOpen && !finder && storyOpen === null && !editingMap} />
+              <Inbox />
+              {s.fight ? null : (
+                <button className="btn icon-only" type="button" onClick={startFight} title="Start a fight: Roll initiative! on the TV and phones" aria-label="Start fight">
+                  <SwordIcon />
+                </button>
+              )}
+              {s.vttUrl ? (
+                <a className="btn icon-only" href={s.vttUrl} target="_blank" rel="noopener noreferrer" title="Launch VTT" aria-label="Launch VTT">
+                  <DiceIcon />
+                </a>
+              ) : null}
+              <button className="btn icon-only" type="button" onClick={openTv} title={`Open the TV window: ${absoluteHref(ident.game, "TV")}`} aria-label="Open TV window">
+                <TvIcon />
+              </button>
+              <button className={`btn icon-only${railOpen ? " on" : ""}`} type="button" onClick={toggleRail} aria-pressed={railOpen} title={railOpen ? "Hide the TV panel" : "Show the TV panel"} aria-label="TV panel">
+                <PanelRightIcon />
+              </button>
+              <FullScreenButton />
+              <span className="dm-top-sep" aria-hidden="true" />
+              {s.practice ? null : <PracticeButton episodeId={(runningEp ?? chosenEp)?.id} episodeTitle={(runningEp ?? chosenEp)?.title} />}
+              {session ? (
+                <button className="btn" type="button" onClick={() => setEnding(true)}>
+                  End session
+                </button>
+              ) : null}
+              {runningEp ? (
+                <button className={`btn${s.fight ? "" : " primary"}`} type="button" onClick={() => startRun(runningEp.id)}>
+                  <PlayIcon size={12} /> Resume {runningEp.title}
+                </button>
+              ) : chosenEp ? (
+                <span className="run-pick">
+                  {episodes.length > 1 ? (
+                    <select className="fld" aria-label="Episode to run" value={chosenEp.id} onChange={(e) => setPickEpisode(e.target.value)}>
+                      {episodes.map((e) => (
+                        <option key={e.id} value={e.id}>
+                          {e.title}
+                        </option>
+                      ))}
+                    </select>
+                  ) : null}
+                  <button className={`btn${session && !s.fight ? " primary" : ""}`} type="button" onClick={() => startRun(chosenEp.id)} title={`Run “${chosenEp.title}”`}>
+                    <PlayIcon size={12} /> Run{episodes.length > 1 ? "" : ` ${chosenEp.title}`}
+                  </button>
+                </span>
+              ) : null}
+              {session || !s.world || partiesOf(s).length < 2 ? null : (
+                <select className="fld" aria-label="Party at the table" value={s.partyId ?? ""} onChange={(e) => e.target.value && void run({ type: "party.play", partyId: e.target.value }, "Seated.")} title="The party at the table">
+                  {partiesOf(s).map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name}
                     </option>
                   ))}
                 </select>
+              )}
+              {session ? null : (
+                <button className="btn primary" type="button" onClick={() => (readiness(s).length ? setReady(true) : void run({ type: "session.start" }, "Session started. The TV is back on the notice board."))}>
+                  Start session {nextSessionNumber(s)}
+                </button>
+              )}
+              {s.fight ? (
+                <button className="btn primary" type="button" onClick={openFight}>
+                  <SwordIcon /> Back to the fight
+                </button>
               ) : null}
-              <button className={`btn${session && !s.fight ? " primary" : ""}`} type="button" onClick={() => startRun(chosenEp.id)} title={`Run “${chosenEp.title}”`}>
-                <PlayIcon size={12} /> Run{episodes.length > 1 ? "" : ` ${chosenEp.title}`}
-              </button>
+            </div>
+          </header>
+        ) : (
+          <header className="dm-top">
+            <div className="dm-brand">
+              <CandleIcon size={22} />
+              <div className="dm-brand-text">
+                <div className="dm-title">{s.name}</div>
+                <div className="dm-subtitle">
+                  {seated ? (
+                    <>
+                      <span className="party-dot" style={{ background: seated.color }} aria-hidden="true" /> {seated.name} ·{" "}
+                    </>
+                  ) : null}
+                  {session ? `${session.title} · running` : "Between sessions"}
+                </div>
+              </div>
+            </div>
+            <span className={`conn${online ? " ok" : ""}`} role="status">
+              {online ? "Live" : "Reconnecting"}
             </span>
-          ) : null}
-          {session || !s.world || partiesOf(s).length < 2 ? null : (
-            <select className="fld" aria-label="Party at the table" value={s.partyId ?? ""} onChange={(e) => e.target.value && void run({ type: "party.play", partyId: e.target.value }, "Seated.")} title="The party at the table">
-              {partiesOf(s).map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                </option>
-              ))}
-            </select>
-          )}
-          {session ? null : (
-            <button className="btn primary" type="button" onClick={() => (readiness(s).length ? setReady(true) : void run({ type: "session.start" }, "Session started. The TV is back on the notice board."))}>
-              Start session {nextSessionNumber(s)}
+            <span className="spacer" />
+            <button type="button" className="dm-find" onClick={() => setFinder({})} title="Find anything to show on the TV">
+              <SearchIcon />
+              <span className="dm-find-text">Find or show anything</span>
+              <span className="key">/</span>
             </button>
-          )}
-          {s.fight ? (
-            <button className="btn primary" type="button" onClick={openFight}>
-              <SwordIcon /> Back to the fight
+            <RenownChip />
+            <OffScriptButton enabled={!runOpen && !finder && storyOpen === null && !editingMap} />
+            <Inbox />
+            {s.fight ? null : (
+              <button className="btn icon-only" type="button" onClick={startFight} title="Start a fight: Roll initiative! on the TV and phones" aria-label="Start fight">
+                <SwordIcon />
+              </button>
+            )}
+            <DiceButton />
+            {s.vttUrl ? (
+              <a className="btn icon-only" href={s.vttUrl} target="_blank" rel="noopener noreferrer" title="Launch VTT" aria-label="Launch VTT">
+                <DiceIcon />
+              </a>
+            ) : null}
+            <button className="btn icon-only" type="button" onClick={openTv} title={`Open the TV window: ${absoluteHref(ident.game, "TV")}`} aria-label="Open TV window">
+              <TvIcon />
             </button>
-          ) : null}
-        </header>
+            <button className={`btn icon-only${railOpen ? " on" : ""}`} type="button" onClick={toggleRail} aria-pressed={railOpen} title={railOpen ? "Hide the TV panel" : "Show the TV panel"} aria-label="TV panel">
+              <PanelRightIcon />
+            </button>
+            <FullScreenButton />
+            <span className="dm-top-sep" aria-hidden="true" />
+            {s.practice ? null : <PracticeButton episodeId={(runningEp ?? chosenEp)?.id} episodeTitle={(runningEp ?? chosenEp)?.title} />}
+            {session ? (
+              <button className="btn" type="button" onClick={() => setEnding(true)}>
+                End session
+              </button>
+            ) : null}
+            {runningEp ? (
+              <button className={`btn${s.fight ? "" : " primary"}`} type="button" onClick={() => startRun(runningEp.id)}>
+                <PlayIcon size={12} /> Resume {runningEp.title}
+              </button>
+            ) : chosenEp ? (
+              <span className="run-pick">
+                {episodes.length > 1 ? (
+                  <select className="fld" aria-label="Episode to run" value={chosenEp.id} onChange={(e) => setPickEpisode(e.target.value)}>
+                    {episodes.map((e) => (
+                      <option key={e.id} value={e.id}>
+                        {e.title}
+                      </option>
+                    ))}
+                  </select>
+                ) : null}
+                <button className={`btn${session && !s.fight ? " primary" : ""}`} type="button" onClick={() => startRun(chosenEp.id)} title={`Run “${chosenEp.title}”`}>
+                  <PlayIcon size={12} /> Run{episodes.length > 1 ? "" : ` ${chosenEp.title}`}
+                </button>
+              </span>
+            ) : null}
+            {session || !s.world || partiesOf(s).length < 2 ? null : (
+              <select className="fld" aria-label="Party at the table" value={s.partyId ?? ""} onChange={(e) => e.target.value && void run({ type: "party.play", partyId: e.target.value }, "Seated.")} title="The party at the table">
+                {partiesOf(s).map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                  </option>
+                ))}
+              </select>
+            )}
+            {session ? null : (
+              <button className="btn primary" type="button" onClick={() => (readiness(s).length ? setReady(true) : void run({ type: "session.start" }, "Session started. The TV is back on the notice board."))}>
+                Start session {nextSessionNumber(s)}
+              </button>
+            )}
+            {s.fight ? (
+              <button className="btn primary" type="button" onClick={openFight}>
+                <SwordIcon /> Back to the fight
+              </button>
+            ) : null}
+          </header>
+        )}
+        {ending && session ? <EndSessionDialog session={session} onClose={() => setEnding(false)} /> : null}
+        {ready && !session ? <ReadyDialog onClose={() => setReady(false)} onGo={(page) => setTab(page)} /> : null}
 
         {s.knocks.length ? (
           <div className="dm-knocks" role="status">
@@ -610,8 +751,17 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
             </div>
           </main>
 
-          {railOpen ? (
-            <aside className="dm-live dm-rail" aria-label="What the TV shows">
+          {phone && tvOpen ? <div className="pm-scrim" role="presentation" onClick={() => setTvOpen(false)} /> : null}
+          {showRail ? (
+            <aside className={`dm-live dm-rail${phone ? " pm-sheet pm-tv" : ""}`} aria-label="What the TV shows">
+              {phone ? (
+                <div className="pm-sheet-head">
+                  <div className="pm-grab" aria-hidden="true" />
+                  <button className="btn small" type="button" onClick={() => setTvOpen(false)}>
+                    Done
+                  </button>
+                </div>
+              ) : null}
               <div className="dm-rail-head">
                 <h2>On the TV</h2>
                 <span className="note">
@@ -686,6 +836,17 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
           ) : null}
         </div>
 
+        {phone ? (
+          <PhoneBar
+            tab={tab}
+            onPick={pickPage}
+            pagesOpen={pagesOpen}
+            tvOpen={tvOpen}
+            onPages={() => (setTvOpen(false), setPagesOpen((v) => !v))}
+            onTv={() => (setPagesOpen(false), setTvOpen((v) => !v))}
+            counts={{ players: s.knocks.length, builder: drafts + reviewCount(s) }}
+          />
+        ) : null}
         {editingMap ? <MapEditor sceneId={editingMap} onClose={closeMap} /> : null}
         {finder ? <Finder pinTo={finder.pinTo} onClose={() => setFinder(null)} /> : null}
         {storyOpen !== null ? <Storyboard onClose={closeStory} select={storyOpen || undefined} /> : null}
@@ -716,5 +877,87 @@ function NavButton({ item, current, onPick, count = 0 }: { item: NavItem; curren
       <span className="dm-nav-label">{item.label}</span>
       {count ? <span className="badge">{count}</span> : item.key ? <span className="key">{item.key}</span> : null}
     </button>
+  );
+}
+
+const BAR_TABS: Tab[] = ["bank", "players", "discovery"];
+
+/** Phone layout: three everyday pages, the TV panel and every other page, along the bottom. */
+function PhoneBar({ tab, onPick, pagesOpen, tvOpen, onPages, onTv, counts }: { tab: Tab; onPick: (t: Tab) => void; pagesOpen: boolean; tvOpen: boolean; onPages: () => void; onTv: () => void; counts: Partial<Record<Tab, number>> }) {
+  const items = [...NAV.flatMap((g) => g.items), SETTINGS];
+  const elsewhere = !BAR_TABS.includes(tab);
+  const otherCount = items.filter((i) => !BAR_TABS.includes(i.id)).reduce((n, i) => n + (counts[i.id] ?? 0), 0);
+  return (
+    <>
+      <nav className="pm-bar" aria-label="DM pages">
+        {BAR_TABS.map((id) => {
+          const it = items.find((i) => i.id === id)!;
+          const Icon = it.icon;
+          const on = tab === id && !pagesOpen && !tvOpen;
+          return (
+            <button key={id} type="button" className={`pm-tab${on ? " on" : ""}`} aria-current={tab === id ? "page" : undefined} onClick={() => onPick(id)}>
+              <Icon size={22} />
+              <span>{it.label}</span>
+              {counts[id] ? <span className="badge">{counts[id]}</span> : null}
+            </button>
+          );
+        })}
+        <button type="button" className={`pm-tab${tvOpen ? " on" : ""}`} aria-expanded={tvOpen} onClick={onTv}>
+          <TvIcon size={22} />
+          <span>TV</span>
+        </button>
+        <button type="button" className={`pm-tab${pagesOpen || (elsewhere && !tvOpen) ? " on" : ""}`} aria-expanded={pagesOpen} onClick={onPages}>
+          <GridIcon />
+          <span>{elsewhere ? PAGE_LABEL[tab] : "Pages"}</span>
+          {otherCount ? <span className="badge">{otherCount}</span> : null}
+        </button>
+      </nav>
+      {pagesOpen ? (
+        <>
+          <div className="pm-scrim" role="presentation" onClick={onPages} />
+          <div className="pm-sheet pm-pages" role="dialog" aria-label="All pages">
+            <div className="pm-grab" aria-hidden="true" />
+            {[...NAV, { group: "Campaign", items: [SETTINGS] }].map((g) => (
+              <section key={g.group}>
+                <h2 className="pm-h">{g.group}</h2>
+                <div className="pm-grid">
+                  {g.items.map((it) => {
+                    const Icon = it.icon;
+                    return (
+                      <button key={it.id} type="button" className={`pm-tile${tab === it.id ? " on" : ""}`} aria-current={tab === it.id ? "page" : undefined} onClick={() => onPick(it.id)}>
+                        <Icon size={22} />
+                        <span>{it.label}</span>
+                        {counts[it.id] ? <span className="badge">{counts[it.id]}</span> : null}
+                      </button>
+                    );
+                  })}
+                </div>
+              </section>
+            ))}
+          </div>
+        </>
+      ) : null}
+    </>
+  );
+}
+
+function GridIcon() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+      <rect x="4" y="4" width="6.5" height="6.5" rx="1.5" />
+      <rect x="13.5" y="4" width="6.5" height="6.5" rx="1.5" />
+      <rect x="4" y="13.5" width="6.5" height="6.5" rx="1.5" />
+      <rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.5" />
+    </svg>
+  );
+}
+
+function MoreIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+      <circle cx="5" cy="12" r="2" />
+      <circle cx="12" cy="12" r="2" />
+      <circle cx="19" cy="12" r="2" />
+    </svg>
   );
 }

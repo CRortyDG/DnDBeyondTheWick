@@ -63,11 +63,79 @@ export function useTabletMode(): TabletMode {
   return useSyncExternalStore(subscribe, () => mode, () => "off");
 }
 
-/** True while tablet mode is in effect on this screen. */
+/** True while touch mode is in effect on this screen: tablet mode, or phone mode (which builds on it). */
 export function useTablet(): boolean {
   const m = useTabletMode();
   const touch = useSyncExternalStore(subscribe, () => touchNow, () => false);
-  return m === "on" || (m === "auto" && touch);
+  const phone = usePhone();
+  return phone || m === "on" || (m === "auto" && touch);
+}
+
+/**
+ * Phone layout: a one-row top bar, a bottom tab bar, and sheets instead of the
+ * sidebar and TV panel. "auto" (the default) follows the screen width, so a
+ * phone gets it and a laptop never does.
+ */
+export type LayoutMode = "auto" | "phone" | "desktop";
+const LAYOUT_KEY = "dm-layout";
+const NARROW_QUERY = "(max-width: 700px)";
+
+function readLayout(): LayoutMode {
+  try {
+    const v = localStorage.getItem(LAYOUT_KEY);
+    return v === "phone" || v === "desktop" ? v : "auto";
+  } catch {
+    return "auto";
+  }
+}
+
+let layout: LayoutMode = typeof window === "undefined" ? "auto" : readLayout();
+let narrowNow = typeof window !== "undefined" && !!window.matchMedia?.(NARROW_QUERY).matches;
+
+if (typeof window !== "undefined") {
+  window.matchMedia?.(NARROW_QUERY).addEventListener?.("change", (e) => {
+    narrowNow = e.matches;
+    emit();
+  });
+  window.addEventListener("storage", (e) => {
+    if (e.key === LAYOUT_KEY) {
+      layout = readLayout();
+      emit();
+    }
+  });
+}
+
+export function setLayoutMode(m: LayoutMode) {
+  layout = m;
+  try {
+    localStorage.setItem(LAYOUT_KEY, m);
+  } catch {
+    // Private window: the choice lasts until the tab closes.
+  }
+  emit();
+}
+
+export function useLayoutMode(): LayoutMode {
+  return useSyncExternalStore(subscribe, () => layout, () => "auto");
+}
+
+/** True while the phone layout is in effect on this screen. */
+export function usePhone(): boolean {
+  const m = useLayoutMode();
+  const narrow = useSyncExternalStore(subscribe, () => narrowNow, () => false);
+  return m === "phone" || (m === "auto" && narrow);
+}
+
+/** Puts data-phone on <html> so the phone styles in dm-theme.css apply. */
+export function usePhoneAttr(on: boolean) {
+  useEffect(() => {
+    const el = document.documentElement;
+    if (on) el.dataset.phone = "";
+    else delete el.dataset.phone;
+    return () => {
+      delete el.dataset.phone;
+    };
+  }, [on]);
 }
 
 /** Puts data-tablet on <html> so the tablet styles in dm-theme.css apply. */
@@ -85,6 +153,7 @@ export function useTabletAttr(on: boolean) {
 /** Whether to offer tablet mode after the first touch: only once per device, and only while it's off. */
 export function shouldOfferTablet(): boolean {
   if (mode !== "off") return false;
+  if (layout === "phone" || (layout === "auto" && narrowNow)) return false;
   try {
     return localStorage.getItem(ASKED_KEY) !== "1";
   } catch {

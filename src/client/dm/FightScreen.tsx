@@ -17,7 +17,7 @@ import type { DmCommand } from "@/shared/commands";
 import type { Combatant, Fight, FightReminder, MonsterTemplate, Player } from "@/shared/types";
 import { useDm } from "./context";
 import { DiceButton } from "./DiceTray";
-import { useTablet } from "./tablet";
+import { usePhone, useTablet } from "./tablet";
 import { FullScreenButton } from "./TabletBits";
 import "../ui/fight.css";
 
@@ -66,6 +66,9 @@ function FightConsole({ f, onExit, run, toast }: { f: Fight; onExit: () => void;
   // Tablet mode: a number pad instead of the on-screen keyboard, and a "Pick several" switch instead of Ctrl-click.
   const tablet = useTablet();
   const [multi, setMulti] = useState(false);
+  // Phone layout: picking a row slides the number pad up as a sheet; a hit (or tapping outside) puts it away.
+  const phone = usePhone();
+  const padUp = phone && sel.length > 0;
 
   // Forget selections of combatants who've left.
   const ids = f.order.map((c) => c.id).join(",");
@@ -261,7 +264,16 @@ function FightConsole({ f, onExit, run, toast }: { f: Fight; onExit: () => void;
           </main>
 
           <aside className="fx-side">
-            <section className="box fx-hit" aria-label="Damage and healing">
+            {padUp ? <div className="pm-scrim" role="presentation" onClick={() => setSel([])} /> : null}
+            <section className={`box fx-hit${padUp ? " pm-sheet fx-pad-sheet" : ""}`} aria-label="Damage and healing">
+              {padUp ? (
+                <div className="pm-sheet-head">
+                  <div className="pm-grab" aria-hidden="true" />
+                  <button className="btn small" type="button" onClick={() => setSel([])}>
+                    Done
+                  </button>
+                </div>
+              ) : null}
               <div className="fx-sel">
                 <span>{sel.length ? `For: ${sel.map((id) => f.order.find((c) => c.id === id)?.name).join(", ")}` : tablet ? "Tap a row to pick who it's for." : "Click a row to pick who it's for. Ctrl-click to add more."}</span>
                 {tablet ? (
@@ -349,7 +361,7 @@ function FightConsole({ f, onExit, run, toast }: { f: Fight; onExit: () => void;
           {f.status === "setup" ? (
             <>
               <button className="btn run-nav" type="button" onClick={() => run({ type: "fight.rollInit" })} disabled={!f.order.some((c) => c.kind !== "player" && c.init === null)}>
-                Roll monsters&rsquo; initiative
+                {phone ? "Roll monsters" : <>Roll monsters&rsquo; initiative</>}
               </button>
               {s.practice ? (
                 <button className="btn run-nav" type="button" onClick={() => run({ type: "practice.rollStandIns" })} disabled={!f.order.some((c) => c.kind === "player" && c.init === null)}>
