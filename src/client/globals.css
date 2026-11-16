@@ -7015,6 +7015,44 @@ input.fld.inline-input {
   from { transform: scaleX(0.97); }
   to { transform: scaleX(1.03); }
 }
+/* Storyteller scenes: sparks, smoke, an orrery, a turning page. */
+.ambient .amb-ember { animation: amb-ember 4.5s ease-out infinite; }
+@keyframes amb-ember {
+  0% { opacity: 0; transform: translate(0, 0); }
+  12% { opacity: 1; }
+  100% { opacity: 0; transform: translate(var(--dx, 0px), var(--dy, -380px)); }
+}
+.ambient .amb-smoke { transform-box: fill-box; transform-origin: center; animation: amb-smoke 7s ease-out infinite; }
+@keyframes amb-smoke {
+  0% { opacity: 0; transform: translate(0, 0) scale(0.5); }
+  30% { opacity: 1; }
+  100% { opacity: 0; transform: translate(var(--dx, 40px), -380px) scale(1.9); }
+}
+.amb-orbit { animation: amb-orbit 20s linear infinite; }
+@keyframes amb-orbit {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+.amb-breathe { animation: amb-breathe 3.1s ease-in-out infinite alternate; }
+@keyframes amb-breathe {
+  0% { opacity: 0.82; }
+  45% { opacity: 1; }
+  60% { opacity: 0.9; }
+  100% { opacity: 0.97; }
+}
+.amb-vision { animation: amb-vision 7s ease-in-out infinite alternate; }
+@keyframes amb-vision {
+  from { opacity: 0.1; }
+  to { opacity: 0.36; }
+}
+.amb-coal { animation: amb-glimmer 2.6s ease-in-out infinite alternate; }
+.amb-page { animation: amb-page 11s ease-in-out infinite; }
+@keyframes amb-page {
+  0%, 55% { transform: scaleX(1); opacity: 0; }
+  58% { opacity: 1; }
+  78% { transform: scaleX(-1); opacity: 1; }
+  86%, 100% { transform: scaleX(-1); opacity: 0; }
+}
 @media (prefers-reduced-motion: reduce) {
   .ambient *,
   .ambient-caption {
