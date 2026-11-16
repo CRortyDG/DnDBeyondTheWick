@@ -610,7 +610,7 @@ export const dmCommand = z.discriminatedUnion("type", [
 
 /** Commands a player may send about themselves. */
 export const playerCommand = z.discriminatedUnion("type", [
-  z.object({ type: z.literal("me.update"), patch: z.object({ name: text(32), dndbUrl: text(300) }).partial() }),
+  z.object({ type: z.literal("me.update"), patch: z.object({ name: text(32), dndbUrl: text(300), initBonus: z.number().int().min(-10).max(20) }).partial() }),
   z.object({ type: z.literal("me.lock"), key: z.string().min(4).max(128) }),
   /** expectedUnitCp: the price the phone showed; refused if it has changed since. */
   // question: the answer to the item's prompt. flyer: "Post on the notice board".

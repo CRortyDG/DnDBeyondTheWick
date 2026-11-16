@@ -322,7 +322,7 @@ export interface TvView extends Common {
   /** A reveal (a rumor, someone found, a fact): the TV plays it when n changes. */
   discovery?: DiscoveryView;
   /** The last roll on the TV: the TV plays it when n changes. name: the player who rolled (none: the DM). */
-  diceRoll?: { n: number; groups: DiceGroup[]; plus: number; total: number; name?: string };
+  diceRoll?: { n: number; groups: DiceGroup[]; plus: number; total: number; name?: string; for?: "initiative" };
   /** Every non-reveal scene (for instant switching), plus the live scene even if it's a reveal. */
   scenes: PublicScene[];
   /** "Previously on…": only while the DM is showing it. The only session text the TV ever gets. */
@@ -395,7 +395,7 @@ export interface PlayerView extends Common {
   /** Per area, how much the party has found (and, in totals mode, how much there is). */
   areas: AreaCount[];
   /** My own last few dice rolls, newest first. Never anyone else's. */
-  myRolls: { n: number; at: number; groups: DiceGroup[]; plus: number; total: number; to: RollTo }[];
+  myRolls: { n: number; at: number; groups: DiceGroup[]; plus: number; total: number; to: RollTo; for?: "initiative" }[];
 }
 
 export type DmPlayer = Omit<Player, "keyHash"> & { hasKey: boolean };
@@ -607,7 +607,7 @@ export function projectTv(table: GameState, version: number): TvView {
     ...(game.renownMoment ? { renownMoment: { rank: game.renownMoment.rank, name: rankName(game.renownMoment.rank, game), raised: ranksOf(game)[game.renownMoment.rank]?.raised ?? "", meaning: ranksOf(game)[game.renownMoment.rank]?.meaning ?? "", n: game.renownMoment.n } } : {}),
     ...(discoveryView(game) ? { discovery: discoveryView(game) } : {}),
     ...(game.diceRoll
-      ? { diceRoll: { n: game.diceRoll.n, groups: game.diceRoll.groups, plus: game.diceRoll.plus, total: game.diceRoll.total, ...(game.diceRoll.name ? { name: game.diceRoll.name } : {}) } }
+      ? { diceRoll: { n: game.diceRoll.n, groups: game.diceRoll.groups, plus: game.diceRoll.plus, total: game.diceRoll.total, ...(game.diceRoll.name ? { name: game.diceRoll.name } : {}), ...(game.diceRoll.for ? { for: game.diceRoll.for } : {}) } }
       : {}),
     // Reveal scenes, and portraits of people the party hasn't found, only while they're live.
     // Scenes that aren't up yet go out without their words (so the TV can preload the pictures): names, titles and descriptions wait until they're shown.
@@ -704,7 +704,7 @@ export function projectPlayer(table: GameState, version: number, playerId: strin
       .filter((r) => r.by === p.id)
       .slice(-5)
       .reverse()
-      .map((r) => ({ n: r.n, at: r.at, groups: r.groups, plus: r.plus, total: r.total, to: r.to })),
+      .map((r) => ({ n: r.n, at: r.at, groups: r.groups, plus: r.plus, total: r.total, to: r.to, ...(r.for ? { for: r.for } : {}) })),
     myRequests: game.requests
       .filter((r) => r.playerId === p.id)
       .slice(-50)

@@ -33,6 +33,8 @@ export interface RollEntry extends DiceResult {
   by: string | null;
   name: string;
   to: RollTo;
+  /** What the roll was for: a player's d20 during "Roll initiative" fills in their initiative. */
+  for?: "initiative";
 }
 
 export interface DiceResult {
