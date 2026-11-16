@@ -6,6 +6,7 @@ import { actorOf, createGame, execute, startingState, hello, HttpError, identify
 import type { Store } from "./store";
 import { CHARACTER_MAX, isToken, playerByToken, projectArrival, WHY_MAX } from "@/shared/arrival";
 import { STARTER_IDS } from "@/shared/starters";
+import { CHARACTER_MAX as INVITE_CHARACTER_MAX, inviteByCode, isSeatKey, NAME_MAX as INVITE_NAME_MAX, projectInvite } from "@/shared/invites";
 import { normaliseGameId } from "@/shared/handles";
 import { upgrade } from "@/shared/migrate";
 import { gatedArtIsLive } from "@/shared/projection";
@@ -98,6 +99,14 @@ const arrivalBody = z.discriminatedUnion("type", [
   z.object({ type: z.literal("finish") }),
   z.object({ type: z.literal("claim"), character: z.string().max(CHARACTER_MAX * 2), why: z.string().max(WHY_MAX * 2), pick: z.enum(STARTER_IDS).nullable().optional() }),
 ]);
+
+const inviteBody = z.discriminatedUnion("type", [
+  z.object({ type: z.literal("claim"), name: z.string().max(INVITE_NAME_MAX * 2), character: z.string().max(INVITE_CHARACTER_MAX * 2) }),
+  z.object({ type: z.literal("drop") }),
+]);
+
+/** The key a phone keeps for its seat on an invite (made on the phone, only its hash is stored). */
+export const SEAT_HEADER = "x-candlefair-seat";
 
 const createBody = z.object({
   dmKeyHash: z.string().regex(/^[0-9a-f]{64}$/),
@@ -201,6 +210,54 @@ export async function handleApi(req: Request, store: Store): Promise<Response> {
           out = await execute(store, game, { role: "system" }, { type: "system.arrivalKey", playerId: p.id, keyHash: sha256(token) });
         }
         return json(projectArrival(out.state, out.version, token));
+      }
+    }
+
+    // A session invite's page: the invite's public parts, and this phone's own seat. Nothing else in the game.
+    if (path === "/api/invite") {
+      const code = url.searchParams.get("i");
+      const seatKey = req.headers.get(SEAT_HEADER);
+      const keyHash = isSeatKey(seatKey) ? sha256(seatKey) : null;
+      const read = async () => {
+        const { state, version } = await store.read(game);
+        const inv = state && code ? inviteByCode(state, code) : null;
+        if (!state || !inv) throw new HttpError(404, "That invite link doesn't work. Ask the DM for a new one.", "no-link");
+        return { state, version, inv };
+      };
+      /** A player who already plays here on this phone: their saved sign-in, checked like any other. Only a locked name counts. */
+      const knownOn = async (state: GameState) => {
+        if (!player || !key) return null;
+        const who = identify(state, player, key, await store.dmKeyHash(game));
+        if (who.kind !== "player") return null;
+        const p = state.players.find((x) => x.id === who.playerId);
+        return p && p.keyHash && !p.archived ? p : null;
+      };
+      const view = async (state: GameState, version: number) => {
+        const inv = inviteByCode(state, code!)!;
+        const entry = keyHash ? (inv.entries.find((e) => e.keyHash === keyHash) ?? null) : null;
+        return projectInvite(state, version, inv, { entry, player: entry ? null : await knownOn(state) });
+      };
+      if (method === "GET") {
+        const { state, version } = await read();
+        return json(await view(state, version));
+      }
+      if (method === "POST") {
+        const { state, inv } = await read();
+        const r = inviteBody.safeParse(await readJson(req));
+        if (!r.success) throw new HttpError(400, "That request didn't make sense.");
+        if (!keyHash) throw new HttpError(400, "This phone couldn't make a key for your seat. Try another browser.");
+        let out;
+        if (r.data.type === "claim") {
+          const known = await knownOn(state);
+          out = await execute(store, game, { role: "system" }, { type: "system.inviteClaim", inviteId: inv.id, keyHash, name: r.data.name, character: r.data.character, ...(known ? { playerId: known.id } : {}) });
+        } else {
+          // This phone's seat, or the seat of the player signed in on it.
+          const known = await knownOn(state);
+          const entry = inv.entries.find((e) => e.keyHash === keyHash) ?? (known ? inv.entries.find((e) => e.playerId === known.id && e.state !== "removed") : undefined);
+          if (!entry) throw new HttpError(404, "This phone doesn't hold a seat on this invite.");
+          out = await execute(store, game, { role: "system" }, { type: "system.inviteDrop", inviteId: inv.id, entryId: entry.id });
+        }
+        return json(await view(out.state, out.version));
       }
     }
 

@@ -173,7 +173,7 @@ export interface Player {
   /** Has Heroic Inspiration right now (shown on the TV purse). */
   inspired?: boolean;
   createdAt: number;
-  createdVia: "url" | "dm" | "seed";
+  createdVia: "url" | "dm" | "seed" | "invite";
   /** DM-ONLY */
   lastSeenAt?: number;
   /** Their character's name ("Brin Ashcombe"). Empty or missing: not chosen yet. Shared with the Chronicle. */
@@ -1228,6 +1228,8 @@ export interface GameState {
   clues?: Clue[];
   /** DM-ONLY: quick notes from play. Read with capturesOf(). */
   captures?: Capture[];
+  /** Session invites: one link per game night, seats claimed first come first served. Read with invitesOf(). Players and the TV never get these; an invite's own page gets a cut-down copy (see invites.ts). */
+  invites?: Invite[];
   seq: number;
 }
 
@@ -1698,4 +1700,72 @@ export interface Story {
   zoom: "month" | "season";
   /** Festival labels along the top. */
   festivals: boolean;
+}
+
+// ---------- session invites ----------
+
+/** One game night's invite: a link people open to claim a seat, first come first served. */
+export interface Invite {
+  id: string;
+  /** The link code: /i/<code>. Like an Arrival link code. */
+  code: string;
+  title: string;
+  /** "YYYY-MM-DD" and "HH:MM", as the DM typed them (their own time zone). */
+  date: string;
+  time: string;
+  /** Rough end time, "HH:MM". */
+  endTime?: string;
+  /** The start as a moment, worked out on the DM's device (their time zone). Drives closing and the waitlist cut-off. */
+  startsAt: number;
+  endsAt?: number;
+  /** Shown to everyone with the link ("Sam's place, Northside"). */
+  place: string;
+  /** Shown only to people with a seat (the street address). */
+  address?: string;
+  blurb: string;
+  /** A picture: /api/files/… or a built-in path. */
+  art?: string;
+  /** Seats at the table, 1-8. */
+  seats: number;
+  /** Once full, later people join a waitlist. */
+  waitlist: boolean;
+  /** Shared world: only this party's characters may claim (plus held seats). Missing: an open call. */
+  partyId?: string;
+  /** First names of who's coming, on the invite page. */
+  showWho: boolean;
+  /** Every claim waits for the DM's OK. */
+  approve: boolean;
+  /** Claims close at this moment. Missing: at the start. */
+  closesAt?: number;
+  /** The storyboard date it sits on. */
+  storyDateId?: string;
+  status: "open" | "closed" | "cancelled";
+  createdAt: number;
+  /** The session it became. */
+  sessionId?: string;
+  entries: InviteEntry[];
+}
+
+/** One person on an invite. */
+export interface InviteEntry {
+  id: string;
+  name: string;
+  character?: string;
+  /** in: has a seat · wait: on the waitlist · ask: waiting for the DM's OK · out: gave it back · removed: the DM took them off. */
+  state: "in" | "wait" | "ask" | "out" | "removed";
+  /** The DM saved this seat for one of their players. */
+  held?: boolean;
+  /** The player this seat is (made when they got in, or a player who already plays here). */
+  playerId?: string;
+  /** This invite made that player, so giving the seat back before ever playing tidies them away. */
+  made?: boolean;
+  /** DM-ONLY, never sent anywhere: sha-256 of the key the claiming phone keeps. */
+  keyHash?: string;
+  /** When they claimed (first come, first served). */
+  at: number;
+  /** Moved up from the waitlist. */
+  movedUpAt?: number;
+  /** The DM has copied the "you're in" message for them. */
+  told?: boolean;
+  outAt?: number;
 }

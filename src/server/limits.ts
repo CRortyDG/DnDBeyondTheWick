@@ -8,7 +8,7 @@ import { normaliseGameId } from "@/shared/handles";
  */
 export function screenKey(ip: string, url: URL): string {
   const game = normaliseGameId(url.searchParams.get("game"));
-  const who = (url.searchParams.get("player") ?? (url.searchParams.get("arrival") || url.pathname === "/api/arrival" ? "arrival" : "")).trim().toLowerCase().slice(0, 40);
+  const who = (url.searchParams.get("player") ?? (url.searchParams.get("arrival") || url.pathname === "/api/arrival" ? "arrival" : url.pathname === "/api/invite" ? "invite" : "")).trim().toLowerCase().slice(0, 40);
   return `${ip}|${game}|${who}`;
 }
 

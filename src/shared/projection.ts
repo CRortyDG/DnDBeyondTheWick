@@ -853,6 +853,8 @@ function myThings(game: GameState, playerId: string): MyThings {
 
 export function projectDm(game: GameState, version: number, ledger: LedgerEntry[]): DmView {
   const { players, ...rest } = structuredClone(game);
+  // The keys phones keep for their invite seats stay on the server, even from the DM.
+  for (const inv of rest.invites ?? []) for (const e of inv.entries) delete e.keyHash;
   return {
     role: "dm",
     version,

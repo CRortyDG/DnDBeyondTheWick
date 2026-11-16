@@ -7,6 +7,7 @@ import { normaliseGameId } from "@/shared/handles";
 import { pickedCodeProblem, screenKey } from "@/server/limits";
 import { parseRange, rangeBounds } from "@/server/range";
 import { CLIP_VIDEO_MAX } from "@/shared/arrival";
+import { whenText, type InviteView } from "@/shared/invites";
 import type { Env } from "./env";
 import { R2Presets } from "./presets";
 import { GameRoom } from "./room";
@@ -385,6 +386,69 @@ async function arrivalPage(req: Request, env: Env, ctx: ExecutionContext): Promi
     .transform(page);
 }
 
+/**
+ * A session invite (/i/<code>): its own small page. The link preview shows the invite's
+ * title, date, seats and picture, never the place or the address.
+ */
+async function invitePage(req: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+  const url = new URL(req.url);
+  const page = await env.ASSETS.fetch(new Request(new URL("/invite", url), { headers: req.headers }));
+  const game = normaliseGameId(url.searchParams.get("game"));
+  const code = /^\/i\/([A-Za-z0-9]{8,32})\/?$/.exec(url.pathname)?.[1] ?? null;
+  const abs = (p: string) => (p.startsWith("/") ? url.origin + p : p);
+  let look: { title: string; description: string; image: string | null } | null = null;
+  const ip = ipOf(req);
+  if (code && !(await lockedOut(ip))) {
+    const res = await room(env, game).fetch(new Request(`https://room/api/invite?game=${encodeURIComponent(game)}&i=${code}`));
+    if (res.headers.has(MISS_HEADER)) await noteMiss(env, ctx, ip);
+    else {
+      const v = (await res.json().catch(() => null)) as InviteView | null;
+      if (v?.invite) {
+        const i = v.invite;
+        const left = Math.max(0, i.seats - i.taken);
+        const seats = i.status === "cancelled" ? "Cancelled" : i.status === "full" ? "Table full, waitlist open" : i.status === "open" ? `${left} of ${i.seats} seats left` : "Seats closed";
+        look = { title: i.title, description: `${whenText(i)} · ${seats}`, image: i.art ?? null };
+      }
+    }
+  }
+  const rewriter = new HTMLRewriter().on('meta[property="og:image"], meta[name="twitter:image"], meta[property="og:url"]', {
+    element(el) {
+      const prop = el.getAttribute("property");
+      if (prop === "og:url") el.setAttribute("content", url.origin + url.pathname + url.search);
+      else el.setAttribute("content", abs(look?.image ?? el.getAttribute("content") ?? ""));
+    },
+  });
+  if (!look) return rewriter.transform(page);
+  const l = look;
+  return rewriter
+    .on("title", {
+      element(el) {
+        el.setInnerContent(l.title);
+      },
+    })
+    .on('meta[property="og:title"], meta[name="twitter:title"]', {
+      element(el) {
+        el.setAttribute("content", l.title);
+      },
+    })
+    .on('meta[name="description"], meta[property="og:description"], meta[name="twitter:description"]', {
+      element(el) {
+        el.setAttribute("content", l.description);
+      },
+    })
+    .on('meta[property="og:image:alt"]', {
+      element(el) {
+        if (l.image) el.setAttribute("content", `The picture for ${l.title}`);
+      },
+    })
+    .on('meta[property="og:image:width"], meta[property="og:image:height"]', {
+      element(el) {
+        if (l.image) el.remove();
+      },
+    })
+    .transform(page);
+}
+
 export default {
   async fetch(req: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(req.url);
@@ -411,6 +475,7 @@ export default {
         return withHeaders(await settle(res, env, ctx, ip));
       }
       if (path === "/arrive" || path.startsWith("/arrive/")) return withHeaders(await arrivalPage(req, env, ctx));
+      if (path.startsWith("/i/")) return withHeaders(await invitePage(req, env, ctx));
       return withHeaders(await env.ASSETS.fetch(req));
     } catch (e) {
       console.error(e);

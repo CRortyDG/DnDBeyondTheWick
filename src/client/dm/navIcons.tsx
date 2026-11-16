@@ -142,3 +142,9 @@ export const DieIcon = (p: P) => (
     <circle cx="12" cy="12" r="1" fill="currentColor" />
   </svg>
 );
+export const MailIcon = (p: P) => (
+  <svg {...base(p)}>
+    <rect x="3" y="5.5" width="18" height="13" rx="2" />
+    <path d="m3.8 7 8.2 6 8.2-6" />
+  </svg>
+);

@@ -34,8 +34,10 @@ import { Inbox } from "./Inbox";
 import { EndSessionDialog } from "./Dues";
 import { ReadyDialog } from "./ReadyDialog";
 import { readiness } from "@/shared/readiness";
+import { tonightsInvite } from "@/shared/invites";
 import { duesFor } from "@/shared/progress";
 import { ArrivalPanel } from "./ArrivalPanel";
+import { InvitesPanel } from "./InvitesPanel";
 import { ChroniclePanel } from "./ChroniclePanel";
 import { BoardPanel } from "./BoardPanel";
 import { RenownChip } from "./RenownControl";
@@ -55,9 +57,9 @@ import { BuilderPanel, usePendingDrafts } from "./BuilderPanel";
 import { TablesPanel } from "./TablesPanel";
 import { usePhone, usePhoneAttr, useTablet, useTabletAttr, useWakeLock } from "./tablet";
 import { FullScreenButton, TabletOffer } from "./TabletBits";
-import { DieIcon, SparkIcon, BoardIcon, BookIcon, CoinIcon, EyeIcon, GearIcon, GlobeIcon, ListIcon, MapIcon, PanelRightIcon, PeopleIcon, PinIcon, PlayIcon, QuillIcon, SearchIcon, ShipIcon, SkullIcon, StoreIcon, SwordIcon } from "./navIcons";
+import { MailIcon, DieIcon, SparkIcon, BoardIcon, BookIcon, CoinIcon, EyeIcon, GearIcon, GlobeIcon, ListIcon, MapIcon, PanelRightIcon, PeopleIcon, PinIcon, PlayIcon, QuillIcon, SearchIcon, ShipIcon, SkullIcon, StoreIcon, SwordIcon } from "./navIcons";
 
-type Tab = "world" | "bank" | "shop" | "board" | "scenes" | "discovery" | "leads" | "players" | "arrival" | "story" | "episodes" | "monsters" | "companions" | "tables" | "chronicle" | "builder" | "game";
+type Tab = "world" | "bank" | "shop" | "board" | "scenes" | "discovery" | "leads" | "players" | "arrival" | "invites" | "story" | "episodes" | "monsters" | "companions" | "tables" | "chronicle" | "builder" | "game";
 type NavItem = { id: Tab; label: string; icon: (p: { size?: number }) => ReactElement; key?: string };
 /** The DM pages, grouped by when you reach for them. */
 const NAV: { group: string; items: NavItem[] }[] = [
@@ -87,6 +89,7 @@ const NAV: { group: string; items: NavItem[] }[] = [
     items: [
       { id: "episodes", label: "Episodes", icon: ListIcon },
       { id: "story", label: "Storyboard", icon: BookIcon },
+      { id: "invites", label: "Invites", icon: MailIcon },
       { id: "arrival", label: "Arrival", icon: ShipIcon },
       { id: "chronicle", label: "Chronicle", icon: QuillIcon },
       { id: "builder", label: "Worldbuilder", icon: SparkIcon },
@@ -96,7 +99,7 @@ const NAV: { group: string; items: NavItem[] }[] = [
 const SETTINGS: NavItem = { id: "game", label: "Settings", icon: GearIcon };
 const ALL_TABS: Tab[] = [...NAV.flatMap((g) => g.items.map((i) => i.id)), SETTINGS.id];
 /** Pages that draw their own header (with summary and buttons). */
-const OWN_HEAD = new Set<Tab>(["world", "bank", "players", "arrival", "shop", "discovery", "leads", "scenes", "board", "monsters", "companions", "tables", "episodes", "story", "chronicle", "builder", "game"]);
+const OWN_HEAD = new Set<Tab>(["world", "bank", "players", "arrival", "invites", "shop", "discovery", "leads", "scenes", "board", "monsters", "companions", "tables", "episodes", "story", "chronicle", "builder", "game"]);
 const PAGE_LABEL = Object.fromEntries([...NAV.flatMap((g) => g.items), SETTINGS].map((i) => [i.id, i.label])) as Record<Tab, string>;
 
 /** The page in the address (#page=discovery), so a reload keeps your place. */
@@ -469,7 +472,7 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
       <PlayIcon size={12} /> Resume
     </button>
   ) : !session ? (
-    <button className="btn primary" type="button" onClick={() => (readiness(s).length ? setReady(true) : void run({ type: "session.start" }, "Session started. The TV is back on the notice board."))}>
+    <button className="btn primary" type="button" onClick={() => (readiness(s).length || tonightsInvite(s, Date.now()) ? setReady(true) : void run({ type: "session.start" }, "Session started. The TV is back on the notice board."))}>
       Start session {nextSessionNumber(s)}
     </button>
   ) : chosenEp ? (
@@ -582,7 +585,7 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
                 </select>
               )}
               {session ? null : (
-                <button className="btn primary" type="button" onClick={() => (readiness(s).length ? setReady(true) : void run({ type: "session.start" }, "Session started. The TV is back on the notice board."))}>
+                <button className="btn primary" type="button" onClick={() => (readiness(s).length || tonightsInvite(s, Date.now()) ? setReady(true) : void run({ type: "session.start" }, "Session started. The TV is back on the notice board."))}>
                   Start session {nextSessionNumber(s)}
                 </button>
               )}
@@ -676,7 +679,7 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
               </select>
             )}
             {session ? null : (
-              <button className="btn primary" type="button" onClick={() => (readiness(s).length ? setReady(true) : void run({ type: "session.start" }, "Session started. The TV is back on the notice board."))}>
+              <button className="btn primary" type="button" onClick={() => (readiness(s).length || tonightsInvite(s, Date.now()) ? setReady(true) : void run({ type: "session.start" }, "Session started. The TV is back on the notice board."))}>
                 Start session {nextSessionNumber(s)}
               </button>
             )}
@@ -741,6 +744,7 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
               {tab === "leads" ? <LeadsPanel /> : null}
               {tab === "players" ? <PlayersPanel /> : null}
               {tab === "arrival" ? <ArrivalPanel /> : null}
+              {tab === "invites" ? <InvitesPanel /> : null}
               {tab === "story" ? <StoryPanel onOpen={(id) => setStoryOpen(id ?? "")} /> : null}
               {tab === "episodes" ? <EpisodesPanel onRun={startRun} /> : null}
               {tab === "monsters" ? <MonstersPanel onFight={openFight} /> : null}
