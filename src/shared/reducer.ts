@@ -176,6 +176,10 @@ function importBulk(input: GameState, cmd: Extract<Command, { type: "import.bulk
 
 /** A person's DM-only notes (the Worldbuilder writes these too). */
 const PERSON_NOTES = ["wants", "knows", "voice", "look", "quirk"] as const;
+/** Pressing Long rest again within this long doesn't log a second rest. */
+const REST_REPEAT_MS = 30 * 60_000;
+/** "Ana", "Ana and Bo", "Ana, Bo and Cy". */
+const listNames = (names: string[]) => (names.length < 2 ? names.join("") : `${names.slice(0, -1).join(", ")} and ${names.at(-1)}`);
 
 /**
  * Approved Worldbuilder drafts. Each op runs as the DM command that makes the
@@ -986,6 +990,15 @@ function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
     if (!pl || (s.notes ?? []).length >= NOTES_MAX) return;
     const n = addNote(DM_AUTHOR, "The DM", `The party went to ${pl.name}.`, [pl.name], undefined);
     n.hidden = true;
+  };
+  /** A long rest gets a line in the Chronicle. A second press soon after (same chapter) doesn't add another. */
+  const logRest = (who: Player[] | null) => {
+    if ((s.notes ?? []).length >= NOTES_MAX) return;
+    const names = (who ?? []).map((p) => p.character?.trim() || p.name);
+    const text = who && names.length ? `${listNames(names)} took a long rest.` : "The party took a long rest.";
+    const last = (s.notes ?? []).at(-1);
+    if (last && last.authorId === DM_AUTHOR && last.text === text && last.sessionId === chapterOf(undefined) && ctx.now - last.createdAt < REST_REPEAT_MS) return;
+    addNote(DM_AUTHOR, "The DM", text, [], undefined);
   };
   /** Showing a place, or its pin on a map, means the party is there. */
   const followShown = (a: { entry?: Entry; pin?: Pin; scene?: Scene }) => {
@@ -2432,6 +2445,7 @@ function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
         p.hp.cur = p.hp.max;
         p.hp.temp = 0;
       }
+      logRest(cmd.playerIds ? who : null);
       break;
     }
 

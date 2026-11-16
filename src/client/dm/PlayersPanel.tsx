@@ -40,7 +40,7 @@ export function PlayersPanel() {
   const fightOpen = !!s.fight && s.fight.status !== "over";
   const longRest = async () => {
     setResting(false);
-    await run({ type: "party.longRest" }, "Long rest: everyone is back to full HP.");
+    await run({ type: "party.longRest" }, "Long rest: everyone is back to full HP. Logged in the Chronicle.");
   };
 
   const copyAll = () => {

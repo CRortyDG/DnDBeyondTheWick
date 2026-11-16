@@ -133,3 +133,28 @@ describe("NPC money toward a project", () => {
     expect(g.effectsOn[it.id]).toBeDefined();
   });
 });
+
+describe("a long rest in the Chronicle", () => {
+  const rests = () => (g.notes ?? []).filter((n) => /long rest/.test(n.text));
+  it("logs one visible DM line, once per rest", () => {
+    dm({ type: "party.longRest" });
+    expect(rests()).toHaveLength(1);
+    expect(rests()[0]).toMatchObject({ text: "The party took a long rest.", authorId: "dm" });
+    expect(rests()[0].hidden).toBeFalsy();
+    // A double press doesn't log it twice.
+    dm({ type: "party.longRest" });
+    expect(rests()).toHaveLength(1);
+    // Much later, it's a new rest.
+    now += 31 * 60_000;
+    dm({ type: "party.longRest" });
+    expect(rests()).toHaveLength(2);
+  });
+  it("names who rested when only some did, and the DM can remove it", () => {
+    const [a, b] = g.players;
+    dm({ type: "party.longRest", playerIds: [a.id, b.id] });
+    const n = rests()[0];
+    expect(n.text).toBe(`${a.character?.trim() || a.name} and ${b.character?.trim() || b.name} took a long rest.`);
+    dm({ type: "note.remove", noteId: n.id });
+    expect(rests()).toHaveLength(0);
+  });
+});
