@@ -10,7 +10,11 @@ import { Stage } from "./Stage";
 import { TableScene } from "./TableScene";
 import { Stinger } from "../scenes/Stinger";
 import { VideoScene } from "../scenes/VideoScene";
-import type { TableView } from "@/shared/arrival";
+import type { TableView, TvIntroView } from "@/shared/arrival";
+import { lazy, Suspense } from "react";
+
+// The intro carries the boat's pictures: only loaded when it plays.
+const IntroScene = lazy(() => import("../scenes/IntroScene").then((m) => ({ default: m.IntroScene })));
 import type { HandoutSheet } from "@/shared/handout";
 import { HandoutOnStage } from "../scenes/HandoutSheet";
 import { AmbientScene } from "../scenes/Ambient";
@@ -41,7 +45,7 @@ export function artSrc(art: Art | undefined, gated?: Record<string, string>): st
 }
 
 /** One scene, filling its parent. */
-export function SceneView({ scene, gated, emptyHint, table, board, town = "Candlefair" }: { scene: RenderableScene; gated?: Record<string, string>; emptyHint?: string; table?: TableView; board?: BoardView; /** Shown on an empty image slot. */ town?: string }) {
+export function SceneView({ scene, gated, emptyHint, table, intro, board, town = "Candlefair" }: { scene: RenderableScene; gated?: Record<string, string>; emptyHint?: string; table?: TableView; intro?: TvIntroView; board?: BoardView; /** Shown on an empty image slot. */ town?: string }) {
   const src = artSrc(scene.art, gated);
 
   if (scene.ambient && ambientById(scene.ambient.id)) return <AmbientScene id={scene.ambient.id as AmbientId} caption={scene.ambient.caption} />;
@@ -51,6 +55,13 @@ export function SceneView({ scene, gated, emptyHint, table, board, town = "Candl
   if (scene.kind === "stinger") return <Stinger />;
 
   if (scene.kind === "table") return <TableScene table={table} />;
+
+  if (scene.kind === "intro")
+    return (
+      <Suspense fallback={<div className="scene-fill scene-black" />}>
+        <IntroScene intro={intro} />
+      </Suspense>
+    );
 
   if (scene.kind === "video") return <VideoScene src={src} emptyHint={emptyHint} />;
 

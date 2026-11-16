@@ -44,7 +44,7 @@ export function IntroEditor() {
       // A still for the link preview. If this browser can't make one, the clip still works.
       const still = await firstFrame(f);
       const poster = still ? await uploadImage(ident, still).catch(() => undefined) : undefined;
-      if (await run({ type: "arrival.clip", clip: { url, kind: gif ? "gif" : "video", bytes: f.size, ...(poster ? { poster } : {}) } }, "Intro clip saved.")) setSeconds(secs || null);
+      if (await run({ type: "arrival.clip", clip: { url, kind: gif ? "gif" : "video", bytes: f.size, ...(secs ? { seconds: Math.round(secs * 10) / 10 } : {}), ...(poster ? { poster } : {}) } }, "Intro clip saved.")) setSeconds(secs || null);
     } catch (e) {
       toast(e instanceof Error ? e.message : String(e));
     } finally {
@@ -160,17 +160,19 @@ function SlideRow({ slide, n, first, last, onChange, onMove, onDelete }: { slide
   const { ident, toast } = useDm();
   const [busy, setBusy] = useState(false);
   const input = useRef<HTMLInputElement>(null);
-  const onFile = async (f: File | undefined) => {
+  const wideInput = useRef<HTMLInputElement>(null);
+  const onFile = async (f: File | undefined, which: "image" | "wide" = "image") => {
     if (!f) return;
     setBusy(true);
     try {
-      const url = await uploadImage(ident, await shrinkImage(f));
-      onChange({ ...slide, image: url });
+      const url = await uploadImage(ident, await shrinkImage(f, which === "wide" ? 1920 : 1600));
+      onChange({ ...slide, [which]: url });
     } catch (e) {
       toast(e instanceof Error ? e.message : String(e));
     } finally {
       setBusy(false);
       if (input.current) input.current.value = "";
+      if (wideInput.current) wideInput.current.value = "";
     }
   };
   return (
@@ -186,6 +188,7 @@ function SlideRow({ slide, n, first, last, onChange, onMove, onDelete }: { slide
         {busy ? <span>Uploading&hellip;</span> : slide.image ? <img src={slide.image} alt="" /> : <span>+ Picture</span>}
       </button>
       <input ref={input} type="file" accept="image/*" hidden onChange={(e) => void onFile(e.target.files?.[0])} />
+      <input ref={wideInput} type="file" accept="image/*" hidden onChange={(e) => void onFile(e.target.files?.[0], "wide")} />
       <div className="intro-slide-text">
         <Field label={`Slide ${n}`} value={slide.text} multiline placeholder="Four days out of port, the fog lifts…" onCommit={(v) => (v.length > SLIDE_TEXT_MAX ? false : onChange({ ...slide, text: v }))} />
       </div>
@@ -197,8 +200,16 @@ function SlideRow({ slide, n, first, last, onChange, onMove, onDelete }: { slide
           <DownIcon />
         </button>
         {slide.image ? (
-          <button className="btn small" type="button" onClick={() => onChange({ id: slide.id, text: slide.text })}>
+          <button className="btn small" type="button" onClick={() => onChange({ id: slide.id, text: slide.text, ...(slide.wide ? { wide: slide.wide } : {}) })}>
             No picture
+          </button>
+        ) : null}
+        <button className="btn small" type="button" disabled={busy} onClick={() => wideInput.current?.click()} title="A landscape picture for when you play the intro on the TV. Without one, the TV frames the phone picture beside the words.">
+          {slide.wide ? "Replace TV picture" : "+ TV picture"}
+        </button>
+        {slide.wide ? (
+          <button className="btn small" type="button" onClick={() => onChange({ id: slide.id, text: slide.text, ...(slide.image ? { image: slide.image } : {}) })}>
+            No TV picture
           </button>
         ) : null}
         <button className="btn small danger" type="button" onClick={onDelete}>

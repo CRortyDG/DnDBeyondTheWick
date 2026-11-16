@@ -112,9 +112,9 @@ export function marrowmereGame(id: string, name = MARROWMERE_NAME, now = Date.no
   s.arrival = { introKind: 'custom', title: 'The Lantern & Eel', captain: 'Wenna Quill', welcome: 'Welcome to Marrowmere. Take a seat.',
     template: 'You\'re invited to The Bell under Marrowmere! Tap your link before we play: {link}',
     slides: [
-      { id: 'sl1', image: img['intro-ferry-tall'], text: 'Three days on the Patient Heron, and the fog has not lifted once.' },
-      { id: 'sl2', image: img['intro-town-tall'], text: 'Then lights. A town on stilts, standing in the lake: Marrowmere.' },
-      { id: 'sl3', image: img['belfry-tall'], text: 'And out in the middle of the water, a bell tower with no church beneath it. Last night, it rang twice.' },
+      { id: 'sl1', image: img['intro-ferry-tall'], wide: img['intro-ferry'], text: 'Three days on the Patient Heron, and the fog has not lifted once.' },
+      { id: 'sl2', image: img['intro-town-tall'], wide: img['intro-town'], text: 'Then lights. A town on stilts, standing in the lake: Marrowmere.' },
+      { id: 'sl3', image: img['belfry-tall'], wide: img['belfry'], text: 'And out in the middle of the water, a bell tower with no church beneath it. Last night, it rang twice.' },
     ] };
   s.renownProgress = true;
   return s;

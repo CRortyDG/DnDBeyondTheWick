@@ -40,6 +40,7 @@ import { ChroniclePanel } from "./ChroniclePanel";
 import { BoardPanel } from "./BoardPanel";
 import { RenownChip } from "./RenownControl";
 import { FightScreen } from "./FightScreen";
+import { IntroRemote } from "./IntroRemote";
 import { Storyboard } from "./Storyboard";
 import { StoryPanel } from "./StoryPanel";
 import { MonstersPanel } from "./MonstersPanel";
@@ -770,7 +771,7 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
                 </span>
               </div>
               <div className="preview" aria-label={`Preview: ${live.label}`}>
-                <SceneView town={tvView.game.town} scene={previewScene} gated={gated} table={tvView.table} board={tvView} emptyHint="No image yet. Add one under Maps & props." />
+                <SceneView town={tvView.game.town} scene={previewScene} gated={gated} table={tvView.table} intro={tvView.intro} board={tvView} emptyHint="No image yet. Add one under Maps & props." />
                 {s.live.shopOpen && liveShop ? (
                   <div className="preview-shop" aria-label={`Shop open on the TV: ${liveShop.name}`}>
                     <Stage w={1920} h={1080}>
@@ -786,7 +787,7 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
                   </div>
                 ) : null}
                 <div className="preview-purse">
-                  <Purse players={purse} visible={s.live.purseVisible} size="small" />
+                  <Purse players={purse} visible={s.live.purseVisible && live.kind !== "table" && live.kind !== "video" && live.kind !== "intro"} size="small" />
                 </div>
               </div>
 
@@ -800,6 +801,7 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
               </div>
 
               {live.kind === "map" && live.map ? <LiveMapControls scene={live} /> : null}
+              {live.kind === "intro" ? <IntroRemote intro={tvView.intro} /> : null}
 
               <QuickBar onFind={(pinTo) => setFinder({ pinTo })} />
 

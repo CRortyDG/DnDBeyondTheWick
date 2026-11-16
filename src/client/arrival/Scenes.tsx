@@ -10,6 +10,7 @@
 
 import type { CSSProperties, ReactNode } from "react";
 import { EXTRAS, type SceneId } from "./content";
+import "./sceneArt.css";
 
 const FAR = "#7d8e9e"; // distant shapes in the haze
 const MID = "#4f5f6e";
@@ -22,7 +23,7 @@ const BUNTING = ["#b8432f", "#e0a33a", "#3f7a5c", "#3d5f8a", "#e9e1cf"];
 
 function Stage({ children, className = "", style }: { children: ReactNode; className?: string; style?: CSSProperties }) {
   return (
-    <svg className={`stage ${className}`} viewBox="0 0 400 800" preserveAspectRatio="xMidYMid slice" aria-hidden="true" style={style}>
+    <svg className={`ia-stage ${className}`} viewBox="0 0 400 800" preserveAspectRatio="xMidYMid slice" aria-hidden="true" style={style}>
       {children}
     </svg>
   );
@@ -400,7 +401,7 @@ function SDocking() {
 function SUphill({ shot }: { shot: number }) {
   const W = 1200;
   return (
-    <svg className="stage" viewBox="0 0 400 800" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+    <svg className="ia-stage" viewBox="0 0 400 800" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
       <Defs />
       <g className="pan" style={{ transform: `translateX(${-shot * 400}px)` }}>
         <rect width={W} height="800" fill="url(#sky-day)" />

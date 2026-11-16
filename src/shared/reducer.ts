@@ -9,7 +9,7 @@ import { availableCp, availableStock, boughtPhrase, heldStock, isSecretShop } fr
 import { candlefairMap, emptyProgress, SEED_ITEMS, SEED_SHOPS, STINGER_SCENE, swordCoastMap } from "./seed";
 import { creditCp, duesFor, firstChargeCp, installmentCp, keepsStake, liveEffects, priceOf, raisedCp, rollDice, sharesOf, splitByShare } from "./progress";
 import { chapterAt, shopVisibleTo } from "./projection";
-import { CHARACTER_MAX, CLIP_GIF_MAX, CLIP_VIDEO_MAX, STINGER_SCENE_ID, TABLE_SCENE_ID, WHY_MAX } from "./arrival";
+import { CHARACTER_MAX, CLIP_GIF_MAX, CLIP_VIDEO_MAX, INTRO_SCENE_ID, STINGER_SCENE_ID, TABLE_SCENE_ID, WHY_MAX } from "./arrival";
 import { starterById } from "./starters";
 import { chapterSessionId, cleanTags, cleanText, defaultChapterId, NEXT_CHAPTER, NOTES_MAX, penName } from "./chronicle";
 import { BOARD_SLOTS, jobPoints, jobsOf, jobTitle, pinnedCount, pointsOf, rankForPoints, rankName, ranksOf, RENOWN_POINTS, RENOWN_POINTS_MAX, renownMet, renownNeeded, renownOf, shopOpenNow, thresholdsOf, tierOf, trustMet, trustText } from "./renown";
@@ -1034,6 +1034,16 @@ function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
     }
     showScene(sc.id);
   };
+  /** The Arrival intro on the TV, from the start. */
+  const showIntro = () => {
+    let sc = s.scenes.find((x) => x.kind === "intro");
+    if (!sc) {
+      sc = { id: s.scenes.some((x) => x.id === INTRO_SCENE_ID) ? nextId("s") : INTRO_SCENE_ID, label: "The Arrival intro", kind: "intro", reveal: false, alt: "The Arrival intro, laid out for the TV" };
+      insertScene(sc);
+    }
+    showScene(sc.id);
+    s.live.intro = { step: 0, at: ctx.now, n: ++s.seq };
+  };
   /** A map, zoomed to one of its pins. A hidden pin is discovered (and its place found), with the banner. */
   const showPin = (sc: Scene, p: Pin) => {
     showScene(sc.id);
@@ -1083,6 +1093,7 @@ function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
       return;
     }
     if (a.screen === "stinger") return showStinger();
+    if (a.screen === "intro") return showIntro();
     if (a.screen) return showScene((a.scene ?? fail(`There's no ${a.label.toLowerCase()} in this game.`)).id);
     if (a.pin && a.scene) return showPin(a.scene, a.pin);
     if (!a.entry) return showScene(a.scene!.id);
@@ -3621,7 +3632,7 @@ function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
       const a = (s.arrival ??= {});
       if (cmd.clip) {
         if (cmd.clip.kind === "gif" ? cmd.clip.bytes > CLIP_GIF_MAX : cmd.clip.bytes > CLIP_VIDEO_MAX) fail("That clip is too big for phones.");
-        a.clip = { url: cmd.clip.url, kind: cmd.clip.kind, bytes: cmd.clip.bytes, ...(cmd.clip.poster ? { poster: cmd.clip.poster } : {}) };
+        a.clip = { url: cmd.clip.url, kind: cmd.clip.kind, bytes: cmd.clip.bytes, ...(cmd.clip.seconds ? { seconds: cmd.clip.seconds } : {}), ...(cmd.clip.poster ? { poster: cmd.clip.poster } : {}) };
         a.introKind = "custom";
         a.intro = false;
       } else delete a.clip;
@@ -3632,13 +3643,22 @@ function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
       const seen = new Set<string>();
       a.slides = cmd.slides
         .filter((x) => !seen.has(x.id) && seen.add(x.id))
-        .map((x) => ({ id: x.id, text: x.text.trim(), ...(x.image ? { image: x.image } : {}) }));
+        .map((x) => ({ id: x.id, text: x.text.trim(), ...(x.image ? { image: x.image } : {}), ...(x.wide ? { wide: x.wide } : {}) }));
       if (!a.slides.length) delete a.slides;
       break;
     }
     case "arrival.showTable":
       showTable();
       break;
+    case "arrival.showIntro":
+      showIntro();
+      break;
+    case "arrival.introGo": {
+      const live = s.scenes.find((x) => x.id === s.live.sceneId);
+      if (live?.kind !== "intro") fail("The intro isn't on the TV.");
+      s.live.intro = { step: cmd.step, at: ctx.now, n: ++s.seq, ...(cmd.paused ? { paused: true } : {}) };
+      break;
+    }
 
     case "game.rename":
       s.name = cmd.name.trim();

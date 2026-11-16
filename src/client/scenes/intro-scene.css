@@ -1,0 +1,207 @@
+/* The Arrival intro on the TV (IntroScene.tsx), laid out on a 1920×1080 stage. */
+
+.tvi {
+  background: #05070b;
+  overflow: hidden;
+}
+.tvi-step {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  animation: tvi-in 0.9s ease both;
+}
+@keyframes tvi-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* The boat's pictures (and a DM's portrait slides): a tall frame, words beside it. */
+.tvi-backdrop {
+  position: absolute;
+  inset: -80px;
+  width: calc(100% + 160px);
+  height: calc(100% + 160px);
+  object-fit: cover;
+  filter: blur(40px) brightness(0.45) saturate(1.1);
+  pointer-events: none;
+}
+/* The blurred copy stands still: it is only there for colour. */
+.tvi-backdrop *,
+.tvi-backdrop {
+  animation: none !important;
+  transition: none !important;
+}
+/* Its moving parts (the door's flood of light, Mags's portrait) would only be ghosts in the blur. */
+.tvi-backdrop .mags-portrait,
+.tvi-backdrop .door-flood {
+  display: none;
+}
+.tvi-frame {
+  position: absolute;
+  left: 150px;
+  top: 70px;
+  width: 705px;
+  height: 940px;
+  overflow: hidden;
+  border-radius: 10px;
+  background: #0b0f15;
+  box-shadow:
+    0 30px 90px rgba(0, 0, 0, 0.65),
+    0 0 0 1px rgba(255, 255, 255, 0.07);
+}
+.tvi-frame-img {
+  left: 60px;
+  width: 885px;
+  background: none;
+  box-shadow: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.tvi-frame-img img {
+  max-width: 885px;
+  max-height: 940px;
+  border-radius: 10px;
+  display: block;
+  box-shadow:
+    0 30px 90px rgba(0, 0, 0, 0.65),
+    0 0 0 1px rgba(255, 255, 255, 0.07);
+}
+.tvi-words {
+  position: absolute;
+  left: 975px;
+  right: 150px;
+  top: 0;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  pointer-events: none;
+}
+.tvi-line {
+  margin: 0 0 0.55em;
+  font-family: "IM Fell English", Georgia, "Times New Roman", serif;
+  font-size: 62px;
+  line-height: 1.28;
+  color: #e3e9ef;
+  text-shadow: 0 2px 14px rgba(0, 0, 0, 0.7);
+  text-wrap: pretty;
+}
+.tvi-line.narr {
+  font-style: italic;
+}
+.tvi-line.speech {
+  color: #f6eedd;
+}
+.tvi-book.indoors .tvi-line.speech {
+  color: #ffe2b0;
+}
+.tvi-unrevealed {
+  opacity: 0;
+}
+
+/* A DM's slide with a wide picture: the picture fills the screen, words along the bottom. */
+.tvi-wide-img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  animation: tvi-drift 24s ease-out both;
+}
+@keyframes tvi-drift {
+  from {
+    transform: scale(1.06);
+  }
+  to {
+    transform: scale(1);
+  }
+}
+.tvi-wide .tvi-words {
+  left: 0;
+  right: 0;
+  top: auto;
+  bottom: 0;
+  padding: 200px 260px 120px;
+  text-align: center;
+  background: linear-gradient(to bottom, rgba(3, 5, 10, 0), rgba(3, 5, 10, 0.72) 40%, rgba(3, 5, 10, 0.88));
+}
+.tvi-wide .tvi-line {
+  font-size: 58px;
+  text-wrap: balance;
+}
+
+/* Words with no picture. */
+.tvi-text {
+  background: radial-gradient(circle at 50% 42%, #2a170c, #0c0604 70%);
+}
+.tvi-text .tvi-words {
+  left: 260px;
+  right: 260px;
+  text-align: center;
+}
+.tvi-text .tvi-line {
+  text-wrap: balance;
+}
+
+/* The DM's clip. */
+.tvi-clip {
+  background: #000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.tvi-clip video,
+.tvi-clip img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+
+/* Where the room is up to. */
+.tvi-progress {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 34px;
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  pointer-events: none;
+}
+.tvi-progress span {
+  width: 34px;
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(201, 212, 223, 0.18);
+  transition: background 0.6s ease;
+}
+.tvi-progress span.done {
+  background: rgba(201, 212, 223, 0.55);
+}
+.tvi-progress span.now {
+  background: #ffc46b;
+}
+.tvi-paused {
+  position: absolute;
+  top: 40px;
+  right: 56px;
+  padding: 8px 20px;
+  border-radius: 999px;
+  background: rgba(3, 5, 10, 0.55);
+  color: #c9d4df;
+  font-family: "IM Fell English SC", Georgia, serif;
+  font-size: 26px;
+  letter-spacing: 0.12em;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tvi-wide-img {
+    animation: none;
+  }
+}
