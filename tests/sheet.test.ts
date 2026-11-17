@@ -124,3 +124,22 @@ describe("sheet privacy", () => {
     expect(JSON.stringify(projectDm(g, 1, []))).toContain("niece");
   });
 });
+
+describe("sheet on or off per player", () => {
+  it("the DM turns it off for one player or everyone; the sheet is kept but hidden", () => {
+    let g = table();
+    g = run(g, { type: "me.sheet", patch: { cls: "Cleric" } }, as("p1"));
+    g = run(g, { type: "sheet.enable", playerId: "p1", on: false });
+    expect(g.players[0].sheetOff).toBe(true);
+    expect(g.players[0].sheet?.cls).toBe("Cleric");
+    const ph = projectPlayer(g, 1, "p1", []);
+    expect(ph.me.sheetOff).toBe(true);
+    expect(ph.me.sheet).toBeUndefined();
+    expect(() => run(g, { type: "me.sheet", patch: { notes: "x" } }, as("p1"))).toThrow(/turned off/);
+    g = run(g, { type: "sheet.enable", on: false });
+    expect(g.players.filter((p) => !p.archived).every((p) => p.sheetOff)).toBe(true);
+    g = run(g, { type: "sheet.enable", playerId: "p1", on: true });
+    expect(g.players[0].sheetOff).toBeUndefined();
+    expect(projectPlayer(g, 1, "p1", []).me.sheet?.cls).toBe("Cleric");
+  });
+});

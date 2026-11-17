@@ -73,6 +73,7 @@ export function PlayerNav({
   fight,
   voteOpen,
   vertical,
+  sheetOff,
 }: {
   screen: Screen;
   onScreen: (s: Screen) => void;
@@ -84,13 +85,15 @@ export function PlayerNav({
   /** A vote on the leads is open and this player hasn't voted: the Discover tab lights up. */
   voteOpen?: boolean;
   vertical?: boolean;
+  /** No character sheet for this player: the tab stays Gold. */
+  sheetOff?: boolean;
 }) {
   const tabs: Tab[] = [
     ...(fight ? [{ id: "fight" as const, label: "Fight", icon: NAV_ICONS.fight, alert: fight !== "on", alertText: fight === "turn" ? "your turn" : "you're up next" }] : []),
     { id: "chronicle", label: "Story", icon: NAV_ICONS.story },
     { id: "discovery", label: "Discover", icon: NAV_ICONS.discover, count: discoverCount, alert: !!voteOpen, alertText: "a vote is open" },
     ...(hasMaps ? [{ id: "map" as const, label: "Map", icon: NAV_ICONS.map }] : []),
-    { id: "purse", label: "Character", icon: NAV_ICONS.character },
+    sheetOff ? { id: "purse" as const, label: "Gold", icon: NAV_ICONS.gold } : { id: "purse" as const, label: "Character", icon: NAV_ICONS.character },
     { id: "jobs", label: "Jobs", icon: NAV_ICONS.jobs, count: jobsCount },
   ];
   return (

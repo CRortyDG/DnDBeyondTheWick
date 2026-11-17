@@ -366,6 +366,8 @@ export interface PlayerView extends Common {
     level?: number;
     /** My character sheet, if I keep one here. */
     sheet?: CharacterSheet;
+    /** The DM turned the sheet off for me: the tab is just Gold, as before. */
+    sheetOff?: boolean;
     /** Which starting point I picked on the Arrival seat page (a sheet can start from it). */
     starter?: string;
   };
@@ -699,7 +701,7 @@ export function projectPlayer(table: GameState, version: number, playerId: strin
       heldCp: heldCp(game, p.id),
       hp: { cur: p.hp?.cur ?? 0, max: p.hp?.max ?? 0, temp: p.hp?.temp ?? 0, tv: p.hp?.tv !== false },
       ...(p.level ? { level: p.level } : {}),
-      ...(p.sheet ? { sheet: structuredClone(p.sheet) } : {}),
+      ...(p.sheetOff ? { sheetOff: true } : p.sheet ? { sheet: structuredClone(p.sheet) } : {}),
       ...(p.arrival?.pick ? { starter: p.arrival.pick } : {}),
     },
     ...(() => {

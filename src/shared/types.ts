@@ -192,6 +192,8 @@ export interface Player {
   level?: number;
   /** The app's own character sheet (see sheet.ts). Missing: none yet (they may use D&D Beyond). Only this player and the DM see it. */
   sheet?: import("./sheet").CharacterSheet;
+  /** The DM turned the app's sheet off for this player (they'd rather use D&D Beyond). Their sheet, if any, is kept but hidden. */
+  sheetOff?: boolean;
   /** DM-ONLY, practice copies only: a stand-in for rehearsing (see practice.ts). Never in a live game. */
   standIn?: StandIn;
 }

@@ -30,6 +30,8 @@ export function CharacterTab({
   onLink: () => void;
 }) {
   const me = view.me;
+  // The DM turned the sheet off for this player: just gold and shops, as before.
+  if (me.sheetOff) return <>{gold}</>;
   return (
     <>
       <div className="pl-seg pl-char-seg" role="tablist" aria-label="Your character">

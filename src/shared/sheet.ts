@@ -271,6 +271,8 @@ export const sheetDmCommands = [
   z.object({ type: z.literal("sheet.update"), playerId: id, patch: sheetPatch }),
   /** Take a player's sheet away (they're back on D&D Beyond, or it was started by mistake). */
   z.object({ type: z.literal("sheet.remove"), playerId: id }),
+  /** Turn the app's sheet on or off for one player, or (no playerId) for everyone. Off keeps any sheet, hidden. */
+  z.object({ type: z.literal("sheet.enable"), playerId: id.optional(), on: z.boolean() }),
   /** Lock class, scores and proficiencies on one sheet, or (no playerId) on every sheet there is now. */
   z.object({ type: z.literal("sheet.lock"), playerId: id.optional(), on: z.boolean() }),
 ] as const;
@@ -371,6 +373,14 @@ export function syncInitiative(s: GameState, p: Player) {
 export function applySheet(s: GameState, cmd: SheetCommand, h: { actor: { role: string; playerId?: string }; now: number; fail: (m: string) => never }) {
   const find = (pid: string) => s.players.find((p) => p.id === pid) ?? h.fail("That player isn't here.");
   switch (cmd.type) {
+    case "sheet.enable": {
+      const who = cmd.playerId ? [find(cmd.playerId)] : s.players.filter((p) => !p.archived);
+      for (const p of who) {
+        if (cmd.on) delete p.sheetOff;
+        else p.sheetOff = true;
+      }
+      return;
+    }
     case "sheet.lock": {
       const who = cmd.playerId ? [find(cmd.playerId)] : s.players.filter((p) => !p.archived);
       for (const p of who) {
@@ -394,6 +404,7 @@ export function applySheet(s: GameState, cmd: SheetCommand, h: { actor: { role: 
     }
     case "me.sheet": {
       const p = find(h.actor.role === "player" ? (h.actor.playerId ?? "") : "");
+      if (p.sheetOff) h.fail("Character sheets are turned off for you. Ask the DM if you'd like one.");
       p.sheet ??= cmd.starter ? sheetFromStarter(p.arrival?.pick, h.now) : blankSheet(h.now);
       patchSheet(p.sheet, cmd.patch, { locked: !!p.sheet.locked, now: h.now, fail: h.fail });
       syncInitiative(s, p);

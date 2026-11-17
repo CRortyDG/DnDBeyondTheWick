@@ -191,6 +191,7 @@ function PlayerScreen({ view, online, send, ident, setIdent }: { view: PlayerVie
     discoverCount: seen.newCount,
     jobsCount: view.jobs.filter((j) => j.canTake && !j.asked).length,
     voteOpen: !!view.leads.vote && !view.leads.vote.closed && !view.leads.vote.mine,
+    sheetOff: !!me.sheetOff,
   };
 
   const goldPage = (

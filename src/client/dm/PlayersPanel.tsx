@@ -38,7 +38,8 @@ export function PlayersPanel() {
   const away = s.players.filter((p) => !p.archived && p.away).length;
   const editingPlayer = s.players.find((p) => p.id === editing) as DmPlayer | undefined;
   const [resting, setResting] = useState(false);
-  const withSheets = s.players.filter((p) => !p.archived && p.sheet);
+  const withSheets = s.players.filter((p) => !p.archived && p.sheet && !p.sheetOff);
+  const sheetsOn = s.players.filter((p) => !p.archived && !p.sheetOff).length;
   const sheetCount = withSheets.length;
   const allLocked = sheetCount > 0 && withSheets.every((p) => p.sheet!.locked);
   const hurt = s.players.filter((p) => !p.archived && p.hp && p.hp.max > 0 && (p.hp.cur < p.hp.max || p.hp.temp > 0));
@@ -148,6 +149,14 @@ export function PlayersPanel() {
             ))}
           </select>
         </label>
+        <button
+          className="btn small"
+          type="button"
+          title="Turn the app's character sheet on or off for everyone. You can still change it per player in their drawer."
+          onClick={() => run({ type: "sheet.enable", on: sheetsOn === 0 }, sheetsOn === 0 ? "Sheets on for everyone." : "Sheets off for everyone. Their tab is Gold again.")}
+        >
+          {sheetsOn === 0 ? "Sheets on for all" : "Sheets off for all"}
+        </button>
         {sheetCount ? (
           <button
             className="btn small"
@@ -187,7 +196,7 @@ function PlayerRow({ p, onEdit, selected }: { p: DmPlayer; onEdit: () => void; s
       () => toast(link),
     );
   const hp = p.hp && p.hp.max > 0 ? `HP ${p.hp.cur}/${p.hp.max}${p.hp.temp ? ` +${p.hp.temp}` : ""}` : "";
-  const nums = p.sheet ? sheetNumbers(p.sheet, p.level) : null;
+  const nums = p.sheet && !p.sheetOff ? sheetNumbers(p.sheet, p.level) : null;
   const sub = [p.character, p.level ? `Level ${p.level}` : "", p.sheet?.cls ?? "", hp, nums ? `AC ${nums.ac} · PP ${nums.passive}` : "", `?player=${p.handle}`, seenText(p.lastSeenAt)].filter(Boolean).join(" · ");
   return (
     <li className={`scene-item list-row player-row${p.archived ? " archived" : ""}${p.away ? " away" : ""}${selected ? " selected" : ""}`}>
@@ -233,7 +242,7 @@ function PlayerDrawer({ p, onClose }: { p: DmPlayer; onClose: () => void }) {
   const [confirmSheet, setConfirmSheet] = useState(false);
   const link = absoluteHref(view.state.id, p.handle);
   return (
-    <Drawer wide={!!p.sheet} title={p.name} subtitle={`${formatCp(p.balanceCp)} · ${seenText(p.lastSeenAt)}`} onClose={onClose}>
+    <Drawer wide={!!p.sheet && !p.sheetOff} title={p.name} subtitle={`${formatCp(p.balanceCp)} · ${seenText(p.lastSeenAt)}`} onClose={onClose}>
       <div className="form">
         <Field label="Name" value={p.name} onCommit={(v) => run({ type: "player.update", playerId: p.id, patch: { name: v } })} />
         <Field label="Character name" value={p.character ?? ""} placeholder="Signs their Chronicle notes" onCommit={(v) => run({ type: "player.update", playerId: p.id, patch: { character: v } })} />
@@ -277,7 +286,12 @@ function PlayerDrawer({ p, onClose }: { p: DmPlayer; onClose: () => void }) {
       </div>
       <section className="dm-sheet" aria-label="Character sheet">
         <h3>Character sheet</h3>
-        {p.sheet ? (
+        <Check checked={!p.sheetOff} onChange={(v) => run({ type: "sheet.enable", playerId: p.id, on: v }, v ? `${p.name} has a Character tab with a sheet.` : `Sheet turned off for ${p.name}. Their tab is Gold again.`)}>
+          Use the app&rsquo;s character sheet
+        </Check>
+        {p.sheetOff ? (
+          <p className="note">Off: their phone shows the Gold tab as before{p.sheet ? ", and the sheet they made is kept for if you turn it back on" : ""}.</p>
+        ) : p.sheet ? (
           <CharacterSheetView
             sheet={p.sheet}
             level={p.level}

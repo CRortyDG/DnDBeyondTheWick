@@ -425,7 +425,7 @@ function Row({
   const { view } = useDm();
   const comp = c.kind === "companion" ? (view.state.companions ?? []).find((x) => x.id === c.companionId) : undefined;
   const pl = c.kind === "player" ? view.state.players.find((x) => x.id === c.playerId) : undefined;
-  const sheetNums = pl?.sheet ? sheetNumbers(pl.sheet, pl.level) : null;
+  const sheetNums = pl?.sheet && !pl.sheetOff ? sheetNumbers(pl.sheet, pl.level) : null;
   const [drag, setDrag] = useState(false);
   const tablet = useTablet();
   const pct = hp.max > 0 ? Math.max(0, Math.min(100, (hp.cur / hp.max) * 100)) : 0;
