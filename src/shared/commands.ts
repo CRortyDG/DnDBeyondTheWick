@@ -394,6 +394,8 @@ export const dmCommand = z.discriminatedUnion("type", [
   z.object({ type: z.literal("renown.points"), amount: z.number().int().min(-50).max(50).refine((n) => n !== 0, "Give or take at least one point."), reason: text(200).optional(), tv: z.boolean().optional() }),
   /** Show the party's progress toward the next rank on phones. */
   z.object({ type: z.literal("renown.progress"), on: z.boolean() }),
+  // Jobs wait until the party finds this entry (null: always show). make: a new hidden "Notice board" place.
+  z.object({ type: z.literal("jobs.gate"), entryId: id.nullable().optional(), make: z.literal(true).optional() }),
   /**
    * Fix a line in the Renown history: its points and reason. The difference goes on (or comes
    * off) the points of everyone who got it, later totals move with it, and its Chronicle line is

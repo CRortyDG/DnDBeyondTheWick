@@ -144,7 +144,8 @@ function PlayerScreen({ view, online, send, ident, setIdent }: { view: PlayerVie
   const hasMaps = !!view.map || view.maps.length > 0;
   // Feature switches: off for the table, off for me, or a tab I hid myself.
   const offHere = new Set<FeatureId>([...(view.me.off ?? []), ...(view.me.hidden ?? [])]);
-  const has = (id: FeatureId) => !offHere.has(id);
+  // Jobs also wait until the party has found the notice board.
+  const has = (id: FeatureId) => !offHere.has(id) && !(id === "jobs" && view.jobsLocked);
   // The Character tab (the sheet) and the Gold tab are separate; the sheet only when it's on for me.
   const sheetsOn = !view.me.sheetOff && has("sheets");
   const open: Screen[] = [
@@ -916,7 +917,8 @@ function DeviceSound() {
 function YourTabs({ view, send }: { view: PlayerView; send: (c: object) => Promise<string | null> }) {
   const off = new Set(view.me.off ?? []);
   const hidden = view.me.hidden ?? [];
-  const mayHide = FEATURES.filter((f) => f.playerHide && !off.has(f.id));
+  // Jobs before the party finds the notice board: nothing to hide yet.
+  const mayHide = FEATURES.filter((f) => f.playerHide && !off.has(f.id) && !(f.id === "jobs" && view.jobsLocked));
   const [err, setErr] = useState<string | null>(null);
   if (!mayHide.length) return null;
   const set = async (id: FeatureId, show: boolean) => {

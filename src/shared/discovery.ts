@@ -383,6 +383,34 @@ export function sessionRecap(g: Pick<GameState, "entries">, sessionId: string): 
 }
 
 // ---------------------------------------------------------------------------
+// The notice board that opens the Jobs tab
+
+/** What a new "Notice board" place reads like when the DM makes one for the jobs. */
+export const NOTICE_BOARD_ENTRY = {
+  name: "Notice board",
+  summary: "Where folk pin up paid work: jobs, bounties and odd errands.",
+  nickname: "A board of paid work",
+  hint: "Folk say there's a board in town where people post paid work.",
+} as const;
+
+/** The entry the party has to find before jobs show, if the DM set one. */
+export function jobsGateEntry(g: Pick<GameState, "entries" | "jobsGate">): Entry | undefined {
+  return g.jobsGate ? entriesOf(g).find((e) => e.id === g.jobsGate) : undefined;
+}
+
+/**
+ * Are jobs still hidden? Only when the DM tied them to an entry that isn't
+ * found yet. In a shared world, give playerId for that character's own stage
+ * (a lensed game already holds it in stage).
+ */
+export function jobsLocked(g: Pick<GameState, "entries" | "jobsGate"> & Partial<Pick<GameState, "world">>, playerId?: string): boolean {
+  const e = jobsGateEntry(g);
+  if (!e) return false;
+  const stage = g.world && playerId ? (e.knownBy?.[playerId] ?? "hidden") : e.stage;
+  return !isFound(stage);
+}
+
+// ---------------------------------------------------------------------------
 // Shops and their Discover entries
 
 /** The Discover entry tied to a shop's storefront. */

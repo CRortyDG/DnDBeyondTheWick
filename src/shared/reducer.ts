@@ -16,6 +16,7 @@ import { chapterSessionId, cleanTags, cleanText, defaultChapterId, NEXT_CHAPTER,
 import { BOARD_SLOTS, jobPoints, jobsOf, jobTitle, pinnedCount, pointsOf, rankForPoints, rankName, ranksOf, RENOWN_POINTS, RENOWN_POINTS_MAX, renownMet, renownNeeded, renownOf, shopOpenNow, thresholdsOf, tierOf, trustMet, trustText } from "./renown";
 import { LOG_MAX, PLAYER_ROLL_GAP_MS, rollD20, rollPool, type RollTo } from "./dice";
 import { leadsOf, leadVisible, tally, voteClosed } from "./leads";
+import { jobsLocked, NOTICE_BOARD_ENTRY } from "./discovery";
 import { findRef, sessionRecap, slugInput, stageRank, blankEntry, ENTRIES_MAX, LEADS_MAX, entriesForScene, entriesOf, entryFromScene, entryScene, entryTags, factSlug, FACTS_MAX, isFound, shopEntry, slugify, syncShopEntries, uniqueSlug } from "./discovery";
 import { DM_AUTHOR } from "./types";
 import { originOf } from "./presets";
@@ -1181,6 +1182,8 @@ function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
   };
   const removeEntry = (id: string) => {
     s.entries = entriesOf(s).filter((x) => x.id !== id);
+    // Jobs were waiting on it: with it gone, they show again.
+    if (s.jobsGate === id) delete s.jobsGate;
     for (const e of s.entries) if (e.links.includes(id)) e.links = e.links.filter((x) => x !== id);
     if (s.discovery?.entryId === id) delete s.discovery;
     // The off-script kit forgets it too.
@@ -2407,6 +2410,22 @@ function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
       if (cmd.on) s.renownProgress = true;
       else delete s.renownProgress;
       break;
+    case "jobs.gate": {
+      if (cmd.make) {
+        // Reuse a place already called "Notice board", else a new hidden one.
+        const list = (s.entries ??= []);
+        let e = list.find((x) => x.kind === "place" && slugify(x.name) === slugify(NOTICE_BOARD_ENTRY.name));
+        if (!e) {
+          if (list.length >= ENTRIES_MAX) fail("The compendium is full.");
+          e = blankEntry(list, nextId("e"), "place", NOTICE_BOARD_ENTRY.name, { summary: NOTICE_BOARD_ENTRY.summary, nickname: NOTICE_BOARD_ENTRY.nickname, hint: NOTICE_BOARD_ENTRY.hint });
+          list.push(e);
+        }
+        s.jobsGate = e.id;
+        out.entryId = e.id;
+      } else if (cmd.entryId) s.jobsGate = entry(cmd.entryId).id;
+      else delete s.jobsGate;
+      break;
+    }
     case "job.add": {
       const old = cmd.followUpOf ? job(cmd.followUpOf) : undefined;
       const j: Job = cleanJob({
@@ -4249,6 +4268,7 @@ function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
     case "me.takeJob": {
       const p = me();
       const j = jobs.find((x) => x.id === cmd.jobId && x.pinned && x.status !== "expired") ?? fail("That job isn't on the board.");
+      if (jobsLocked(s, p.id)) fail("That job isn't on the board.");
       if (j.status !== "open") fail(`The party already took ${jobTitle(j)}.`);
       if (!renownMet(s, j.renown)) fail(`That job is for experienced parties only (${rankName(j.renown, s)}).`);
       if (!trustMet(s, j.trust)) fail(`That job needs ${trustText(s, j.trust)}.`);

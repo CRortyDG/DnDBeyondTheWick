@@ -1226,6 +1226,8 @@ export interface GameState {
   flyers: Flyer[];
   /** The bounty board's job flyers. Missing on games made before it; read with jobsOf(). */
   jobs?: Job[];
+  /** The Discover entry (usually a place, "Notice board") the party must find before jobs show on phones and the TV. Missing: jobs always show. */
+  jobsGate?: string;
   /** Plain notes on the notice board. Missing on games made before free placement; read with noticesOf(). */
   notices?: Notice[];
   /** The Renown plaque on the board's frame. Missing: shown. */
