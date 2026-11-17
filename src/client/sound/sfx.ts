@@ -698,6 +698,46 @@ export const SFX_MAKERS: Record<string, SfxMaker> = {
     SFX_MAKERS.heartbeat(k, t, {});
     for (const f of [73.4, 77.8, 110]) tone(k, f, t, { type: "sawtooth", vol: 0.05, attack: 0.6, decay: 2.4, hold: 0.6, filter: { type: "lowpass", freq: 500 }, wet: 0.5 });
   },
+  // ---- Quiet cues on a player's own device (src/client/player/deviceSound.ts)
+  "your-turn": (k, t) => {
+    // Two soft rising bell notes: "you're up".
+    [69, 76].forEach((m, i) => bell(k, midi(m), t + i * 0.16, 0.12, [
+      [1, 1, 1.2],
+      [2.76, 0.2, 0.5],
+      [5.4, 0.08, 0.25],
+    ], { wet: 0.3 }));
+  },
+  hurt: (k, t) => {
+    // A dull hit and a short low swell.
+    thud(k, t, 0.45);
+    noise(k, t, { kind: "pink", vol: 0.12, attack: 0.005, decay: 0.12, filter: "bandpass", freq: 700, q: 1.2 });
+    tone(k, 82, t + 0.02, { type: "triangle", vol: 0.12, attack: 0.02, decay: 0.5, to: 65 });
+  },
+  "hit-die": (k, t) => {
+    // A die rolled in the hand, then a little warmth.
+    for (let i = 0; i < 4; i++) clack(k, t + i * rnd(0.05, 0.08), 0.12 - i * 0.02);
+    [67, 71, 74].forEach((m, i) => tone(k, midi(m), t + 0.32 + i * 0.07, { vol: 0.06, attack: 0.02, decay: 0.9, wet: 0.5 }));
+  },
+  approved: (k, t) => {
+    // A coin, and a bright "yes".
+    bell(k, rnd(4200, 5200), t, 0.06, [
+      [1, 1, 0.3],
+      [1.48, 0.5, 0.2],
+    ]);
+    [72, 79].forEach((m, i) => bell(k, midi(m), t + 0.1 + i * 0.12, 0.1, [
+      [1, 1, 1],
+      [2.76, 0.2, 0.4],
+    ], { wet: 0.3 }));
+  },
+  declined: (k, t) => {
+    // Gentle, not a buzzer: one note, then a lower one.
+    [67, 62].forEach((m, i) => tone(k, midi(m), t + i * 0.18, { type: "triangle", vol: 0.1, attack: 0.01, decay: 0.45, wet: 0.3 }));
+  },
+  gift: (k, t) => {
+    // Something for you: a small sparkle and a warm chord.
+    sparkle(k, t, 6, 0.3, 3000, 6000, 0.035);
+    [64, 67, 72].forEach((m, i) => pluck(k, midi(m), t + 0.05 + i * 0.05, 0.18, { wet: 0.4, bright: 0.6 }));
+  },
   "steps": (k, t) => {
     for (let i = 0; i < 6; i++) {
       const at = t + i * 0.55;
