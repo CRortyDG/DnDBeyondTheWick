@@ -273,8 +273,8 @@ const soundFade = z.number().min(0).max(20);
 const showRef = z.string().max(120).regex(SHOW_REF_RE);
 const beatAction = z.discriminatedUnion("type", [
   z.object({ type: z.literal("scene"), sceneId: id }),
-  z.object({ type: z.literal("sound"), mix: z.string().max(40).refine((m) => m === "off" || !!mixById(m) || (m.startsWith("layer/") && isLayerId(m.slice(6))), "Unknown sound mix.") }),
-  z.object({ type: z.literal("sfx"), id: z.string().max(40).refine((x): boolean => isSfxId(x), "Unknown sound effect.") }),
+  z.object({ type: z.literal("sound"), mix: z.string().max(40).refine((m) => m === "off" || !!mixById(m) || (m.startsWith("layer/") && isLayerId(m.slice(6))), "Unknown sound mix."), tap: z.boolean().optional() }),
+  z.object({ type: z.literal("sfx"), id: z.string().max(40).refine((x): boolean => isSfxId(x), "Unknown sound effect."), tap: z.boolean().optional() }),
   z.object({ type: z.literal("black") }),
   z.object({ type: z.literal("stinger") }),
   z.object({ type: z.literal("bank") }),

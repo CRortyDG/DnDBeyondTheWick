@@ -27,6 +27,7 @@ import { actionLabel } from "./RunGame";
 import { AddStoryBeat, CastAndPrep, MentionTextarea, StoryBlocks } from "./EpisodeBuilder";
 import { CluesEditor } from "./OffScript";
 import { storyResolver } from "@/shared/runsheet";
+import { MIXES, SFX } from "@/shared/sound";
 
 // A made-up example: the browser bundle must not carry any real episode text.
 const FORMAT_HELP = `## The toll bridge
@@ -527,7 +528,7 @@ function withActions(
     .replace(/\s+$/, "")
     .split("\n")
     // Indented fact: lines belong to a "story:" line above them; keep those.
-    .filter((l) => !/^(?:action|fight|show|reveal|rumor|fact)\s*:/i.test(l));
+    .filter((l) => !/^(?:action|fight|show|reveal|rumor|fact|sound|sfx)\s*:/i.test(l));
   const lines = actions
     .map((a) => actionMarkdown(a, g))
     .filter((l): l is string => !!l);
@@ -561,7 +562,13 @@ function ActionsPicker({
       ? { type: "fight", monsters: [{ name: v.slice(6), count: 1 }] }
       : v === "bank"
         ? { type: "bank" }
-        : { type: "show", ref: v.slice(5) };
+        : v.startsWith("sound:")
+          ? { type: "sound", mix: v.slice(6) }
+          : v.startsWith("sfx:")
+            ? { type: "sfx", id: v.slice(4) }
+            : v.startsWith("tap:")
+              ? { type: "sfx", id: v.slice(4), tap: true }
+              : { type: "show", ref: v.slice(5) };
     onChange([...actions, a]);
     setPick("");
   };
@@ -615,7 +622,7 @@ function ActionsPicker({
           value={pick}
           onChange={(e) => add(e.target.value)}
         >
-          <option value="">+ Add a TV action…</option>
+          <option value="">+ Add a TV action or sound…</option>
           {groups.map((grp) => (
             <optgroup key={grp} label={`Show: ${grp.toLowerCase()}`}>
               {assets
@@ -639,6 +646,28 @@ function ActionsPicker({
               ))}
             </optgroup>
           ) : null}
+          <optgroup label="Sound: crossfade to a mix">
+            {MIXES.map((m) => (
+              <option key={m.id} value={`sound:${m.id}`}>
+                Sound: {m.label}
+              </option>
+            ))}
+            <option value="sound:off">Sound: fade to silence</option>
+          </optgroup>
+          <optgroup label="Sound effect as you land">
+            {SFX.map((x) => (
+              <option key={x.id} value={`sfx:${x.id}`}>
+                Effect: {x.label}
+              </option>
+            ))}
+          </optgroup>
+          <optgroup label="Sound effect button (tap it during the beat)">
+            {SFX.map((x) => (
+              <option key={x.id} value={`tap:${x.id}`}>
+                Button: {x.label}
+              </option>
+            ))}
+          </optgroup>
         </select>
       ) : null}
       {sugg?.also.length ? (

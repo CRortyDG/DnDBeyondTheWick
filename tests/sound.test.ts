@@ -112,6 +112,29 @@ describe("run sheets", () => {
     expect(g.sound!.layers).toEqual({});
   });
 
+  it("keeps tap sounds as buttons on the beat until the DM plays them", () => {
+    const p = parseEpisode("## Start\n> Hello.\n## The cave\nsound: dungeon\nsfx: roar (tap)\nsound: storm (tap)", () => null);
+    expect(p.beats[1].actions).toEqual([
+      { type: "sound", mix: "dungeon" },
+      { type: "sfx", id: "roar", tap: true },
+      { type: "sound", mix: "storm", tap: true },
+    ]);
+    expect(beatMarkdown(p.beats[1], { scenes: [], entries: [] } as never)).toContain("sfx: roar (tap)");
+    dm({ type: "episode.add", title: "Tap test", beats: p.beats } as Command);
+    const ep = g.episodes!.at(-1)!;
+    dm({ type: "session.start" });
+    dm({ type: "run.start", episodeId: ep.id });
+    dm({ type: "run.next" });
+    const before = g.sound?.cue?.n;
+    dm({ type: "run.next" });
+    expect(g.sound!.mix).toBe("dungeon"); // the landing sound played
+    expect(g.sound!.cue?.n).toBe(before); // the tap ones didn't
+    dm({ type: "run.fire", beatId: ep.beats[1].id, index: 1 });
+    expect(g.sound!.cue!.id).toBe("roar");
+    dm({ type: "run.fire", beatId: ep.beats[1].id, index: 2 });
+    expect(g.sound!.mix).toBe("storm");
+  });
+
   it("finds mixes and effects by name", () => {
     expect(findMix("Wizard's study")).toBe("study");
     expect(findMix("silence")).toBe("off");

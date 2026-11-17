@@ -996,10 +996,10 @@ export interface Vote {
 
 export type BeatAction =
   | { type: "scene"; sceneId: string }
-  /** "sound: tavern": crossfade the TV's soundboard to that mix (a mix id, "layer/<id>", or "off"). */
-  | { type: "sound"; mix: string }
-  /** "sfx: sword-clash": play that one-shot on the TV. */
-  | { type: "sfx"; id: string }
+  /** "sound: tavern": crossfade the TV's soundboard to that mix (a mix id, "layer/<id>", or "off"). tap: only when the DM taps it ("sound: storm (tap)"). */
+  | { type: "sound"; mix: string; tap?: boolean }
+  /** "sfx: sword-clash": play that one-shot on the TV. tap: a button on the beat instead of playing on landing ("sfx: roar (tap)"). */
+  | { type: "sfx"; id: string; tap?: boolean }
   | { type: "black" }
   | { type: "bank" }
   | { type: "stinger" }
