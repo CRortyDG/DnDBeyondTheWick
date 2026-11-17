@@ -37,8 +37,17 @@ describe("presets", () => {
     expect(presetOf(presetOff("minimal"))).toBe("minimal");
     expect(presetOf([...presetOff("standard"), "storyboard"])).toBe("standard");
     expect(presetOf(["renown"])).toBe("custom");
-    // A preset leaves the DM's own tools as they were.
-    expect(presetOff("everything", ["storyboard", "renown"])).toEqual(["storyboard"]);
+    // A preset sets the DM's tools too, but leaves unlisted switches (Hosting costs) as they were.
+    expect(presetOff("everything", ["storyboard", "renown", "hosting"])).toEqual(["hosting"]);
+  });
+
+  it("Standard trims the DM's sidebar; Minimal trims it further", () => {
+    const std = presetOff("standard");
+    expect(std).toEqual(expect.arrayContaining(["storyboard", "builder", "practice"]));
+    expect(std).not.toContain("tables");
+    expect(std).not.toContain("offscript");
+    expect(presetOff("minimal")).toEqual(expect.arrayContaining(["tables", "offscript"]));
+    expect(presetOff("minimal")).not.toContain("hosting");
   });
 
   it("an existing game has every feature on", () => {

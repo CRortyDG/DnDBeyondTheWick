@@ -97,7 +97,7 @@ export function FeaturesPanel() {
           <h3 id={`ft-g-${g}`}>{GROUP_LABEL[g]}</h3>
           {g === "dm" ? <p className="note ft-group-note">These only tidy your sidebar. Players never see them.</p> : null}
           <ul className="ft-rows">
-            {FEATURES.filter((f) => f.group === g).map((f) => (
+            {FEATURES.filter((f) => f.group === g && !f.unlisted).map((f) => (
               <FeatureRow
                 key={f.id}
                 f={f}
