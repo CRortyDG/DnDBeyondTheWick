@@ -3,7 +3,8 @@
 // The soundboard's one-shots, each made from scratch with Web Audio.
 // Every one is original synthesis: no samples, no recordings, nothing to license.
 
-import { bell, envGain, midi, noise, pick, pluck, rnd, tone, type Kit, type SfxMaker } from "./engine";
+import { bell, envGain, midi, noise, panTo, pick, pluck, rnd, tone, type Kit, type SfxMaker } from "./engine";
+import { clickBuffer, laugh, rasp, resonate, utter, wander, type Vowel } from "./voice";
 
 export interface SfxOpts {
   vol?: number;
@@ -121,12 +122,28 @@ function sparkle(k: Kit, t: number, n: number, len: number, lo = 2000, hi = 6000
 export const SFX_MAKERS: Record<string, SfxMaker> = {
   // ---- Combat
   "sword-clash": (k, t) => {
-    const f = rnd(1300, 1900);
-    noise(k, t, { vol: 0.5, decay: 0.05, filter: "highpass", freq: 2500 });
-    bell(k, f, t, 0.22, METAL, { wet: 0.25, pan: rnd(-0.3, 0.3) });
-    bell(k, f * 1.13, t + 0.012, 0.14, METAL, { wet: 0.25 });
-    // The blades scrape apart.
-    noise(k, t + 0.05, { vol: 0.12, attack: 0.02, decay: 0.3, filter: "bandpass", freq: 5000, to: 3000, q: 4 });
+    // Steel on steel: a hard, bright crack, a dense cluster of high metal
+    // partials that die fast, one blade ringing on, and a gritty scrape.
+    noise(k, t, { vol: 0.55, decay: 0.025, filter: "highpass", freq: 3000 });
+    noise(k, t, { vol: 0.3, decay: 0.06, filter: "bandpass", freq: 1800, q: 1 });
+    const pan = rnd(-0.3, 0.3);
+    for (let i = 0; i < 14; i++) {
+      const f = rnd(2400, 11000);
+      tone(k, f, t + Math.random() * 0.004, { vol: rnd(0.02, 0.06) * (f < 6000 ? 1 : 0.6), attack: 0.001, decay: rnd(0.04, 0.2), pan, wet: 0.25 });
+    }
+    // The longer ring of a blade: a few inharmonic partials.
+    const ring = rnd(2900, 3800);
+    for (const [r, v, d] of [
+      [1, 0.04, 0.7],
+      [2.32, 0.025, 0.5],
+      [3.91, 0.015, 0.35],
+    ] as const)
+      tone(k, ring * r, t + 0.003, { vol: v, attack: 0.001, decay: d, vibrato: { rate: rnd(5, 9), depth: ring * r * 0.002 }, pan, wet: 0.35 });
+    // The edges grind apart.
+    for (let i = 0; i < 16; i++) {
+      const at = t + 0.03 + i * rnd(0.012, 0.02);
+      noise(k, at, { vol: 0.07 * (1 - i / 18), decay: rnd(0.006, 0.014), filter: "bandpass", freq: 6500 - i * 160, q: 4, pan });
+    }
   },
   "sword-hit": (k, t) => {
     swoosh(k, t, 0.3, 0.16);
@@ -153,77 +170,124 @@ export const SFX_MAKERS: Record<string, SfxMaker> = {
     bell(k, 820, t, 0.12, METAL, { wet: 0.2 });
   },
   roar: (k, t) => {
+    // A big beast: rough breath and a low, ragged voice through a throat that
+    // opens wide and closes, over a rattling chest.
     const { ctx } = k;
-    const len = 1.7;
-    const g = envGain(ctx, k.out, t, 0.5, 0.18, 0.7, len - 0.6);
+    const len = 1.9;
+    const g = envGain(ctx, k.out, t, 0.55, 0.22, 0.75, len - 0.7);
     const w = ctx.createGain();
     w.gain.value = 0.35;
     g.connect(w).connect(k.wet);
-    // A growl: low buzzing voices, roughened at 30 Hz, through a mouth that opens and closes.
-    const am = ctx.createGain();
-    am.gain.value = 0.6;
-    const rough = ctx.createOscillator();
-    rough.frequency.value = 32;
-    const rg = ctx.createGain();
-    rg.gain.value = 0.4;
-    rough.connect(rg).connect(am.gain);
-    const mouth = ctx.createBiquadFilter();
-    mouth.type = "bandpass";
-    mouth.Q.value = 2;
-    mouth.frequency.setValueAtTime(350, t);
-    mouth.frequency.linearRampToValueAtTime(900, t + 0.5);
-    mouth.frequency.linearRampToValueAtTime(420, t + len);
-    am.connect(mouth).connect(g);
-    for (const [f, ty] of [
-      [78, "sawtooth"],
-      [117, "sawtooth"],
-      [52, "square"],
+    const throat = ctx.createGain();
+    throat.gain.value = 0.6;
+    rasp(k, throat.gain, 24, 0.35, t, t + len + 0.8);
+    const mouths = (
+      [
+        [220, 3, 1],
+        [600, 4, 0.8],
+        [1300, 5, 0.45],
+        [2400, 6, 0.2],
+      ] as const
+    ).map(([f, q, lv]) => {
+      const bp = ctx.createBiquadFilter();
+      bp.type = "bandpass";
+      bp.Q.value = q;
+      bp.frequency.setValueAtTime(f * 0.7, t);
+      bp.frequency.linearRampToValueAtTime(f * 1.25, t + 0.55);
+      bp.frequency.linearRampToValueAtTime(f * 0.8, t + len);
+      const lg = ctx.createGain();
+      lg.gain.value = lv * q * 0.4;
+      throat.connect(bp).connect(lg).connect(g);
+      return bp;
+    });
+    void mouths;
+    // The voice: two buzzes an octave apart, never steady.
+    for (const [f, lv] of [
+      [72, 0.5],
+      [36, 0.35],
     ] as const) {
       const o = ctx.createOscillator();
-      o.type = ty;
+      o.type = "sawtooth";
       o.frequency.setValueAtTime(f, t);
-      o.frequency.linearRampToValueAtTime(f * 1.15, t + 0.5);
-      o.frequency.linearRampToValueAtTime(f * 0.8, t + len);
-      o.connect(am);
+      o.frequency.linearRampToValueAtTime(f * 1.2, t + 0.5);
+      o.frequency.linearRampToValueAtTime(f * 0.78, t + len);
+      wander(k, o.frequency, 14, f * 0.06, t, t + len + 0.8);
+      const og = ctx.createGain();
+      og.gain.value = lv;
+      o.connect(og).connect(throat);
       o.start(t);
       o.stop(t + len + 0.8);
     }
-    rough.start(t);
-    rough.stop(t + len + 0.8);
-    noise(k, t, { kind: "pink", vol: 0.25, attack: 0.2, decay: 0.8, hold: len - 0.7, filter: "bandpass", freq: 700, q: 1 });
+    // Breath, which carries most of a roar.
+    const air = ctx.createBufferSource();
+    air.buffer = k.noise("pink");
+    const ag = ctx.createGain();
+    ag.gain.value = 1.6;
+    air.connect(ag).connect(throat);
+    air.start(t, Math.random() * 2);
+    air.stop(t + len + 0.8);
+    // The chest.
+    const chest = ctx.createBufferSource();
+    chest.buffer = k.noise("brown");
+    const clp = ctx.createBiquadFilter();
+    clp.type = "lowpass";
+    clp.frequency.value = 180;
+    const rattle = ctx.createGain();
+    rattle.gain.value = 0.6;
+    rasp(k, rattle.gain, 18, 0.35, t, t + len + 0.8);
+    chest.connect(clp).connect(rattle).connect(envGain(ctx, k.out, t, 0.35, 0.2, 0.8, len - 0.8));
+    chest.start(t, Math.random() * 2);
+    chest.stop(t + len + 0.8);
   },
   growl: (k, t) => {
+    // Low, closed-mouth, rattling: a dog or wolf warning you off.
     const { ctx } = k;
-    const len = 1.1;
-    const g = envGain(ctx, k.out, t, 0.45, 0.12, 0.4, len - 0.4);
+    const len = 1.3;
+    const g = envGain(ctx, k.out, t, 0.5, 0.15, 0.4, len - 0.45);
     const am = ctx.createGain();
     am.gain.value = 0.5;
-    const rough = ctx.createOscillator();
-    rough.frequency.value = 22;
-    const rg = ctx.createGain();
-    rg.gain.value = 0.5;
-    rough.connect(rg).connect(am.gain);
-    const lp = ctx.createBiquadFilter();
-    lp.type = "lowpass";
-    lp.frequency.value = 500;
-    am.connect(lp).connect(g);
+    rasp(k, am.gain, rnd(20, 28), 0.4, t, t + len + 0.5);
+    for (const [f, q, lv] of [
+      [320, 3, 1],
+      [850, 5, 0.5],
+      [1900, 6, 0.15],
+    ] as const) {
+      const bp = ctx.createBiquadFilter();
+      bp.type = "bandpass";
+      bp.frequency.value = f;
+      bp.Q.value = q;
+      const lg = ctx.createGain();
+      lg.gain.value = lv * q * 0.45;
+      am.connect(bp).connect(lg).connect(g);
+    }
     const o = ctx.createOscillator();
     o.type = "sawtooth";
-    o.frequency.setValueAtTime(62, t);
-    o.frequency.linearRampToValueAtTime(70, t + len);
+    o.frequency.setValueAtTime(rnd(68, 80), t);
+    o.frequency.linearRampToValueAtTime(rnd(75, 88), t + len);
+    wander(k, o.frequency, 10, 5, t, t + len + 0.5);
     o.connect(am);
     o.start(t);
     o.stop(t + len + 0.5);
-    rough.start(t);
-    rough.stop(t + len + 0.5);
+    noise(k, t, { kind: "pink", vol: 0.12, attack: 0.1, decay: 0.4, hold: len - 0.45, filter: "bandpass", freq: 700, q: 1.2 });
   },
   death: (k, t) => {
-    // A last breath, a body falling, and a low toll.
-    noise(k, t, { kind: "pink", vol: 0.22, attack: 0.1, decay: 0.9, filter: "bandpass", freq: 900, to: 300, q: 2 });
-    voice(k, t, 150, 0.9, 0.12, [500, 900], { to: 85, wet: 0.3 });
-    thud(k, t + 0.75, 0.7);
-    noise(k, t + 0.8, { kind: "brown", vol: 0.3, decay: 0.25, filter: "lowpass", freq: 600 });
-    for (const m of [38, 45, 50]) tone(k, midi(m), t + 0.8, { type: "triangle", vol: 0.12, attack: 0.05, decay: 3, wet: 0.6 });
+    // A last groan that breaks into a breath, a body falling, and a low toll.
+    const end = utter(k, k.out, t, {
+      pitch: rnd(105, 125),
+      vol: 0.16,
+      wet: 0.35,
+      jitter: 0.05,
+      rough: { rate: 32, depth: 0.35 },
+      syllables: [
+        { vowel: "uh", len: 0.25, from: 1.15, to: 1.05, onset: "h", breathy: 0.25 },
+        { vowel: "o", len: 0.55, from: 1, to: 0.7, breathy: 0.45, amp: 0.8 },
+      ],
+      gap: 0,
+    });
+    noise(k, end - 0.05, { kind: "pink", vol: 0.12, attack: 0.05, decay: 0.5, filter: "bandpass", freq: 1200, to: 500, q: 1.5 });
+    thud(k, t + 0.95, 0.7);
+    noise(k, t + 1, { kind: "brown", vol: 0.3, decay: 0.25, filter: "lowpass", freq: 600 });
+    for (const m of [38, 45, 50]) tone(k, midi(m), t + 1, { type: "triangle", vol: 0.12, attack: 0.05, decay: 3, wet: 0.6 });
   },
   explosion: (k, t) => {
     noise(k, t, { vol: 0.9, attack: 0.005, decay: 2.2, filter: "lowpass", freq: 6000, to: 160, over: 1.8, wet: 0.5 });
@@ -375,15 +439,61 @@ export const SFX_MAKERS: Record<string, SfxMaker> = {
     drum(k, t + 2.1, 0.5, 80, 35, 1.5);
   },
   cheer: (k, t) => {
-    // A room of voices going "hey!", then clapping.
-    for (let i = 0; i < 16; i++) {
-      const at = t + Math.random() * 0.35;
-      voice(k, at, rnd(130, 320), rnd(0.5, 1.1), rnd(0.025, 0.05), [rnd(600, 900), rnd(1200, 1900)], { to: rnd(160, 380), pan: rnd(-0.9, 0.9), wet: 0.35 });
+    // A room going up: voices "hey!" / "yeah!" / "woo!", a whistle or two,
+    // then applause from people clapping at their own pace.
+    const shouts: [Vowel, Vowel, number][] = [
+      ["e", "i", 1.25],
+      ["ae", "uh", 1.1],
+      ["u", "u", 1.45],
+      ["a", "a", 1.2],
+    ];
+    for (let i = 0; i < 18; i++) {
+      const at = t + Math.pow(Math.random(), 1.5) * 0.45;
+      const woman = Math.random() < 0.4;
+      const [v1, v2, lift] = pick(shouts);
+      const len = rnd(0.35, 0.8);
+      utter(k, k.out, at, {
+        pitch: woman ? rnd(230, 330) : rnd(130, 200),
+        vol: rnd(0.035, 0.07),
+        pan: rnd(-0.9, 0.9),
+        wet: 0.35,
+        jitter: 0.04,
+        syllables: [
+          { vowel: v1, len: len * 0.35, from: 1, to: lift, onset: Math.random() < 0.5 ? "h" : undefined, breathy: 0.2 },
+          { vowel: v2, len: len * 0.65, from: lift, to: lift * rnd(0.7, 0.9), breathy: 0.25, amp: 0.85 },
+        ],
+        gap: 0,
+      });
     }
-    for (let i = 0; i < 70; i++) {
-      const at = t + 0.3 + Math.pow(Math.random(), 1.3) * 2.6;
-      noise(k, at, { vol: rnd(0.05, 0.14) * (1 - (at - t) / 3.2), decay: 0.03, filter: "bandpass", freq: rnd(900, 2200), q: 1.4, pan: rnd(-0.9, 0.9), wet: 0.2 });
+    // A whistle: "wheet-whoo".
+    for (let w = 0; w < (Math.random() < 0.6 ? 2 : 1); w++) {
+      const at = t + rnd(0.1, 0.6);
+      const f = rnd(1900, 2600);
+      tone(k, f * 0.8, at, { vol: 0.03, attack: 0.03, decay: 0.12, hold: 0.15, to: f * 1.2, glide: 0.2, pan: rnd(-0.7, 0.7), wet: 0.3 });
+      tone(k, f * 1.15, at + 0.35, { vol: 0.03, attack: 0.02, decay: 0.2, hold: 0.15, to: f * 0.8, glide: 0.35, pan: rnd(-0.7, 0.7), wet: 0.3 });
     }
+    // Applause: each person claps a few times a second, a little unevenly; a
+    // clap is a few slaps a millisecond apart, through the hollow of the hands.
+    const clappers = 14;
+    const dur = 3;
+    for (let c = 0; c < clappers; c++) {
+      const clicks: [number, number][] = [];
+      const rate = rnd(3.5, 5.5);
+      let x = rnd(0.25, 0.55);
+      while (x < dur) {
+        const fade = 1 - x / (dur + 0.3);
+        const a = rnd(0.6, 1) * fade;
+        clicks.push([x, a], [x + 0.0012, a * 0.6], [x + rnd(0.002, 0.004), a * 0.4]);
+        x += (1 / rate) * rnd(0.85, 1.15);
+      }
+      const hollow = rnd(900, 1900);
+      resonate(k, clickBuffer(k.ctx, dur + 0.2, clicks, 0.004), t, [
+        [hollow, 2.2, 1.6],
+        [hollow * 2.3, 2.5, 0.7],
+      ], { vol: rnd(0.05, 0.1), pan: rnd(-0.9, 0.9), wet: 0.25, dry: 0.35 });
+    }
+    // And a laugh or two in it.
+    laugh(k, k.out, t + rnd(0.6, 1.1), { pitch: rnd(130, 260), vol: 0.04, pan: rnd(-0.7, 0.7), wet: 0.3 });
   },
   gasp: (k, t) => {
     for (let i = 0; i < 12; i++) noise(k, t + Math.random() * 0.15, { kind: "pink", vol: rnd(0.04, 0.08), attack: 0.08, decay: 0.35, filter: "bandpass", freq: rnd(1200, 2600), q: 3, pan: rnd(-0.9, 0.9), wet: 0.3 });
@@ -409,28 +519,56 @@ export const SFX_MAKERS: Record<string, SfxMaker> = {
   },
   // ---- The world
   door: (k, t) => {
-    const { ctx } = k;
-    const o = ctx.createOscillator();
-    o.type = "sawtooth";
-    o.frequency.setValueAtTime(180, t);
-    o.frequency.linearRampToValueAtTime(120, t + 0.4);
-    o.frequency.linearRampToValueAtTime(150, t + 0.7);
-    const bp = ctx.createBiquadFilter();
-    bp.type = "bandpass";
-    bp.frequency.value = 700;
-    bp.Q.value = 8;
-    const g = envGain(ctx, k.out, t, 0.25, 0.1, 0.2, 0.55);
-    o.connect(bp).connect(g);
-    o.start(t);
-    o.stop(t + 1);
-    thud(k, t + 0.85, 0.7);
-    noise(k, t + 0.85, { kind: "brown", vol: 0.2, decay: 0.4, filter: "lowpass", freq: 300, wet: 0.4 });
+    // An old door: the hinge catches and slips (stick-slip), so the creak is a
+    // run of tiny ticks that speed up into a groan and slow again, ringing in
+    // the wood. Then it shuts: a heavy slam and the latch.
+    const len = 0.95;
+    const clicks: [number, number][] = [];
+    let x = 0.02;
+    while (x < len) {
+      const p = x / len;
+      // Ticks per second: slow, up to a pitched groan, wobbling, and down again.
+      const rate = 18 + 150 * Math.sin(Math.PI * Math.min(1, p * 1.15)) * (0.75 + 0.25 * Math.sin(p * 17));
+      clicks.push([x, rnd(0.5, 1) * (0.4 + 0.6 * Math.sin(Math.PI * p))]);
+      x += (1 / rate) * rnd(0.8, 1.25);
+    }
+    resonate(k, clickBuffer(k.ctx, len, clicks, 0.0012), t, [
+      [rnd(380, 460), 14, 9],
+      [rnd(900, 1100), 18, 7],
+      [rnd(1700, 2100), 20, 4.5],
+      [rnd(2900, 3400), 16, 2],
+    ], { vol: 0.7, wet: 0.3, lowpass: 4500 });
+    // The slam: the door's mass, its frame, and the room.
+    const s = t + len + 0.05;
+    tone(k, 95, s, { vol: 0.7, attack: 0.002, decay: 0.22, to: 55 });
+    noise(k, s, { kind: "brown", vol: 0.6, decay: 0.15, filter: "lowpass", freq: 900 });
+    resonate(k, clickBuffer(k.ctx, 0.05, [[0, 1]], 0.006), s, [
+      [180, 6, 1.5],
+      [430, 8, 0.8],
+      [1050, 6, 0.3],
+    ], { vol: 0.6, wet: 0.5, lowpass: 3000 });
+    // The latch drops.
+    resonate(k, clickBuffer(k.ctx, 0.08, [[0, 1], [0.035, 0.5]], 0.0008), s + 0.04, [
+      [2800, 10, 1],
+      [4600, 12, 0.6],
+    ], { vol: 0.18, pan: 0.15, dry: 0.3 });
   },
   knock: (k, t) => {
-    for (const at of [0, 0.22, 0.44]) {
-      tone(k, 150, t + at, { vol: 0.55, attack: 0.002, decay: 0.12, to: 90 });
-      noise(k, t + at, { vol: 0.3, decay: 0.04, filter: "bandpass", freq: 700, q: 1.5, wet: 0.2 });
-    }
+    // Knuckles on a wooden door: a sharp crack ringing briefly in the panel,
+    // a touch uneven, the last one a little firmer.
+    const gaps = [0, rnd(0.18, 0.22), rnd(0.18, 0.22)];
+    let at = t;
+    gaps.forEach((gap, i) => {
+      at += gap;
+      const v = i === 2 ? 1 : rnd(0.75, 0.9);
+      resonate(k, clickBuffer(k.ctx, 0.12, [[0, 1], [0.0015, 0.5]], 0.002), at, [
+        [rnd(240, 270), 7, 1.6],
+        [rnd(560, 620), 9, 1.1],
+        [rnd(1250, 1400), 8, 0.6],
+        [rnd(2600, 3000), 6, 0.3],
+      ], { vol: 0.55 * v, wet: 0.25, dry: 0.25, lowpass: 6000 });
+      tone(k, 120, at, { vol: 0.18 * v, attack: 0.001, decay: 0.06, to: 85 });
+    });
   },
   bell: (k, t) => {
     for (let i = 0; i < 3; i++) bell(k, 196, t + i * 1.9, 0.16, BELL, { wet: 0.5 });
@@ -460,35 +598,61 @@ export const SFX_MAKERS: Record<string, SfxMaker> = {
     brass(k, 82.4, t + 1.45, 1.8, 0.08, { wet: 0.5 });
   },
   howl: (k, t) => {
-    const howl = (at: number, base: number, pan: number, vol: number) => {
+    // Wolves: an "ooo" that scoops up and opens toward "ah" as it holds, the
+    // pitch drifting, breath in it, and others answering further off.
+    const howl = (at: number, base: number, pan: number, vol: number, far: number) => {
       const { ctx } = k;
-      const o = ctx.createOscillator();
-      o.type = "triangle";
-      o.frequency.setValueAtTime(base, at);
-      o.frequency.exponentialRampToValueAtTime(base * 1.7, at + 0.6);
-      o.frequency.setValueAtTime(base * 1.7, at + 1.5);
-      o.frequency.exponentialRampToValueAtTime(base * 1.15, at + 2.6);
-      const vib = ctx.createOscillator();
-      vib.frequency.value = 5;
-      const vg = ctx.createGain();
-      vg.gain.value = 7;
-      vib.connect(vg).connect(o.frequency);
-      const bp = ctx.createBiquadFilter();
-      bp.type = "bandpass";
-      bp.frequency.value = 900;
-      bp.Q.value = 0.8;
-      const g = envGain(ctx, pan ? k.out : k.out, at, vol, 0.3, 1, 1.4);
+      const len = rnd(2.4, 3);
+      const dest = ctx.createBiquadFilter();
+      dest.type = "lowpass";
+      dest.frequency.value = 4000 - far * 2500;
+      dest.connect(panTo(ctx, k.out, pan));
+      const g = envGain(ctx, dest, at, vol * (1 - far * 0.5), 0.35, 0.9, len - 1.1);
       const w = ctx.createGain();
-      w.gain.value = 0.8;
+      w.gain.value = 0.5 + far * 0.8;
       g.connect(w).connect(k.wet);
-      o.connect(bp).connect(g);
+      const o = ctx.createOscillator();
+      o.type = "sawtooth";
+      o.frequency.setValueAtTime(base * 0.7, at);
+      o.frequency.exponentialRampToValueAtTime(base * 1.3, at + 0.55);
+      o.frequency.linearRampToValueAtTime(base * 1.36, at + len * 0.6);
+      o.frequency.exponentialRampToValueAtTime(base * 0.92, at + len);
+      wander(k, o.frequency, 5, base * 0.03, at, at + len + 0.3);
+      const soft = ctx.createBiquadFilter();
+      soft.type = "lowpass";
+      soft.frequency.value = base * 5;
+      const mix = ctx.createGain();
+      o.connect(soft).connect(mix);
+      const air = ctx.createBufferSource();
+      air.buffer = k.noise("pink");
+      const ag = ctx.createGain();
+      ag.gain.value = 0.35;
+      air.connect(ag).connect(mix);
+      // The mouth: "u" opening toward "a".
+      for (const [f0, f1, q, lv] of [
+        [380, 700, 6, 1],
+        [800, 1150, 9, 0.5],
+        [2300, 2500, 10, 0.15],
+      ] as const) {
+        const bp = ctx.createBiquadFilter();
+        bp.type = "bandpass";
+        bp.Q.value = q;
+        bp.frequency.setValueAtTime(f0, at);
+        bp.frequency.linearRampToValueAtTime(f1, at + len * 0.7);
+        bp.frequency.linearRampToValueAtTime(f0 * 1.1, at + len);
+        const lg = ctx.createGain();
+        lg.gain.value = lv * q * 0.35;
+        mix.connect(bp).connect(lg).connect(g);
+      }
       o.start(at);
-      vib.start(at);
-      o.stop(at + 2.9);
-      vib.stop(at + 2.9);
+      air.start(at, Math.random() * 2);
+      o.stop(at + len + 0.3);
+      air.stop(at + len + 0.3);
+      setTimeout(() => dest.disconnect(), (at - ctx.currentTime + len + 5) * 1000);
     };
-    howl(t, 380, -0.3, 0.2);
-    howl(t + 1.1, 430, 0.4, 0.1);
+    howl(t, rnd(400, 460), -0.3, 0.3, 0);
+    howl(t + rnd(1, 1.4), rnd(470, 540), 0.45, 0.22, 0.35);
+    howl(t + rnd(2, 2.6), rnd(360, 420), 0.8, 0.2, 0.85);
   },
   owl: (k, t) => {
     for (const [at, len] of [
