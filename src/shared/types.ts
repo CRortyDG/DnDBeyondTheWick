@@ -1000,6 +1000,10 @@ export interface Vote {
 
 export type BeatAction =
   | { type: "scene"; sceneId: string }
+  /** "sound: tavern": crossfade the TV's soundboard to that mix (a mix id, "layer/<id>", or "off"). tap: only when the DM taps it ("sound: storm (tap)"). */
+  | { type: "sound"; mix: string; tap?: boolean }
+  /** "sfx: sword-clash": play that one-shot on the TV. tap: a button on the beat instead of playing on landing ("sfx: roar (tap)"). */
+  | { type: "sfx"; id: string; tap?: boolean }
   | { type: "black" }
   | { type: "bank" }
   | { type: "stinger" }
@@ -1176,6 +1180,8 @@ export interface GameState {
   diceRoll?: { n: number; at: number; groups: DiceGroup[]; plus: number; total: number; /** Set when a player rolled. */ name?: string; /** What the roll was for. */ for?: "initiative" };
   /** DM-ONLY: every roll, the DM's and the players', newest last (capped). Players see only their own. */
   rolls?: RollEntry[];
+  /** The soundboard: what the TV plays (see sound.ts). Missing: nothing chosen, auto cues on. */
+  sound?: SoundState;
   /** The Arrival intro's settings. Missing on games made before it. */
   arrival?: ArrivalSettings;
   /** The Chronicle's notes, oldest first. Missing on games made before it; read with notesOf(). */
@@ -1776,4 +1782,21 @@ export interface InviteEntry {
   /** The DM has copied the "you're in" message for them. */
   told?: boolean;
   outAt?: number;
+}
+
+/** The soundboard. Sound is made on the TV itself; this is only what to play. */
+export interface SoundState {
+  /** Master volume, 0..1. Missing: VOLUME_DEFAULT. */
+  volume?: number;
+  muted?: boolean;
+  /** Cues tied to moments (dice, fights, scenes, rank-ups) are off. Missing: on. */
+  autoOff?: boolean;
+  /** Looping layers playing: layer id -> volume 0..1. */
+  layers: Record<string, number>;
+  /** Seconds the last change of layers fades over. */
+  fade?: number;
+  /** The mix the layers came from, until a layer is changed by hand. */
+  mix?: string;
+  /** The last one-shot: the TV plays it when n changes. */
+  cue?: { id: string; n: number; at: number };
 }

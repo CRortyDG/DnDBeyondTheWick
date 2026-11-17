@@ -932,6 +932,36 @@ label.check,
 .dots::after {
   content: "\2026";
 }
+/* Sound is wanted but the browser is waiting for a click on the TV. */
+.tv-sound-wake {
+  position: fixed;
+  left: 50%;
+  top: calc(24 * var(--u));
+  transform: translateX(-50%);
+  z-index: 31;
+  font: inherit;
+  font-size: calc(24 * var(--u));
+  color: #f6ead2;
+  background: rgba(13, 10, 8, 0.85);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: calc(8 * var(--u)) calc(20 * var(--u));
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5em;
+  animation: tv-sound-wake 2.4s ease-in-out infinite;
+}
+@keyframes tv-sound-wake {
+  50% {
+    opacity: 0.6;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tv-sound-wake {
+    animation: none;
+  }
+}
 .tv-bar {
   position: fixed;
   left: 0;

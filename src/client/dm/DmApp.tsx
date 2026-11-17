@@ -49,6 +49,7 @@ import { MonstersPanel } from "./MonstersPanel";
 import { CompanionsPanel } from "./CompanionsPanel";
 import { FightOverlay } from "../ui/FightOverlay";
 import { DiceButton, DiceTray, PlayerRollCards, TvDiceBar } from "./DiceTray";
+import { SoundButton, Soundboard } from "./Soundboard";
 import { Finder, QuickBar, quickKey, typing } from "./QuickBar";
 import { quickOf } from "@/shared/assets";
 import { WorldPanel } from "./WorldPanel";
@@ -282,15 +283,17 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
   const [tableMap, setTableMap] = useState<string | null>(null);
   const closeTable = useCallback(() => setTableMap(null), []);
   const [diceOpen, setDiceOpen] = useState(false);
-  const toggleDice = useCallback(() => setDiceOpen((v) => !v), []);
+  const [soundOpen, setSoundOpen] = useState(false);
+  const toggleDice = useCallback(() => (setDiceOpen((v) => !v), setSoundOpen(false)), []);
   // Rolls from before this page opened count as seen, so a reload doesn't pop old cards.
   const [diceSeen, setDiceSeen] = useState(() => s.rolls?.at(-1)?.n ?? 0);
   const seeDice = useCallback((n: number) => setDiceSeen((x) => Math.max(x, n)), []);
   const [diceGone, setDiceGone] = useState<number[]>([]);
   const dismissRoll = useCallback((n: number) => setDiceGone((g) => [...g.slice(-50), n]), []);
+  const toggleSound = useCallback(() => (setSoundOpen((v) => !v), setDiceOpen(false)), []);
   const ctx: DmCtx = useMemo(
-    () => ({ view, ident, run, toast, gated, call, openMap: setEditingMap, openTable: setTableMap, diceOpen, toggleDice, diceSeen, seeDice, diceGone, dismissRoll }),
-    [view, ident, run, toast, gated, call, diceOpen, toggleDice, diceSeen, seeDice, diceGone, dismissRoll],
+    () => ({ view, ident, run, toast, gated, call, openMap: setEditingMap, openTable: setTableMap, diceOpen, toggleDice, diceSeen, seeDice, diceGone, dismissRoll, soundOpen, toggleSound }),
+    [view, ident, run, toast, gated, call, diceOpen, toggleDice, diceSeen, seeDice, diceGone, dismissRoll, soundOpen, toggleSound],
   );
 
   /** S: open the shop on the TV (at a shop the party can see), or close it. */
@@ -510,6 +513,7 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
               {online ? "Live" : "Reconnecting"}
             </span>
             <span className="spacer" />
+            <SoundButton />
             <DiceButton />
             {primary}
             <button className={`btn icon-only pm-more-btn${moreOpen ? " on" : ""}`} type="button" aria-expanded={moreOpen} onClick={() => setMoreOpen((v) => !v)} aria-label="More">
@@ -629,6 +633,7 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
                 <SwordIcon />
               </button>
             )}
+            <SoundButton />
             <DiceButton />
             {s.vttUrl ? (
               <a className="btn icon-only" href={s.vttUrl} target="_blank" rel="noopener noreferrer" title="Launch VTT" aria-label="Launch VTT">
@@ -865,6 +870,7 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
       {screen}
       {tableMap ? <TableMap sceneId={tableMap} onClose={closeTable} /> : null}
       <DiceTray />
+      <Soundboard />
       <PlayerRollCards />
       <TvDiceBar />
       <TabletOffer />
