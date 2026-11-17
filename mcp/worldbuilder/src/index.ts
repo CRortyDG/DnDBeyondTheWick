@@ -116,9 +116,9 @@ server.registerTool(
   "search",
   {
     title: "Search the campaign",
-    description: "Find entries, beats, threads, flyers, notices, monster templates, random tables and run sheets by type, area and text. Up to 25 short hits.",
+    description: "Find entries, beats, threads, flyers, notices, monster templates, random tables, run sheets and shop items (type shop_item: price and kind, e.g. rent) by type, area and text. Up to 25 short hits.",
     inputSchema: {
-      type: z.enum(["person", "place", "shop", "monster", "mystery", "faction", "item", "beat", "thread", "flyer", "notice", "monster_template", "table", "run_sheet"]).optional(),
+      type: z.enum(["person", "place", "shop", "monster", "mystery", "faction", "item", "beat", "thread", "flyer", "notice", "monster_template", "table", "run_sheet", "shop_item"]).optional(),
       area: s(40).optional(),
       text: s(200).optional(),
     },
@@ -129,7 +129,7 @@ server.registerTool(
 
 server.registerTool(
   "get_entry",
-  { title: "Read one thing in full", description: "One entry with its facts, links, DM notes, secrets and Discovery stage; or a beat, thread, flyer, notice, monster template, table or run sheet by id.", inputSchema: { id }, annotations: ro },
+  { title: "Read one thing in full", description: "One entry with its facts, links, DM notes, secrets and Discovery stage; or a beat, thread, flyer, notice, monster template, table, run sheet or shop item by id. A shop entry lists its items.", inputSchema: { id }, annotations: ro },
   (a) => call("get_entry", a),
 );
 

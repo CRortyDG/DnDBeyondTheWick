@@ -104,8 +104,8 @@ approving fails and asks you to look again.
 | Tool | What it does |
 | --- | --- |
 | `get_overview` | Style guide, counts, threads, Renown, recent drafts, limits |
-| `search` | Search entries, beats, flyers, monsters, tables (max 25) |
-| `get_entry` | One thing in full by id |
+| `search` | Search entries, beats, flyers, monsters, tables, shop items (max 25) |
+| `get_entry` | One thing in full by id (a shop entry lists its items; shop items are read-only) |
 | `list_characters` | Character names, levels, parties, backstory threads (no real names) |
 | `list_threads`, `list_beats` | The storyboard |
 | `create_entry` | Person, place, shop, monster, mystery or faction (Hidden draft) |
