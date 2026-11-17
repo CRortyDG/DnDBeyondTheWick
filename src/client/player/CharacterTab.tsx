@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState } from "react";
 import { describeResult, natural } from "@/shared/dice";
 import type { SheetRoll } from "@/shared/sheet";
 import type { PlayerView } from "@/shared/projection";
@@ -8,26 +8,17 @@ import { STARTERS } from "@/shared/starters";
 import { CharacterSheetView } from "../ui/CharacterSheet";
 import { MyHp } from "./FightCard";
 
-export type CharacterPart = "sheet" | "gold";
-
 /**
- * The Character tab: the sheet, and gold and shops beside it. A player who
+ * The Character tab: the sheet. Gold and shops have their own tab. A player who
  * uses D&D Beyond keeps their link and can ignore the sheet entirely.
  */
 export function CharacterTab({
   view,
   send,
-  part,
-  onPart,
-  gold,
   onLink,
 }: {
   view: PlayerView;
   send: (c: object) => Promise<string | null>;
-  part: CharacterPart;
-  onPart: (p: CharacterPart) => void;
-  /** The Gold and shops page as it was. null: gold is turned off, so the tab is just the sheet. */
-  gold: ReactNode | null;
   /** Open "Your character" (the D&D Beyond link). */
   onLink: () => void;
 }) {
@@ -46,23 +37,9 @@ export function CharacterTab({
     // Advantage is for one roll: back to normal after it.
     if (!err) setAdv("");
   };
-  // The DM turned the sheet off for this player: just gold and shops, as before.
-  if (me.sheetOff) return <>{gold}</>;
   return (
     <>
-      {gold === null ? null : (
-      <div className="pl-seg pl-char-seg" role="tablist" aria-label="Your character">
-        <button type="button" role="tab" aria-selected={part === "sheet"} className={part === "sheet" ? "on" : undefined} onClick={() => onPart("sheet")}>
-          Sheet
-        </button>
-        <button type="button" role="tab" aria-selected={part === "gold"} className={part === "gold" ? "on" : undefined} onClick={() => onPart("gold")}>
-          Gold &amp; shops
-        </button>
-      </div>
-      )}
-      {part === "gold" && gold !== null ? (
-        gold
-      ) : me.sheet ? (
+      {me.sheet ? (
         <section className="pl-sheet" aria-label="Character sheet">
           <CharacterSheetView
             sheet={me.sheet}

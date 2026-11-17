@@ -22,7 +22,7 @@ import { Maps } from "./PhoneMap";
 import { Sheet, useConfirm } from "./Sheet";
 import { NAV_ICONS, PlayerNav, type Screen } from "./PlayerNav";
 import { DecisionBanners, MyRequests, RequestSheet, SendGold } from "./Requests";
-import { CharacterTab, type CharacterPart } from "./CharacterTab";
+import { CharacterTab } from "./CharacterTab";
 import { FEATURE, FEATURES, type FeatureId } from "@/shared/features";
 import { HERE_ASK_COOLDOWN_MS } from "@/shared/attendance";
 
@@ -135,8 +135,6 @@ function PlayerScreen({ view, online, send, ident, setIdent }: { view: PlayerVie
   const wide = useWide();
   // During a session the phone opens on the Chronicle, so a note is one tap away.
   const [screenPick, setScreenPick] = useState<Screen>(view.map ? "map" : view.session ? "chronicle" : "purse");
-  // The Character tab opens on the sheet (or the "start your sheet" card), so it is the first thing a player sees there.
-  const [charPart, setCharPart] = useState<CharacterPart>("sheet");
   const setScreen = (s: Screen) => {
     setScreenPick(s);
     window.scrollTo({ top: 0 });
@@ -146,12 +144,15 @@ function PlayerScreen({ view, online, send, ident, setIdent }: { view: PlayerVie
   // Feature switches: off for the table, off for me, or a tab I hid myself.
   const offHere = new Set<FeatureId>([...(view.me.off ?? []), ...(view.me.hidden ?? [])]);
   const has = (id: FeatureId) => !offHere.has(id);
+  // The Character tab (the sheet) and the Gold tab are separate; the sheet only when it's on for me.
+  const sheetsOn = !view.me.sheetOff && has("sheets");
   const open: Screen[] = [
     ...(view.fight ? (["fight"] as const) : []),
     ...(has("chronicle") ? (["chronicle"] as const) : []),
     ...(has("discover") ? (["discovery"] as const) : []),
     ...(hasMaps && has("maps") ? (["map"] as const) : []),
-    ...(!view.me.sheetOff || has("gold") ? (["purse"] as const) : []),
+    ...(sheetsOn ? (["sheet"] as const) : []),
+    ...(has("gold") ? (["purse"] as const) : []),
     ...(has("jobs") ? (["jobs"] as const) : []),
   ];
   const fallback: Screen = view.session && open.includes("chronicle") ? "chronicle" : (open.find((x) => x !== "fight") ?? "purse");
@@ -207,7 +208,7 @@ function PlayerScreen({ view, online, send, ident, setIdent }: { view: PlayerVie
     discoverCount: seen.newCount,
     jobsCount: view.jobs.filter((j) => j.canTake && !j.asked).length,
     voteOpen: !!view.leads.vote && !view.leads.vote.closed && !view.leads.vote.mine,
-    sheetOff: !!me.sheetOff,
+    sheetOff: !sheetsOn,
     has,
   };
 
@@ -370,9 +371,9 @@ function PlayerScreen({ view, online, send, ident, setIdent }: { view: PlayerVie
               <span className="purse-amt">{formatCp(view.purse.reduce((a, p) => a + p.balanceCp, 0))}</span>
             </li>
           </ul>
-          <SendGold view={view} availableCp={availableCp} send={send} startOpen={walletOpen === "send"} onMsg={(m) => (setMsg(m), setWalletOpen(false), setCharPart("gold"), setScreen("purse"))} />
-          {screen !== "purse" || charPart !== "gold" ? (
-            <button type="button" className="btn big" onClick={() => (setWalletOpen(false), setCharPart("gold"), setScreen("purse"))}>
+          <SendGold view={view} availableCp={availableCp} send={send} startOpen={walletOpen === "send"} onMsg={(m) => (setMsg(m), setWalletOpen(false), setScreen("purse"))} />
+          {screen !== "purse" && has("gold") ? (
+            <button type="button" className="btn big" onClick={() => (setWalletOpen(false), setScreen("purse"))}>
               Shops and your history
             </button>
           ) : null}
@@ -496,7 +497,8 @@ function PlayerScreen({ view, online, send, ident, setIdent }: { view: PlayerVie
       {screen === "chronicle" ? <Chronicle view={view.chronicle} gameName={view.game.name} send={send} /> : null}
       {screen === "jobs" ? <Jobs view={view} send={send} availableAt={availableAt} /> : null}
       {screen === "discovery" ? <Discovery view={view} send={send} seen={seen} /> : null}
-      {screen === "purse" ? <CharacterTab view={view} send={send} part={charPart} onPart={setCharPart} gold={has("gold") ? goldPage : null} onLink={() => setYouOpen(true)} /> : null}
+      {screen === "sheet" ? <CharacterTab view={view} send={send} onLink={() => setYouOpen(true)} /> : null}
+      {screen === "purse" ? goldPage : null}
       {noTabs ? <NoTabs dice={has("dice")} onDice={() => setDiceOpen(true)} /> : null}
 
         </main>
@@ -609,7 +611,8 @@ function PlayerScreen({ view, online, send, ident, setIdent }: { view: PlayerVie
       {screen === "chronicle" ? <Chronicle view={view.chronicle} gameName={view.game.name} send={send} /> : null}
       {screen === "jobs" ? <Jobs view={view} send={send} availableAt={availableAt} /> : null}
       {screen === "discovery" ? <Discovery view={view} send={send} seen={seen} /> : null}
-      {screen === "purse" ? <CharacterTab view={view} send={send} part={charPart} onPart={setCharPart} gold={has("gold") ? goldPage : null} onLink={() => setYouOpen(true)} /> : null}
+      {screen === "sheet" ? <CharacterTab view={view} send={send} onLink={() => setYouOpen(true)} /> : null}
+      {screen === "purse" ? goldPage : null}
       {noTabs ? <NoTabs dice={has("dice")} onDice={() => setDiceOpen(true)} /> : null}
 
       {sheets}
