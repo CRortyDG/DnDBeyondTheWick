@@ -112,6 +112,7 @@ const createBody = z.object({
   dmKeyHash: z.string().regex(/^[0-9a-f]{64}$/),
   name: z.string().trim().max(80).optional(),
   from: z.union([z.enum(["blank", "candlefair", "marrowmere"]), z.string().regex(/^preset:[a-z0-9]{10}$/)]).optional(),
+  features: z.enum(["minimal", "standard", "everything"]).optional(),
 });
 
 const ledgerRemoveBody = z.object({
@@ -404,7 +405,7 @@ export async function handleApi(req: Request, store: Store): Promise<Response> {
     if (path === "/internal/create" && method === "POST") {
       const r = createBody.safeParse(await readJson(req));
       if (!r.success) throw new HttpError(400, "That request didn't make sense.");
-      const v = await createGame(store, game, r.data.dmKeyHash, r.data.name || undefined, r.data.from);
+      const v = await createGame(store, game, r.data.dmKeyHash, r.data.name || undefined, r.data.from, r.data.features);
       return json({ ok: true, game, version: v });
     }
     if (path === "/internal/dm-check" && method === "GET") {

@@ -17,6 +17,8 @@ import { MenuItem, RowMenu } from "./RowMenu";
 import { PlusIcon } from "./navIcons";
 import { CharacterSheetView } from "../ui/CharacterSheet";
 import { sheetNumbers } from "@/shared/sheet";
+import { featureOn, FEATURES, hiddenOf, playerOff } from "@/shared/features";
+import { Switch } from "./FeaturesPanel";
 
 function seenText(t?: number | null) {
   if (!t) return "never seen";
@@ -149,6 +151,7 @@ export function PlayersPanel() {
             ))}
           </select>
         </label>
+        {featureOn(s, "sheets") ? (
         <button
           className="btn small"
           type="button"
@@ -157,7 +160,8 @@ export function PlayersPanel() {
         >
           {sheetsOn === 0 ? "Sheets on for all" : "Sheets off for all"}
         </button>
-        {sheetCount ? (
+        ) : null}
+        {sheetCount && featureOn(s, "sheets") ? (
           <button
             className="btn small"
             type="button"
@@ -236,6 +240,34 @@ function PlayerRow({ p, onEdit, selected }: { p: DmPlayer; onEdit: () => void; s
   );
 }
 
+/** Features for this player: the per-player switches (sheets, phone dice, shops), and the tabs they hid themselves. */
+function PlayerFeatures({ p }: { p: DmPlayer }) {
+  const { view, run } = useDm();
+  const s = view.state;
+  const per = FEATURES.filter((f) => f.perPlayer && featureOn(s, f.id));
+  const hid = hiddenOf(p);
+  if (!per.length && !hid.length) return null;
+  const who = p.character || p.name;
+  return (
+    <section className="ft-player" aria-label={`Features for ${who}`}>
+      <h3>Features for {who}</h3>
+      <ul className="ft-subs">
+        {per.map((f) => (
+          <li key={f.id}>
+            <span>{f.name}</span>
+            <Switch
+              on={!playerOff(p, f.id)}
+              label={`${f.name} for ${who}`}
+              onChange={(v) => run({ type: "features.player", playerId: p.id, feature: f.id, on: v }, v ? `${f.name} on for ${who}.` : `${f.name} off for ${who}. Nothing was deleted.`)}
+            />
+          </li>
+        ))}
+      </ul>
+      {hid.length ? <p className="note">They hid {hid.map((id) => FEATURES.find((f) => f.id === id)!.name).join(", ")} on their own phone.</p> : null}
+    </section>
+  );
+}
+
 function PlayerDrawer({ p, onClose }: { p: DmPlayer; onClose: () => void }) {
   const { view, run, toast } = useDm();
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -284,11 +316,10 @@ function PlayerDrawer({ p, onClose }: { p: DmPlayer; onClose: () => void }) {
           <InspireToggle playerId={p.id} name={p.name} on={!!p.inspired} />
         </div>
       </div>
+      <PlayerFeatures p={p} />
+      {featureOn(view.state, "sheets") ? (
       <section className="dm-sheet" aria-label="Character sheet">
         <h3>Character sheet</h3>
-        <Check checked={!p.sheetOff} onChange={(v) => run({ type: "sheet.enable", playerId: p.id, on: v }, v ? `${p.name} has a Character tab with a sheet.` : `Sheet turned off for ${p.name}. Their tab is Gold again.`)}>
-          Use the app&rsquo;s character sheet
-        </Check>
         {p.sheetOff ? (
           <p className="note">Off: their phone shows the Gold tab as before{p.sheet ? ", and the sheet they made is kept for if you turn it back on" : ""}.</p>
         ) : p.sheet ? (
@@ -314,6 +345,7 @@ function PlayerDrawer({ p, onClose }: { p: DmPlayer; onClose: () => void }) {
           </>
         )}
       </section>
+      ) : null}
       <section className="box danger-zone">
         <h3>{p.name}</h3>
         <div className="inline">

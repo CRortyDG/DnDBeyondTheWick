@@ -13,6 +13,7 @@ import { HANDOUT_BODY_MAX, HANDOUT_SIGN_MAX, HANDOUT_TITLE_MAX } from "./handout
 import { storyDmCommands } from "./storySchema";
 import { inviteDmCommands } from "./inviteSchema";
 import { sheetDmCommands, sheetPlayerCommands } from "./sheet";
+import { featureDmCommands, featurePlayerCommands } from "./features";
 import { offscriptDmCommands } from "./offscriptSchema";
 import { CLIP_URL_RE, CLIP_VIDEO_MAX, INTRO_STEPS_MAX, SLIDE_TEXT_MAX, SLIDES_MAX, WELCOME_MAX } from "./arrival";
 import type { TokenColor } from "./types";
@@ -649,6 +650,9 @@ export const dmCommand = z.discriminatedUnion("type", [
 
   // Character sheets.
   ...sheetDmCommands,
+
+  // Feature switches.
+  ...featureDmCommands,
 ]);
 
 /** Commands a player may send about themselves. */
@@ -679,6 +683,8 @@ export const playerCommand = z.discriminatedUnion("type", [
   ...companionPlayerCommands,
   // My character sheet.
   ...sheetPlayerCommands,
+  // The tabs I hide.
+  ...featurePlayerCommands,
 ]);
 
 /** Commands the server issues itself; never accepted from a client. */

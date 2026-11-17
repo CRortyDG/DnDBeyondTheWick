@@ -74,6 +74,7 @@ export function PlayerNav({
   voteOpen,
   vertical,
   sheetOff,
+  has = () => true,
 }: {
   screen: Screen;
   onScreen: (s: Screen) => void;
@@ -87,15 +88,18 @@ export function PlayerNav({
   vertical?: boolean;
   /** No character sheet for this player: the tab stays Gold. */
   sheetOff?: boolean;
+  /** Feature switches: a tab whose feature is off (for the table, for me, or hidden by me) isn't there. */
+  has?: (id: "chronicle" | "discover" | "maps" | "gold" | "jobs") => boolean;
 }) {
   const tabs: Tab[] = [
     ...(fight ? [{ id: "fight" as const, label: "Fight", icon: NAV_ICONS.fight, alert: fight !== "on", alertText: fight === "turn" ? "your turn" : "you're up next" }] : []),
-    { id: "chronicle", label: "Story", icon: NAV_ICONS.story },
-    { id: "discovery", label: "Discover", icon: NAV_ICONS.discover, count: discoverCount, alert: !!voteOpen, alertText: "a vote is open" },
-    ...(hasMaps ? [{ id: "map" as const, label: "Map", icon: NAV_ICONS.map }] : []),
-    sheetOff ? { id: "purse" as const, label: "Gold", icon: NAV_ICONS.gold } : { id: "purse" as const, label: "Character", icon: NAV_ICONS.character },
-    { id: "jobs", label: "Jobs", icon: NAV_ICONS.jobs, count: jobsCount },
+    ...(has("chronicle") ? [{ id: "chronicle" as const, label: "Story", icon: NAV_ICONS.story }] : []),
+    ...(has("discover") ? [{ id: "discovery" as const, label: "Discover", icon: NAV_ICONS.discover, count: discoverCount, alert: !!voteOpen, alertText: "a vote is open" }] : []),
+    ...(hasMaps && has("maps") ? [{ id: "map" as const, label: "Map", icon: NAV_ICONS.map }] : []),
+    ...(!sheetOff ? [{ id: "purse" as const, label: "Character", icon: NAV_ICONS.character }] : has("gold") ? [{ id: "purse" as const, label: "Gold", icon: NAV_ICONS.gold }] : []),
+    ...(has("jobs") ? [{ id: "jobs" as const, label: "Jobs", icon: NAV_ICONS.jobs, count: jobsCount }] : []),
   ];
+  if (!tabs.length) return null;
   return (
     <nav className={vertical ? "pl-side-nav" : "pl-nav"} aria-label="Your page">
       <div className="pl-nav-in" role="tablist" aria-orientation={vertical ? "vertical" : undefined} style={vertical ? undefined : { gridTemplateColumns: `repeat(${tabs.length}, 1fr)` }}>

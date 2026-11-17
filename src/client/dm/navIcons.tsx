@@ -83,6 +83,13 @@ export const GearIcon = (p: P) => (
     <path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1" />
   </svg>
 );
+export const SlidersIcon = (p: P) => (
+  <svg {...base(p)}>
+    <path d="M4 7h10M18 7h2M4 17h4M12 17h8" />
+    <circle cx="16" cy="7" r="2.2" />
+    <circle cx="10" cy="17" r="2.2" />
+  </svg>
+);
 export const SearchIcon = (p: P) => (
   <svg {...base(p)}>
     <circle cx="10.5" cy="10.5" r="6.5" />

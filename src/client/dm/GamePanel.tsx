@@ -10,6 +10,7 @@ import { PageHead } from "./PageHead";
 import { LinkIcon } from "../ui/icons";
 import { Field } from "./Field";
 import { HostingCosts } from "./HostingCosts";
+import { featureOn } from "@/shared/features";
 import { BuilderSettings } from "./BuilderSettings";
 import { TabletSetting } from "./TabletBits";
 
@@ -162,7 +163,7 @@ export function GamePanel() {
         <Snapshots />
       </section>
       <BuilderSettings />
-      <HostingCosts />
+      {featureOn(s, "hosting") ? <HostingCosts /> : null}
       <section className="box danger-zone">
         <h3>Start fresh</h3>
         <p className="note">For after a test run. A safety snapshot is kept first, so you can go back from Backup above.</p>

@@ -1,3 +1,4 @@
+import { presetOff, type PresetId } from "@/shared/features";
 import { dmCommand, playerCommand, type Command } from "@/shared/commands";
 import { displayNameFrom, isReservedHandle, normaliseGameId, normaliseHandle } from "@/shared/handles";
 import { projectDm, projectPlayer, projectTv, type View } from "@/shared/projection";
@@ -215,12 +216,18 @@ export async function startingState(store: Store, game: string, name: string | u
 }
 
 /** A new campaign, owned by whoever holds the DM key: blank, Candlefair, or from a saved preset. */
-export async function createGame(store: Store, gameRaw: string, dmKeyHash: string, name?: string, from?: StartFrom) {
+export async function createGame(store: Store, gameRaw: string, dmKeyHash: string, name?: string, from?: StartFrom, features?: PresetId) {
   const game = normaliseGameId(gameRaw);
   const { state } = await store.read(game);
   if (state) throw new HttpError(409, "That campaign code is taken.", "taken");
   // Load the preset first: a bad code shouldn't leave a half-made campaign behind.
   const start = await startingState(store, game, name, from);
+  // Which features it starts with (Minimal, Standard or Everything). A saved preset keeps its own unless one is picked.
+  if (features) {
+    const off = presetOff(features, start.featuresOff ?? []);
+    if (off.length) start.featuresOff = off;
+    else delete start.featuresOff;
+  }
   await store.setDmKeyHash(game, dmKeyHash);
   return store.overwrite(game, start, []);
 }

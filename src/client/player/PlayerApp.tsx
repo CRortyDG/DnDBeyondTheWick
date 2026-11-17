@@ -22,6 +22,7 @@ import { Sheet, useConfirm } from "./Sheet";
 import { NAV_ICONS, PlayerNav, type Screen } from "./PlayerNav";
 import { DecisionBanners, MyRequests, RequestSheet, SendGold } from "./Requests";
 import { CharacterTab, type CharacterPart } from "./CharacterTab";
+import { FEATURE, FEATURES, type FeatureId } from "@/shared/features";
 
 export function PlayerApp({ ident: initial }: { ident: Ident }) {
   const [ident, setIdent] = useState(initial);
@@ -140,8 +141,20 @@ function PlayerScreen({ view, online, send, ident, setIdent }: { view: PlayerVie
   };
   // The map tab exists while a map is on the TV, or once the party knows a map.
   const hasMaps = !!view.map || view.maps.length > 0;
-  const fallback: Screen = view.session ? "chronicle" : "purse";
-  const screen = (screenPick === "map" && !hasMaps) || (screenPick === "fight" && !view.fight) ? fallback : screenPick;
+  // Feature switches: off for the table, off for me, or a tab I hid myself.
+  const offHere = new Set<FeatureId>([...(view.me.off ?? []), ...(view.me.hidden ?? [])]);
+  const has = (id: FeatureId) => !offHere.has(id);
+  const open: Screen[] = [
+    ...(view.fight ? (["fight"] as const) : []),
+    ...(has("chronicle") ? (["chronicle"] as const) : []),
+    ...(has("discover") ? (["discovery"] as const) : []),
+    ...(hasMaps && has("maps") ? (["map"] as const) : []),
+    ...(!view.me.sheetOff || has("gold") ? (["purse"] as const) : []),
+    ...(has("jobs") ? (["jobs"] as const) : []),
+  ];
+  const fallback: Screen = view.session && open.includes("chronicle") ? "chronicle" : (open.find((x) => x !== "fight") ?? "purse");
+  const screen = open.includes(screenPick) ? screenPick : fallback;
+  const noTabs = !open.length;
   // A fight opens its own screen when it starts, and again whenever it's your turn.
   const f = view.fight;
   // My turn, or the turn of a companion I run.
@@ -192,6 +205,7 @@ function PlayerScreen({ view, online, send, ident, setIdent }: { view: PlayerVie
     jobsCount: view.jobs.filter((j) => j.canTake && !j.asked).length,
     voteOpen: !!view.leads.vote && !view.leads.vote.closed && !view.leads.vote.mine,
     sheetOff: !!me.sheetOff,
+    has,
   };
 
   const goldPage = (
@@ -234,9 +248,9 @@ function PlayerScreen({ view, online, send, ident, setIdent }: { view: PlayerVie
             </div>
           </section>
 
-          <MyRequests requests={view.myRequests} send={send} onMsg={setMsg} />
+          {has("shops") ? <MyRequests requests={view.myRequests} send={send} onMsg={setMsg} /> : null}
 
-          {view.shops.length ? (
+          {!has("shops") ? null : view.shops.length ? (
             <Market
               view={view}
               shopId={shopId ?? ""}
@@ -287,7 +301,7 @@ function PlayerScreen({ view, online, send, ident, setIdent }: { view: PlayerVie
             />
           ) : null}
 
-          <Yours view={view} send={send} onMsg={setMsg} />
+          {has("shops") ? <Yours view={view} send={send} onMsg={setMsg} /> : null}
 
           {pendingOrders.length ? (
             <section className="box">
@@ -404,6 +418,7 @@ function PlayerScreen({ view, online, send, ident, setIdent }: { view: PlayerVie
               <LockIcon size={18} /> Lock my name
             </button>
           )}
+          <YourTabs view={view} send={send} />
           {msg && youOpen ? (
             <p className="player-msg" role="status">
               {msg}
@@ -421,22 +436,26 @@ function PlayerScreen({ view, online, send, ident, setIdent }: { view: PlayerVie
         <aside className="pl-side" aria-label="You">
           <button type="button" className="pl-side-who" aria-haspopup="dialog" aria-label={`${me.character ?? me.name}: your character, D&D Beyond link and name lock`} onClick={() => setYouOpen(true)}>
             <span className="pl-side-name">{me.character ?? me.name}</span>
+            {has("renown") ? (
             <span className="pl-side-renown" title={view.renown.meaning}>
               <span aria-hidden="true">❦ </span>
               <span className="sr-only">Party renown: </span>
               {view.renown.name}
             </span>
+            ) : null}
             {me.level ? <span className="pl-side-level">Level {me.level}</span> : null}
             <span className="pl-side-where">{view.session ? `Chapter ${view.session.number}, tonight` : view.game.name}</span>
           </button>
+          {has("gold") ? (
           <button type="button" className="pl-side-coin" aria-haspopup="dialog" aria-label={`Your gold: ${formatCp(me.balanceCp)}. Open your purse.`} onClick={() => setWalletOpen("purse")}>
             <span className="pl-coin-face" aria-hidden="true" />
             <span className="pl-side-coin-amt">{formatCp(me.balanceCp)}</span>
             {me.heldCp ? <span className="pl-side-coin-held">{formatCp(me.heldCp)} held</span> : null}
           </button>
+          ) : null}
           <PlayerNav {...navProps} vertical />
           <div className="pl-side-foot">
-            {!(screen === "fight" && myTurn) ? (
+            {!(screen === "fight" && myTurn) && has("dice") ? (
               <button type="button" className="pl-side-dice" aria-haspopup="dialog" onClick={() => setDiceOpen(true)}>
                 {NAV_ICONS.d20}
                 <span>Roll dice</span>
@@ -472,10 +491,13 @@ function PlayerScreen({ view, online, send, ident, setIdent }: { view: PlayerVie
       {screen === "chronicle" ? <Chronicle view={view.chronicle} gameName={view.game.name} send={send} /> : null}
       {screen === "jobs" ? <Jobs view={view} send={send} availableAt={availableAt} /> : null}
       {screen === "discovery" ? <Discovery view={view} send={send} seen={seen} /> : null}
-      {screen === "purse" ? <CharacterTab view={view} send={send} part={charPart} onPart={setCharPart} gold={goldPage} onLink={() => setYouOpen(true)} /> : null}
+      {screen === "purse" ? <CharacterTab view={view} send={send} part={charPart} onPart={setCharPart} gold={has("gold") ? goldPage : null} onLink={() => setYouOpen(true)} /> : null}
+      {noTabs ? <NoTabs dice={has("dice")} onDice={() => setDiceOpen(true)} /> : null}
 
         </main>
+        {has("gold") || has("dice") ? (
         <aside className="pl-rail" aria-label="Your purse and dice">
+          {has("gold") ? (
           <section className="pl-rail-purse" aria-label="Your purse">
             <div className="pl-wallet-lbl">Your purse</div>
             <div className="pl-rail-big">{formatCp(me.balanceCp)}</div>
@@ -510,8 +532,10 @@ function PlayerScreen({ view, online, send, ident, setIdent }: { view: PlayerVie
               </button>
             </div>
           </section>
-          <Dice view={view} send={send} />
+          ) : null}
+          {has("dice") ? <Dice view={view} send={send} /> : null}
         </aside>
+        ) : null}
         {sheets}
       </div>
     );
@@ -523,26 +547,30 @@ function PlayerScreen({ view, online, send, ident, setIdent }: { view: PlayerVie
         <button type="button" className="pl-who" aria-haspopup="dialog" aria-label={`${me.character ?? me.name}: your character, D&D Beyond link and name lock`} onClick={() => setYouOpen(true)}>
           <span className="player-name">{me.character ?? me.name}</span>
           <span className="pl-sub">
+            {has("renown") ? (
             <span className="renown-line-v" title={view.renown.meaning}>
               <span aria-hidden="true">❦ </span>
               <span className="sr-only">Party renown: </span>
               {view.renown.name}
             </span>
+            ) : null}
             {me.level ? (
               <>
-                <span aria-hidden="true">·</span>
+                {has("renown") ? <span aria-hidden="true">·</span> : null}
                 <span className="pl-sub-level">Level {me.level}</span>
               </>
             ) : null}
-            <span aria-hidden="true">·</span>
+            {has("renown") || me.level ? <span aria-hidden="true">·</span> : null}
             <span className="pl-sub-where">{view.session ? `Chapter ${view.session.number}, tonight` : view.game.name}</span>
           </span>
         </button>
+        {has("gold") ? (
         <button type="button" className="pl-coin" aria-haspopup="dialog" aria-label={`Your gold: ${formatCp(me.balanceCp)}. Open your purse.`} onClick={() => setWalletOpen("purse")}>
           <span className="pl-coin-face" aria-hidden="true" />
           <span className="pl-coin-amt">{coinLabel(me.balanceCp)}</span>
           {me.heldCp ? <span className="pl-coin-held" aria-hidden="true" /> : null}
         </button>
+        ) : null}
       </header>
       {!online ? (
         <p className="player-offline pl-offline" role="status">
@@ -565,7 +593,7 @@ function PlayerScreen({ view, online, send, ident, setIdent }: { view: PlayerVie
       {view.world?.news ? <BannerToast banner={{ id: `news-${view.world.news.n}`, text: view.world.news.text, at: 0 }} className="phone-banner world-news" /> : null}
       <PlayerNav {...navProps} />
       {/* On your turn the fight screen's End button owns that corner. */}
-      {!(screen === "fight" && myTurn) ? (
+      {!(screen === "fight" && myTurn) && has("dice") ? (
         <button type="button" className="pl-fab" aria-label="Roll dice" aria-haspopup="dialog" onClick={() => setDiceOpen(true)}>
           {NAV_ICONS.d20}
         </button>
@@ -575,7 +603,8 @@ function PlayerScreen({ view, online, send, ident, setIdent }: { view: PlayerVie
       {screen === "chronicle" ? <Chronicle view={view.chronicle} gameName={view.game.name} send={send} /> : null}
       {screen === "jobs" ? <Jobs view={view} send={send} availableAt={availableAt} /> : null}
       {screen === "discovery" ? <Discovery view={view} send={send} seen={seen} /> : null}
-      {screen === "purse" ? <CharacterTab view={view} send={send} part={charPart} onPart={setCharPart} gold={goldPage} onLink={() => setYouOpen(true)} /> : null}
+      {screen === "purse" ? <CharacterTab view={view} send={send} part={charPart} onPart={setCharPart} gold={has("gold") ? goldPage : null} onLink={() => setYouOpen(true)} /> : null}
+      {noTabs ? <NoTabs dice={has("dice")} onDice={() => setDiceOpen(true)} /> : null}
 
       {sheets}
     </div>
@@ -762,4 +791,58 @@ function WorldStrip({ world: w }: { world: NonNullable<PlayerView["world"]> }) {
 function shortDay(d: string): string {
   const [y, m, day] = d.split("-").map(Number);
   return new Date(Date.UTC(y, m - 1, day)).toLocaleDateString(undefined, { month: "short", day: "numeric", timeZone: "UTC" });
+}
+
+/** No tabs at all (every one is off or hidden): say so, and keep the dice in reach. */
+function NoTabs({ dice, onDice }: { dice: boolean; onDice: () => void }) {
+  return (
+    <section className="box pl-no-tabs">
+      <h2>All quiet</h2>
+      <p>This table keeps things simple, so there&rsquo;s nothing to browse here. Play happens at the table{dice ? "; your dice are a tap away" : ""}.</p>
+      {dice ? (
+        <button type="button" className="btn primary big" onClick={onDice}>
+          Roll dice
+        </button>
+      ) : null}
+    </section>
+  );
+}
+
+/** "Your tabs": hide the tabs you don't use. Only tidies your own phone; the DM's switches come first. */
+function YourTabs({ view, send }: { view: PlayerView; send: (c: object) => Promise<string | null> }) {
+  const off = new Set(view.me.off ?? []);
+  const hidden = view.me.hidden ?? [];
+  const mayHide = FEATURES.filter((f) => f.playerHide && !off.has(f.id));
+  const [err, setErr] = useState<string | null>(null);
+  if (!mayHide.length) return null;
+  const set = async (id: FeatureId, show: boolean) => {
+    const next = show ? hidden.filter((x) => x !== id) : [...hidden, id];
+    setErr(await send({ type: "me.tabs", hidden: next }));
+  };
+  const LABEL: Partial<Record<FeatureId, string>> = { chronicle: "Story", discover: "Discover", maps: "Map", jobs: "Jobs", renown: "Renown line", sheets: "Character sheet" };
+  return (
+    <section className="pl-your-tabs" aria-labelledby="pl-your-tabs-h">
+      <h3 id="pl-your-tabs-h">Your tabs</h3>
+      <p className="note">Hide what you don&rsquo;t use. Only your phone changes, and you can bring a tab back any time.</p>
+      <ul>
+        {mayHide.map((f) => {
+          const shown = !hidden.includes(f.id);
+          return (
+            <li key={f.id}>
+              <span>{LABEL[f.id] ?? FEATURE[f.id].name}</span>
+              <button type="button" role="switch" aria-checked={shown} aria-label={`Show ${LABEL[f.id] ?? f.name}`} className={`pl-switch${shown ? " on" : ""}`} onClick={() => void set(f.id, !shown)}>
+                <span aria-hidden="true" />
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+      {hidden.length ? (
+        <button type="button" className="linkish" onClick={() => void send({ type: "me.tabs", hidden: [] }).then(setErr)}>
+          Show everything
+        </button>
+      ) : null}
+      {err ? <p className="player-msg" role="alert">{err}</p> : null}
+    </section>
+  );
 }

@@ -5,6 +5,7 @@ import { decodeBits, fogged, publicFog, type PublicFog } from "./fog";
 import { publicGrid, publicTokens, type PublicGrid, type PublicToken } from "./tokens";
 import { leadsView, type LeadsView } from "./leads";
 import type { CharacterSheet } from "./sheet";
+import { effectiveOff, featureOn, FEATURES, hiddenOf, playerOff, type FeatureId } from "./features";
 import { areaCounts, type AreaCount } from "./discovery";
 import { townOf } from "./presets";
 import { creditLines, discountPct, firstChargeCp, priceOf, raisedCp, stakeTotals } from "./progress";
@@ -298,6 +299,8 @@ interface Common {
   renown: PublicRenown;
   /** A shared world: the date, events, news and parties. Missing: one table, as before. */
   world?: WorldView;
+  /** Features the DM turned off for the whole table (see features.ts). Missing: every feature on. */
+  off?: FeatureId[];
 }
 
 export interface TvView extends Common {
@@ -395,6 +398,10 @@ export interface PlayerView extends Common {
     sheetOff?: boolean;
     /** Which starting point I picked on the Arrival seat page (a sheet can start from it). */
     starter?: string;
+    /** Features off for me: the table's, plus any the DM turned off just for me. Missing: none. */
+    off?: FeatureId[];
+    /** Tabs I hid on my own phone. Missing: none. */
+    hidden?: FeatureId[];
   };
   /** I just levelled up: the phone says so when n changes. */
   levelUp?: { n: number; level: number };
@@ -606,6 +613,7 @@ function common(game: GameState, version: number, viewer: Viewer): Common {
     session: cur ? { number: cur.number, title: cur.title } : null,
     banner: game.banner ? { ...game.banner } : null,
     renown: { rank, name: ladder[rank].name, meaning: ladder[rank].meaning, ladder: ladder.map((r) => ({ name: r.name, pay: r.pay })), ...(game.renownProgress ? { progress: publicProgress(game) } : {}) },
+    ...(effectiveOff(game).length ? { off: effectiveOff(game) } : {}),
   };
 }
 
@@ -625,7 +633,7 @@ export function projectTv(table: GameState, version: number): TvView {
   // A shared world: the TV shows the table, and only the playing party's leads, chapters and jobs.
   const game = tvLens(table);
   const party = tableParty(game);
-  return {
+  return withoutOff(game, {
     ...(game.world ? { world: worldView(game, party ? [party] : []) } : {}),
     ...common(game, version, { tv: true }),
     role: "tv",
@@ -663,7 +671,24 @@ export function projectTv(table: GameState, version: number): TvView {
     fight: publicFight(game),
     companions: publicCompanions(game),
     sound: tvSound(game),
-  };
+  });
+}
+
+/** What a switched-off feature would have put on the TV: its moments and its notes never go out. */
+function withoutOff(game: GameState, v: TvView): TvView {
+  if (!game.featuresOff?.length) return v;
+  const on = (id: FeatureId) => featureOn(game, id);
+  if (!on("renown")) {
+    delete v.renownMoment;
+    v.plaqueHidden = true;
+  }
+  if (!on("levels")) delete v.levelMoment;
+  if (!on("discover")) delete v.discovery;
+  if (!on("jobs")) v.jobs = [];
+  if (!on("board")) v.notices = [];
+  if (!on("companions")) v.companions = [];
+  if (!on("sound")) v.sound = { ...v.sound, muted: true, auto: false, layers: {} };
+  return v;
 }
 
 function tvLevelMoment(game: GameState, m: NonNullable<GameState["levelMoment"]>): NonNullable<TvView["levelMoment"]> {
@@ -704,7 +729,10 @@ export function projectPlayer(table: GameState, version: number, playerId: strin
   // A shared world: the phone shows what this character knows, and their parties' leads, chapters and jobs.
   const game = playerLens(table, playerId);
   const p = game.players.find((x) => x.id === playerId)!;
-  return {
+  // Off for me: the table's switches, and the per-player ones the DM set for me.
+  const myOff = FEATURES.filter((f) => !featureOn(game, f.id) || (f.perPlayer && playerOff(p, f.id))).map((f) => f.id);
+  const noSheet = myOff.includes("sheets") || hiddenOf(p).includes("sheets");
+  const view: PlayerView = {
     ...(game.world ? { world: worldView(game, partiesFor(game, playerId)) } : {}),
     ...common(game, version, { tv: false, playerId }),
     role: "player",
@@ -727,8 +755,10 @@ export function projectPlayer(table: GameState, version: number, playerId: strin
       heldCp: heldCp(game, p.id),
       hp: { cur: p.hp?.cur ?? 0, max: p.hp?.max ?? 0, temp: p.hp?.temp ?? 0, tv: p.hp?.tv !== false },
       ...(p.level ? { level: p.level } : {}),
-      ...(p.sheetOff ? { sheetOff: true } : p.sheet ? { sheet: structuredClone(p.sheet) } : {}),
+      ...(noSheet ? { sheetOff: true } : p.sheet ? { sheet: structuredClone(p.sheet) } : {}),
       ...(p.arrival?.pick ? { starter: p.arrival.pick } : {}),
+      ...(myOff.length ? { off: myOff } : {}),
+      ...(hiddenOf(p).length ? { hidden: hiddenOf(p) } : {}),
     },
     ...(() => {
       const mine = game.levelMoment?.levels.find((l) => l.playerId === p.id);
@@ -780,6 +810,22 @@ export function projectPlayer(table: GameState, version: number, playerId: strin
     leads: leadsView(game, Date.now(), p.id),
     areas: areaCounts(game),
   };
+  // A switched-off feature's things never reach the phone.
+  if (myOff.length) {
+    if (myOff.includes("maps")) {
+      delete view.map;
+      view.maps = [];
+    }
+    if (myOff.includes("discover")) view.entries = [];
+    if (myOff.includes("jobs")) view.jobs = [];
+    if (myOff.includes("levels")) delete view.levelUp;
+    if (myOff.includes("companions")) {
+      view.companions = [];
+      view.myCompanions = [];
+    }
+    if (myOff.includes("shops")) view.items = [];
+  }
+  return view;
 }
 
 /** Jobs on the board, in the order they went up. Pulled jobs never leave the server. */
