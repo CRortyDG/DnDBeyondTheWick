@@ -483,9 +483,13 @@ function StartStep({ session }: { session: Session }) {
     if (showing && prev) void run({ type: "live.recap", sessionId: prev.id, noteIds: starred.filter((n) => !next.has(n.id)).map((n) => n.id) });
   };
   const players = s.players.filter((p) => !p.archived);
+  const onTv = s.scenes.find((x) => x.id === s.live.sceneId)?.label;
   return (
     <article className="run-beat">
       <h1 className="run-title">Session start</h1>
+      <p className="note">
+        The TV stays on {onTv ? <b>{onTv}</b> : "what it was showing"} while you check in. Press <b>Begin</b> and beat 1&rsquo;s TV actions go up.
+      </p>
       <section className="run-section">
         <h2>Who&rsquo;s here?</h2>
         <div className="checks run-attend">
