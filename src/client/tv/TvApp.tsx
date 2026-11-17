@@ -19,6 +19,7 @@ import { useTvSound } from "../ui/tvSound";
 import { FightOverlay } from "../ui/FightOverlay";
 import { DiceRoll } from "../ui/DiceRoll";
 import { useFreshBuild } from "./useFreshBuild";
+import { TableSound } from "./TableSound";
 
 const FADE_MS = 600;
 
@@ -126,6 +127,8 @@ function TvScreen({ view, online }: { view: TvView; online: boolean }) {
       <WorldNewsCard news={view.world?.news} />
       {view.world && liveScene?.kind === "notice" && !fighting && !view.live.shopOpen ? <WorldCorner world={view.world} /> : null}
 
+      <TableSound view={view} />
+
       {showOffline ? (
         <div className="tv-offline" role="status">
           Reconnecting
@@ -150,7 +153,7 @@ function TvScreen({ view, online }: { view: TvView; online: boolean }) {
   );
 }
 
-/** Sound for reveals (a chime). Off until someone turns it on, remembered on this device. */
+/** The TV's sound: off until someone turns it on (or clicks when the DM starts the soundboard), remembered on this device. */
 function SoundToggle() {
   const [on, set] = useTvSound();
   return (

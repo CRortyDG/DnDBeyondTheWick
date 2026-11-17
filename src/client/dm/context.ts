@@ -28,6 +28,9 @@ export interface DmCtx {
   /** Player rolls whose card the DM dismissed one by one (Got it). */
   diceGone: number[];
   dismissRoll: (n: number) => void;
+  /** The soundboard, which floats like the dice tray. */
+  soundOpen: boolean;
+  toggleSound: () => void;
 }
 
 export const DmContext = createContext<DmCtx | null>(null);

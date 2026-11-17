@@ -20,7 +20,9 @@ import { LevelUpButton, LevelUpDialog } from "./LevelUp";
 import { useTablet } from "./tablet";
 import { FullScreenButton } from "./TabletBits";
 import { DiceButton } from "./DiceTray";
+import { SoundButton } from "./Soundboard";
 import { ambientById } from "@/shared/ambient";
+import { mixLabel, sfxById } from "@/shared/sound";
 import { ClueLeftovers, OffScriptPanel, QuickCapture, TurnNotesInto, useOffScriptKeys, type OffTab } from "./OffScript";
 import { hereOf } from "@/shared/offscript";
 import type { GameState } from "@/shared/types";
@@ -29,6 +31,8 @@ export function actionLabel(a: BeatAction, g: AssetGame): string {
   if (a.type === "black") return "TV → black screen";
   if (a.type === "bank") return "Bank opens · purse on the TV";
   if (a.type === "stinger") return "TV → plays the stinger";
+  if (a.type === "sound") return a.mix === "off" ? "Sound → fades to silence" : `Sound → ${mixLabel(a.mix)}`;
+  if (a.type === "sfx") return `Sound → ${sfxById(a.id)?.label ?? a.id}`;
   if (a.type === "fight") return `Fight: ${a.monsters.map((m) => (m.count > 1 ? `${m.name} ×${m.count}` : m.name)).join(", ")} · TV → Roll initiative!`;
   if (a.type === "reveal") return a.stage === "rumored" ? `Rumor: ${a.ref}` : `Reveal: ${a.ref}${a.stage === "known" ? " (known)" : ""}`;
   if (a.type === "fact") return `Reveal fact: ${a.ref}`;
@@ -185,6 +189,7 @@ export function RunGame({ onExit, onFight }: { onExit: () => void; onFight?: () 
             <span className="key">B</span> Bank
           </button>
         )}
+        <SoundButton small />
         <DiceButton small />
         {tablet ? (
           <span className="run-more">

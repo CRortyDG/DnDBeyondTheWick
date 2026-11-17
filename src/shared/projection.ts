@@ -19,6 +19,7 @@ import type { Art, Banner, Flyer, FlyerText, GameState, Job, JobStyle, Item, Ite
 import { noticesOf } from "./board";
 import { hasWords, type HandoutSheet } from "./handout";
 import { characterName, sharedLevel } from "./levels";
+import { FADE_DEFAULT, VOLUME_DEFAULT } from "./sound";
 import { partiesFor, partyName, playerLens, tableParty, tvLens, worldView, type WorldView } from "./world";
 
 export const GATED_ART = new Set(["merchant-sigil", ...PORTRAIT_ART]);
@@ -335,6 +336,30 @@ export interface TvView extends Common {
   fight: FightView | null;
   /** Companions and hirelings with the party (a small card each). */
   companions: PublicCompanion[];
+  /** The soundboard: what to play, and the last one-shot (plays when n changes). */
+  sound: TvSound;
+}
+
+export interface TvSound {
+  volume: number;
+  muted: boolean;
+  /** Moments (dice, fights, scenes, rank-ups) bring their own sounds. */
+  auto: boolean;
+  layers: Record<string, number>;
+  fade: number;
+  cue?: { id: string; n: number };
+}
+
+export function tvSound(g: GameState): TvSound {
+  const snd = g.sound;
+  return {
+    volume: snd?.volume ?? VOLUME_DEFAULT,
+    muted: !!snd?.muted,
+    auto: !snd?.autoOff,
+    layers: { ...(snd?.layers ?? {}) },
+    fade: snd?.fade ?? FADE_DEFAULT,
+    ...(snd?.cue ? { cue: { id: snd.cue.id, n: snd.cue.n } } : {}),
+  };
 }
 
 export interface MyLedgerLine {
@@ -630,6 +655,7 @@ export function projectTv(table: GameState, version: number): TvView {
     ...(game.scenes.find((sc) => sc.id === game.live.sceneId)?.kind === "intro" ? { intro: projectIntro(game, Date.now()) } : {}),
     fight: publicFight(game),
     companions: publicCompanions(game),
+    sound: tvSound(game),
   };
 }
 

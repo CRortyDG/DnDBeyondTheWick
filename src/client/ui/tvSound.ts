@@ -1,61 +1,72 @@
 "use client";
 
-// The TV's sound setting: off by default, remembered on this device.
+// The TV's sound setting, remembered on this device: "on", "off", or not chosen
+// yet (null). Sound itself comes from the table's sound engine (src/client/sound/).
 import { useCallback, useEffect, useState } from "react";
+import { SoundEngine } from "../sound/engine";
 
 const KEY = "candlefair-tv-sound";
-const listeners = new Set<(on: boolean) => void>();
+export type SoundPref = "on" | "off" | null;
+const listeners = new Set<(p: SoundPref) => void>();
 
-function read(): boolean {
+export function readSoundPref(): SoundPref {
   try {
-    return localStorage.getItem(KEY) === "on";
+    const v = localStorage.getItem(KEY);
+    return v === "on" || v === "off" ? v : null;
   } catch {
-    return false;
+    return null;
   }
 }
 
-export function useTvSound(): [boolean, (on: boolean) => void] {
-  const [on, setOn] = useState(false);
-  useEffect(() => {
-    setOn(read());
-    listeners.add(setOn);
-    return () => void listeners.delete(setOn);
-  }, []);
-  const set = useCallback((v: boolean) => {
-    try {
-      localStorage.setItem(KEY, v ? "on" : "off");
-    } catch {}
-    listeners.forEach((l) => l(v));
-    if (v) chime("fact");
-  }, []);
-  return [on, set];
+export function writeSoundPref(v: "on" | "off") {
+  try {
+    localStorage.setItem(KEY, v);
+  } catch {}
+  listeners.forEach((l) => l(v));
 }
 
-let ctx: AudioContext | null = null;
+export function useSoundPref(): SoundPref {
+  const [p, setP] = useState<SoundPref>(null);
+  useEffect(() => {
+    setP(readSoundPref());
+    listeners.add(setP);
+    return () => void listeners.delete(setP);
+  }, []);
+  return p;
+}
 
-/** A soft bell, made in the browser (no files). */
+/** On or off (not chosen yet counts as off). Turning it on from a click unlocks sound. */
+export function useTvSound(): [boolean, (on: boolean) => void] {
+  const p = useSoundPref();
+  const set = useCallback((v: boolean) => {
+    writeSoundPref(v ? "on" : "off");
+    if (v) {
+      const e = tableEngine();
+      void e?.unlock().then(() => e.play("chime-fact"));
+    }
+  }, []);
+  return [p === "on", set];
+}
+
+let engine: SoundEngine | null = null;
+/** Moments bring their own sounds (the DM can turn that off on the soundboard). */
+let autoCues = true;
+
+/** The one sound engine on this page, made on first use. */
+export function tableEngine(): SoundEngine | null {
+  if (typeof window === "undefined") return null;
+  engine ??= SoundEngine.create();
+  // For local testing: the engine from the console.
+  if (import.meta.env?.DEV && engine) (window as unknown as { __tableEngine?: SoundEngine }).__tableEngine = engine;
+  return engine;
+}
+
+export function setAutoCues(on: boolean) {
+  autoCues = on;
+}
+
+/** A soft bell for reveals, through the table's engine (so the DM's volume applies). */
 export function chime(kind: "reveal" | "fact" | "rumor") {
-  try {
-    ctx ??= new AudioContext();
-    const t0 = ctx.currentTime + 0.02;
-    const notes = kind === "reveal" ? [523.25, 659.25, 783.99, 1046.5] : kind === "fact" ? [783.99, 1046.5] : [392, 311.13];
-    notes.forEach((f, i) => {
-      const at = t0 + i * 0.12;
-      for (const [mult, vol] of [
-        [1, 0.16],
-        [2.76, 0.04],
-      ] as const) {
-        const o = ctx!.createOscillator();
-        const g = ctx!.createGain();
-        o.type = "sine";
-        o.frequency.value = f * mult;
-        g.gain.setValueAtTime(0, at);
-        g.gain.linearRampToValueAtTime(vol, at + 0.01);
-        g.gain.exponentialRampToValueAtTime(0.0001, at + 1.6);
-        o.connect(g).connect(ctx!.destination);
-        o.start(at);
-        o.stop(at + 1.7);
-      }
-    });
-  } catch {}
+  if (!autoCues || !engine?.running) return;
+  engine.play(kind === "reveal" ? "chime" : `chime-${kind}`);
 }
