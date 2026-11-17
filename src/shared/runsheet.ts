@@ -14,6 +14,7 @@
 //   fact:    <kind>/<name>/<fact>   (reveals that fact)
 //   sound:   <mix or layer> | off   (crossfades the TV's soundboard: "sound: busy tavern", "sound: night crickets", "sound: layer/rain")
 //   sfx:     <one-shot>   (plays it on the TV: "sfx: war horn")
+//            add "(tap)" to either for a button on the beat instead of playing on landing: "sfx: roar (tap)"
 // Anything else becomes a note, so nothing pasted is silently lost.
 
 import { fightLineMarkdown, parseFightLine } from "./combat";
@@ -81,6 +82,12 @@ function clean(line: string): string {
     .replace(/ /g, " ")
     .replace(/[​﻿]/g, "")
     .replace(/\s+$/, "");
+}
+
+/** "roar (tap)" -> a button on the beat rather than playing on landing. */
+function tapped(v: string): { name: string; tap: boolean } {
+  const m = /^(.*?)\s*\(\s*(?:tap|button|on tap)\s*\)\s*$/i.exec(v);
+  return m ? { name: m[1], tap: true } : { name: v, tap: false };
 }
 
 function prefixed(line: string, word: string): string | null {
@@ -214,15 +221,17 @@ export function parseEpisode(markdown: string, resolve: SceneResolver, fallbackT
       if (FACT_REF_RE.test(ref)) cur.actions.push({ type: "fact", ref });
       else warnings.push(`${where}: “${line}” needs a kind, a name and a fact, like “fact: person/mags/owes-the-baker”.`);
     } else if ((v = prefixed(line, "sound")) !== null) {
-      const mix = findMix(v);
-      if (mix) cur.actions.push({ type: "sound", mix });
+      const t = tapped(v);
+      const mix = findMix(t.name);
+      if (mix) cur.actions.push({ type: "sound", mix, ...(t.tap ? { tap: true } : {}) });
       else {
         warnings.push(`${where}: no sound called “${v.trim()}”, so “${line}” is kept as a note. Try a mix like “sound: busy tavern”, a layer like “sound: night crickets”, or “sound: off”.`);
         cur.notes.push(line);
       }
     } else if ((v = prefixed(line, "sfx")) !== null) {
-      const id = findSfx(v);
-      if (id) cur.actions.push({ type: "sfx", id });
+      const t = tapped(v);
+      const id = findSfx(t.name);
+      if (id) cur.actions.push({ type: "sfx", id, ...(t.tap ? { tap: true } : {}) });
       else {
         warnings.push(`${where}: no sound effect called “${v.trim()}”, so “${line}” is kept as a note.`);
         cur.notes.push(line);
@@ -277,8 +286,8 @@ export function actionMarkdown(a: BeatAction, g: AssetGame): string | null {
   if (a.type === "black") return "action: black";
   if (a.type === "bank") return "action: bank";
   if (a.type === "stinger") return "action: stinger";
-  if (a.type === "sound") return `sound: ${a.mix}`;
-  if (a.type === "sfx") return `sfx: ${a.id}`;
+  if (a.type === "sound") return `sound: ${a.mix}${a.tap ? " (tap)" : ""}`;
+  if (a.type === "sfx") return `sfx: ${a.id}${a.tap ? " (tap)" : ""}`;
   if (a.type === "fight") return fightLineMarkdown(a.monsters);
   if (a.type === "reveal") return a.stage === "rumored" ? `rumor: ${a.ref}` : a.stage === "found" ? `reveal: ${a.ref}` : `reveal: ${a.ref} ${a.stage}`;
   if (a.type === "fact") return `fact: ${a.ref}`;

@@ -31,8 +31,8 @@ export function actionLabel(a: BeatAction, g: AssetGame): string {
   if (a.type === "black") return "TV → black screen";
   if (a.type === "bank") return "Bank opens · purse on the TV";
   if (a.type === "stinger") return "TV → plays the stinger";
-  if (a.type === "sound") return a.mix === "off" ? "Sound → fades to silence" : `Sound → ${mixLabel(a.mix)}`;
-  if (a.type === "sfx") return `Sound → ${sfxById(a.id)?.label ?? a.id}`;
+  if (a.type === "sound") return `${a.tap ? "Sound button" : "Sound"} → ${a.mix === "off" ? "fade to silence" : mixLabel(a.mix)}`;
+  if (a.type === "sfx") return `${a.tap ? "Sound button" : "Sound"} → ${sfxById(a.id)?.label ?? a.id}`;
   if (a.type === "fight") return `Fight: ${a.monsters.map((m) => (m.count > 1 ? `${m.name} ×${m.count}` : m.name)).join(", ")} · TV → Roll initiative!`;
   if (a.type === "reveal") return a.stage === "rumored" ? `Rumor: ${a.ref}` : `Reveal: ${a.ref}${a.stage === "known" ? " (known)" : ""}`;
   if (a.type === "fact") return `Reveal fact: ${a.ref}`;
@@ -45,6 +45,8 @@ export function actionLabel(a: BeatAction, g: AssetGame): string {
   if (!sc) return "TV → a scene that was deleted";
   return sc.kind === "portrait" ? `TV → ${sc.label}’s portrait` : `TV → ${sc.label}`;
 }
+
+const tapAction = (a: BeatAction) => (a.type === "sound" || a.type === "sfx") && !!a.tap;
 
 export function RunGame({ onExit, onFight }: { onExit: () => void; onFight?: () => void }) {
   const { view, run } = useDm();
@@ -384,8 +386,8 @@ function BeatCard({ beat, onBeat, episodeId }: { beat: Beat; onBeat: string[]; e
           {beat.actions.map((a, i) => (
             <li key={i}>
               <span>{actionLabel(a, g)}</span>
-              <button className="btn small" type="button" onClick={() => run({ type: "run.fire", beatId: beat.id, index: i })}>
-                ↻ Again
+              <button className={`btn small${tapAction(a) ? " primary" : ""}`} type="button" onClick={() => run({ type: "run.fire", beatId: beat.id, index: i })}>
+                {tapAction(a) ? "▶ Play" : "↻ Again"}
               </button>
             </li>
           ))}

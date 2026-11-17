@@ -1330,6 +1330,8 @@ function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
     run.stage = "beat";
     run.beat = i;
     ep.beats[i].actions.forEach((a, k) => {
+      // Tap sounds wait for the DM's button on the beat.
+      if ((a.type === "sound" || a.type === "sfx") && a.tap) return;
       if (!skip.includes(k)) fireAction(a);
     });
   };
