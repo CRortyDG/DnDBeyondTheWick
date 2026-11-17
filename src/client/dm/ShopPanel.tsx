@@ -1,4 +1,5 @@
 "use client";
+import { ask, askText } from "./ask";
 import { townOf } from "@/shared/presets";
 
 import { TrustSelect } from "./TrustSelect";
@@ -114,7 +115,7 @@ export function ShopPanel() {
                           : `${p.name} bought ${it.name}. Remind them to add it on D&D Beyond.`;
                     let question: string | undefined;
                     if (it.prompt) {
-                      question = window.prompt(it.prompt)?.trim();
+                      question = (await askText(it.prompt, { yes: "Buy" }))?.trim();
                       if (!question) return;
                     }
                     if (await run({ type: "money.buy", playerId: p.id, itemId: it.id, ...(question ? { question } : {}) }, msg)) setBuying(null);
@@ -608,7 +609,9 @@ function OrdersBox() {
                 className="btn small"
                 type="button"
                 onClick={() => {
-                  if (confirm(`Cancel ${o.itemName} and refund ${formatCp(o.priceCp)} to ${name(o.playerId)}?`)) void run({ type: "order.cancel", orderId: o.id, refund: true }, "Order cancelled and refunded.");
+                  void ask(`Cancel ${o.itemName} and refund ${formatCp(o.priceCp)} to ${name(o.playerId)}?`, { yes: "Cancel and refund", no: "Keep the order", danger: true }).then((ok) => {
+                    if (ok) void run({ type: "order.cancel", orderId: o.id, refund: true }, "Order cancelled and refunded.");
+                  });
                 }}
               >
                 Cancel and refund

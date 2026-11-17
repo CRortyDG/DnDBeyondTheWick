@@ -3,6 +3,7 @@
 // DM shop tools for the progression shop: what kind of item it is, its
 // effects, granting Earned items, chipping in to projects, and what's running.
 
+import { ask } from "./ask";
 import { useState } from "react";
 import { cpToGpInput, formatCp, parseAmount } from "@/shared/money";
 import { categoriesFor, KINDS, raisedCp } from "@/shared/progress";
@@ -301,7 +302,7 @@ export function RunningBox() {
               <b>{t.itemName}</b>
               {t.what ? ` (${t.what})` : ""}: {name(t.playerId)} &middot; {t.paid} of {t.of} paid
             </span>
-            <button className="btn small" type="button" onClick={() => confirm(`Stop ${name(t.playerId)}'s lessons? Nothing is refunded.`) && void run({ type: "training.cancel", trainingId: t.id }, "Lessons stopped.")}>
+            <button className="btn small" type="button" onClick={() => void ask(`Stop ${name(t.playerId)}'s lessons? Nothing is refunded.`).then((ok) => ok && void run({ type: "training.cancel", trainingId: t.id }, "Lessons stopped."))}>
               Stop lessons
             </button>
           </li>
@@ -312,7 +313,7 @@ export function RunningBox() {
               <span className="earned-badge">Earned</span> <b>{a.itemName}</b>: {a.playerIds.map(name).join(", ")}
               {a.note ? ` · ${a.note}` : ""}
             </span>
-            <button className="btn small" type="button" onClick={() => confirm(`Take back ${a.itemName}?`) && void run({ type: "award.revoke", awardId: a.id })}>
+            <button className="btn small" type="button" onClick={() => void ask(`Take back ${a.itemName}?`).then((ok) => ok && void run({ type: "award.revoke", awardId: a.id }))}>
               Take back
             </button>
           </li>

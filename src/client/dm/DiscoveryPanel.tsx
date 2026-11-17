@@ -6,6 +6,7 @@
 // name and picture, and each fact once you reveal it. Your notes and secrets
 // never leave this screen.
 
+import { ask } from "./ask";
 import { PlaceSceneFields } from "./OffScript";
 import { useRef, useState } from "react";
 import { entriesOf, entryTags, FACT_MAX, kindInfo, KINDS, RELATIONS, stageLabel, STAGES, SUMMARY_MAX, isFound } from "@/shared/discovery";
@@ -489,7 +490,9 @@ function EntryEditor({ entry: e, tv }: { entry: Entry; tv: boolean }) {
                     className="btn small danger"
                     type="button"
                     onClick={() => {
-                      if (confirm("Delete this fact?")) void run({ type: "entry.factRemove", entryId: e.id, factId: f.id });
+                      void ask("Delete this fact?").then((ok) => {
+                        if (ok) void run({ type: "entry.factRemove", entryId: e.id, factId: f.id });
+                      });
                     }}
                   >
                     Delete
@@ -549,7 +552,9 @@ function EntryEditor({ entry: e, tv }: { entry: Entry; tv: boolean }) {
         className="btn small danger"
         type="button"
         onClick={() => {
-          if (confirm(e.shopId && s.shops.some((x) => x.id === e.shopId) ? `Delete ${e.name}? Its shop in Shops and all its items go too. Notes stay in the Chronicle.` : `Delete ${e.name}? Notes about it stay in the Chronicle.`)) void run({ type: "entry.remove", entryId: e.id }, "Deleted.");
+          void ask(e.shopId && s.shops.some((x) => x.id === e.shopId) ? `Delete ${e.name}? Its shop in Shops and all its items go too. Notes stay in the Chronicle.` : `Delete ${e.name}? Notes about it stay in the Chronicle.`).then((ok) => {
+            if (ok) void run({ type: "entry.remove", entryId: e.id }, "Deleted.");
+          });
         }}
       >
         Delete {e.name}

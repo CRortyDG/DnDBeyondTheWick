@@ -3,6 +3,7 @@
 // The DM's companions: stat blocks (DM-only, like monsters), who's with the
 // party now, who runs each one, and hirelings from the shop.
 
+import { ask } from "./ask";
 import { useState } from "react";
 import { rechargeText } from "@/shared/combat";
 import { COMPANION_FIELDS, COMPANION_FIELD_LABEL, companionsOf, companionTemplatesOf, controllerName, needsWarning, type CompanionBody } from "@/shared/companions";
@@ -136,7 +137,7 @@ export function CompanionsPanel() {
                 </button>
                 <RowMenu label={t.name}>
                   <MenuItem onClick={() => setEditing(t.id)}>Edit</MenuItem>
-                  <MenuItem danger onClick={() => window.confirm(`Delete ${t.name}?`) && run({ type: "companion.templateRemove", templateId: t.id }, `${t.name} deleted.`)}>
+                  <MenuItem danger onClick={() => void ask(`Delete ${t.name}?`).then((ok) => ok && run({ type: "companion.templateRemove", templateId: t.id }, `${t.name} deleted.`))}>
                     Delete
                   </MenuItem>
                 </RowMenu>
@@ -286,7 +287,7 @@ function WithRow({ c }: { c: Companion }) {
           ) : null}
           <MenuItem
             danger
-            onClick={() => window.confirm(`${c.hire ? "Let" : "Dismiss"} ${c.name}${c.hire ? " go" : ""}?`) && run({ type: "companion.dismiss", companionId: c.id }, `${c.name} left the party.`)}
+            onClick={() => void ask(`${c.hire ? "Let" : "Dismiss"} ${c.name}${c.hire ? " go" : ""}?`).then((ok) => ok && run({ type: "companion.dismiss", companionId: c.id }, `${c.name} left the party.`))}
           >
             {c.hire ? "Let go" : "Dismiss"}
           </MenuItem>

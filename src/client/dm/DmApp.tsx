@@ -9,6 +9,7 @@ import { api, absoluteHref, authHeaders, hrefFor, practiceHref, rememberKey, typ
 import { PracticeBar, PracticeButton, PracticeItems, PracticeResume } from "./Practice";
 import { MenuItem, RowMenu } from "./RowMenu";
 import { FirstSteps } from "./FirstSteps";
+import { AskHost } from "./ask";
 import { useGame, type CallResult } from "../useGame";
 import { Notice } from "../ui/Notice";
 import { Purse } from "../ui/Purse";
@@ -935,6 +936,7 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
       <PlayerRollCards />
       <TvDiceBar />
       <TabletOffer />
+      <AskHost />
       <div className={`toast${toastMsg ? " show" : ""}`} role="status" aria-live="polite">
         {toastMsg?.text}
       </div>

@@ -4,6 +4,7 @@
 // preview, reset, end), the preview of the practice TV and a stand-in's phone,
 // the end screen, and the live console's way in.
 
+import { ask } from "./ask";
 import { MenuItem } from "./RowMenu";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { aboutDuration, formatDuration, practiceTimes, type PracticeEdit, type PracticeTimes } from "@/shared/practice";
@@ -187,7 +188,7 @@ export function PracticeBar({ practice }: { practice: PracticeInfo }) {
   }, [s.name]);
 
   const reset = async () => {
-    if (!window.confirm("Start practice over from the live game as it is now? Edits you haven't kept yet are lost. Your practice notes stay.")) return;
+    if (!(await ask("Start practice over from the live game as it is now? Edits you haven't kept yet are lost. Your practice notes stay."))) return;
     try {
       await api("/api/practice/start", ident, {
         method: "POST",
@@ -489,7 +490,7 @@ export function EndPractice({ onClose }: { onClose: () => void }) {
   const lines = notes.split("\n").filter((x) => x.trim()).length;
 
   const finish = async (discard: boolean) => {
-    if (discard && !window.confirm("Throw away the whole practice copy? No edits or notes are kept.")) return;
+    if (discard && !(await ask("Throw away the whole practice copy? No edits or notes are kept."))) return;
     setBusy(true);
     try {
       const r = await api<{ applied: number; notes: number }>("/api/practice/end", ident, {

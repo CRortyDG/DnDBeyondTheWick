@@ -3,6 +3,7 @@
 // The DM's Board tab: the notice board itself (every note placed by hand),
 // the party's Renown, and the bounty board's job flyers with their payouts.
 
+import { ask } from "./ask";
 import { TrustSelect } from "./TrustSelect";
 import { BoardCanvas, LookFields, useScrollIn } from "./BoardCanvas";
 import { useMemo, useState } from "react";
@@ -240,7 +241,9 @@ function JobRow({ job: j, onEdit, onFollowUp, onPay }: { job: Job; onEdit: () =>
             type="button"
             className="btn small danger"
             onClick={() => {
-              if (confirm(`Throw away “${jobTitle(j)}”? Your notes on it go too.`)) void run({ type: "job.remove", jobId: j.id });
+              void ask(`Throw away “${jobTitle(j)}”? Your notes on it go too.`).then((ok) => {
+                if (ok) void run({ type: "job.remove", jobId: j.id });
+              });
             }}
           >
             Delete

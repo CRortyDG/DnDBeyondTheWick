@@ -3,6 +3,7 @@
 // Random tables (DM-only): rumors, encounters, names, weather. Roll one on
 // this screen; nothing here goes to the TV or a phone.
 
+import { ask } from "./ask";
 import { useState } from "react";
 import { useDm } from "./context";
 import { Drawer } from "./Drawer";
@@ -239,7 +240,7 @@ export function TablesPanel() {
                     <MenuItem onClick={() => setEdit(fromTable(t))}>Edit</MenuItem>
                     <MenuItem onClick={() => duplicate(t)}>Duplicate</MenuItem>
                     {t.review ? <MenuItem onClick={() => run({ type: "review.done", tableId: t.id }, `${t.name} kept.`)}>Mark reviewed</MenuItem> : null}
-                    <MenuItem danger onClick={() => window.confirm(`Delete "${t.name}"?`) && run({ type: "table.remove", tableId: t.id }, `${t.name} deleted.`)}>
+                    <MenuItem danger onClick={() => void ask(`Delete "${t.name}"?`).then((ok) => ok && run({ type: "table.remove", tableId: t.id }, `${t.name} deleted.`))}>
                       Delete
                     </MenuItem>
                   </RowMenu>

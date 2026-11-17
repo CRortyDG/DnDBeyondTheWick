@@ -1,5 +1,6 @@
 "use client";
 
+import { ask } from "./ask";
 import { originOf } from "@/shared/presets";
 import { useEffect, useRef, useState } from "react";
 import type { Scene, SceneKind } from "@/shared/types";
@@ -287,7 +288,9 @@ function SceneEditor({ scene }: { scene: Scene }) {
           className="btn small danger"
           type="button"
           onClick={() => {
-            if (confirm(`Delete the scene “${scene.label}”?`)) void run({ type: "scene.remove", sceneId: scene.id }, "Scene deleted.");
+            void ask(`Delete the scene “${scene.label}”?`).then((ok) => {
+              if (ok) void run({ type: "scene.remove", sceneId: scene.id }, "Scene deleted.");
+            });
           }}
         >
           Delete scene

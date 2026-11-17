@@ -3,6 +3,7 @@
 // The DM's monster library (templates for combat mode) and the fight history.
 // DM-only: none of this reaches the TV or the phones.
 
+import { ask } from "./ask";
 import { useState } from "react";
 import { monstersOf, rechargeText, isDice } from "@/shared/combat";
 import { formatCp } from "@/shared/money";
@@ -112,7 +113,7 @@ export function MonstersPanel({ onFight }: { onFight: () => void }) {
               ) : null}
               <RowMenu label={t.name}>
                 <MenuItem onClick={() => setEditing(t.id)}>Edit</MenuItem>
-                <MenuItem danger onClick={() => window.confirm(`Delete ${t.name} from the library?`) && run({ type: "monster.remove", monsterId: t.id }, `${t.name} deleted.`)}>
+                <MenuItem danger onClick={() => void ask(`Delete ${t.name} from the library?`).then((ok) => ok && run({ type: "monster.remove", monsterId: t.id }, `${t.name} deleted.`))}>
                   Delete
                 </MenuItem>
               </RowMenu>
@@ -136,7 +137,7 @@ export function MonstersPanel({ onFight }: { onFight: () => void }) {
         <h3 className="fx-hist-h">Past fights</h3>
         <span className="spacer" />
         {hist.length ? (
-          <button className="btn small danger" type="button" onClick={() => window.confirm(`Delete all ${hist.length} past fight${hist.length === 1 ? "" : "s"}? Loot paid and Chronicle notes stay.`) && run({ type: "fight.forget" }, "Past fights cleared.")}>
+          <button className="btn small danger" type="button" onClick={() => void ask(`Delete all ${hist.length} past fight${hist.length === 1 ? "" : "s"}? Loot paid and Chronicle notes stay.`).then((ok) => ok && run({ type: "fight.forget" }, "Past fights cleared."))}>
             Clear all
           </button>
         ) : null}
@@ -163,7 +164,7 @@ export function MonstersPanel({ onFight }: { onFight: () => void }) {
                   >
                     Run again
                   </button>
-                  <button className="btn small danger" type="button" onClick={() => window.confirm(`Delete “${h.title}” from past fights? Loot paid and its Chronicle note stay.`) && run({ type: "fight.forget", fightId: h.id }, "Fight deleted.")}>
+                  <button className="btn small danger" type="button" onClick={() => void ask(`Delete “${h.title}” from past fights? Loot paid and its Chronicle note stay.`).then((ok) => ok && run({ type: "fight.forget", fightId: h.id }, "Fight deleted."))}>
                     Delete
                   </button>
                 </div>

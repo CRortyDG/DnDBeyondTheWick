@@ -3,6 +3,7 @@
 // Settings: Worldbuilder keys, the "Builder access" switch, and Activity.
 // A key is shown once, right after it's made; only its hash is kept.
 
+import { ask } from "./ask";
 import { useCallback, useEffect, useState } from "react";
 import { api } from "../api";
 import { useDm } from "./context";
@@ -196,7 +197,9 @@ export function BuilderSettings() {
                             className="btn small danger"
                             type="button"
                             onClick={() => {
-                              if (confirm(`Revoke "${k.label}"? It stops working right away.`)) void post("key-revoke", { id: k.id });
+                              void ask(`Revoke "${k.label}"? It stops working right away.`).then((ok) => {
+                                if (ok) void post("key-revoke", { id: k.id });
+                              });
                             }}
                           >
                             Revoke

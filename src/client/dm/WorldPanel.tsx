@@ -1,5 +1,6 @@
 "use client";
 
+import { ask } from "./ask";
 import { useState } from "react";
 import { penName } from "@/shared/chronicle";
 import { addDays, longDay, PARTY_COLORS, partiesOf, presentIds, tableParty, worldCalendar } from "@/shared/world";
@@ -195,7 +196,7 @@ function PartyCard({ party, seated, running, canRemove }: { party: Party; seated
           </button>
         )}
         {canRemove ? (
-          <button className="btn ghost small" type="button" onClick={() => confirm(`Delete ${party.name}? Its chapters stay in the Chronicle; its leads go.`) && run({ type: "party.remove", partyId: party.id }, `Deleted ${party.name}.`)}>
+          <button className="btn ghost small" type="button" onClick={() => void ask(`Delete ${party.name}? Its chapters stay in the Chronicle; its leads go.`).then((ok) => ok && run({ type: "party.remove", partyId: party.id }, `Deleted ${party.name}.`))}>
             Delete
           </button>
         ) : null}
@@ -270,7 +271,7 @@ function EventRow({ ev }: { ev: WorldEvent }) {
             {ev.note ? ` · ${ev.note}` : ""}
           </span>
         </button>
-        <button className="btn ghost small" type="button" onClick={() => confirm(`Take ${ev.name} off the calendar?`) && run({ type: "world.eventRemove", eventId: ev.id })}>
+        <button className="btn ghost small" type="button" onClick={() => void ask(`Take ${ev.name} off the calendar?`, { yes: "Remove", danger: true }).then((ok) => ok && run({ type: "world.eventRemove", eventId: ev.id }))}>
           Remove
         </button>
       </div>
