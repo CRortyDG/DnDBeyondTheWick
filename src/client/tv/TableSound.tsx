@@ -31,6 +31,8 @@ export function TableSound({ view }: { view: TvView }) {
   useEffect(() => {
     if (!engine) return;
     const wake = () => {
+      // Turned off on this TV (the Sound button): a click is just a click.
+      if (readPrefNow() === "off") return;
       void engine.unlock().then(() => {
         setRunning(engine.running);
         if (engine.running && readPrefNow() !== "on") writeSoundPref("on");
