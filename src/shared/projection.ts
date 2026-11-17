@@ -13,7 +13,7 @@ import type { DiceGroup, RollTo } from "./dice";
 import { heldCp, heldStock } from "./requests";
 import { projectIntro, projectTable, type TableView, type TvIntroView } from "./arrival";
 import { notesOf, penName, projectChronicle, type ChronicleView } from "./chronicle";
-import { discoveryView, PORTRAIT_ART, portraitArtAllowed, publicEntries, sceneSpoils, type DiscoveryView, type PublicEntry } from "./discovery";
+import { discoveryView, jobsLocked, PORTRAIT_ART, portraitArtAllowed, publicEntries, sceneSpoils, type DiscoveryView, type PublicEntry } from "./discovery";
 import { jobsOf, jobTitle, progressOf, rankName, ranksOf, renownMet, renownNeeded, renownOf, shopOpenNow, tierOf, trustText } from "./renown";
 import { fightView, myFight, type FightView, type MyFight } from "./combat";
 import { controlledBy, publicCompanions, type ControlledCompanion, type PublicCompanion } from "./companions";
@@ -435,8 +435,10 @@ export interface PlayerView extends Common {
   vttUrl?: string;
   /** The table's story notes. Hidden notes are left out entirely. */
   chronicle: ChronicleView;
-  /** The bounty board: pinned jobs. */
+  /** The bounty board: pinned jobs. Empty while it's locked. */
   jobs: MyJob[];
+  /** The party hasn't found the notice board yet: no Jobs tab. */
+  jobsLocked?: true;
   /** Discovery: rumored, found and known entries only; revealed facts only. */
   entries: PublicEntry[];
   /** Leads the party can see, the vote (with this player's ballot), and "You chose". */
@@ -649,7 +651,8 @@ export function projectTv(table: GameState, version: number): TvView {
     leads: leadsView(game, Date.now()),
     ...(game.recapCard ? { recapCard: { n: game.recapCard.n, text: game.recapCard.text } } : {}),
     flyers: game.flyers.filter((f) => f.up).map((f) => publicFlyer(f, game)),
-    jobs: pinnedJobs(game).map((j) => publicJob(game, j)),
+    // Jobs the DM tied to the notice board wait until the table has found it.
+    jobs: jobsLocked(game) ? [] : pinnedJobs(game).map((j) => publicJob(game, j)),
     notices: noticesOf(game).filter((n) => n.up).map(publicNotice),
     ...(closeUpOf(game) ? { closeUp: closeUpOf(game) } : {}),
     ...(game.plaqueHidden ? { plaqueHidden: true } : {}),
@@ -816,7 +819,9 @@ export function projectPlayer(table: GameState, version: number, playerId: strin
       .reverse()
       .map((l) => ({ id: l.id, at: l.at, amountCp: l.amountCp, note: l.note })),
     chronicle: projectChronicle(game, { dm: false, playerId: p.id }),
-    jobs: pinnedJobs(game).map((j) => {
+    // The lensed game holds this character's own stage, so no playerId here.
+    ...(jobsLocked(game) ? { jobsLocked: true as const } : {}),
+    jobs: (jobsLocked(game) ? [] : pinnedJobs(game)).map((j) => {
       const pub = publicJob(game, j);
       const asked = game.requests.some((r) => r.status === "pending" && r.kind === "job" && r.jobId === j.id);
       return { ...pub, canTake: pub.status === "open" && !pub.needs && !pub.goodwill && !p.archived, asked } satisfies MyJob;

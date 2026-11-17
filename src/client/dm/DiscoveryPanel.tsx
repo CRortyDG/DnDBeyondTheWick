@@ -377,6 +377,7 @@ function EntryEditor({ entry: e, tv }: { entry: Entry; tv: boolean }) {
             </select>
           </label>
         ) : null}
+        {e.kind === "place" || s.jobsGate === e.id ? <JobsGateCheck entryId={e.id} name={e.name} /> : null}
         {e.kind === "monster" ? (
           <label>
             From the Monsters tab
@@ -650,5 +651,23 @@ function WhoKnows({ entry: e, tv }: { entry: Entry; tv: boolean }) {
         </div>
       ) : null}
     </section>
+  );
+}
+
+/** A place can be the notice board: jobs stay off phones and the TV until the party finds it. */
+function JobsGateCheck({ entryId, name }: { entryId: string; name: string }) {
+  const { view, run } = useDm();
+  const gate = view.state.jobsGate;
+  const on = gate === entryId;
+  const other = !on && gate ? view.state.entries?.find((x) => x.id === gate) : undefined;
+  return (
+    <label className="check">
+      <input
+        type="checkbox"
+        checked={on}
+        onChange={(ev) => void run({ type: "jobs.gate", entryId: ev.target.checked ? entryId : null }, ev.target.checked ? `Jobs now wait until the party finds ${name}.` : "Jobs show to players right away.")}
+      />{" "}
+      Finding this opens the Jobs tab{other ? <span className="note"> (instead of {other.name})</span> : null}
+    </label>
   );
 }

@@ -12,6 +12,7 @@ import { jobWhen, type PublicJob } from "@/shared/projection";
 import { defaultPayout, jobPoints, jobsOf, jobTitle, payoutPlayers, rankName, ranksOf, RENOWN_POINTS, renownOf } from "@/shared/renown";
 import type { Flyer, Job, JobReward, JobStatus, JobStyle, NoteLook, TrustNeed } from "@/shared/types";
 import { partiesOf, partyName } from "@/shared/world";
+import { entriesOf, isFound, jobsGateEntry, kindInfo, stageLabel } from "@/shared/discovery";
 import { penName } from "@/shared/chronicle";
 import { JobCard, STYLE_LABELS, whenLabel } from "../scenes/Board";
 import { useDm } from "./context";
@@ -60,6 +61,7 @@ export function BoardPanel() {
     <div className="panel-grid">
       <BoardCanvas onEditJob={(id) => (setPaying(null), setEditing({ id }))} onNewJob={() => (setPaying(null), setEditing({ id: null }))} />
       {editing ? <JobEditor key={`${editing.id ?? "new"}-${editing.followUpOf ?? ""}`} job={editJob} followUpOf={followOf} onClose={() => setEditing(null)} /> : null}
+      <JobsGateBox />
       <RenownBox />
       <PlayerFlyers />
       <section className="box board-wide">
@@ -85,6 +87,60 @@ export function BoardPanel() {
       </section>
     </div>
     </div>
+  );
+}
+
+/** Jobs can wait until the party finds the notice board (a Discover entry). */
+function JobsGateBox() {
+  const { view, run } = useDm();
+  const s = view.state;
+  const gate = jobsGateEntry(s);
+  const found = !!gate && isFound(gate.stage);
+  const world = !!s.world;
+  return (
+    <section className="box jobs-gate">
+      <h3>When players see jobs</h3>
+      {!gate ? (
+        <>
+          <p className="note">Right now pinned jobs show on phones (and on the TV&rsquo;s board) from the start. You can keep them hidden until the party finds the notice board in Discover.</p>
+          <div className="gate-actions">
+            <button type="button" className="btn" onClick={() => void run({ type: "jobs.gate", make: true }, "Jobs now wait until the party finds the Notice board. Reveal it from Discover or here.")}>
+              Hide jobs until they find the notice board
+            </button>
+          </div>
+        </>
+      ) : (
+        <>
+          <p className="note">
+            Jobs wait until the party finds <b>{gate.name}</b> ({kindInfo(gate.kind).label.toLowerCase()}, now {stageLabel(gate.kind, gate.stage).toLowerCase()}).{" "}
+            {found ? "They've found it, so jobs are showing." : "Until then the Jobs tab is gone from phones and the TV's board shows no job flyers."}
+            {world ? " In a shared world each character needs to have found it themselves; the TV goes by everyone at the table." : ""}
+          </p>
+          <div className="gate-actions">
+            {!found ? (
+              <button type="button" className="btn primary" onClick={() => void run({ type: "entry.stage", entryId: gate.id, stage: "found", announce: true }, `The party found ${gate.name}. Jobs are on their phones.`)}>
+                They found it: show jobs
+              </button>
+            ) : null}
+            <button type="button" className="btn" onClick={() => void run({ type: "jobs.gate", entryId: null }, "Jobs show to players right away.")}>
+              Always show jobs
+            </button>
+          </div>
+          <label>
+            The entry that opens jobs
+            <select className="fld" value={gate.id} onChange={(ev) => void run({ type: "jobs.gate", entryId: ev.target.value })}>
+              {entriesOf(s)
+                .filter((e) => e.kind === "place" || e.id === gate.id)
+                .map((e) => (
+                  <option key={e.id} value={e.id}>
+                    {e.name}
+                  </option>
+                ))}
+            </select>
+          </label>
+        </>
+      )}
+    </section>
   );
 }
 
