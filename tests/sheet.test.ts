@@ -143,3 +143,68 @@ describe("sheet on or off per player", () => {
     expect(projectPlayer(g, 1, "p1", []).me.sheet?.cls).toBe("Cleric");
   });
 });
+
+describe("tap to roll", () => {
+  const sword = { id: "a1", name: "Longsword", ability: "str" as const, prof: true, count: 1, sides: 8 as const, dmgMod: true, type: "slashing" };
+  const setup = () => {
+    let g = table();
+    g.players[0].level = 5;
+    g = run(g, { type: "me.sheet", patch: { cls: "Fighter", scores: { str: 16, dex: 14 }, skills: { athletics: 1 }, attacks: [sword] } }, as("p1"));
+    return g;
+  };
+  const roll = (g: GameState, cmd: Omit<Extract<Command, { type: "me.sheetRoll" }>, "type">, r = 0.5, now = 5000) => apply(g, { type: "me.sheetRoll", ...cmd } as Command, { now, actor: { role: "player", playerId: "p1" }, rand: () => r }).state;
+
+  it("rolls a skill on the TV with the sheet's bonus and its name", () => {
+    const g = roll(setup(), { roll: { kind: "skill", skill: "athletics" }, tv: true });
+    // d20 rolls 11 at rand 0.5; Athletics = +3 Str + 3 proficiency.
+    expect(g.diceRoll).toMatchObject({ total: 17, plus: 6, label: "Athletics" });
+    expect(g.rolls!.at(-1)).toMatchObject({ label: "Athletics", to: "tv", by: "p1" });
+    expect(projectTv(g, 1).diceRoll).toMatchObject({ label: "Athletics", total: 17 });
+  });
+
+  it("advantage keeps the higher d20, disadvantage the lower", () => {
+    let i = 0;
+    const seq = [0.1, 0.9];
+    const g = apply(setup(), { type: "me.sheetRoll", roll: { kind: "save", ability: "str" }, adv: "adv", tv: false }, { now: 5000, actor: { role: "player", playerId: "p1" }, rand: () => seq[i++ % 2] }).state;
+    const r = g.rolls!.at(-1)!;
+    expect(r.groups[0].rolls).toEqual([3, 19]);
+    expect(r).toMatchObject({ keep: "high", total: 19 + 6, to: "dm" });
+    i = 0;
+    const g2 = apply(setup(), { type: "me.sheetRoll", roll: { kind: "save", ability: "str" }, adv: "dis", tv: false }, { now: 5000, actor: { role: "player", playerId: "p1" }, rand: () => seq[i++ % 2] }).state;
+    expect(g2.rolls!.at(-1)).toMatchObject({ keep: "low", total: 3 + 6 });
+    expect(g2.diceRoll).toBeUndefined();
+  });
+
+  it("attacks roll to hit, then damage; a critical doubles the dice", () => {
+    let g = roll(setup(), { roll: { kind: "attack", attackId: "a1", part: "hit" }, tv: true });
+    expect(g.diceRoll).toMatchObject({ label: "Longsword to hit", total: 11 + 6 });
+    g = roll(g, { roll: { kind: "attack", attackId: "a1", part: "damage", crit: true }, tv: true }, 0.5, 9000);
+    expect(g.diceRoll).toMatchObject({ label: "Longsword damage (critical)", plus: 3 });
+    expect(g.diceRoll!.groups).toEqual([{ sides: 8, rolls: [5, 5] }]);
+  });
+
+  it("exhaustion comes off d20 tests, and the label says so", () => {
+    let g = setup();
+    g = run(g, { type: "me.sheet", patch: { exhaustion: 1 } }, as("p1"));
+    g = roll(g, { roll: { kind: "check", ability: "dex" }, tv: true });
+    expect(g.diceRoll).toMatchObject({ label: "Dexterity check (exhaustion −2)", total: 11 + 2 - 2 });
+  });
+
+  it("initiative from the sheet fills it in during Roll initiative", () => {
+    let g = setup();
+    g = run(g, { type: "fight.start" });
+    expect(g.fight?.status).toBe("setup");
+    g = roll(g, { roll: { kind: "init" }, tv: true });
+    const c = g.fight!.order.find((x) => x.playerId === "p1")!;
+    expect(c).toMatchObject({ init: 11 + 2, initRolled: true });
+  });
+
+  it("refuses without a sheet, too fast, or a missing attack", () => {
+    const g = table();
+    expect(() => roll(g, { roll: { kind: "init" }, tv: true })).toThrow(/sheet/);
+    const g2 = roll(setup(), { roll: { kind: "init" }, tv: true });
+    expect(() => roll(g2, { roll: { kind: "init" }, tv: true }, 0.5, 5500)).toThrow(/One roll/);
+    expect(() => roll(setup(), { roll: { kind: "attack", attackId: "zz", part: "hit" }, tv: true })).toThrow(/isn't on your sheet/);
+    expect(playerCommand.safeParse({ type: "me.sheetRoll", roll: { kind: "skill", skill: "flying" }, tv: true }).success).toBe(false);
+  });
+});

@@ -13,7 +13,7 @@ import { CHARACTER_MAX, CLIP_GIF_MAX, CLIP_VIDEO_MAX, INTRO_SCENE_ID, STINGER_SC
 import { starterById } from "./starters";
 import { chapterSessionId, cleanTags, cleanText, defaultChapterId, NEXT_CHAPTER, NOTES_MAX, penName } from "./chronicle";
 import { BOARD_SLOTS, jobPoints, jobsOf, jobTitle, pinnedCount, pointsOf, rankForPoints, rankName, ranksOf, RENOWN_POINTS, RENOWN_POINTS_MAX, renownMet, renownNeeded, renownOf, shopOpenNow, thresholdsOf, tierOf, trustMet, trustText } from "./renown";
-import { LOG_MAX, PLAYER_ROLL_GAP_MS, rollPool, type RollTo } from "./dice";
+import { LOG_MAX, PLAYER_ROLL_GAP_MS, rollD20, rollPool, type RollTo } from "./dice";
 import { leadsOf, leadVisible, tally, voteClosed } from "./leads";
 import { findRef, sessionRecap, slugInput, stageRank, blankEntry, ENTRIES_MAX, LEADS_MAX, entriesForScene, entriesOf, entryFromScene, entryScene, entryTags, factSlug, FACTS_MAX, isFound, shopEntry, slugify, syncShopEntries, uniqueSlug } from "./discovery";
 import { DM_AUTHOR } from "./types";
@@ -45,7 +45,7 @@ import { monstersOf, reslotCombatant } from "./combat";
 import { noticesOf } from "./board";
 import { fillRanges, TABLES_MAX, tablesOf } from "./tables";
 import type { MadeBy, RandomTable } from "./types";
-import { applySheet, isSheetCommand, mod, restSheet, syncInitiative } from "./sheet";
+import { applySheet, isSheetCommand, mod, restSheet, rollSpec, syncInitiative } from "./sheet";
 import { FADE_DEFAULT, isLayerId, isSfxId, mixLayers } from "./sound";
 
 export class CommandError extends Error {
@@ -4179,6 +4179,30 @@ function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
       const c = f?.status === "setup" ? f.order.find((x) => x.kind === "player" && x.playerId === p.id) : undefined;
       const lone = r.groups.length === 1 && r.groups[0]!.sides === 20 && r.groups[0]!.rolls.length === 1;
       const forInit = !!(f && c && lone && !(c.initRolled && c.init !== null));
+      if (forInit) {
+        c!.init = r.total;
+        c!.initRolled = true;
+        reslotCombatant(f!, c!);
+      }
+      const tag = forInit ? { for: "initiative" as const } : {};
+      if (cmd.tv) s.diceRoll = { n, at: ctx.now, ...r, name: penName(p), ...tag };
+      logRoll({ ...r, n, at: ctx.now, by: p.id, name: p.name, to, ...tag });
+      break;
+    }
+    case "me.sheetRoll": {
+      const p = me();
+      if (!p.sheet || p.sheetOff) fail("You don't have a character sheet here.");
+      const last = (s.rolls ?? []).findLast((x) => x.by === p.id);
+      if (last && ctx.now - last.at < PLAYER_ROLL_GAP_MS) fail("One roll at a time. Try again in a moment.");
+      const spec = rollSpec(p.sheet, p.level, cmd.roll) ?? fail("That attack isn't on your sheet any more.");
+      const r = spec.d20 ? rollD20(spec.plus, cmd.adv, rand) : rollPool([{ sides: spec.sides, count: spec.count }], spec.plus, rand);
+      r.label = spec.label;
+      const n = ++s.seq;
+      const to: RollTo = cmd.tv ? "tv" : "dm";
+      // Initiative from the sheet fills it in while "Roll initiative" is up, like a lone d20 does.
+      const f = s.fight;
+      const c = f?.status === "setup" ? f.order.find((x) => x.kind === "player" && x.playerId === p.id) : undefined;
+      const forInit = cmd.roll.kind === "init" && !!(f && c && !(c.initRolled && c.init !== null));
       if (forInit) {
         c!.init = r.total;
         c!.initRolled = true;

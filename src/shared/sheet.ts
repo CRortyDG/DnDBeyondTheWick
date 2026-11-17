@@ -89,6 +89,31 @@ export const PROFS_MAX = 1500;
 export const SHEET_NOTES_MAX = 4000;
 export const NAME_FIELD_MAX = 40;
 
+export const ATTACKS_MAX = 12;
+export const DAMAGE_DICE = [4, 6, 8, 10, 12] as const;
+export type DamageDie = (typeof DAMAGE_DICE)[number];
+
+/** A weapon or spell attack: to-hit from an ability and proficiency, damage dice plus the same ability. */
+export interface SheetAttack {
+  id: string;
+  name: string;
+  /** "none": no ability (a flat bonus only). */
+  ability: Ability | "none";
+  /** Adds proficiency to hit. */
+  prof: boolean;
+  /** Typed on top of the to-hit (a +1 weapon). */
+  hit?: number;
+  /** Damage dice: count d sides. count 0: no damage roll. */
+  count: number;
+  sides: DamageDie;
+  /** Adds the ability modifier to damage (weapons yes, most cantrips no). */
+  dmgMod: boolean;
+  /** Typed on top of the damage. */
+  dmg?: number;
+  /** "slashing", "fire". */
+  type?: string;
+}
+
 /** Where a typed "extra" can go: on a save, a skill, initiative or passive Perception. */
 export type ExtraKey = `save.${Ability}` | `skill.${SkillId}` | "init" | "passive";
 export const EXTRA_KEY_RE = new RegExp(`^(save\\.(${ABILITIES.join("|")})|skill\\.(${SKILL_IDS.join("|")})|init|passive)$`);
@@ -121,6 +146,7 @@ export interface CharacterSheet {
   /** Armor, weapons, tools and languages. */
   profs?: string;
   notes?: string;
+  attacks?: SheetAttack[];
   /** The DM locked class, scores and proficiencies (after session 0). */
   locked?: boolean;
   updatedAt: number;
@@ -177,6 +203,56 @@ export function armorClass(sheet: CharacterSheet): number {
 
 export function speedOf(sheet: CharacterSheet): number {
   return sheet.speed ?? 30;
+}
+
+export function attackBonus(sheet: CharacterSheet, a: SheetAttack, level: number | undefined): number {
+  return (a.ability === "none" ? 0 : mod(sheet.scores[a.ability])) + (a.prof ? proficiency(level) : 0) + (a.hit ?? 0);
+}
+
+export function damagePlus(sheet: CharacterSheet, a: SheetAttack): number {
+  return (a.dmgMod && a.ability !== "none" ? mod(sheet.scores[a.ability]) : 0) + (a.dmg ?? 0);
+}
+
+/** "1d8 + 3 slashing". */
+export function damageText(sheet: CharacterSheet, a: SheetAttack): string {
+  if (!a.count) return "";
+  const p = damagePlus(sheet, a);
+  return `${a.count}d${a.sides}${p ? ` ${p > 0 ? "+" : "\u2212"} ${Math.abs(p)}` : ""}${a.type ? ` ${a.type}` : ""}`;
+}
+
+/** Each level of exhaustion takes 2 off every d20 test (2024 rules). */
+export function exhaustionPenalty(sheet: CharacterSheet): number {
+  return 2 * (sheet.exhaustion ?? 0);
+}
+
+export type SheetRoll =
+  | { kind: "check"; ability: Ability }
+  | { kind: "save"; ability: Ability }
+  | { kind: "skill"; skill: SkillId }
+  | { kind: "init" }
+  | { kind: "attack"; attackId: string; part: "hit" | "damage"; crit?: boolean };
+
+/** What a tap on the sheet rolls: a d20 test (with its bonus) or damage dice, and its name. */
+export function rollSpec(sheet: CharacterSheet, level: number | undefined, r: SheetRoll): { label: string; d20: true; plus: number } | { label: string; d20: false; count: number; sides: DamageDie; plus: number } | null {
+  const ex = exhaustionPenalty(sheet);
+  const d20 = (label: string, bonus: number) => ({ label: ex ? `${label} (exhaustion \u2212${ex})` : label, d20: true as const, plus: bonus - ex });
+  switch (r.kind) {
+    case "check":
+      return d20(`${ABILITY_NAME[r.ability]} check`, mod(sheet.scores[r.ability]));
+    case "save":
+      return d20(`${ABILITY_NAME[r.ability]} save`, saveBonus(sheet, r.ability, level));
+    case "skill":
+      return d20(SKILLS.find((s) => s.id === r.skill)!.name, skillBonus(sheet, r.skill, level));
+    case "init":
+      return d20("Initiative", initiativeOf(sheet));
+    case "attack": {
+      const a = sheet.attacks?.find((x) => x.id === r.attackId);
+      if (!a) return null;
+      if (r.part === "hit") return d20(`${a.name} to hit`, attackBonus(sheet, a, level));
+      if (!a.count) return null;
+      return { label: `${a.name} damage${r.crit ? " (critical)" : ""}`, d20: false, count: a.count * (r.crit ? 2 : 1), sides: a.sides, plus: damagePlus(sheet, a) };
+    }
+  }
 }
 
 /** Everything the sheet works out, in one place (the phone, the DM's drawer and the fight screen read this). */
@@ -237,6 +313,19 @@ const line = z.string().max(NAME_FIELD_MAX);
 const score = z.number().int().min(SCORE_MIN).max(SCORE_MAX);
 const ability = z.enum(ABILITIES);
 
+const attackBody = z.object({
+  id: z.string().regex(/^[A-Za-z0-9_-]{1,24}$/),
+  name: z.string().max(NAME_FIELD_MAX),
+  ability: z.enum([...ABILITIES, "none"]),
+  prof: z.boolean(),
+  hit: z.number().int().min(-EXTRA_MAX).max(EXTRA_MAX).optional(),
+  count: z.number().int().min(0).max(10),
+  sides: z.union([z.literal(4), z.literal(6), z.literal(8), z.literal(10), z.literal(12)]),
+  dmgMod: z.boolean(),
+  dmg: z.number().int().min(-EXTRA_MAX).max(EXTRA_MAX).optional(),
+  type: z.string().max(20).optional(),
+});
+
 export const sheetPatch = z
   .object({
     cls: line,
@@ -259,6 +348,8 @@ export const sheetPatch = z
     traits: z.string().max(TRAITS_MAX),
     profs: z.string().max(PROFS_MAX),
     notes: z.string().max(SHEET_NOTES_MAX),
+    /** The whole list, in order. */
+    attacks: z.array(attackBody).max(ATTACKS_MAX),
   })
   .partial();
 export type SheetPatch = z.infer<typeof sheetPatch>;
@@ -277,14 +368,24 @@ export const sheetDmCommands = [
   z.object({ type: z.literal("sheet.lock"), playerId: id.optional(), on: z.boolean() }),
 ] as const;
 
+const sheetRoll = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("check"), ability }),
+  z.object({ kind: z.literal("save"), ability }),
+  z.object({ kind: z.literal("skill"), skill: z.enum(SKILL_IDS) }),
+  z.object({ kind: z.literal("init") }),
+  z.object({ kind: z.literal("attack"), attackId: z.string().min(1).max(24), part: z.enum(["hit", "damage"]), crit: z.boolean().optional() }),
+]);
+
 export const sheetPlayerCommands = [
   /** Change my sheet. starter: start it from my Arrival starting point (only when I have none). */
   z.object({ type: z.literal("me.sheet"), patch: sheetPatch, starter: z.boolean().optional() }),
+  /** Roll from my sheet: the server works out the bonus. tv: on the TV, or for the DM only. */
+  z.object({ type: z.literal("me.sheetRoll"), roll: sheetRoll, adv: z.enum(["adv", "dis"]).optional(), tv: z.boolean() }),
 ] as const;
 
 export type SheetDmCommand = z.infer<(typeof sheetDmCommands)[number]>;
 export type SheetPlayerCommand = z.infer<(typeof sheetPlayerCommands)[number]>;
-export type SheetCommand = SheetDmCommand | SheetPlayerCommand;
+export type SheetCommand = SheetDmCommand | Extract<SheetPlayerCommand, { type: "me.sheet" }>;
 
 export function isSheetCommand(cmd: { type: string }): cmd is SheetCommand {
   return cmd.type.startsWith("sheet.") || cmd.type === "me.sheet";
@@ -349,6 +450,22 @@ export function patchSheet(sheet: CharacterSheet, patch: SheetPatch, opts: { loc
   if (patch.exhaustion !== undefined) {
     if (patch.exhaustion) sheet.exhaustion = patch.exhaustion;
     else delete sheet.exhaustion;
+  }
+  if (patch.attacks) {
+    const seen = new Set<string>();
+    const list: SheetAttack[] = [];
+    for (const a of patch.attacks) {
+      if (seen.has(a.id)) continue;
+      seen.add(a.id);
+      const out: SheetAttack = { id: a.id, name: clean(a.name) || "Attack", ability: a.ability, prof: a.prof, count: a.count, sides: a.sides, dmgMod: a.dmgMod };
+      if (a.hit) out.hit = a.hit;
+      if (a.dmg) out.dmg = a.dmg;
+      const t = clean(a.type ?? "");
+      if (t) out.type = t;
+      list.push(out);
+    }
+    if (list.length) sheet.attacks = list;
+    else delete sheet.attacks;
   }
   for (const k of ["traits", "profs", "notes"] as const) {
     const v = patch[k];

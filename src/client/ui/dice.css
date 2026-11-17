@@ -446,3 +446,10 @@
   color: var(--gold-bright);
   font-family: var(--font-num);
 }
+
+/* Advantage or disadvantage: the d20 that doesn't count. */
+.dice-roll-die.dropped {
+  opacity: 0.35;
+  filter: grayscale(0.6);
+  transition: opacity 0.4s, filter 0.4s;
+}
