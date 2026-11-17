@@ -62,7 +62,7 @@ describe("switches", () => {
     const g = run(table(), { type: "features.set", off: ["gold"] });
     expect(featureOn(g, "gold")).toBe(false);
     expect(featureOn(g, "shops")).toBe(false);
-    expect(effectiveOff(g)).toEqual(["gold", "shops"]);
+    expect(effectiveOff(g)).toEqual(["gold", "shops", "rooms"]);
     const back = run(g, { type: "features.set", off: [] });
     expect(back.featuresOff).toBeUndefined();
   });

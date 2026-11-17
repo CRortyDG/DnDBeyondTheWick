@@ -52,6 +52,8 @@ export interface EntryDraftBody {
   knows?: string;
   voice?: string;
   facts?: string[];
+  /** Places: a room at an inn. */
+  room?: import("./types").RoomInfo;
 }
 export interface ThreadDraftBody {
   name: string;

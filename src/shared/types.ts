@@ -5,7 +5,7 @@ import type { DiceGroup, RollEntry } from "./dice";
 
 import type { HandoutSheet } from "./handout";
 
-export type SceneKind = "notice" | "portrait" | "handout" | "image" | "black" | "map" | "table" | "stinger" | "video" | "intro";
+export type SceneKind = "notice" | "portrait" | "handout" | "image" | "black" | "map" | "table" | "stinger" | "video" | "intro" | "keys";
 
 /** Built-in art. "merchant-sigil" is DM-only and served through a gated route. */
 export type BuiltinArt = "candlefair-board" | "artum-notice" | "artum" | "mags-wick" | "chef" | "merchant-sigil";
@@ -472,6 +472,8 @@ export interface Rental {
   endedAt?: number;
   /** A hireling: renewed with Keep or Let go at session end, not with the other rent. */
   hire?: boolean;
+  /** A room at an inn (a place entry with a room). Its history is its rentals. */
+  roomId?: string;
 }
 
 /** Lessons paid for in parts, one per session. */
@@ -903,6 +905,54 @@ export interface Entry {
   origin?: "improvised" | "capture" | "seed";
   /** DM-ONLY: needs the DM's review. When and where it was made. */
   review?: { at: number; sessionId: string | null; placeId?: string };
+  /** Places: a room at an inn, with its key on the rack (see rooms.ts). Players see it once the room is found. */
+  room?: RoomInfo;
+}
+
+/** guest: rentable, two beds. good: the Good Room, earned. staff: on the rack but never rented. */
+export type RoomType = "guest" | "good" | "staff";
+
+/** A room's own fields. Its story hook is the entry's secrets and the innkeeper's line its dmNote, both DM-ONLY. */
+export interface RoomInfo {
+  /** Its hook on the key rack, 1-12. */
+  hook: number;
+  type: RoomType;
+  /** The physical key ("the seahorse key"). */
+  key: string;
+  /** The key is gone: an empty hook with no label. */
+  keyMissing?: boolean;
+  /** What living here gets you. */
+  perk: string;
+  /** The line on its paper tag ("Bucket provided."). */
+  tag?: string;
+  /** Rent per month (one session) in cp. Missing: the inn's rent. */
+  rentCp?: number;
+  /** Beds. Missing: 2. */
+  beds?: number;
+  /** A reminder at each session start for whoever lives here. */
+  startPerk?: "inspiration" | "rumor";
+}
+
+/** DM-ONLY: how rooms are rented in this campaign. */
+export interface RoomSettings {
+  /** Rent per month (one session), in cp. Default 3 gp. */
+  rentCp: number;
+  /** A character's first room is free for its first month. */
+  firstFree: boolean;
+  /** The Good Room: earned with Renown (rank, at the normal rent) or open to anyone at a higher rent. */
+  good: { mode: "renown" | "rent"; rank: number; rentCp: number };
+  /** Old register lines, written by hand (the nameless guest). Newest first. */
+  register: string[];
+}
+
+/** DM-ONLY: a "because of your room" moment that happened. */
+export interface RoomMoment {
+  id: string;
+  playerId: string;
+  roomId: string;
+  sessionId: string | null;
+  at: number;
+  note?: string;
 }
 
 /** DM-ONLY: a place's off-script settings. */
@@ -1133,6 +1183,10 @@ export type TvDiceRoll = { n: number; at: number; groups: DiceGroup[]; plus: num
 
 export interface GameState {
   schema: 2;
+  /** DM-ONLY: room rent and the Good Room's lock (missing: the defaults, see rooms.ts). */
+  rooms?: RoomSettings;
+  /** DM-ONLY: room moments, oldest first. */
+  roomMoments?: RoomMoment[];
   id: string;
   name: string;
   createdAt: number;

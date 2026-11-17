@@ -68,13 +68,13 @@ function TvScreen({ view, online }: { view: TvView; online: boolean }) {
   const liveScene = view.scenes.find((x) => x.id === view.live.sceneId);
   const fightOnMap = liveScene?.kind === "map" && !!liveScene.map?.tokens.length;
   // The Table fills the screen with seat names, and a clip, the intro or the stinger is a moment of its own: the purse would sit on top of them.
-  const onTable = liveScene?.kind === "table" || liveScene?.kind === "video" || liveScene?.kind === "intro" || liveScene?.kind === "stinger";
+  const onTable = liveScene?.kind === "table" || liveScene?.kind === "keys" || liveScene?.kind === "video" || liveScene?.kind === "intro" || liveScene?.kind === "stinger";
 
   return (
     <div className={`tv-root${idle ? " idle" : ""}`}>
       {layers.map((l) => (
         <div key={l.key} className={`tv-layer${l.entering ? " entering" : ""}`} aria-hidden={l.leaving}>
-          <SceneView town={view.game.town} scene={l.scene} table={view.table} intro={view.intro} board={view} />
+          <SceneView town={view.game.town} scene={l.scene} table={view.table} intro={view.intro} board={view} keyRack={view.keyRack} />
         </div>
       ))}
 

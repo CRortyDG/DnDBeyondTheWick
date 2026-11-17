@@ -16,6 +16,7 @@ import { sheetDmCommands, sheetPlayerCommands } from "./sheet";
 import { buildCommands } from "./sheetBuild";
 import { featureDmCommands, featurePlayerCommands } from "./features";
 import { offscriptDmCommands } from "./offscriptSchema";
+import { roomDmCommands, roomInfoSchema } from "./rooms";
 import { CLIP_URL_RE, CLIP_VIDEO_MAX, INTRO_STEPS_MAX, SLIDE_TEXT_MAX, SLIDES_MAX, WELCOME_MAX } from "./arrival";
 import type { TokenColor } from "./types";
 import { FOG_MAX_CELLS, TILE_URL_RE, TILES_MAX } from "./fog";
@@ -46,7 +47,7 @@ const artSchema = z.object({
   url: z.string().max(2048).optional(),
 });
 
-const SCENE_KINDS = ["notice", "portrait", "handout", "image", "black", "map", "table", "stinger", "video", "intro"] as const;
+const SCENE_KINDS = ["notice", "portrait", "handout", "image", "black", "map", "table", "stinger", "video", "intro", "keys"] as const;
 const frac = z.number().min(0).max(1);
 export const SEAL_SCALE_MIN = 0.25;
 export const SEAL_SCALE_MAX = 2;
@@ -156,6 +157,8 @@ const entryFields = {
   voice: text(PERSON_NOTE_MAX),
   look: text(PERSON_NOTE_MAX),
   quirk: text(PERSON_NOTE_MAX),
+  /** Places: a room at an inn (null: not a room). */
+  room: roomInfoSchema.nullable(),
 };
 const factText = text(FACT_MAX);
 
@@ -658,6 +661,9 @@ export const dmCommand = z.discriminatedUnion("type", [
 
   // Feature switches.
   ...featureDmCommands,
+
+  // Rooms at the inn.
+  ...roomDmCommands,
 ]);
 
 /** Commands a player may send about themselves. */

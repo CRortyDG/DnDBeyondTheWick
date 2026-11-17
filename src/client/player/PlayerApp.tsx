@@ -23,6 +23,7 @@ import { Sheet, useConfirm } from "./Sheet";
 import { NAV_ICONS, PlayerNav, type Screen } from "./PlayerNav";
 import { DecisionBanners, MyRequests, RequestSheet, SendGold } from "./Requests";
 import { CharacterTab } from "./CharacterTab";
+import { MyRoomCard } from "./MyRoom";
 import { FEATURE, FEATURES, type FeatureId } from "@/shared/features";
 import { HERE_ASK_COOLDOWN_MS } from "@/shared/attendance";
 
@@ -251,6 +252,8 @@ function PlayerScreen({ view, online, send, ident, setIdent }: { view: PlayerVie
               </button>
             </div>
           </section>
+
+          {view.myRoom ? <MyRoomCard room={view.myRoom} /> : null}
 
           {has("shops") ? <MyRequests requests={view.myRequests} send={send} onMsg={setMsg} /> : null}
 

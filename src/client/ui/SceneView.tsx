@@ -8,6 +8,8 @@ import { NoticeBoard } from "../scenes/NoticeBoard";
 import { CloseUpNote, Pinned, type BoardView } from "../scenes/Board";
 import { Stage } from "./Stage";
 import { TableScene } from "./TableScene";
+import { KeyRack } from "./KeyRack";
+import type { KeyRackView } from "@/shared/rooms";
 import { Stinger } from "../scenes/Stinger";
 import { VideoScene } from "../scenes/VideoScene";
 import type { TableView, TvIntroView } from "@/shared/arrival";
@@ -45,7 +47,7 @@ export function artSrc(art: Art | undefined, gated?: Record<string, string>): st
 }
 
 /** One scene, filling its parent. */
-export function SceneView({ scene, gated, emptyHint, table, intro, board, town = "Candlefair" }: { scene: RenderableScene; gated?: Record<string, string>; emptyHint?: string; table?: TableView; intro?: TvIntroView; board?: BoardView; /** Shown on an empty image slot. */ town?: string }) {
+export function SceneView({ scene, gated, emptyHint, table, intro, board, keyRack, town = "Candlefair" }: { scene: RenderableScene; gated?: Record<string, string>; emptyHint?: string; table?: TableView; intro?: TvIntroView; board?: BoardView; keyRack?: KeyRackView; /** Shown on an empty image slot. */ town?: string }) {
   const src = artSrc(scene.art, gated);
 
   if (scene.ambient && ambientById(scene.ambient.id)) return <AmbientScene id={scene.ambient.id as AmbientId} caption={scene.ambient.caption} />;
@@ -55,6 +57,8 @@ export function SceneView({ scene, gated, emptyHint, table, intro, board, town =
   if (scene.kind === "stinger") return <Stinger />;
 
   if (scene.kind === "table") return <TableScene table={table} />;
+
+  if (scene.kind === "keys") return <KeyRack rack={keyRack} />;
 
   if (scene.kind === "intro")
     return (

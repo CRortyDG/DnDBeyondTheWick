@@ -150,6 +150,7 @@ function entryFull(g: GameState, e: Entry) {
     links: e.links.map((id) => byId.get(id)).filter((x): x is Entry => !!x).map((x) => ({ id: x.id, type: x.kind, name: x.name })),
     story_beats: st.beats.filter((b) => b.links.some((l) => (l.kind === "entry" && l.id === e.id) || (l.kind === "fact" && l.entryId === e.id))).map((b) => ({ id: b.id, title: b.title, status: b.status })),
   };
+  if (e.room) out.room = { hook: e.room.hook, type: e.room.type, key: e.room.key, key_missing: !!e.room.keyMissing, perk: e.room.perk, tag: e.room.tag ?? "", rent_gp: e.room.rentCp !== undefined ? e.room.rentCp / 100 : null, beds: e.room.beds ?? 2, start_perk: e.room.startPerk ?? null };
   if (e.kind === "shop" && e.shopId) {
     const sh = g.shops.find((x) => x.id === e.shopId);
     if (sh) out.items = g.items.filter((x) => x.shopId === sh.id).map(itemBrief);

@@ -26,6 +26,7 @@ import { levelLine } from "./levels";
 import { applyPractice, isPracticeCommand, trackPractice } from "./practice";
 import { applyCompanion, attachCompanion, companionsWith, companionTemplatesOf, endSessionCompanions, isCompanionCommand, rentalEnded } from "./companions";
 import { applyFeatures, checkFeature, isFeatureCommand } from "./features";
+import { applyRooms, cleanRoom, isRoomCommand, roomsOf } from "./rooms";
 import { applyFight, isFightCommand, startFightFromBeat, type FightHelpers } from "./combatReducer";
 import type { Notice, NotePlace } from "./types";
 import { beatSuggestions, entryRef, freeQuickKey, liveRef, QUICK_KEYS, quickOf, RECENT_MAX, refForScene, renameRefs, resolveRef, sceneSlug, uniqueSceneSlug } from "./assets";
@@ -234,7 +235,7 @@ function builderApply(input: GameState, ops: BuilderOp[], ctx: Ctx): Result {
         const r = step(
           {
             type: "entry.add",
-            entry: { kind: b.kind, name: b.name, title: b.title, summary: b.summary, nickname: b.nickname, hint: b.hint, areas: b.areas, dmNote: b.dmNote, secrets: b.secrets, wants: b.wants, knows: b.knows, voice: b.voice },
+            entry: { kind: b.kind, name: b.name, title: b.title, summary: b.summary, nickname: b.nickname, hint: b.hint, areas: b.areas, dmNote: b.dmNote, secrets: b.secrets, wants: b.wants, knows: b.knows, voice: b.voice, ...(b.room ? { room: b.room } : {}) },
             facts: b.facts,
           },
           b.name,
@@ -1081,6 +1082,15 @@ function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
     }
     showScene(sc.id);
   };
+  /** The key rack: who has which room. Made the first time it's shown. */
+  const showKeys = () => {
+    let sc = s.scenes.find((x) => x.kind === "keys");
+    if (!sc) {
+      sc = { id: nextId("s"), label: "Key rack", kind: "keys", reveal: false, alt: "The inn's key rack: twelve hooks, and who has each room" };
+      insertScene(sc);
+    }
+    showScene(sc.id);
+  };
   /** The Arrival intro on the TV, from the start. */
   const showIntro = () => {
     let sc = s.scenes.find((x) => x.kind === "intro");
@@ -1131,6 +1141,7 @@ function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
       return;
     }
     if (a.screen === "table") return showTable();
+    if (a.screen === "keys") return showKeys();
     if (a.note) {
       // Up close, over the notice board. A note in the drawer can be shown without hanging it.
       const board = s.scenes.find((x) => x.kind === "notice") ?? fail("There's no notice board in this game.");
@@ -1434,13 +1445,18 @@ function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
       e.foundAt = ctx.now;
       e.foundIn = s.currentSessionId;
       if (sc) sc.known = true;
-      if ((s.notes ?? []).length < NOTES_MAX) addNote(DM_AUTHOR, "The DM", foundLine(e), entryTags(s, e), undefined);
+      if (!e.room && (s.notes ?? []).length < NOTES_MAX) addNote(DM_AUTHOR, "The DM", foundLine(e), entryTags(s, e), undefined);
     } else if (!isFound(to) && isFound(from)) {
       delete e.foundAt;
       delete e.foundIn;
       if (sc && !entriesForScene(s, sc.id).some((x) => isFound(x.stage))) delete sc.known;
     }
     syncOut(e, from);
+    // An inn's guest rooms are found with the inn (staff rooms stay hidden until the DM shows one).
+    if (isFound(to) && !isFound(from) && !e.room) {
+      const inn = e.name.trim().toLowerCase();
+      for (const r of roomsOf(s)) if (r.room.type !== "staff" && r.stage === "hidden" && r.areas.some((a) => a.trim().toLowerCase() === inn)) setStage(r, "found", false);
+    }
     if (to === "hidden") {
       if (s.discovery?.entryId === e.id) delete s.discovery;
     } else if (announce) playMoment(e, from);
@@ -1764,6 +1780,11 @@ function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
 
   if (isFeatureCommand(cmd)) {
     applyFeatures(s, cmd, { actor: ctx.actor as { role: string; playerId?: string }, fail });
+    return out;
+  }
+
+  if (isRoomCommand(cmd)) {
+    applyRooms(s, cmd, { now: ctx.now, nextId, fail, info: (m) => (out.info = m), move, coversSession });
     return out;
   }
 
@@ -3079,6 +3100,10 @@ function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
       if (sc) e.sceneId = sc.id;
       if (f.relation) e.relation = f.relation;
       if (f.start && f.start !== "hidden") e.start = f.start;
+      if (f.room) {
+        if (kind !== "place") fail("Only a place can be a room.");
+        e.room = cleanRoom(s, null, f.room, fail);
+      }
       list.push(e);
       // A portrait the table has already seen: they've met.
       if (sc?.known) setStage(e, "found", false);
@@ -3135,6 +3160,15 @@ function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
       if (p.start !== undefined) {
         if (p.start === "hidden") delete e.start;
         else e.start = p.start;
+      }
+      if (p.room !== undefined) {
+        if (p.room === null) {
+          if (s.rentals.some((r) => r.active && r.roomId === e.id)) fail(`Someone lives in ${e.name}. Check them out first.`);
+          delete e.room;
+        } else {
+          if (e.kind !== "place") fail("Only a place can be a room.");
+          e.room = cleanRoom(s, e.id, p.room, fail);
+        }
       }
       if (p.silhouette !== undefined) {
         if (p.silhouette) e.silhouette = p.silhouette;
@@ -4172,6 +4206,7 @@ function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
       const p = player(ctx.actor.role === "player" ? ctx.actor.playerId : "");
       const r = s.rentals.find((x) => x.id === cmd.rentalId && x.playerId === p.id) ?? fail("That rental doesn't exist.");
       if (!r.active) fail("You already gave that up.");
+      if (r.roomId) fail("Rooms are given out at the inn. Ask the DM to check you out.");
       r.active = false;
       r.endedAt = ctx.now;
       rentalEnded(s, r.id, ctx.now);

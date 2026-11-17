@@ -25,6 +25,7 @@ export const FEATURE_IDS = [
   "levels",
   "renown",
   "jobs",
+  "rooms",
   "board",
   "companions",
   "invites",
@@ -77,6 +78,7 @@ export const FEATURES: FeatureDef[] = [
   { id: "leads", name: "Leads and votes", blurb: "Threads to follow, and the party's vote on what's next.", group: "world", shows: ["dm", "tv", "phone"], needs: "discover", from: "standard" },
   { id: "renown", name: "Renown", blurb: "The party's standing in town: rank, points and the plaque.", group: "world", shows: ["dm", "tv", "phone"], playerHide: true, from: "everything" },
   { id: "jobs", name: "Jobs and bounties", blurb: "Job flyers on the board that players can take.", group: "world", shows: ["dm", "tv", "phone"], playerHide: true, from: "everything" },
+  { id: "rooms", name: "Rooms at the inn", blurb: "Keys on a rack: who sleeps where, rent, each room's perk, and the TV key rack.", group: "world", shows: ["dm", "tv", "phone"], needs: "gold", from: "standard" },
   { id: "board", name: "Notice board notes", blurb: "Your own free notes pinned on the TV notice board.", group: "world", shows: ["dm", "tv"], from: "everything" },
   // Story
   { id: "chronicle", name: "Chronicle", blurb: "The shared story notes: the phone's Story tab.", group: "story", shows: ["dm", "phone"], playerHide: true, from: "minimal" },
@@ -249,6 +251,7 @@ const PLAYER_NEEDS: Record<string, FeatureId> = {
 const DM_NEEDS: Record<string, FeatureId> = {
   "fight.start": "combat",
   "vote.open": "leads",
+  "room.assign": "rooms",
 };
 
 /** Throws (through fail) when a command needs a feature that is off for this actor. */

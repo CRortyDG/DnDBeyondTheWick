@@ -4,6 +4,7 @@
 // DM-only. Everything here comes from the DM view; the TV only ever sees the
 // effects of actions (a scene switch, the purse), never the run sheet.
 
+import { RoomKey, RoomStart } from "./Rooms";
 import { Leftovers, MentionText, RunStoryBlocks } from "./EpisodeBuilder";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { previousRecap } from "@/shared/reducer";
@@ -496,16 +497,20 @@ function StartStep({ session }: { session: Session }) {
           {players.map((p) => {
             const here = session.attendeeIds.includes(p.id) && !p.away;
             return (
-              <label key={p.id} className="check">
+              <div key={p.id} className="run-attend-row">
+              <label className="check">
                 <input type="checkbox" checked={here} onChange={(e) => run({ type: "run.attend", playerId: p.id, here: e.target.checked })} />
                 {p.name}
                 {!here && p.hereAsk !== undefined ? <span className="knock-tag">Says they&rsquo;re here</span> : null}
               </label>
+              <RoomKey player={p} compact />
+              </div>
             );
           })}
         </div>
         <p className="note">Anyone unticked is marked away: off the TV purse and out of &ldquo;pay everyone&rdquo;.</p>
       </section>
+      <RoomStart session={session} />
       {session.startLog?.length ? (
         <section className="run-section">
           <h2>Since last time</h2>

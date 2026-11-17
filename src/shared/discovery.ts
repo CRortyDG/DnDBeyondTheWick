@@ -232,6 +232,8 @@ export interface PublicEntry {
   areas: string[];
   /** Newest thing to know about it, for "new" marks. */
   updatedAt: number;
+  /** A room at an inn (found guest rooms and the Good Room only): its key and perk. Never its story. */
+  room?: import("./rooms").PublicRoom;
 }
 
 /** The name players may see for an entry, or null if they may see nothing. */
@@ -278,6 +280,8 @@ export function publicEntry(g: GameState, e: Entry, playerId?: string): PublicEn
   const art = entryArt(g, e);
   if (art) out.art = art;
   if (e.kind === "person") out.relation = (playerId && e.relationBy?.[playerId]) || e.relation || "stranger";
+  const room = e.room && e.room.type !== "staff" ? { hook: e.room.hook, type: e.room.type, key: e.room.key, perk: e.room.perk, ...(e.room.tag ? { tag: e.room.tag } : {}) } : undefined;
+  if (room) out.room = room;
   return out;
 }
 

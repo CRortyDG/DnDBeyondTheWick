@@ -10,6 +10,7 @@ import { AREAS_MAX, DM_TEXT_MAX, FACT_MAX, HINT_MAX, NAME_MAX, PERSON_NOTE_MAX, 
 import { BEAT_TYPE_IDS, MONTH_RE } from "./story";
 import { fillRanges, TABLE_DICE, TABLE_KIND_IDS, TABLE_NAME_MAX, TABLE_ROW_MAX, TABLE_ROWS_MAX } from "./tables";
 import { RENOWN_MAX } from "./renown";
+import { HOOKS, KEY_MAX, PERK_MAX, TAG_MAX } from "./rooms";
 import type { BuilderOp, BuilderRef, SuggestTarget } from "./builderOps";
 import type { Stage } from "./types";
 
@@ -64,8 +65,23 @@ export const entryInput = z
     knows: txt(PERSON_NOTE_MAX).optional(),
     voice: txt(PERSON_NOTE_MAX).optional(),
     facts: z.array(line(FACT_MAX)).max(20, "At most 20 facts at once.").optional(),
+    room: z
+      .object({
+        hook: z.number().int().min(1).max(HOOKS),
+        type: z.enum(["guest", "good", "staff"]),
+        key: txt(KEY_MAX),
+        key_missing: z.boolean().optional(),
+        perk: txt(PERK_MAX).optional(),
+        tag: txt(TAG_MAX).optional(),
+        rent_gp: z.number().min(0).max(10000).optional(),
+        beds: z.number().int().min(1).max(4).optional(),
+        start_perk: z.enum(["inspiration", "rumor"]).optional(),
+      })
+      .strict()
+      .optional(),
   })
-  .strict();
+  .strict()
+  .refine((e) => !e.room || e.kind === "place", { message: "Only a place can be a room.", path: ["room"] });
 
 export const factInput = z.object({ entry: refId, text: line(FACT_MAX) }).strict();
 export const linkInput = z.object({ a: refId, b: refId }).strict().refine((x) => x.a !== x.b, "Link two different entries.");
@@ -297,6 +313,21 @@ export function draftToOp(d: Draft, stage: Stage): BuilderOp {
           secrets: b.secret,
           ...(b.kind === "person" ? { wants: b.wants, knows: b.knows, voice: b.voice } : {}),
           facts: b.facts,
+          ...(b.room
+            ? {
+                room: {
+                  hook: b.room.hook,
+                  type: b.room.type,
+                  key: b.room.key,
+                  perk: b.room.perk ?? "",
+                  ...(b.room.key_missing ? { keyMissing: true } : {}),
+                  ...(b.room.tag ? { tag: b.room.tag } : {}),
+                  ...(b.room.rent_gp !== undefined ? { rentCp: Math.round(b.room.rent_gp * 100) } : {}),
+                  ...(b.room.beds ? { beds: b.room.beds } : {}),
+                  ...(b.room.start_perk ? { startPerk: b.room.start_perk } : {}),
+                },
+              }
+            : {}),
         },
       };
     }
