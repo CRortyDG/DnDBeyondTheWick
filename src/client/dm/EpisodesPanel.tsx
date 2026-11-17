@@ -13,7 +13,7 @@ import {
   type ParsedEpisode,
 } from "@/shared/runsheet";
 import type { Beat, BeatAction, Episode } from "@/shared/types";
-import { beatSuggestions, listAssets, resolveRef, type AssetGame } from "@/shared/assets";
+import { beatSuggestions, resolveRef, type AssetGame } from "@/shared/assets";
 import { DownIcon, UpIcon } from "../ui/icons";
 import { useDm } from "./context";
 import { PageHead } from "./PageHead";
@@ -21,13 +21,12 @@ import { PlayIcon, PlusIcon } from "./navIcons";
 import { Drawer } from "./Drawer";
 import { MenuItem, RowMenu } from "./RowMenu";
 import { openPractice } from "./Practice";
-import { monstersOf } from "@/shared/combat";
 import { Field } from "./Field";
 import { actionLabel } from "./RunGame";
 import { AddStoryBeat, CastAndPrep, MentionTextarea, StoryBlocks } from "./EpisodeBuilder";
 import { CluesEditor } from "./OffScript";
 import { storyResolver } from "@/shared/runsheet";
-import { MIXES, SFX } from "@/shared/sound";
+import { ActionAdder } from "./ActionAdder";
 
 // A made-up example: the browser bundle must not carry any real episode text.
 const FORMAT_HELP = `## The toll bridge
@@ -548,30 +547,10 @@ function ActionsPicker({
   /** No: don't suggest this again (saved beats only). */
   onDismiss?: (ref: string) => void;
 }) {
-  const [pick, setPick] = useState("");
   const { view } = useDm();
   const g = view.state;
-  const monsters = monstersOf(g);
-  const assets = listAssets(g);
-  const groups = [...new Set(assets.map((a) => a.group))];
   const sugg = beat ? beatSuggestions(g, { ...beat, actions }) : null;
   const suggested = sugg?.suggested ? resolveRef(g, sugg.suggested) : null;
-  const add = (v: string) => {
-    if (!v) return;
-    const a: BeatAction = v.startsWith("fight:")
-      ? { type: "fight", monsters: [{ name: v.slice(6), count: 1 }] }
-      : v === "bank"
-        ? { type: "bank" }
-        : v.startsWith("sound:")
-          ? { type: "sound", mix: v.slice(6) }
-          : v.startsWith("sfx:")
-            ? { type: "sfx", id: v.slice(4) }
-            : v.startsWith("tap:")
-              ? { type: "sfx", id: v.slice(4), tap: true }
-              : { type: "show", ref: v.slice(5) };
-    onChange([...actions, a]);
-    setPick("");
-  };
   return (
     <div
       className="beat-actions"
@@ -615,61 +594,7 @@ function ActionsPicker({
           ) : null}
         </span>
       ) : null}
-      {actions.length < 10 ? (
-        <select
-          className="fld small-select"
-          aria-label="Add a TV action"
-          value={pick}
-          onChange={(e) => add(e.target.value)}
-        >
-          <option value="">+ Add a TV action or sound…</option>
-          {groups.map((grp) => (
-            <optgroup key={grp} label={`Show: ${grp.toLowerCase()}`}>
-              {assets
-                .filter((a) => a.group === grp)
-                .map((a) => (
-                  <option key={a.ref} value={`show:${a.ref}`}>
-                    {a.label}
-                  </option>
-                ))}
-            </optgroup>
-          ))}
-          <option value="bank">
-            Bank (purse on the TV, bank on your screen)
-          </option>
-          {monsters.length ? (
-            <optgroup label="Start a fight (set how many in the text)">
-              {monsters.map((m) => (
-                <option key={m.id} value={`fight:${m.name}`}>
-                  Fight: {m.name}
-                </option>
-              ))}
-            </optgroup>
-          ) : null}
-          <optgroup label="Sound: crossfade to a mix">
-            {MIXES.map((m) => (
-              <option key={m.id} value={`sound:${m.id}`}>
-                Sound: {m.label}
-              </option>
-            ))}
-            <option value="sound:off">Sound: fade to silence</option>
-          </optgroup>
-          <optgroup label="Sound effect as you land">
-            {SFX.map((x) => (
-              <option key={x.id} value={`sfx:${x.id}`}>
-                Effect: {x.label}
-              </option>
-            ))}
-          </optgroup>
-          <optgroup label="Sound effect button (tap it during the beat)">
-            {SFX.map((x) => (
-              <option key={x.id} value={`tap:${x.id}`}>
-                Button: {x.label}
-              </option>
-            ))}
-          </optgroup>
-        </select>
-      ) : null}
+      {actions.length < 10 ? <ActionAdder g={g} onAdd={(a) => onChange([...actions, a])} /> : null}
       {sugg?.also.length ? (
         <span className="note beat-also">
           Also mentioned (Shift+number while it runs): {sugg.also.map((r) => resolveRef(g, r)?.label ?? r).join(", ")}
