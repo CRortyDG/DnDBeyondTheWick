@@ -5585,3 +5585,20 @@ html[data-view="dm"][data-phone] .dm-drawer {
     grid-template-columns: 1fr;
   }
 }
+
+/* Monsters → Basic monsters: a tick list. */
+:where(html[data-view="dm"]) .basic-mon {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+  padding: 8px 12px;
+}
+:where(html[data-view="dm"]) .basic-mon input {
+  width: 18px;
+  height: 18px;
+  flex: none;
+}
+:where(html[data-view="dm"]) .pg-empty .btn {
+  margin-top: 8px;
+}
