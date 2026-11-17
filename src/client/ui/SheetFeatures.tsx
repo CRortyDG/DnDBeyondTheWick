@@ -50,7 +50,7 @@ export function FeaturesBlock({ sheet, level, editing, send, act }: { sheet: Cha
       ) : null}
       {suggest.length && list.length < FEATURES_MAX ? (
         <div className="cs-suggest">
-          <span className="note">From your class:</span>
+          <span className="note">From your class and species:</span>
           {suggest.map((k) => (
             <button key={k} type="button" className="cs-chip add" onClick={() => void save([...list, featureFrom(k, newId())])}>
               + {RESOURCES[k].name}
@@ -63,7 +63,7 @@ export function FeaturesBlock({ sheet, level, editing, send, act }: { sheet: Cha
           + Add a feature
         </button>
       ) : null}
-      {editing ? <p className="note">The ones from your class keep their uses in step with your level. Add your own for feats, species traits or a magic item&rsquo;s charges.</p> : null}
+      {editing ? <p className="note">The ones from your class or species keep their uses in step with your level. Add your own for feats, species traits or a magic item&rsquo;s charges.</p> : null}
     </section>
   );
 }
@@ -151,7 +151,7 @@ function FeatureCard({ f, sheet, level, onSave, onRemove }: { f: SheetFeature; s
         <textarea className="fld" rows={2} maxLength={FEATURE_NOTE_MAX} value={d.note ?? ""} placeholder="What it does, the die it rolls" onChange={(e) => setD({ ...d, note: e.target.value })} onBlur={() => commit(d)} />
       </label>
       <div className="cs-atk-row">
-        <span className="cs-atk-sum">{d.auto ? "From your class: uses follow your level" : "Your own"}</span>
+        <span className="cs-atk-sum">{d.auto ? "From your class or species: uses follow your level" : "Your own"}</span>
         <button type="button" className="btn small" onClick={onRemove}>
           Remove
         </button>

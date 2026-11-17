@@ -868,3 +868,261 @@ button.cs-ab {
 .cs-give .btn {
   flex: none;
 }
+
+/* The character builder (phase 5) and the level-up card. */
+.cb {
+  --cb-gold: var(--pl-gold, #e3b65c);
+  --cb-gold-soft: var(--pl-gold-soft, rgba(227, 182, 92, 0.14));
+  --cb-line: var(--pl-border, #33281f);
+  --cb-bg: var(--pl-bg-1, #18130f);
+  --cb-text-2: var(--pl-text-2, #b5a794);
+  --cb-text-3: var(--pl-text-3, #8a7b6c);
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+.cb h2,
+.cb p {
+  margin: 0;
+}
+.cb-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.cb-top h2 {
+  font-size: 20px;
+}
+.cb-step {
+  font-size: 13px;
+  color: var(--cb-text-3);
+  text-align: center;
+  min-width: 0;
+}
+.cb-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 8px;
+}
+.cb-card,
+.cb-row-btn {
+  display: grid;
+  gap: 3px;
+  text-align: left;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--cb-line);
+  background: var(--cb-bg);
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  min-width: 0;
+}
+.cb-card b,
+.cb-row-btn b {
+  font-size: 16px;
+}
+.cb-card span,
+.cb-row-btn span {
+  font-size: 14px;
+  color: var(--cb-text-2);
+}
+.cb-card small,
+.cb-row-btn small {
+  font-size: 12px;
+  color: var(--cb-text-3);
+}
+.cb-card.on,
+.cb-row.on > .cb-row-btn,
+.cb-row-btn.on {
+  border-color: var(--cb-gold);
+  background: var(--cb-gold-soft);
+}
+.cb-list {
+  display: grid;
+  gap: 8px;
+}
+.cb-row {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+.cb-row > .cb-row-btn {
+  width: 100%;
+}
+.cb-more {
+  display: grid;
+  gap: 8px;
+  padding: 0 4px 4px;
+}
+.cb-rules {
+  list-style: none;
+  margin: 0;
+  padding: 0 4px;
+  display: grid;
+  gap: 4px;
+  font-size: 14px;
+}
+.cb-rule summary {
+  cursor: pointer;
+  color: var(--cb-text-2);
+}
+.cb-rule[open] summary {
+  color: inherit;
+  margin-bottom: 4px;
+}
+.cb-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+.cb-pick {
+  min-height: 34px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid var(--cb-line);
+  background: var(--cb-bg);
+  color: var(--cb-text-2);
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+}
+.cb-pick.on {
+  border-color: var(--cb-gold);
+  background: var(--cb-gold-soft);
+  color: inherit;
+}
+.cb-pick:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.cb-block {
+  display: grid;
+  gap: 8px;
+}
+.cb-scores {
+  display: grid;
+  gap: 6px;
+}
+.cb-score {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) 54px 64px;
+  align-items: center;
+  gap: 8px;
+}
+.cb-scores-sum {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.cb-scores-sum .cb-score {
+  grid-template-columns: auto 1fr;
+  padding: 6px 10px;
+  border: 1px solid var(--cb-line);
+  border-radius: 10px;
+}
+.cb-ab {
+  font-weight: 600;
+  font-size: 13px;
+  letter-spacing: 0.04em;
+  color: var(--cb-text-3);
+}
+.cb-plus {
+  font-size: 13px;
+  color: var(--cb-gold);
+}
+.cb-total {
+  font-weight: 600;
+  text-align: right;
+}
+.cb-total small {
+  font-weight: 400;
+  color: var(--cb-text-3);
+}
+.cb-total.bad {
+  color: var(--pl-danger, #e2735f);
+}
+.cb-step-n {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.cb-step-n b {
+  min-width: 1.6em;
+  text-align: center;
+}
+.cb-spells {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 2px;
+}
+.cb-spells li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 4px 8px;
+  padding: 6px 4px;
+  border-bottom: 1px solid var(--cb-line);
+}
+.cb-spells li > .cs-prose {
+  grid-column: 1 / -1;
+}
+.cb-spells small {
+  color: var(--cb-text-3);
+}
+.cb-more-btn {
+  border: 0;
+  background: none;
+  color: var(--cb-text-3);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  text-decoration: underline;
+}
+.cb-nums {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 6px;
+}
+.cb-nums div {
+  display: grid;
+  justify-items: center;
+  padding: 8px 4px;
+  border: 1px solid var(--cb-line);
+  border-radius: 10px;
+}
+.cb-nums b {
+  font-size: 20px;
+}
+.cb-nums span {
+  font-size: 12px;
+  color: var(--cb-text-3);
+}
+.cb-sum {
+  margin: 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 4px;
+  font-size: 14px;
+}
+.cb-foot {
+  display: grid;
+  gap: 6px;
+}
+.cb-level {
+  border-color: var(--cb-gold);
+}
+.cb h3.cs-h {
+  margin: 4px 0 0;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--cb-text-3);
+}
+.cb h2 {
+  font-size: 20px;
+}

@@ -6,6 +6,7 @@ import type { SheetRoll } from "@/shared/sheet";
 import type { PlayerView } from "@/shared/projection";
 import { STARTERS } from "@/shared/starters";
 import { CharacterSheetView } from "../ui/CharacterSheet";
+import { LevelUpCard, SheetBuilder } from "../ui/SheetBuilder";
 import { MyHp } from "./FightCard";
 
 /**
@@ -26,6 +27,7 @@ export function CharacterTab({
   const [adv, setAdv] = useState<"" | "adv" | "dis">("");
   const [tv, setTv] = useState(true);
   const [rollErr, setRollErr] = useState<string | null>(null);
+  const [building, setBuilding] = useState(false);
   const roll = async (r: SheetRoll) => {
     const err = await send({
       type: "me.sheetRoll",
@@ -37,10 +39,12 @@ export function CharacterTab({
     // Advantage is for one roll: back to normal after it.
     if (!err) setAdv("");
   };
+  if (building) return <SheetBuilder level={me.level} starter={me.starter} replacing={!!me.sheet} send={send} onClose={() => setBuilding(false)} />;
   return (
     <>
       {me.sheet ? (
         <section className="pl-sheet" aria-label="Character sheet">
+          <LevelUpCard sheet={me.sheet} level={me.level} send={send} />
           <CharacterSheetView
             sheet={me.sheet}
             level={me.level}
@@ -87,9 +91,14 @@ export function CharacterTab({
               Open D&amp;D Beyond too
             </a>
           ) : null}
+          {!me.sheet.locked ? (
+            <button type="button" className="btn" onClick={() => setBuilding(true)}>
+              Start again with the character builder
+            </button>
+          ) : null}
         </section>
       ) : (
-        <StartSheet view={view} send={send} onLink={onLink} />
+        <StartSheet view={view} send={send} onLink={onLink} onBuild={() => setBuilding(true)} />
       )}
     </>
   );
@@ -119,20 +128,19 @@ function LastRoll({ view }: { view: PlayerView }) {
   );
 }
 
-function StartSheet({ view, send, onLink }: { view: PlayerView; send: (c: object) => Promise<string | null>; onLink: () => void }) {
+function StartSheet({ view, send, onLink, onBuild }: { view: PlayerView; send: (c: object) => Promise<string | null>; onLink: () => void; onBuild: () => void }) {
   const me = view.me;
   const starter = STARTERS.find((s) => s.id === me.starter);
   return (
     <section className="box cs-start">
       <h2>Your character sheet</h2>
       <p>Keep your character right here: scores, skills, AC and HP, with the math done for you. Your DM sees it too, so nobody has to ask your AC mid-fight.</p>
-      {starter ? (
-        <button type="button" className="btn primary big" onClick={() => void send({ type: "me.sheet", patch: {}, starter: true })}>
-          Start from {starter.title} ({starter.dnd.species} {starter.dnd.cls})
-        </button>
-      ) : null}
-      <button type="button" className={`btn big${starter ? "" : " primary"}`} onClick={() => void send({ type: "me.sheet", patch: {} })}>
-        Start a blank sheet
+      <button type="button" className="btn primary big" onClick={onBuild}>
+        {starter ? `Make my character (${starter.title} or your own)` : "Make my character"}
+      </button>
+      <p className="note">A ready-made hero in one tap, or step by step: class, species, background, scores, skills, kit and spells.</p>
+      <button type="button" className="btn big" onClick={() => void send({ type: "me.sheet", patch: {} })}>
+        I&rsquo;ll fill in a blank sheet myself
       </button>
       {me.dndbUrl ? (
         <>
