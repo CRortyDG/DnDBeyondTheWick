@@ -2,7 +2,7 @@
 
 import type { ReactNode } from "react";
 
-export type Screen = "fight" | "map" | "chronicle" | "discovery" | "purse" | "jobs";
+export type Screen = "fight" | "map" | "chronicle" | "discovery" | "sheet" | "purse" | "jobs";
 
 type Tab = { id: Screen; label: string; icon: ReactNode; count?: number; alert?: boolean; alertText?: string };
 
@@ -86,7 +86,7 @@ export function PlayerNav({
   /** A vote on the leads is open and this player hasn't voted: the Discover tab lights up. */
   voteOpen?: boolean;
   vertical?: boolean;
-  /** No character sheet for this player: the tab stays Gold. */
+  /** No character sheet for this player: no Character tab. */
   sheetOff?: boolean;
   /** Feature switches: a tab whose feature is off (for the table, for me, or hidden by me) isn't there. */
   has?: (id: "chronicle" | "discover" | "maps" | "gold" | "jobs") => boolean;
@@ -96,7 +96,8 @@ export function PlayerNav({
     ...(has("chronicle") ? [{ id: "chronicle" as const, label: "Story", icon: NAV_ICONS.story }] : []),
     ...(has("discover") ? [{ id: "discovery" as const, label: "Discover", icon: NAV_ICONS.discover, count: discoverCount, alert: !!voteOpen, alertText: "a vote is open" }] : []),
     ...(hasMaps && has("maps") ? [{ id: "map" as const, label: "Map", icon: NAV_ICONS.map }] : []),
-    ...(!sheetOff ? [{ id: "purse" as const, label: "Character", icon: NAV_ICONS.character }] : has("gold") ? [{ id: "purse" as const, label: "Gold", icon: NAV_ICONS.gold }] : []),
+    ...(!sheetOff ? [{ id: "sheet" as const, label: "Character", icon: NAV_ICONS.character }] : []),
+    ...(has("gold") ? [{ id: "purse" as const, label: "Gold", icon: NAV_ICONS.gold }] : []),
     ...(has("jobs") ? [{ id: "jobs" as const, label: "Jobs", icon: NAV_ICONS.jobs, count: jobsCount }] : []),
   ];
   if (!tabs.length) return null;
