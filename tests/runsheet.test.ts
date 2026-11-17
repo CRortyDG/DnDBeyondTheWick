@@ -123,6 +123,15 @@ describe("running an episode", () => {
     expect(runOf(g)).toMatchObject({ episodeId: "ep1", stage: "start", beat: 0 });
   });
 
+  it("leaves the TV alone when Start episode starts the session", () => {
+    let g = run(game(), { type: "scene.show", sceneId: "s-mags" });
+    g = run(g, { type: "run.start", episodeId: "ep1" });
+    expect(runOf(g).stage).toBe("start");
+    expect(g.live.sceneId).toBe("s-mags"); // not the notice board
+    g = run(g, { type: "run.next" });
+    expect(g.live.sceneId).toBe("s-map"); // beat 1 decides
+  });
+
   it("fires actions on Next", () => {
     let g = start();
     g = run(g, { type: "scene.show", sceneId: "s-mags" });
