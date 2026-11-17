@@ -69,6 +69,12 @@ export const RESOURCES = {
   sorcery: { name: "Sorcery Points", cls: "Sorcerer", from: 2 },
   cunning: { name: "Magical Cunning", cls: "Warlock", from: 2 },
   arcane: { name: "Arcane Recovery", cls: "Wizard", from: 1 },
+  // Species traits with uses (cls "": they come from the species instead).
+  breath: { name: "Breath Weapon", cls: "", species: "Dragonborn", from: 1 },
+  adrenaline: { name: "Adrenaline Rush", cls: "", species: "Orc", from: 1 },
+  relentless: { name: "Relentless Endurance", cls: "", species: "Orc", from: 1 },
+  giant: { name: "Giant Ancestry", cls: "", species: "Goliath", from: 1 },
+  largeform: { name: "Large Form", cls: "", species: "Goliath", from: 5 },
 } as const;
 export type ResourceKey = keyof typeof RESOURCES;
 export const RESOURCE_KEYS = Object.keys(RESOURCES) as [ResourceKey, ...ResourceKey[]];
@@ -210,7 +216,13 @@ function resourceMax(sheet: CharacterSheet, key: ResourceKey, level: number | un
     case "metabolism":
     case "cunning":
     case "arcane":
+    case "relentless":
+    case "largeform":
       return l >= RESOURCES[key].from ? 1 : 0;
+    case "breath":
+    case "adrenaline":
+    case "giant":
+      return profOf(level);
     case "layonhands":
       return 5 * l;
     case "favored":
@@ -234,6 +246,7 @@ function resourceReset(key: ResourceKey, level: number | undefined): Reset {
       return lvl(level) >= 5 ? "short" : "long";
     case "actionsurge":
     case "focus":
+    case "adrenaline":
       return "short";
     default:
       return "long";
@@ -247,12 +260,18 @@ export function featureNow(sheet: CharacterSheet, f: SheetFeature, level: number
   return { max, reset, left: Math.max(0, max - f.used) };
 }
 
-/** The class resources this sheet could add, for its class and level, that it doesn't have yet. */
+const speciesOf = (r: (typeof RESOURCES)[ResourceKey]) => ("species" in r ? r.species : undefined);
+
+/** The class and species resources this sheet could add, for its class, species and level, that it doesn't have yet. */
 export function suggestedFeatures(sheet: CharacterSheet, level: number | undefined): ResourceKey[] {
   const c = className(sheet);
-  if (!c) return [];
+  const sp = sheet.species?.trim().toLowerCase();
   const have = new Set((sheet.features ?? []).map((f) => f.auto).filter(Boolean));
-  return RESOURCE_KEYS.filter((k) => RESOURCES[k].cls === c && lvl(level) >= RESOURCES[k].from && !have.has(k));
+  return RESOURCE_KEYS.filter((k) => {
+    const r = RESOURCES[k];
+    const mine = r.cls ? r.cls === c : !!sp && speciesOf(r)?.toLowerCase() === sp;
+    return mine && lvl(level) >= r.from && !have.has(k);
+  });
 }
 
 export function featureFrom(key: ResourceKey, id: string): SheetFeature {

@@ -46,8 +46,9 @@ import { monstersOf, reslotCombatant } from "./combat";
 import { noticesOf } from "./board";
 import { fillRanges, TABLES_MAX, tablesOf } from "./tables";
 import type { MadeBy, RandomTable } from "./types";
-import { addBought } from "./sheetGear";
-import { applySheet, hitDieSpec, isSheetCommand, mod, restSheet, rollSpec, shortRestSheet, syncConcFromFight, syncInitiative } from "./sheet";
+import { addBought, ITEMS_MAX } from "./sheetGear";
+import { applySheet, armorClass, type HitDie, hitDieSpec, isSheetCommand, mod, restSheet, rollSpec, shortRestSheet, syncConcFromFight, syncInitiative } from "./sheet";
+import { buildSheet, levelUpSheet, maxHpFor } from "./sheetBuild";
 import { FADE_DEFAULT, isLayerId, isSfxId, mixLayers } from "./sound";
 
 export class CommandError extends Error {
@@ -4293,6 +4294,53 @@ function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
       const tag = forInit ? { for: "initiative" as const } : {};
       if (cmd.tv) showOnTv(s, { n, at: ctx.now, ...r, name: penName(p), ...tag });
       logRoll({ ...r, n, at: ctx.now, by: p.id, name: p.name, to, ...tag });
+      break;
+    }
+    case "me.build": {
+      const p = me();
+      if (p.sheetOff) fail("Character sheets are turned off for you. Ask the DM if you'd like one.");
+      if (p.sheet?.locked) fail("The DM has locked your sheet. Ask them to unlock it to start again.");
+      const made = buildSheet(cmd.choices, p.level, { now: ctx.now, newId: () => nextId("it"), fail });
+      const old = p.sheet;
+      if (old) {
+        // Starting again keeps what they bought and their notes.
+        const bought = (old.items ?? []).filter((x) => x.from);
+        if (bought.length) made.sheet.items = [...(made.sheet.items ?? []), ...bought].slice(0, ITEMS_MAX);
+        if (old.notes) made.sheet.notes = old.notes;
+      }
+      const gold = `Starting gold from the builder: ${made.gp} GP. The DM adds it to your purse.`;
+      made.sheet.notes = made.sheet.notes ? `${made.sheet.notes}\n${gold}` : gold;
+      p.sheet = made.sheet;
+      const tv = p.hp?.tv;
+      p.hp = { cur: made.maxHp, max: made.maxHp, temp: 0, ...(tv !== undefined ? { tv } : {}) };
+      syncInitiative(s, p);
+      out.info = `${p.character?.trim() || "Your character"} is ready: ${made.maxHp} HP, AC ${armorClass(made.sheet)}.`;
+      break;
+    }
+    case "me.levelUp": {
+      const p = me();
+      if (!p.sheet || p.sheetOff) fail("You don't have a character sheet here.");
+      const to = (p.sheet.build?.level ?? 0) + 1;
+      const roll = (sides: HitDie) => {
+        // A real roll, in the roll log (and on the TV if they asked), so the table can see it.
+        const r = rollPool([{ sides, count: 1 }], 0, rand);
+        r.label = `Level ${to} hit points`;
+        const n = ++s.seq;
+        if (cmd.tv) s.diceRoll = { n, at: ctx.now, ...r, name: penName(p) };
+        logRoll({ ...r, n, at: ctx.now, by: p.id, name: p.name, to: cmd.tv ? "tv" : "dm" });
+        return r.total;
+      };
+      const r = levelUpSheet(p.sheet, p.level, cmd, { roll, newId: () => nextId("it"), fail });
+      p.sheet.updatedAt = ctx.now;
+      if (p.hp && p.hp.max > 0) {
+        p.hp.max += r.gain;
+        p.hp.cur = Math.min(p.hp.max, p.hp.cur + r.gain);
+      } else {
+        const max = maxHpFor(p.sheet.cls!, p.sheet.build!.species, p.sheet.scores.con, r.to);
+        p.hp = { cur: max, max, temp: 0 };
+      }
+      syncInitiative(s, p);
+      out.info = `Level ${r.to}: +${r.gain} HP${r.rolled !== undefined ? ` (rolled ${r.rolled})` : ""}. You have ${p.hp.max} max HP.`;
       break;
     }
     case "me.hitDie": {

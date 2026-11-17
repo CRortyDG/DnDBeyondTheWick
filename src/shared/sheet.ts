@@ -153,6 +153,8 @@ export interface CharacterSheet extends SheetMagic {
   items?: SheetItem[];
   /** The DM locked class, scores and proficiencies (after session 0). */
   locked?: boolean;
+  /** Made with the builder (phase 5): what it chose, and the level it's taken. Level up needs it. */
+  build?: import("./sheetBuild").BuildRecord;
   updatedAt: number;
 }
 
