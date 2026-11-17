@@ -5,7 +5,7 @@
 // once; each layer has its own volume; one-shots fire straight away.
 
 import { useEffect, useRef, useState } from "react";
-import { FADE_DEFAULT, FADES, LAYER_DEFAULT, LAYERS, MIXES, SFX, SFX_GROUPS, VOLUME_DEFAULT, type LayerId, type SfxId } from "@/shared/sound";
+import { FADE_DEFAULT, FADES, LAYER_DEFAULT, LAYERS, MIX_GROUPS, MIXES, SFX, SFX_GROUPS, VOLUME_DEFAULT, type LayerId, type SfxId } from "@/shared/sound";
 import { SpeakerIcon, SpeakerOffIcon } from "../ui/icons";
 import { SoundEngine } from "../sound/engine";
 import { useDm } from "./context";
@@ -167,20 +167,27 @@ export function Soundboard() {
         </div>
 
         {tab === "mix" ? (
-          <div className="sb-grid" role="group" aria-label="Mixes">
-            {MIXES.map((m) => (
-              <button key={m.id} type="button" className={`btn sb-pad${snd?.mix === m.id ? " on" : ""}`} aria-pressed={snd?.mix === m.id} onClick={() => playMix(m.id)} title={describeMix(m.layers)}>
-                {m.label}
-              </button>
+          <div className="sb-fx" role="group" aria-label="Mixes">
+            {MIX_GROUPS.map((g) => (
+              <section key={g.id} aria-label={g.label}>
+                <h3 className="sb-h">{g.label}</h3>
+                <div className="sb-grid">
+                  {MIXES.filter((m) => m.group === g.id).map((m) => (
+                    <button key={m.id} type="button" className={`btn sb-pad${snd?.mix === m.id ? " on" : ""}`} aria-pressed={snd?.mix === m.id} onClick={() => playMix(m.id)} title={describeMix(m.layers)}>
+                      {m.label}
+                    </button>
+                  ))}
+                </div>
+              </section>
             ))}
           </div>
         ) : null}
 
         {tab === "layers" ? (
           <div className="sb-layers">
-            {(["music", "ambience"] as const).map((g) => (
-              <section key={g} aria-label={g === "music" ? "Music" : "Ambience"}>
-                <h3 className="sb-h">{g === "music" ? "Music" : "Ambience"}</h3>
+            {([["music", "Music"], ["places", "Places"], ["ambience", "Ambience"]] as const).map(([g, title]) => (
+              <section key={g} aria-label={title}>
+                <h3 className="sb-h">{title}</h3>
                 {LAYERS.filter((l) => l.group === g).map((l) => {
                   const v = layers[l.id] ?? 0;
                   return (

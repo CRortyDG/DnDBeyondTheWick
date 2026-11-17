@@ -8,7 +8,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { BeatAction } from "@/shared/types";
 import { listAssets, type Asset, type AssetGame } from "@/shared/assets";
 import { monstersOf } from "@/shared/combat";
-import { MIXES, SFX, SFX_GROUPS } from "@/shared/sound";
+import { MIX_GROUPS, MIXES, SFX, SFX_GROUPS } from "@/shared/sound";
 import type { GameState } from "@/shared/types";
 import "./actionAdder.css";
 
@@ -63,7 +63,7 @@ export function ActionAdder({ g, onAdd, disabled }: { g: GameState; onAdd: (a: B
   const all = useMemo<Option[]>(() => {
     if (!open) return [];
     const out: Option[] = assets.map((a) => showOption(a));
-    for (const m of MIXES) out.push({ key: `sound:${m.id}`, label: m.label, sub: "Music & ambience", kind: "Sound", action: { type: "sound", mix: m.id } });
+    for (const m of MIXES) out.push({ key: `sound:${m.id}`, label: m.label, sub: MIX_GROUPS.find((x) => x.id === m.group)?.label ?? "Music & ambience", kind: "Sound", action: { type: "sound", mix: m.id } });
     out.push({ key: "sound:off", label: "Fade to silence", kind: "Sound", action: { type: "sound", mix: "off" } });
     for (const x of SFX) out.push({ key: `sfx:${x.id}`, label: x.label, sub: "Sound effect", kind: "Effect", action: { type: "sfx", id: x.id, ...(tap ? { tap: true } : {}) } });
     for (const m of monstersOf(g)) out.push({ key: `fight:${m.id}`, label: `Fight: ${m.name}`, sub: "Roll initiative on the TV", kind: "Fight", action: { type: "fight", monsters: [{ name: m.name, count: 1 }] } });
