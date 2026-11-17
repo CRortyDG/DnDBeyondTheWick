@@ -4,6 +4,7 @@
 import { decodeBits, fogged, publicFog, type PublicFog } from "./fog";
 import { publicGrid, publicTokens, type PublicGrid, type PublicToken } from "./tokens";
 import { leadsView, type LeadsView } from "./leads";
+import type { CharacterSheet } from "./sheet";
 import { areaCounts, type AreaCount } from "./discovery";
 import { townOf } from "./presets";
 import { creditLines, discountPct, firstChargeCp, priceOf, raisedCp, stakeTotals } from "./progress";
@@ -363,6 +364,10 @@ export interface PlayerView extends Common {
     hp: { cur: number; max: number; temp: number; tv: boolean };
     /** My character's level, once the DM has set it. */
     level?: number;
+    /** My character sheet, if I keep one here. */
+    sheet?: CharacterSheet;
+    /** Which starting point I picked on the Arrival seat page (a sheet can start from it). */
+    starter?: string;
   };
   /** I just levelled up: the phone says so when n changes. */
   levelUp?: { n: number; level: number };
@@ -694,6 +699,8 @@ export function projectPlayer(table: GameState, version: number, playerId: strin
       heldCp: heldCp(game, p.id),
       hp: { cur: p.hp?.cur ?? 0, max: p.hp?.max ?? 0, temp: p.hp?.temp ?? 0, tv: p.hp?.tv !== false },
       ...(p.level ? { level: p.level } : {}),
+      ...(p.sheet ? { sheet: structuredClone(p.sheet) } : {}),
+      ...(p.arrival?.pick ? { starter: p.arrival.pick } : {}),
     },
     ...(() => {
       const mine = game.levelMoment?.levels.find((l) => l.playerId === p.id);

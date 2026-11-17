@@ -111,7 +111,7 @@ export function FightCard({ view, send }: { view: PlayerView; send: Send }) {
         </>
       )}
       {compTurn ? <CompanionPanel c={compTurn} go={go} active /> : null}
-      {mine && f.status !== "over" && !compTurn ? down && mine.deathSaves ? <DeathSaves saves={mine.deathSaves} go={go} /> : <MyHp hp={hp} go={go} /> : null}
+      {mine && f.status !== "over" && !compTurn ? down && mine.deathSaves ? <DeathSaves saves={mine.deathSaves} go={go} /> : <MyHp hp={hp} go={go} hasSheet={!!view.me.sheet} /> : null}
       {running ? (
         <div className="pl-fight-order">
           <h3>Turn order</h3>
@@ -281,7 +281,7 @@ function InitiativePad({
   );
 }
 
-function MyHp({ hp, go }: { hp: PlayerView["me"]["hp"]; go: (c: object) => Promise<boolean> }) {
+export function MyHp({ hp, go, hasSheet }: { hp: PlayerView["me"]["hp"]; go: (c: object) => Promise<boolean>; hasSheet?: boolean }) {
   const [amt, setAmt] = useState("");
   const [setting, setSetting] = useState(hp.max <= 0);
   const [cur, setCur] = useState(String(hp.cur || ""));
@@ -321,7 +321,7 @@ function MyHp({ hp, go }: { hp: PlayerView["me"]["hp"]; go: (c: object) => Promi
             Cancel
           </button>
         ) : null}
-        <p className="note">Optional. D&amp;D Beyond stays your real sheet.</p>
+        {hasSheet ? null : <p className="note">Optional. D&amp;D Beyond stays your real sheet.</p>}
       </div>
     );
   }

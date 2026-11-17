@@ -44,6 +44,7 @@ import { monstersOf, reslotCombatant } from "./combat";
 import { noticesOf } from "./board";
 import { fillRanges, TABLES_MAX, tablesOf } from "./tables";
 import type { MadeBy, RandomTable } from "./types";
+import { applySheet, isSheetCommand, mod, restSheet, syncInitiative } from "./sheet";
 
 export class CommandError extends Error {
   /** "recheck": a phone request no longer works at approval time; the DM may override or decline. */
@@ -1693,6 +1694,11 @@ function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
     return out;
   }
 
+  if (isSheetCommand(cmd)) {
+    applySheet(s, cmd, { actor: ctx.actor as { role: string; playerId?: string }, now: ctx.now, fail });
+    return out;
+  }
+
   if (isPracticeCommand(cmd)) {
     applyPractice(s, cmd, { now: ctx.now, rand, nextId, fail });
     return out;
@@ -2531,6 +2537,7 @@ function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
       if (s.fight && s.fight.status !== "over") fail("A fight is still open. End it first.");
       const who = cmd.playerIds ? cmd.playerIds.map(player) : s.players.filter((p) => !p.archived);
       for (const p of who) {
+        restSheet(p);
         // Nobody has set HP yet: nothing to fill.
         if (!p.hp || p.hp.max <= 0) continue;
         p.hp.cur = p.hp.max;
@@ -4144,7 +4151,16 @@ function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
         }
       }
       if (cmd.patch.dndbUrl !== undefined) p.dndbUrl = checkUrl(cmd.patch.dndbUrl);
-      if (cmd.patch.initBonus !== undefined) {
+      if (cmd.patch.initBonus !== undefined && p.sheet) {
+        // With a sheet, initiative is Dexterity plus an extra: the typed number sets the extra.
+        const extra = cmd.patch.initBonus - mod(p.sheet.scores.dex);
+        const e = { ...(p.sheet.extra ?? {}) };
+        if (extra) e.init = extra;
+        else delete e.init;
+        if (Object.keys(e).length) p.sheet.extra = e;
+        else delete p.sheet.extra;
+        syncInitiative(s, p);
+      } else if (cmd.patch.initBonus !== undefined) {
         if (cmd.patch.initBonus) p.initBonus = cmd.patch.initBonus;
         else delete p.initBonus;
         const c = s.fight?.order.find((x) => x.kind === "player" && x.playerId === p.id);

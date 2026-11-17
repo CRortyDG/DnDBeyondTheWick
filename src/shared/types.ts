@@ -190,6 +190,8 @@ export interface Player {
   renownPoints?: number;
   /** Their character's level, 1-20. Missing: not set yet. */
   level?: number;
+  /** The app's own character sheet (see sheet.ts). Missing: none yet (they may use D&D Beyond). Only this player and the DM see it. */
+  sheet?: import("./sheet").CharacterSheet;
   /** DM-ONLY, practice copies only: a stand-in for rehearsing (see practice.ts). Never in a live game. */
   standIn?: StandIn;
 }

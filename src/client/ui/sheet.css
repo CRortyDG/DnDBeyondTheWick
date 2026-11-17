@@ -1,0 +1,381 @@
+/* The character sheet: on the player's phone and in the DM's drawer. */
+.cs {
+  --cs-bg: var(--pl-bg-2, var(--dm-bg-2, #211a15));
+  --cs-bg-2: var(--pl-bg-1, var(--dm-bg-1, #18130f));
+  --cs-line: var(--pl-border, var(--dm-border, #33281f));
+  --cs-text: var(--pl-text, var(--dm-text, #ede4d3));
+  --cs-text-2: var(--pl-text-2, var(--dm-text-2, #b5a794));
+  --cs-text-3: var(--pl-text-3, var(--dm-text-3, #8a7b6c));
+  --cs-gold: var(--pl-gold, var(--dm-gold, #e3b65c));
+  --cs-gold-soft: var(--pl-gold-soft, var(--dm-gold-soft, rgba(227, 182, 92, 0.14)));
+  --cs-danger: var(--pl-danger, var(--dm-danger, #e2735f));
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+  font-family: var(--pl-font-ui, var(--dm-font-ui, system-ui, sans-serif));
+  color: var(--cs-text);
+}
+.cs-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.cs-head-line {
+  font-size: 14px;
+  color: var(--cs-text-2);
+  min-width: 0;
+}
+.cs-head-acts {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.cs-err {
+  margin: 0;
+  color: var(--cs-danger);
+  font-size: 14px;
+}
+.cs-lock-note {
+  margin: 0;
+}
+.cs-ident {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 10px;
+}
+.cs-span {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+.cs-field {
+  display: grid;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--cs-text-3);
+  min-width: 0;
+}
+.cs-field .fld {
+  width: 100%;
+  min-width: 0;
+}
+.cs-hint {
+  font-size: 11px;
+  color: var(--cs-text-3);
+}
+.cs-inline {
+  grid-auto-flow: column;
+  align-items: center;
+  justify-content: start;
+  gap: 8px;
+}
+.cs-inline .fld {
+  width: auto;
+}
+
+.cs-stats {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 6px;
+}
+.cs-stat {
+  background: var(--cs-bg);
+  border: 1px solid var(--cs-line);
+  border-radius: 10px;
+  padding: 8px 4px;
+  text-align: center;
+  min-width: 0;
+}
+.cs-stat-v {
+  font-size: 20px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.cs-stat-k {
+  font-size: 10.5px;
+  color: var(--cs-text-3);
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+.cs-stat-sub {
+  font-size: 10px;
+  color: var(--cs-text-3);
+  font-style: italic;
+}
+@media (max-width: 360px) {
+  .cs-stats {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.cs-row2 {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: start;
+}
+.cs-hd {
+  display: grid;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+}
+.cs-hd-k {
+  font-size: 13px;
+  color: var(--cs-text-2);
+}
+.cs-hd-left {
+  color: var(--cs-text-3);
+  margin-left: 4px;
+}
+.cs-hd-pips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.cs-pip {
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  border: 1.5px solid var(--cs-gold);
+  background: var(--cs-gold-soft);
+  cursor: pointer;
+  padding: 0;
+}
+.cs-pip.used {
+  background: none;
+  border-color: var(--cs-line);
+}
+.cs-insp {
+  font-size: 12px;
+  color: var(--cs-gold);
+  border: 1px solid var(--cs-gold);
+  border-radius: 999px;
+  padding: 3px 10px;
+}
+
+.cs-conds-row,
+.cs-conds-pick {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.cs-conds-pick {
+  margin-top: 8px;
+  padding: 10px;
+  border-radius: 10px;
+  background: var(--cs-bg-2);
+  border: 1px solid var(--cs-line);
+}
+.cs-chip {
+  min-height: 30px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid var(--cs-line);
+  background: var(--cs-bg);
+  color: var(--cs-text-2);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.cs-chip.on {
+  border-color: var(--cs-danger);
+  color: var(--cs-text);
+  background: rgba(226, 115, 95, 0.12);
+}
+.cs-chip.add {
+  border-style: dashed;
+}
+.cs-ex {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  margin-top: 4px;
+  font-size: 13px;
+  color: var(--cs-text-2);
+}
+.cs-ex b {
+  min-width: 1.5em;
+  text-align: center;
+}
+
+.cs-h {
+  margin: 6px 0 0;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--cs-text-3);
+  font-family: inherit;
+}
+.cs-abilities {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+.cs-ab {
+  background: var(--cs-bg);
+  border: 1px solid var(--cs-line);
+  border-radius: 10px;
+  padding: 8px;
+  text-align: center;
+  display: grid;
+  gap: 2px;
+  justify-items: center;
+  min-width: 0;
+}
+.cs-ab-k {
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  color: var(--cs-text-3);
+}
+.cs-ab-mod {
+  font-size: 24px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.cs-ab-score {
+  font-size: 13px;
+  color: var(--cs-text-2);
+  border: 1px solid var(--cs-line);
+  border-radius: 999px;
+  padding: 0 10px;
+}
+.cs-ab .cs-field .fld {
+  width: 64px;
+  text-align: center;
+}
+
+.cs-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--cs-line);
+  border-radius: 10px;
+  background: var(--cs-bg);
+  overflow: hidden;
+}
+.cs-list li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 40px;
+  padding: 4px 12px;
+  border-top: 1px solid var(--cs-line);
+}
+.cs-list li:first-child {
+  border-top: 0;
+}
+.cs-name {
+  flex: 1;
+  min-width: 0;
+  font-size: 15px;
+}
+.cs-ab-tag {
+  font-size: 11px;
+  color: var(--cs-text-3);
+  margin-left: 2px;
+}
+.cs-bonus {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  min-width: 2.5em;
+  text-align: right;
+}
+.cs-dot {
+  flex-shrink: 0;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 1.5px solid var(--cs-text-3);
+  background: none;
+  padding: 0;
+}
+button.cs-dot {
+  width: 22px;
+  height: 22px;
+  cursor: pointer;
+}
+.cs-dot.on {
+  border-color: var(--cs-gold);
+  background: var(--cs-gold);
+}
+.cs-dot.ex {
+  box-shadow: 0 0 0 3px var(--cs-bg), 0 0 0 4.5px var(--cs-gold);
+}
+.cs-extra {
+  width: 56px;
+}
+.cs-extra .fld {
+  text-align: center;
+  min-height: 32px;
+  padding: 0 4px;
+}
+@media (min-width: 720px) {
+  .cs-skills {
+    columns: 2;
+    column-gap: 0;
+  }
+  .cs-skills li {
+    break-inside: avoid;
+  }
+}
+
+.cs-block {
+  display: grid;
+  gap: 6px;
+}
+.cs-prose {
+  white-space: pre-wrap;
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--cs-text);
+  background: var(--cs-bg);
+  border: 1px solid var(--cs-line);
+  border-radius: 10px;
+  padding: 10px 12px;
+  overflow-wrap: anywhere;
+}
+.cs-text {
+  width: 100%;
+  min-height: 96px;
+  resize: vertical;
+}
+.cs-credit {
+  font-size: 11px;
+  margin: 4px 0 0;
+}
+
+/* Starting a sheet. */
+.cs-start {
+  display: grid;
+  gap: 10px;
+}
+.cs-start h2 {
+  margin: 0;
+}
+.cs-start p {
+  margin: 0;
+}
+
+/* On the phone's Character tab. */
+.pl-sheet {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+/* In the DM's drawer. */
+.dm-sheet {
+  display: grid;
+  gap: 10px;
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid var(--dm-border, #30271f);
+}
+.dm-sheet > h3 {
+  margin: 0;
+}

@@ -15,6 +15,8 @@ import { LevelUpButton } from "./LevelUp";
 import { Drawer } from "./Drawer";
 import { MenuItem, RowMenu } from "./RowMenu";
 import { PlusIcon } from "./navIcons";
+import { CharacterSheetView } from "../ui/CharacterSheet";
+import { sheetNumbers } from "@/shared/sheet";
 
 function seenText(t?: number | null) {
   if (!t) return "never seen";
@@ -36,6 +38,9 @@ export function PlayersPanel() {
   const away = s.players.filter((p) => !p.archived && p.away).length;
   const editingPlayer = s.players.find((p) => p.id === editing) as DmPlayer | undefined;
   const [resting, setResting] = useState(false);
+  const withSheets = s.players.filter((p) => !p.archived && p.sheet);
+  const sheetCount = withSheets.length;
+  const allLocked = sheetCount > 0 && withSheets.every((p) => p.sheet!.locked);
   const hurt = s.players.filter((p) => !p.archived && p.hp && p.hp.max > 0 && (p.hp.cur < p.hp.max || p.hp.temp > 0));
   const fightOpen = !!s.fight && s.fight.status !== "over";
   const longRest = async () => {
@@ -143,6 +148,16 @@ export function PlayersPanel() {
             ))}
           </select>
         </label>
+        {sheetCount ? (
+          <button
+            className="btn small"
+            type="button"
+            title="Locks class, scores and proficiencies on every sheet there is now. HP, conditions and notes stay open."
+            onClick={() => run({ type: "sheet.lock", on: !allLocked }, allLocked ? "Sheets unlocked." : "Sheets locked: class, scores and proficiencies.")}
+          >
+            {allLocked ? "Unlock sheets" : "Lock sheets"}
+          </button>
+        ) : null}
         <span className="grow" />
         {archivedCount ? (
           <label className="check">
@@ -172,7 +187,8 @@ function PlayerRow({ p, onEdit, selected }: { p: DmPlayer; onEdit: () => void; s
       () => toast(link),
     );
   const hp = p.hp && p.hp.max > 0 ? `HP ${p.hp.cur}/${p.hp.max}${p.hp.temp ? ` +${p.hp.temp}` : ""}` : "";
-  const sub = [p.character, p.level ? `Level ${p.level}` : "", hp, `?player=${p.handle}`, seenText(p.lastSeenAt)].filter(Boolean).join(" · ");
+  const nums = p.sheet ? sheetNumbers(p.sheet, p.level) : null;
+  const sub = [p.character, p.level ? `Level ${p.level}` : "", p.sheet?.cls ?? "", hp, nums ? `AC ${nums.ac} · PP ${nums.passive}` : "", `?player=${p.handle}`, seenText(p.lastSeenAt)].filter(Boolean).join(" · ");
   return (
     <li className={`scene-item list-row player-row${p.archived ? " archived" : ""}${p.away ? " away" : ""}${selected ? " selected" : ""}`}>
       <div className="scene-row">
@@ -214,9 +230,10 @@ function PlayerRow({ p, onEdit, selected }: { p: DmPlayer; onEdit: () => void; s
 function PlayerDrawer({ p, onClose }: { p: DmPlayer; onClose: () => void }) {
   const { view, run, toast } = useDm();
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [confirmSheet, setConfirmSheet] = useState(false);
   const link = absoluteHref(view.state.id, p.handle);
   return (
-    <Drawer title={p.name} subtitle={`${formatCp(p.balanceCp)} · ${seenText(p.lastSeenAt)}`} onClose={onClose}>
+    <Drawer wide={!!p.sheet} title={p.name} subtitle={`${formatCp(p.balanceCp)} · ${seenText(p.lastSeenAt)}`} onClose={onClose}>
       <div className="form">
         <Field label="Name" value={p.name} onCommit={(v) => run({ type: "player.update", playerId: p.id, patch: { name: v } })} />
         <Field label="Character name" value={p.character ?? ""} placeholder="Signs their Chronicle notes" onCommit={(v) => run({ type: "player.update", playerId: p.id, patch: { character: v } })} />
@@ -258,6 +275,31 @@ function PlayerDrawer({ p, onClose }: { p: DmPlayer; onClose: () => void }) {
           <InspireToggle playerId={p.id} name={p.name} on={!!p.inspired} />
         </div>
       </div>
+      <section className="dm-sheet" aria-label="Character sheet">
+        <h3>Character sheet</h3>
+        {p.sheet ? (
+          <CharacterSheetView
+            sheet={p.sheet}
+            level={p.level}
+            inspired={p.inspired}
+            lockedOut={false}
+            canLock
+            onLock={(on) => void run({ type: "sheet.lock", playerId: p.id, on }, on ? `${p.name}'s class, scores and proficiencies are locked.` : `${p.name}'s sheet is unlocked.`)}
+            onPatch={async (patch) => ((await run({ type: "sheet.update", playerId: p.id, patch })) ? null : "")}
+            hp={p.hp && p.hp.max > 0 ? <p className="note">HP {p.hp.cur} of {p.hp.max}{p.hp.temp ? `, ${p.hp.temp} temp` : ""}. They change it on their phone, or you do in a fight.</p> : <p className="note">No HP set yet.</p>}
+            editLabel="Edit"
+          />
+        ) : (
+          <>
+            <p className="note">{p.dndbUrl ? "They use D&D Beyond. " : ""}No sheet in the app yet. They can start one on their phone (Character tab), or you can start it here.</p>
+            <div className="inline">
+              <button className="btn small" type="button" onClick={() => run({ type: "sheet.update", playerId: p.id, patch: {} }, `Started a sheet for ${p.name}.`)}>
+                Start a sheet
+              </button>
+            </div>
+          </>
+        )}
+      </section>
       <section className="box danger-zone">
         <h3>{p.name}</h3>
         <div className="inline">
@@ -269,6 +311,22 @@ function PlayerDrawer({ p, onClose }: { p: DmPlayer; onClose: () => void }) {
           <button className="btn small" type="button" onClick={() => run({ type: "player.archive", playerId: p.id, archived: !p.archived })}>
             {p.archived ? "Bring back" : "Left the table"}
           </button>
+          {p.sheet ? (
+            confirmSheet ? (
+              <>
+                <button className="btn small" type="button" onClick={() => setConfirmSheet(false)}>
+                  Keep the sheet
+                </button>
+                <button className="btn small danger" type="button" onClick={async () => (await run({ type: "sheet.remove", playerId: p.id }, `Removed ${p.name}'s sheet.`)) && setConfirmSheet(false)}>
+                  Remove the sheet for good
+                </button>
+              </>
+            ) : (
+              <button className="btn small" type="button" onClick={() => setConfirmSheet(true)}>
+                Remove sheet
+              </button>
+            )
+          ) : null}
           {confirmDelete ? (
             <>
               <button className="btn small" type="button" onClick={() => setConfirmDelete(false)}>
