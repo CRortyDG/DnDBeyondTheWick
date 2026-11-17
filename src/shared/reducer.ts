@@ -1,6 +1,7 @@
 // Pure game rules. Every write goes: validate actor -> apply() -> atomic save.
 // apply() never mutates its input and never does I/O, so it's easy to test.
 
+import { HERE_ASK_COOLDOWN_MS } from "./attendance";
 import type { Command } from "./commands";
 import { displayNameFrom, isReservedHandle, normaliseHandle } from "./handles";
 import { canAfford, formatCp } from "./money";
@@ -942,6 +943,14 @@ function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
     const p = player(playerId);
     if (p.archived || !p.arrival) fail("That link doesn't work any more. Ask the DM for a new one.");
     return p;
+  };
+
+  /** "I'm here" asks belong to one session. */
+  const clearHereAsks = () => {
+    for (const p of s.players) {
+      delete p.hereAsk;
+      delete p.hereNo;
+    }
   };
 
   const markAttending = (playerId: string) => {
@@ -2549,7 +2558,10 @@ function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
       const { patch } = cmd;
       if (patch.name !== undefined) p.name = patch.name.trim() || p.name;
       if (patch.dndbUrl !== undefined) p.dndbUrl = checkUrl(patch.dndbUrl);
-      if (patch.away !== undefined) p.away = patch.away;
+      if (patch.away !== undefined) {
+        p.away = patch.away;
+        if (!p.away) delete p.hereAsk;
+      }
       if (patch.dropIn !== undefined) p.dropIn = patch.dropIn;
       if (patch.character !== undefined) {
         const c = patch.character.replace(/\s+/g, " ").trim().slice(0, CHARACTER_MAX);
@@ -2760,6 +2772,7 @@ function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
           for (const p of s.players) if (!p.archived) p.away = !ids.includes(p.id);
         }
       } else if (cmd.partyId) playParty(cmd.partyId);
+      clearHereAsks();
       const started = startSession(cmd.title ?? inv?.title);
       if (inv) {
         inv.sessionId = started.id;
@@ -2791,6 +2804,7 @@ function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
       }
       cur.endedAt = ctx.now;
       s.currentSessionId = null;
+      clearHereAsks();
       // Companions who came along for the night go home.
       endSessionCompanions(s, ctx.now);
       // Done jobs stay up (stamped DONE) for one whole session, then come down.
@@ -3728,6 +3742,29 @@ function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
       p.away = !cmd.here;
       if (cmd.here) markAttending(p.id);
       else sess.attendeeIds = sess.attendeeIds.filter((x) => x !== p.id);
+      // Whichever way, the DM has answered any "I'm here" ask.
+      delete p.hereAsk;
+      if (cmd.here) delete p.hereNo;
+      break;
+    }
+    case "run.hereDismiss": {
+      const p = player(cmd.playerId);
+      if (p.hereAsk === undefined) break;
+      delete p.hereAsk;
+      p.hereNo = ctx.now;
+      break;
+    }
+    case "me.askHere": {
+      const p = me();
+      if (cmd.cancel) {
+        delete p.hereAsk;
+        break;
+      }
+      if (!s.currentSessionId) fail("There's no session running right now.");
+      // Already here (the DM got there first): nothing to ask.
+      if (!p.away) break;
+      if (p.hereNo !== undefined && ctx.now - p.hereNo < HERE_ASK_COOLDOWN_MS) fail("The DM just said not yet. You can ask again in a minute.");
+      p.hereAsk ??= ctx.now;
       break;
     }
     case "live.recap": {
@@ -4599,7 +4636,9 @@ function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
     case "system.hello": {
       const p = player(cmd.playerId);
       p.lastSeenAt = ctx.now;
-      if (!p.archived) markAttending(p.id);
+      // Opening the app counts only for someone the DM has at the table. Someone marked away
+      // stays away until the DM marks them here (they can ask from their device).
+      if (!p.archived && !p.away) markAttending(p.id);
       break;
     }
     case "system.knock": {

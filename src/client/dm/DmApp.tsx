@@ -304,6 +304,8 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
 
   const gated = useGatedArt(ident, GATED_NAMES);
   const [drafts, recountDrafts] = usePendingDrafts(ident);
+  // Players marked away who say they're here tonight: the DM marks them here, or keeps them away, in one tap.
+  const hereAsks = s.currentSessionId ? s.players.filter((p) => p.away && !p.archived && p.hereAsk !== undefined).sort((a, b) => (a.hereAsk ?? 0) - (b.hereAsk ?? 0)) : [];
   const [editingMap, setEditingMap] = useState<string | null>(null);
   /** The finder: open (optionally to pin onto one key) or closed. */
   const [finder, setFinder] = useState<{ pinTo?: number } | null>(null);
@@ -731,6 +733,26 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
         {ending && session ? <EndSessionDialog session={session} onClose={() => setEnding(false)} /> : null}
         {ready && !session ? <ReadyDialog onClose={() => setReady(false)} onGo={(page) => setTab(page)} /> : null}
 
+        {hereAsks.length ? (
+          <div className="dm-knocks dm-here-asks" role="status">
+            {hereAsks.map((p) => (
+              <span key={p.id} className="knock here-ask">
+                <span className="knock-tag">Marked away</span>
+                <span>
+                  <b>{p.name}</b>
+                  {p.character?.trim() && p.character.trim() !== p.name ? <> ({p.character.trim()})</> : null} says they&rsquo;re here.
+                </span>
+                <span className="spacer" />
+                <button className="btn small" type="button" onClick={() => run({ type: "run.hereDismiss", playerId: p.id })}>
+                  Keep away
+                </button>
+                <button className="btn small primary" type="button" onClick={() => run({ type: "run.attend", playerId: p.id, here: true }, `${p.name} is here.`)}>
+                  Mark here
+                </button>
+              </span>
+            ))}
+          </div>
+        ) : null}
         {s.knocks.length ? (
           <div className="dm-knocks" role="status">
             {s.knocks.map((k) => (
@@ -757,7 +779,7 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
               <div key={g.group} className="dm-nav">
                 <div className="dm-nav-h">{g.group}</div>
                 {g.items.map((it) => (
-                  <NavButton key={it.id} item={it} current={tab === it.id} onPick={setTab} count={it.id === "players" ? s.knocks.length : it.id === "builder" ? drafts + reviewCount(s) : 0} />
+                  <NavButton key={it.id} item={it} current={tab === it.id} onPick={setTab} count={it.id === "players" ? s.knocks.length + hereAsks.length : it.id === "builder" ? drafts + reviewCount(s) : 0} />
                 ))}
               </div>
             ))}
@@ -891,7 +913,7 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
             tvOpen={tvOpen}
             onPages={() => (setTvOpen(false), setPagesOpen((v) => !v))}
             onTv={() => (setPagesOpen(false), setTvOpen((v) => !v))}
-            counts={{ players: s.knocks.length, builder: drafts + reviewCount(s) }}
+            counts={{ players: s.knocks.length + hereAsks.length, builder: drafts + reviewCount(s) }}
           />
         ) : null}
         {editingMap ? <MapEditor sceneId={editingMap} onClose={closeMap} /> : null}

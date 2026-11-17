@@ -556,6 +556,8 @@ export const dmCommand = z.discriminatedUnion("type", [
   z.object({ type: z.literal("run.note"), beatId: id, text: text(4000) }),
   z.object({ type: z.literal("run.recap"), sessionId: id, text: text(8000) }),
   z.object({ type: z.literal("run.attend"), playerId: id, here: z.boolean() }),
+  /** Keep a player who asked to be marked here as away for now. */
+  z.object({ type: z.literal("run.hereDismiss"), playerId: id }),
   /** noteIds: starred Chronicle notes from that session to show under the recap. */
   z.object({ type: z.literal("live.recap"), sessionId: id.nullable(), noteIds: z.array(id).max(20).optional() }),
 
@@ -659,6 +661,8 @@ export const dmCommand = z.discriminatedUnion("type", [
 export const playerCommand = z.discriminatedUnion("type", [
   z.object({ type: z.literal("me.update"), patch: z.object({ name: text(32), dndbUrl: text(300), initBonus: z.number().int().min(-10).max(20) }).partial() }),
   z.object({ type: z.literal("me.lock"), key: z.string().min(4).max(128) }),
+  /** Marked away but at the table: ask the DM to mark me here (cancel: never mind). Only the DM marks anyone present. */
+  z.object({ type: z.literal("me.askHere"), cancel: z.boolean().optional() }),
   /** expectedUnitCp: the price the phone showed; refused if it has changed since. */
   // question: the answer to the item's prompt. flyer: "Post on the notice board".
   z.object({ type: z.literal("me.requestBuy"), itemId: id, qty: z.number().int().min(1).max(99), note: text(120), expectedUnitCp: cp.optional(), question: text(300).optional(), flyer: flyerText.optional(), rewardCp: cp.max(10_000_000).optional() }),
