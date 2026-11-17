@@ -373,7 +373,8 @@ export function playerCombatant(id: string, p: Player): Combatant {
     maxHp: 0,
     tempHp: 0,
     conditions: [],
-    concentrating: false,
+    // Concentrating on a spell from the sheet when the fight starts.
+    concentrating: !!p.sheet?.conc && !p.sheetOff,
     spent: {},
     down: false,
   };

@@ -561,6 +561,8 @@ export const dmCommand = z.discriminatedUnion("type", [
 
   /** A long rest: every player (or these) back to full HP, temporary HP gone. */
   z.object({ type: z.literal("party.longRest"), playerIds: z.array(id).min(1).max(40).optional() }),
+  /** A short rest: Pact Magic slots and short-rest features back on every sheet. Players spend their own hit dice. */
+  z.object({ type: z.literal("party.shortRest"), playerIds: z.array(id).min(1).max(40).optional() }),
 
   z.object({ type: z.literal("door.set"), closed: z.boolean() }),
   z.object({ type: z.literal("table.seats"), max: z.number().int().min(1).max(12) }),
