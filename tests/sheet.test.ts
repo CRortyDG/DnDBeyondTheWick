@@ -327,3 +327,80 @@ describe("spells and features", () => {
     expect(playerCommand.safeParse({ type: "sheet.act", playerId: "p1", act: { k: "endConc" } }).success).toBe(false);
   });
 });
+
+describe("inventory", () => {
+  const chain = { id: "i1", name: "Chain Mail", qty: 1, kind: "armor" as const, armorBase: 16, armorDex: "none" as const, weight: 55 };
+  const leather = { id: "i2", name: "Leather Armor", qty: 1, kind: "armor" as const, armorBase: 11, armorDex: "full" as const };
+  const shield = { id: "i3", name: "Shield", qty: 1, kind: "shield" as const, armorBase: 2, weight: 6 };
+  const rapier = { id: "i4", name: "Rapier +1", qty: 1, kind: "weapon" as const, count: 1, sides: 8 as const, dtype: "piercing", finesse: true, bonus: 1 };
+  const ring = { id: "i5", name: "Ring of Protection", qty: 1, kind: "magic" as const, attune: true, acPlus: 1 };
+  const potion = { id: "i6", name: "Potion of Healing", qty: 2, kind: "gear" as const, weight: 0.5 };
+  const act = (g: GameState, a: Extract<Command, { type: "me.sheetAct" }>["act"]) => run(g, { type: "me.sheetAct", act: a }, as("p1"));
+  const setup = () => {
+    let g = table();
+    g.players[0].level = 5;
+    g = run(g, { type: "me.sheet", patch: { cls: "Fighter", scores: { str: 12, dex: 16 }, items: [chain, leather, shield, rapier, ring, potion] } }, as("p1"));
+    return g;
+  };
+
+  it("worn armor and shield set AC; one suit at a time; attuned items count", () => {
+    let g = setup();
+    const ac = () => sheetNumbers(g.players[0].sheet!, 5);
+    expect(ac()).toMatchObject({ ac: 13, acFrom: "no armor" });
+    g = act(g, { k: "equip", itemId: "i1", on: true });
+    g = act(g, { k: "equip", itemId: "i3", on: true });
+    expect(ac()).toMatchObject({ ac: 18, acFrom: "Chain Mail + shield" });
+    g = act(g, { k: "equip", itemId: "i2", on: true });
+    expect(g.players[0].sheet!.items!.find((x) => x.id === "i1")!.equipped).toBeUndefined();
+    expect(ac().ac).toBe(11 + 3 + 2);
+    g = act(g, { k: "equip", itemId: "i5", on: true });
+    expect(ac().ac).toBe(16);
+    g = act(g, { k: "attune", itemId: "i5", on: true });
+    expect(ac().ac).toBe(17);
+    // A typed AC still wins.
+    g = run(g, { type: "me.sheet", patch: { ac: 20 } }, as("p1"));
+    expect(ac().ac).toBe(20);
+    // Unarmored Defense.
+    expect(sheetNumbers({ ...blankSheet(0), cls: "Barbarian", scores: { str: 10, dex: 14, con: 16, int: 10, wis: 10, cha: 10 } }, 1)).toMatchObject({ ac: 15, acFrom: "Unarmored Defense" });
+  });
+
+  it("a wielded weapon is an attack with finesse and its magic bonus", () => {
+    let g = act(setup(), { k: "equip", itemId: "i4", on: true });
+    g = apply(g, { type: "me.sheetRoll", roll: { kind: "attack", attackId: "i4", part: "hit" }, tv: true }, { now: 5000, actor: { role: "player", playerId: "p1" }, rand: () => 0.5 }).state;
+    // d20 11, Dex +3 (finesse beats Str +1), proficiency +3, +1 weapon.
+    expect(g.diceRoll).toMatchObject({ label: "Rapier +1 to hit", total: 11 + 7 });
+  });
+
+  it("attunement stops at three; using the last one removes it", () => {
+    let g = setup();
+    const more = [1, 2, 3].map((n) => ({ id: `m${n}`, name: `Charm ${n}`, qty: 1, kind: "magic" as const, attune: true }));
+    g = run(g, { type: "me.sheet", patch: { items: [...g.players[0].sheet!.items!, ...more] } }, as("p1"));
+    for (const id of ["m1", "m2", "m3"]) g = act(g, { k: "attune", itemId: id, on: true });
+    expect(() => act(g, { k: "attune", itemId: "i5", on: true })).toThrow(/attuned to 3/);
+    g = act(g, { k: "qty", itemId: "i6", delta: -1 });
+    g = act(g, { k: "qty", itemId: "i6", delta: -1 });
+    expect(g.players[0].sheet!.items!.some((x) => x.id === "i6")).toBe(false);
+  });
+
+  it("gives items to another player's sheet, and refuses one without a sheet", () => {
+    let g = setup();
+    expect(() => run(g, { type: "me.giveItem", itemId: "i6", toPlayerId: "p2", qty: 1 }, as("p1"))).toThrow(/doesn't keep a sheet/);
+    g = run(g, { type: "me.sheet", patch: {} }, as("p2"));
+    g = run(g, { type: "me.giveItem", itemId: "i6", toPlayerId: "p2", qty: 1 }, as("p1"));
+    expect(g.players[0].sheet!.items!.find((x) => x.id === "i6")!.qty).toBe(1);
+    expect(g.players[1].sheet!.items).toMatchObject([{ name: "Potion of Healing", qty: 1 }]);
+    expect(() => run(g, { type: "me.giveItem", itemId: "i6", toPlayerId: "p2", qty: 5 }, as("p1"))).toThrow(/only have 1/);
+    expect(projectPlayer(g, 1, "p1", []).purse.find((x) => x.id === "p2")).toMatchObject({ sheet: true });
+  });
+
+  it("a shop purchase lands in the inventory with SRD weapon numbers, and stacks", () => {
+    let g = table();
+    g = run(g, { type: "me.sheet", patch: {} }, as("p1"));
+    const base = g.items.find((x) => x.tier === "sale" && x.kind === "purchase" && x.stock === null && !x.renown && !x.trust)!;
+    const item = { ...structuredClone(base), id: "sword", name: "Longsword", category: "gear" as const, priceCp: 100, effects: undefined, keep: undefined };
+    g.items.push(item);
+    g.players[0].balanceCp = 100000;
+    for (let i = 0; i < 2; i++) g = run(g, { type: "money.buy", playerId: "p1", itemId: "sword" } as Command);
+    expect(g.players[0].sheet!.items).toMatchObject([{ name: "Longsword", qty: 2, kind: "weapon", count: 1, sides: 8, dtype: "slashing", from: item.id }]);
+  });
+});

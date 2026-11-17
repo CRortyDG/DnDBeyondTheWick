@@ -97,6 +97,8 @@ export interface PublicPlayer {
   balanceCp: number;
   /** Heroic Inspiration. */
   inspired: boolean;
+  /** Keeps a sheet in the app, so items can be handed to them. */
+  sheet?: true;
 }
 
 /** A shop as the party sees it. */
@@ -611,7 +613,7 @@ function common(game: GameState, version: number, viewer: Viewer): Common {
   return {
     version,
     game: { id: game.id, name: game.name, town: townOf(game) },
-    purse: game.players.filter((p) => !p.archived && !p.away).map((p) => ({ id: p.id, name: penName(p), balanceCp: p.balanceCp, inspired: !!p.inspired })),
+    purse: game.players.filter((p) => !p.archived && !p.away).map((p) => ({ id: p.id, name: penName(p), balanceCp: p.balanceCp, inspired: !!p.inspired, ...(p.sheet && !p.sheetOff ? { sheet: true as const } : {}) })),
     shops: shops.map((x) => ({ id: x.id, name: x.name, subtitle: x.subtitle, closed: !!x.closed, ...(renownMet(game, x.renown) ? {} : { needs: rankName(x.renown ?? 0, game) }), ...(trustText(game, x.trust) ? { goodwill: trustText(game, x.trust)! } : {}) })),
     items: game.items.filter((it) => open.has(it.shopId)).map((it) => publicItem(game, it)).filter((x): x is PublicItem => x !== null),
     session: cur ? { number: cur.number, title: cur.title } : null,

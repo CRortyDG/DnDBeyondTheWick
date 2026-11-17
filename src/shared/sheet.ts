@@ -11,6 +11,7 @@
 import { z } from "zod";
 import type { GameState, Player } from "./types";
 import { STARTERS, type StarterId } from "./starters";
+import { gearAc, gearPatchShape, giveItem, patchGear, weaponAttacks, type SheetItem } from "./sheetGear";
 import { applyAct, castAbilityOf, longRestMagic, magicPatchShape, patchMagic, sheetAct, shortRestMagic, spellAttackBonus, spellDice, type SheetMagic } from "./sheetMagic";
 
 export const ABILITIES = ["str", "dex", "con", "int", "wis", "cha"] as const;
@@ -148,6 +149,8 @@ export interface CharacterSheet extends SheetMagic {
   profs?: string;
   notes?: string;
   attacks?: SheetAttack[];
+  /** Inventory (phase 4). */
+  items?: SheetItem[];
   /** The DM locked class, scores and proficiencies (after session 0). */
   locked?: boolean;
   updatedAt: number;
@@ -198,8 +201,14 @@ export function passivePerception(sheet: CharacterSheet, level: number | undefin
   return 10 + skillBonus(sheet, "perception", level) + extraOf(sheet, "passive");
 }
 
+/** Typed AC wins; otherwise worn armor and shields, or unarmored. */
 export function armorClass(sheet: CharacterSheet): number {
-  return sheet.ac ?? 10 + mod(sheet.scores.dex);
+  return sheet.ac ?? gearAc(sheet).ac;
+}
+
+/** Weapons from the inventory, then typed attacks. */
+export function allAttacks(sheet: CharacterSheet): SheetAttack[] {
+  return [...weaponAttacks(sheet), ...(sheet.attacks ?? [])];
 }
 
 export function speedOf(sheet: CharacterSheet): number {
@@ -248,7 +257,7 @@ export function rollSpec(sheet: CharacterSheet, level: number | undefined, r: Sh
     case "init":
       return d20("Initiative", initiativeOf(sheet));
     case "attack": {
-      const a = sheet.attacks?.find((x) => x.id === r.attackId);
+      const a = allAttacks(sheet).find((x) => x.id === r.attackId);
       if (!a) return null;
       if (r.part === "hit") return d20(`${a.name} to hit`, attackBonus(sheet, a, level));
       if (!a.count) return null;
@@ -271,6 +280,7 @@ export function sheetNumbers(sheet: CharacterSheet, level: number | undefined) {
     prof: proficiency(level),
     ac: armorClass(sheet),
     acWorkedOut: sheet.ac === undefined,
+    acFrom: sheet.ac === undefined ? gearAc(sheet).from : "typed",
     init: initiativeOf(sheet),
     speed: speedOf(sheet),
     passive: passivePerception(sheet, level),
@@ -361,6 +371,7 @@ export const sheetPatch = z
     /** The whole list, in order. */
     attacks: z.array(attackBody).max(ATTACKS_MAX),
     ...magicPatchShape,
+    ...gearPatchShape,
   })
   .partial();
 export type SheetPatch = z.infer<typeof sheetPatch>;
@@ -399,14 +410,16 @@ export const sheetPlayerCommands = [
   z.object({ type: z.literal("me.sheetAct"), act: sheetAct }),
   /** Spend a hit die: roll it plus Constitution and heal that much (a short rest). */
   z.object({ type: z.literal("me.hitDie"), tv: z.boolean() }),
+  /** Hand an item to another player's sheet. */
+  z.object({ type: z.literal("me.giveItem"), itemId: z.string().min(1).max(24), toPlayerId: id, qty: z.number().int().min(1).max(999) }),
 ] as const;
 
 export type SheetDmCommand = z.infer<(typeof sheetDmCommands)[number]>;
 export type SheetPlayerCommand = z.infer<(typeof sheetPlayerCommands)[number]>;
-export type SheetCommand = SheetDmCommand | Extract<SheetPlayerCommand, { type: "me.sheet" | "me.sheetAct" }>;
+export type SheetCommand = SheetDmCommand | Extract<SheetPlayerCommand, { type: "me.sheet" | "me.sheetAct" | "me.giveItem" }>;
 
 export function isSheetCommand(cmd: { type: string }): cmd is SheetCommand {
-  return cmd.type.startsWith("sheet.") || cmd.type === "me.sheet" || cmd.type === "me.sheetAct";
+  return cmd.type.startsWith("sheet.") || cmd.type === "me.sheet" || cmd.type === "me.sheetAct" || cmd.type === "me.giveItem";
 }
 
 const clean = (v: string) => v.replace(/\s+/g, " ").trim();
@@ -486,6 +499,7 @@ export function patchSheet(sheet: CharacterSheet, patch: SheetPatch, opts: { loc
     else delete sheet.attacks;
   }
   patchMagic(sheet, patch);
+  patchGear(sheet, patch, opts.fail);
   for (const k of ["traits", "profs", "notes"] as const) {
     const v = patch[k];
     if (v === undefined) continue;
@@ -527,7 +541,7 @@ export function syncConcFromFight(s: GameState) {
   }
 }
 
-export function applySheet(s: GameState, cmd: SheetCommand, h: { actor: { role: string; playerId?: string }; now: number; fail: (m: string) => never; info?: (m: string) => void }) {
+export function applySheet(s: GameState, cmd: SheetCommand, h: { actor: { role: string; playerId?: string }; now: number; fail: (m: string) => never; info?: (m: string) => void; newId: () => string }) {
   const find = (pid: string) => s.players.find((p) => p.id === pid) ?? h.fail("That player isn't here.");
   switch (cmd.type) {
     case "sheet.enable": {
@@ -575,6 +589,17 @@ export function applySheet(s: GameState, cmd: SheetCommand, h: { actor: { role: 
       p.sheet.updatedAt = h.now;
       followConc(s, p, r.conc);
       if (r.info) h.info?.(r.info);
+      return;
+    }
+    case "me.giveItem": {
+      const p = find(h.actor.role === "player" ? (h.actor.playerId ?? "") : "");
+      if (!p.sheet || p.sheetOff) h.fail("You don't have a character sheet here.");
+      const to = s.players.find((x) => x.id === cmd.toPlayerId && !x.archived) ?? h.fail("That player isn't here.");
+      if (to.id === p.id) h.fail("That's you.");
+      if (!to.sheet || to.sheetOff) h.fail(`${to.character?.trim() || to.name} doesn't keep a sheet in the app. Hand it over at the table instead.`);
+      const what = giveItem(p.sheet, to.sheet, cmd.itemId, cmd.qty, h.newId, h.fail);
+      p.sheet.updatedAt = to.sheet.updatedAt = h.now;
+      h.info?.(`Gave ${what} to ${to.character?.trim() || to.name}.`);
       return;
     }
     case "me.sheet": {

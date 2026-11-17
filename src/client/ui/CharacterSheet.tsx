@@ -33,8 +33,10 @@ import {
   type SheetRoll,
 } from "@/shared/sheet";
 import type { SheetAct } from "@/shared/sheetMagic";
+import { gearAc } from "@/shared/sheetGear";
 import { AttackEditor, AttackList } from "./SheetAttacks";
 import { FeaturesBlock } from "./SheetFeatures";
+import { InventoryBlock } from "./SheetInventory";
 import { SpellsBlock } from "./SheetSpells";
 import "./sheet.css";
 
@@ -65,6 +67,8 @@ export function CharacterSheetView({
   rollBar,
   onAct,
   onHitDie,
+  giveTo,
+  onGive,
 }: {
   sheet: CharacterSheet;
   level: number | undefined;
@@ -85,6 +89,9 @@ export function CharacterSheetView({
   onAct: (a: SheetAct) => Promise<string | null>;
   /** The player's phone: spend a hit die (roll it and heal). */
   onHitDie?: () => Promise<string | null>;
+  /** The phone: hand an item to one of these players. */
+  giveTo?: { id: string; name: string }[];
+  onGive?: (itemId: string, toPlayerId: string, qty: number) => Promise<string | null>;
 }) {
   const [editing, setEditing] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -99,6 +106,13 @@ export function CharacterSheetView({
     setErr(e || null);
     return e === null;
   };
+  const give = onGive
+    ? async (itemId: string, to: string, qty: number) => {
+        const e = await onGive(itemId, to, qty);
+        setErr(e || null);
+        return e === null;
+      }
+    : undefined;
   const hitDie = onHitDie
     ? async () => {
         const e = await onHitDie();
@@ -163,7 +177,7 @@ export function CharacterSheetView({
       ) : null}
 
       <div className="cs-stats" role="list" aria-label="Combat numbers">
-        <Stat label="AC" value={String(n.ac)} sub={n.acWorkedOut ? "no armor" : undefined} />
+        <Stat label="AC" value={String(n.ac)} sub={n.acWorkedOut ? n.acFrom : undefined} />
         <Stat label="Initiative" value={signed(n.init)} onTap={roll ? () => roll({ kind: "init" }) : undefined} />
         <Stat label="Speed" value={`${n.speed} ft`} />
         <Stat label="Proficiency" value={signed(n.prof)} />
@@ -171,7 +185,7 @@ export function CharacterSheetView({
       </div>
       {editing ? (
         <div className="cs-ident">
-          <NumField label="AC" value={sheet.ac} placeholder={`${10 + mod(sheet.scores.dex)} (no armor)`} min={0} max={50} hint="What you wear now. Blank: 10 + Dex." onCommit={(v) => send({ ac: v })} />
+          <NumField label="AC" value={sheet.ac} placeholder={`${gearAc(sheet).ac} (${gearAc(sheet).from})`} min={0} max={50} hint="Blank: worked out from what you wear in your inventory." onCommit={(v) => send({ ac: v })} />
           <NumField label="Speed (ft)" value={sheet.speed} placeholder="30" min={0} max={300} onCommit={(v) => send({ speed: v })} />
           <NumField label="Initiative extra" value={sheet.extra?.init} placeholder="0" min={-EXTRA_MAX} max={EXTRA_MAX} hint="On top of Dex (a feat, an item)." disabled={fixed} onCommit={(v) => send({ extra: { init: v ?? 0 } })} />
           <NumField label="Passive Perception extra" value={sheet.extra?.passive} placeholder="0" min={-EXTRA_MAX} max={EXTRA_MAX} disabled={fixed} onCommit={(v) => send({ extra: { passive: v ?? 0 } })} />
@@ -194,6 +208,8 @@ export function CharacterSheetView({
       <FeaturesBlock sheet={sheet} level={level} editing={editing} send={send} act={act} />
 
       <SpellsBlock sheet={sheet} level={level} editing={editing} fixed={fixed} send={send} act={act} onRoll={roll} />
+
+      <InventoryBlock sheet={sheet} editing={editing} send={send} act={act} giveTo={giveTo} onGive={give} />
 
       <h3 className="cs-h">Abilities</h3>
       <div className="cs-abilities">

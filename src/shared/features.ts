@@ -236,6 +236,7 @@ const PLAYER_NEEDS: Record<string, FeatureId> = {
   "me.sheetRoll": "sheets",
   "me.sheetAct": "sheets",
   "me.hitDie": "sheets",
+  "me.giveItem": "sheets",
   "me.companionHp": "companions",
   "me.companionAbility": "companions",
   "me.companionInit": "companions",

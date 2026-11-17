@@ -844,3 +844,27 @@ button.cs-ab {
 .cs-mid {
   width: 108px;
 }
+
+/* Inventory. */
+.cs-qty {
+  color: var(--cs-text-3);
+  font-size: 13px;
+}
+.cs-give {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.cs-give select {
+  flex: 1 1 auto;
+  width: auto;
+  min-width: 0;
+}
+.cs-give .cs-give-n {
+  flex: 0 0 60px;
+  width: 60px;
+  text-align: center;
+}
+.cs-give .btn {
+  flex: none;
+}
