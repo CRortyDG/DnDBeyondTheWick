@@ -610,3 +610,82 @@ describe("shop items for the builder", () => {
     expect((builderGet(g, shop.id)!.items as { id: string }[]).some((x) => x.id === room.id)).toBe(true);
   });
 });
+
+describe("pictures", () => {
+  const JPG = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0, 16, 74, 70, 73, 70, 0, 1, 1, 1, 0, 72]);
+  const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13]);
+  async function upload(key: string, entry: string, bytes: Uint8Array, type = "image/jpeg", alt?: string) {
+    const res = await handleApi(
+      new Request(`${base}/api/builder/upload_picture?game=${GAME}`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${key}`, "Content-Type": type, "x-builder-entry": entry, ...(alt ? { "x-builder-alt": encodeURIComponent(alt) } : {}) },
+        body: new Blob([bytes as Uint8Array<ArrayBuffer>]),
+      }),
+      store,
+    );
+    return { status: res.status, data: (await res.json()) as Record<string, any> };
+  }
+
+  it("upload to a pending person draft and land on the entry when it's approved, unshown", async () => {
+    const person = await call(KEY, "create_entry", { kind: "person", name: "Corwin Fairweather" });
+    const pic = await upload(KEY, person.data.draft_id, JPG, "image/jpeg", "A round man in velvet");
+    expect(pic.status).toBe(200);
+    // Nothing in the game yet, and the file is the campaign's own.
+    expect(entriesOf(await state()).some((e) => e.name === "Corwin Fairweather")).toBe(false);
+    const q = await dm("/api/builder-admin/review");
+    const row = q.data.pending.find((d: ReviewDraft) => d.kind === "picture");
+    expect(row.body.url).toMatch(new RegExp(`^/api/files/${GAME}/[0-9a-f]{24}\\.jpg$`));
+    expect(store.files.has(row.body.url)).toBe(true);
+    // The review page folds it onto the person, and approving the person takes it along.
+    const { top, hangers } = foldDrafts(q.data.pending);
+    expect(top.map((d) => d.kind)).toEqual(["entry"]);
+    expect(hangers.get(person.data.draft_id)!.map((d) => d.kind)).toEqual(["picture"]);
+    expect(approveSet(q.data.pending, [person.data.draft_id])).toContain(pic.data.draft_id);
+    expect((await dm("/api/builder-admin/approve", { ids: approveSet(q.data.pending, [person.data.draft_id]) })).status).toBe(200);
+    const g = await state();
+    const e = entriesOf(g).find((x) => x.name === "Corwin Fairweather")!;
+    const sc = g.scenes.find((x) => x.id === e.sceneId)!;
+    expect(sc.art?.url).toBe(row.body.url);
+    expect(sc.alt).toBe("A round man in velvet");
+    expect(sc.shownAt).toBeUndefined();
+    expect(await allViews()).not.toContain(row.body.url);
+  });
+
+  it("can go on an entry that's already in the game, and a new upload replaces the old pending one", async () => {
+    const id = entriesOf(await state())[0].id;
+    const a = await upload(KEY, id, JPG);
+    const b = await upload(KEY, id, PNG, "image/png");
+    expect(a.status).toBe(200);
+    expect(b.status).toBe(200);
+    const q = await dm("/api/builder-admin/review");
+    const pics = q.data.pending.filter((d: ReviewDraft) => d.kind === "picture");
+    expect(pics.map((d: ReviewDraft) => d.id)).toEqual([b.data.draft_id]);
+    await dm("/api/builder-admin/approve", { ids: [b.data.draft_id] });
+    const g = await state();
+    const e = entriesOf(g).find((x) => x.id === id)!;
+    expect(g.scenes.find((x) => x.id === e.sceneId)?.art?.url).toMatch(/\.png$/);
+  });
+
+  it("refuse other files, unknown entries, JSON, and edits; reject goes with the person", async () => {
+    const person = await call(KEY, "create_entry", { kind: "person", name: "Edric" });
+    expect((await upload(KEY, person.data.draft_id, new TextEncoder().encode("<svg onload=alert(1)>"), "image/jpeg")).status).toBe(415);
+    expect((await upload(KEY, person.data.draft_id, JPG, "image/svg+xml")).status).toBe(415);
+    expect((await upload(KEY, "nobody-here", JPG)).status).toBe(400);
+    expect((await call(KEY, "upload_picture", { url: "https://evil.example/x.jpg" })).status).toBe(415);
+    const pic = await upload(KEY, person.data.draft_id, JPG);
+    expect((await call(KEY, "update_my_draft", { draft_id: pic.data.draft_id, changes: { url: "https://evil.example/x.jpg" } })).status).toBe(400);
+    expect((await dm("/api/builder-admin/review-edit", { id: pic.data.draft_id, body: { url: "https://evil.example/x.jpg" } })).status).toBe(400);
+    const r = await dm("/api/builder-admin/reject", { ids: [person.data.draft_id] });
+    expect(r.data.rejected).toBe(2);
+  });
+
+  it("show in the review row and drawer", () => {
+    const d: ReviewDraft = { id: "bd_aaaaaaaaaaaa", kind: "picture", label: "k", batch: "b", status: "pending", createdAt: 0, updatedAt: 0, keyId: "x", title: "Picture", refs: [{ id: "e1", name: "Mags", draft: false }], body: { entry: "e1", url: "/api/files/testcampaign/0123456789abcdef01234567.jpg", alt: "Mags", bytes: 10 } } as unknown as ReviewDraft;
+    const row = renderToStaticMarkup(createElement(DraftRow, { draft: d, busy: false, onOpen() {}, onApprove() {}, onReject() {} }));
+    expect(row).toContain("Picture of Mags");
+    expect(row).toContain('src="/api/files/testcampaign/0123456789abcdef01234567.jpg"');
+    const html = renderToStaticMarkup(createElement(DraftDetail, { draft: d, busy: false, onApprove() {}, onReject() {}, onEdit() {} }));
+    expect(html).toContain("draft-picture");
+    expect(html).not.toContain("Edit then approve");
+  });
+});

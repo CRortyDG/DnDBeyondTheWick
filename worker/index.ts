@@ -11,7 +11,7 @@ import { whenText, type InviteView } from "@/shared/invites";
 import type { Env } from "./env";
 import { R2Presets } from "./presets";
 import { GameRoom } from "./room";
-import { BATCH_HEADER, COUNTRY_HEADER } from "@/server/builder";
+import { BATCH_HEADER, COUNTRY_HEADER, PICTURE_ALT_HEADER, PICTURE_ENTRY_HEADER } from "@/server/builder";
 import { carriesBuilderKey, parseBuilderAuth } from "@/server/builderKeys";
 
 export { GameRoom };
@@ -148,7 +148,7 @@ async function builderDoor(req: Request, env: Env, ctx: ExecutionContext, ip: st
     return json({ ok: false, error: "Send a Worldbuilder key (cfb_...) in the Authorization header.", code: "bad-key" }, 401);
   }
   const headers = new Headers();
-  for (const h of ["Authorization", "Content-Type", "Content-Length", BATCH_HEADER]) {
+  for (const h of ["Authorization", "Content-Type", "Content-Length", BATCH_HEADER, PICTURE_ENTRY_HEADER, PICTURE_ALT_HEADER]) {
     const v = req.headers.get(h);
     if (v) headers.set(h, v);
   }

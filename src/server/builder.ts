@@ -39,6 +39,8 @@ import {
   type CreatableKind,
   type Draft,
   type DraftKind,
+  type PictureBody,
+  PICTURE_ALT_MAX,
   type SuggestionBody,
 } from "@/shared/builderInput";
 import { currentValue, sameValue, SUGGEST_FIELDS, type SuggestTarget, type SuggestType } from "@/shared/builderOps";
@@ -67,6 +69,13 @@ export const BUILDER_LIMITS = {
 
 /** Set by the Worker from Cloudflare's own data; a value sent by the caller is stripped there. */
 export const COUNTRY_HEADER = "x-builder-country";
+/** upload_picture: the entry (an id or a pending entry draft) the picture is for, and its alt text (URI-encoded). */
+export const PICTURE_ENTRY_HEADER = "x-builder-entry";
+export const PICTURE_ALT_HEADER = "x-builder-alt";
+/** One uploaded picture. Portraits are a few hundred KB; this leaves room for a big PNG. */
+export const PICTURE_MAX_BYTES = 3 * 1024 * 1024;
+const PICTURE_TYPES: Record<string, "jpg" | "png" | "webp"> = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp" };
+
 /** A random id the MCP server picks once per run, so the review queue can group one chat's drafts. */
 export const BATCH_HEADER = "x-builder-batch";
 
@@ -83,6 +92,7 @@ const WRITE_OPS = [
   "suggest_change",
   "update_my_draft",
   "withdraw_my_draft",
+  "upload_picture",
 ] as const;
 export const BUILDER_OPS: readonly string[] = [...READ_OPS, ...WRITE_OPS];
 const isWrite = (op: string) => (WRITE_OPS as readonly string[]).includes(op);
@@ -226,6 +236,15 @@ export async function handleBuilder(req: Request, store: Store, now = Date.now()
     const { key, game, op } = who;
     const b = store.builder!;
     const usage = await spend(store, key.id, isWrite(op), now);
+    if (op === "upload_picture") {
+      const { state } = await store.read(game);
+      if (!state) throw new Refuse(404, "No game here.", "no-game");
+      const batch = /^[a-z0-9]{8,32}$/.test(req.headers.get(BATCH_HEADER) ?? "") ? req.headers.get(BATCH_HEADER)! : "unbatched";
+      const out = await uploadPicture(req, { store, state, key, batch, now, usage }, game);
+      if (!key.lastUsedAt || now - key.lastUsedAt > 60_000) await saveKey(b, { ...key, lastUsedAt: now });
+      await audit(b, { at: now, keyId: key.id, label: key.label, op, ok: true, ...(out.entity ? { entityType: out.entity.type, entityId: out.entity.id } : {}), ...(country ? { country } : {}) });
+      return out.res;
+    }
     const body = cleanDeep(await readBody(req));
     const batch = /^[a-z0-9]{8,32}$/.test(req.headers.get(BATCH_HEADER) ?? "") ? req.headers.get(BATCH_HEADER)! : "unbatched";
     const { state } = await store.read(game);
@@ -417,6 +436,7 @@ async function updateMine(o: Record<string, unknown>, c: Ctx): Promise<Out> {
   const d = await mine(o, c);
   const changes = o.changes;
   if (!changes || typeof changes !== "object" || Array.isArray(changes)) throw new Refuse(400, "Send the fields to change as changes: { ... }.", "invalid");
+  if (d.kind === "picture") throw new Refuse(400, "A picture can't be edited. Upload a new one for the same entry to replace it.", "invalid");
   if (d.kind === "suggestion") {
     const s = d.body as unknown as SuggestionBody;
     const ch = changes as Record<string, unknown>;
@@ -438,6 +458,63 @@ async function updateMine(o: Record<string, unknown>, c: Ctx): Promise<Out> {
   if (JSON.stringify(d).length > BUILDER_LIMITS.draftBytes) throw new Refuse(413, `That draft is over ${BUILDER_LIMITS.draftBytes / 1024} KB.`, "too-big");
   await saveDraft(c.store.builder!, d);
   return { res: savedReply(d, c), entity: { type: d.kind, id: d.id } };
+}
+
+/** The image's own first bytes must match its type (a renamed file of something else is refused). */
+function looksLike(ext: "jpg" | "png" | "webp", b: Uint8Array): boolean {
+  if (ext === "jpg") return b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff;
+  if (ext === "png") return b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4e && b[3] === 0x47;
+  return String.fromCharCode(...b.slice(0, 4)) === "RIFF" && String.fromCharCode(...b.slice(8, 12)) === "WEBP";
+}
+
+/**
+ * A picture for an entry: the raw image is the body (image/jpeg, png or webp),
+ * the entry is in a header. It's stored as one of the campaign's files and
+ * becomes a "picture" draft; only the DM's Approve puts it on the entry.
+ */
+async function uploadPicture(req: Request, c: Ctx, game: string): Promise<Out> {
+  const b = c.store.builder!;
+  if (!c.store.putBuilderPicture) throw new Refuse(503, "Pictures can't be uploaded here.", "unavailable");
+  const ext = PICTURE_TYPES[(req.headers.get("Content-Type") ?? "").split(";")[0].trim().toLowerCase()];
+  if (!ext) throw new Refuse(415, "Send the picture itself as the body, with Content-Type image/jpeg, image/png or image/webp.", "invalid");
+  const mb = PICTURE_MAX_BYTES / 1024 / 1024;
+  if (Number(req.headers.get("Content-Length") ?? 0) > PICTURE_MAX_BYTES) throw new Refuse(413, `That picture is over ${mb} MB. Make it smaller.`, "too-big");
+  const entry = (req.headers.get(PICTURE_ENTRY_HEADER) ?? "").trim();
+  if (!/^[A-Za-z0-9_-]{1,64}$/.test(entry)) throw new Refuse(400, `Say which entry the picture is for in the ${PICTURE_ENTRY_HEADER} header (an id from search, or a draft id).`, "invalid");
+  let alt: string | undefined;
+  try {
+    const raw = req.headers.get(PICTURE_ALT_HEADER);
+    alt = raw ? cleanDeep(decodeURIComponent(raw)).trim().slice(0, PICTURE_ALT_MAX) || undefined : undefined;
+  } catch {
+    throw new Refuse(400, "The alt text isn't URI-encoded.", "invalid");
+  }
+  // Check the entry before storing anything.
+  if (DRAFT_ID_RE.test(entry)) {
+    const d = await loadDraft(b, entry);
+    if (!d || d.status !== "pending" || d.kind !== "entry") throw new Refuse(400, `${entry} isn't a pending entry draft.`, "bad-ref");
+  } else if (!entriesOf(c.state).some((e) => e.id === entry)) {
+    throw new Refuse(400, `No entry has the id ${entry}. Use search.`, "bad-ref");
+  }
+  if ((await b.count(DRAFT_TBL, "pending")) >= BUILDER_LIMITS.pending) {
+    throw new Refuse(429, `There are ${BUILDER_LIMITS.pending} drafts waiting for review, the most allowed. Stop and ask the DM to review them.`, "pending-cap");
+  }
+  const bytes = new Uint8Array(await req.arrayBuffer().catch(() => new ArrayBuffer(0)));
+  if (!bytes.length) throw new Refuse(400, "The picture was empty.", "invalid");
+  if (bytes.length > PICTURE_MAX_BYTES) throw new Refuse(413, `That picture is over ${mb} MB. Make it smaller.`, "too-big");
+  if (!looksLike(ext, bytes)) throw new Refuse(415, "That file isn't the kind of image its Content-Type says.", "invalid");
+  const put = await c.store.putBuilderPicture(game, bytes, ext);
+  if ("error" in put) throw new Refuse(put.status, put.error, put.code);
+  // One picture per entry per key: a new upload replaces the old pending one.
+  for (const old of (await b.list(DRAFT_TBL, { tag: "pending" })).map(rowToDraft)) {
+    if (old.kind === "picture" && old.keyId === c.key.id && (old.body as unknown as PictureBody).entry === entry) {
+      old.status = "withdrawn";
+      old.reviewedAt = c.now;
+      await saveDraft(b, old);
+    }
+  }
+  const body: PictureBody = { entry, url: put.url, bytes: bytes.length, ...(alt ? { alt } : {}) };
+  const d = await addDraft("picture", body as unknown as Record<string, unknown>, c);
+  return { res: savedReply(d, c), entity: { type: "picture", id: entry } };
 }
 
 async function withdrawMine(o: Record<string, unknown>, c: Ctx): Promise<Out> {

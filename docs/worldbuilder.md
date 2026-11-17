@@ -115,6 +115,7 @@ approving fails and asks you to look again.
 | `create_monster_template` | Monster template |
 | `create_random_table` | d4–d100 table |
 | `suggest_change` | Edit one text field of existing content, as a diff |
+| `upload_picture` | A portrait or picture (JPEG, PNG or WebP, up to 3 MB) for an entry or an entry draft; approving puts it on the entry |
 | `list_my_drafts`, `update_my_draft`, `withdraw_my_draft` | Manage your own pending drafts |
 
 Everything read back from the campaign is wrapped as `campaign_text` and marked
@@ -133,3 +134,19 @@ shown as plain text.
 The **Activity** list in the Worldbuilder box shows every call each key made
 (never the key or full text), with refused calls highlighted. Lots of refused
 calls can mean a key leaked: revoke it.
+
+## Pictures
+
+`upload_picture` takes a file path (or base64) and the entry it's for: an id
+from `search`, or a pending entry draft (`bd_...`). Without the MCP server, send
+the raw image as the body of `POST /api/builder/upload_picture` with
+`Content-Type: image/jpeg` (or png/webp), the entry in `x-builder-entry` and
+optional alt text, URI-encoded, in `x-builder-alt`.
+
+The file is stored as one of the campaign's own uploads (it counts toward the
+campaign's image space) and becomes a Picture draft. It shows on the review page
+on the entry it's for; approving that entry approves the picture with it.
+Approving puts it on the entry as its portrait, unshown: players don't see it
+until the DM shows it on the TV. A new upload for the same entry replaces the
+key's earlier pending picture. Pictures can't be edited, only approved or
+rejected.

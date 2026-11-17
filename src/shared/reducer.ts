@@ -319,6 +319,14 @@ function builderApply(input: GameState, ops: BuilderOp[], ctx: Ctx): Result {
       case "suggestion":
         applySuggestion(op, state, step);
         break;
+      case "picture": {
+        const entryId = resolve(op.entry, "A picture");
+        const e = entriesOf(state).find((x) => x.id === entryId) ?? fail("A picture: that entry isn't in the compendium any more.");
+        // Only the campaign's own uploaded files (the server built this op from an upload).
+        if (!/^\/api\/files\/[a-z0-9-]{1,40}\/[0-9a-f]{24}\.(png|jpg|webp)$/.test(op.url)) fail("A picture: that isn't an uploaded image.");
+        step({ type: "entry.picture", entryId, art: { url: op.url }, ...(op.alt !== undefined ? { alt: op.alt } : { alt: e.name }) }, "A picture");
+        break;
+      }
     }
   }
   return { state, ledger };

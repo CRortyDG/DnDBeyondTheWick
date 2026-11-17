@@ -15,6 +15,8 @@
  * The key is never printed, logged or returned from a tool.
  */
 import { randomBytes } from "node:crypto";
+import { readFile, stat } from "node:fs/promises";
+import { extname, resolve } from "node:path";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
@@ -53,7 +55,14 @@ let limitStreak = 0;
 
 type Result = { content: { type: "text"; text: string }[]; isError?: boolean };
 
-async function call(op: string, body: Record<string, unknown> = {}): Promise<Result> {
+/** A raw upload instead of a JSON body (upload_picture). */
+interface Raw {
+  bytes: Uint8Array;
+  type: string;
+  headers: Record<string, string>;
+}
+
+async function call(op: string, body: Record<string, unknown> = {}, raw?: Raw): Promise<Result> {
   if (limitStreak >= STOP_AFTER) {
     return { isError: true, content: [{ type: "text", text: "Stopped: the Worldbuilder's limits were hit several times in a row. Stop writing and ask the DM to review the drafts, then start a new chat." }] };
   }
@@ -61,8 +70,8 @@ async function call(op: string, body: Record<string, unknown> = {}): Promise<Res
   try {
     res = await fetch(`${ORIGIN}/api/builder/${op}`, {
       method: "POST",
-      headers: { Authorization: `Bearer ${KEY}`, "Content-Type": "application/json", "x-builder-batch": BATCH },
-      body: JSON.stringify(body),
+      headers: { Authorization: `Bearer ${KEY}`, "Content-Type": raw ? raw.type : "application/json", "x-builder-batch": BATCH, ...(raw?.headers ?? {}) },
+      body: raw ? new Blob([raw.bytes as Uint8Array<ArrayBuffer>]) : JSON.stringify(body),
       redirect: "error",
       signal: AbortSignal.timeout(TIMEOUT_MS),
     });
@@ -302,6 +311,48 @@ server.registerTool(
   "withdraw_my_draft",
   { title: "Withdraw one of my drafts", description: "Take back your own pending draft (and drafts that hang off it).", inputSchema: { draft_id: s(40) }, annotations: draft },
   (a) => call("withdraw_my_draft", a),
+);
+
+const PICTURE_MAX = 3 * 1024 * 1024;
+const PICTURE_TYPES: Record<string, string> = { ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png", ".webp": "image/webp" };
+const err = (text: string): Result => ({ isError: true, content: [{ type: "text", text }] });
+
+server.registerTool(
+  "upload_picture",
+  {
+    title: "Add a picture to an entry",
+    description:
+      "Upload a portrait or picture (JPEG, PNG or WebP, up to 3 MB) for a person, place, shop or other entry: one already in the campaign (an id from search) or one of your pending entry drafts (bd_...). It becomes a draft; the DM sees it on the review page, and approving puts it on the entry. Uploading again for the same entry replaces your earlier pending picture. Give either path (a file on this computer) or image_base64.",
+    inputSchema: {
+      entry: id,
+      path: s(1024).optional().describe("A JPEG, PNG or WebP file on this computer."),
+      image_base64: z.string().max(5_000_000).optional().describe("The image itself, base64, if there's no file."),
+      mime_type: z.enum(["image/jpeg", "image/png", "image/webp"]).optional().describe("Needed with image_base64."),
+      alt: s(300).optional().describe('A short description for screen readers ("A round man in a velvet cap").'),
+    },
+    annotations: draft,
+  },
+  async (a) => {
+    let bytes: Uint8Array;
+    let type: string;
+    if (a.path) {
+      const file = resolve(a.path);
+      type = PICTURE_TYPES[extname(file).toLowerCase()] ?? "";
+      if (!type) return err("Use a .jpg, .png or .webp file.");
+      const st = await stat(file).catch(() => null);
+      if (!st?.isFile()) return err("That file wasn't found.");
+      if (st.size > PICTURE_MAX) return err("That picture is over 3 MB. Make it smaller first.");
+      bytes = new Uint8Array(await readFile(file));
+    } else if (a.image_base64) {
+      if (!a.mime_type) return err("Say the mime_type of image_base64.");
+      type = a.mime_type;
+      bytes = new Uint8Array(Buffer.from(a.image_base64, "base64"));
+      if (bytes.length > PICTURE_MAX) return err("That picture is over 3 MB. Make it smaller first.");
+    } else return err("Give a path or image_base64.");
+    const headers: Record<string, string> = { "x-builder-entry": a.entry };
+    if (a.alt) headers["x-builder-alt"] = encodeURIComponent(a.alt);
+    return call("upload_picture", {}, { bytes, type, headers });
+  },
 );
 
 await server.connect(new StdioServerTransport());
