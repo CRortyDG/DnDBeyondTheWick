@@ -55,6 +55,15 @@ describe("removing ledger lines", () => {
     expect((await store.ledger("wick")).map((l) => l.note)).toEqual(["test", "keep"]);
   });
 
+  it("undoing one player's line takes the gold from that player only", async () => {
+    const { store, key, a, b } = await campaign();
+    const line = (await store.ledger("wick")).find((l) => l.note === "test")!;
+    const r = await call(store, "/api/ledger/remove?game=wick", { method: "POST", key, body: { ids: [line.id], undo: true } });
+    expect(r.status).toBe(200);
+    expect(await balance(store, a)).toBe(100);
+    expect(await balance(store, b)).toBe(800);
+  });
+
   it("is DM only, and says so when the lines are already gone", async () => {
     const { store, key } = await campaign();
     const id = (await store.ledger("wick"))[0].id;
