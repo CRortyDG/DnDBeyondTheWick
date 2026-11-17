@@ -329,7 +329,9 @@ export interface TvView extends Common {
   /** A reveal (a rumor, someone found, a fact): the TV plays it when n changes. */
   discovery?: DiscoveryView;
   /** The last roll on the TV: the TV plays it when n changes. name: the player who rolled (none: the DM). */
-  diceRoll?: { n: number; groups: DiceGroup[]; plus: number; total: number; name?: string; for?: "initiative"; keep?: "high" | "low"; label?: string };
+  diceRoll?: TvRollView;
+  /** The last few rolls on the TV, oldest first, so rolls that land together all show. */
+  diceRolls?: TvRollView[];
   /** Every non-reveal scene (for instant switching), plus the live scene even if it's a reveal. */
   scenes: PublicScene[];
   /** "Previously on…": only while the DM is showing it. The only session text the TV ever gets. */
@@ -655,8 +657,9 @@ export function projectTv(table: GameState, version: number): TvView {
     ...(game.renownMoment ? { renownMoment: { rank: game.renownMoment.rank, name: rankName(game.renownMoment.rank, game), raised: ranksOf(game)[game.renownMoment.rank]?.raised ?? "", meaning: ranksOf(game)[game.renownMoment.rank]?.meaning ?? "", n: game.renownMoment.n } } : {}),
     ...(discoveryView(game) ? { discovery: discoveryView(game) } : {}),
     ...(game.diceRoll
-      ? { diceRoll: { n: game.diceRoll.n, groups: game.diceRoll.groups, plus: game.diceRoll.plus, total: game.diceRoll.total, ...(game.diceRoll.name ? { name: game.diceRoll.name } : {}), ...(game.diceRoll.for ? { for: game.diceRoll.for } : {}), ...(game.diceRoll.keep ? { keep: game.diceRoll.keep } : {}), ...(game.diceRoll.label ? { label: game.diceRoll.label } : {}) } }
+      ? { diceRoll: tvRoll(game.diceRoll) }
       : {}),
+    ...(game.tvRolls?.length ? { diceRolls: game.tvRolls.map(tvRoll) } : {}),
     // Reveal scenes, and portraits of people the party hasn't found, only while they're live.
     // Scenes that aren't up yet go out without their words (so the TV can preload the pictures): names, titles and descriptions wait until they're shown.
     scenes: game.scenes
@@ -963,4 +966,10 @@ export function gatedArtIsLive(game: GameState, builtin: string): boolean {
   if (live?.art?.builtin === builtin) return true;
   // Built-in portraits: once the party has found whoever they show.
   return PORTRAIT_ART.has(builtin) && portraitArtAllowed(game, builtin);
+}
+
+export type TvRollView = { n: number; groups: DiceGroup[]; plus: number; total: number; name?: string; for?: "initiative"; keep?: "high" | "low"; label?: string };
+
+function tvRoll(r: NonNullable<GameState["diceRoll"]>): TvRollView {
+  return { n: r.n, groups: r.groups, plus: r.plus, total: r.total, ...(r.name ? { name: r.name } : {}), ...(r.for ? { for: r.for } : {}), ...(r.keep ? { keep: r.keep } : {}), ...(r.label ? { label: r.label } : {}) };
 }

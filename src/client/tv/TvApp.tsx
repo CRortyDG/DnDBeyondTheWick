@@ -117,7 +117,7 @@ function TvScreen({ view, online }: { view: TvView; online: boolean }) {
 
       <BannerToast banner={view.banner} className="tv-banner" />
 
-      <DiceRoll roll={view.diceRoll} />
+      <DiceRoll roll={view.diceRoll} rolls={view.diceRolls} />
 
       <RenownMoment moment={view.renownMoment} />
       <LevelMoment moment={view.levelMoment} />
