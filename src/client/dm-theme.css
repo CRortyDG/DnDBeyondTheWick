@@ -5587,14 +5587,19 @@ html[data-view="dm"][data-phone] .dm-drawer {
 }
 
 /* Monsters → Basic monsters: a tick list. */
-:where(html[data-view="dm"]) .basic-mon {
+html[data-view="dm"] .basic-monsters label.basic-mon {
   display: flex;
   align-items: center;
   gap: 12px;
   cursor: pointer;
   padding: 8px 12px;
 }
-:where(html[data-view="dm"]) .basic-mon input {
+:where(html[data-view="dm"]) .basic-mon-text {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+html[data-view="dm"] .basic-monsters label.basic-mon input {
   width: 18px;
   height: 18px;
   flex: none;

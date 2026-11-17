@@ -374,9 +374,9 @@ function BasicMonsters({ have, onDone }: { have: string[]; onDone: () => void })
       <ul className="row-list">
         {avail.map((m) => (
           <li key={m.name} className="list-row">
-            <label className="scene-row basic-mon">
+            <label className="basic-mon">
               <input type="checkbox" checked={pick.has(m.name)} onChange={() => toggle(m.name)} />
-              <span className="row-main">
+              <span className="basic-mon-text">
                 <span className="row-title">
                   {m.name} <span className="row-aside">· CR {m.cr}</span>
                 </span>
