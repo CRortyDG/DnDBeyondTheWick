@@ -593,3 +593,20 @@ describe("hostile content", () => {
     expect((await viewFor(store, GAME, DM)).role).toBe("dm");
   });
 });
+
+describe("shop items for the builder", () => {
+  it("are searchable and readable, with kind and price but nobody's purchases", async () => {
+    const { builderSearch, builderGet } = await import("@/shared/builderView");
+    const { syncShopEntries } = await import("@/shared/discovery");
+    const g = syncShopEntries(seedGame("cf", "Candlefair", 0));
+    const room = g.items.find((x) => x.kind === "recurring")!;
+    g.rentals.push({ id: "r1", itemId: room.id, itemName: room.name, playerId: "p-secret", monthlyCp: room.priceCp, startedAt: 0, paidThrough: 0, active: true });
+    const hits = builderSearch(g, { type: "shop_item", text: room.name }).hits;
+    expect(hits.some((h) => h.id === room.id && h.snippet.includes("rent"))).toBe(true);
+    const full = builderGet(g, room.id)!;
+    expect(full).toMatchObject({ type: "shop_item", kind: "recurring", price_gp: room.priceCp / 100 });
+    expect(JSON.stringify(full)).not.toContain("p-secret");
+    const shop = entriesOf(g).find((e) => e.kind === "shop" && e.shopId === room.shopId)!;
+    expect((builderGet(g, shop.id)!.items as { id: string }[]).some((x) => x.id === room.id)).toBe(true);
+  });
+});

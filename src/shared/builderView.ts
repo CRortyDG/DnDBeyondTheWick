@@ -2,6 +2,7 @@
 // the game (an allowlist, like the TV and phone views), never by copying the
 // state and taking things out. Never in here: player names, handles, keys,
 // sign-in links, D&D Beyond links, purses, the ledger, rolls, votes, requests,
+// who bought or rents what,
 // combat, sessions, the Chronicle, builder keys or the audit log.
 
 import { entriesOf } from "./discovery";
@@ -11,7 +12,7 @@ import { jobsOf, pointsOf, rankName, ranksOf, renownOf } from "./renown";
 import { noticesOf } from "./board";
 import { tablesOf } from "./tables";
 import { characterPoints, partiesOf, worldOn } from "./world";
-import type { Entry, GameState, MonsterTemplate, Player, RandomTable, StoryBeat, StoryThread } from "./types";
+import type { Entry, GameState, Item, MonsterTemplate, Player, RandomTable, StoryBeat, StoryThread } from "./types";
 
 /** Said at the top of every answer that carries campaign text. */
 export const DATA_NOTE =
@@ -36,7 +37,7 @@ function threadName(g: GameState, t: StoryThread): string {
   return t.name || "Untitled thread";
 }
 
-export type SearchType = "person" | "place" | "shop" | "monster" | "mystery" | "faction" | "item" | "beat" | "thread" | "flyer" | "notice" | "monster_template" | "table" | "run_sheet";
+export type SearchType = "person" | "place" | "shop" | "monster" | "mystery" | "faction" | "item" | "beat" | "thread" | "flyer" | "notice" | "monster_template" | "table" | "run_sheet" | "shop_item";
 
 export interface SearchHit {
   id: string;
@@ -70,10 +71,55 @@ export function builderSearch(g: GameState, q: { type?: string; area?: string; t
     for (const j of jobsOf(g)) if (want("flyer") && has(text, j.title, j.body, j.postedBy)) hits.push({ id: j.id, type: "flyer", name: j.title, snippet: snip(j.body) });
     for (const n of noticesOf(g)) if (want("notice") && has(text, n.title, n.body)) hits.push({ id: n.id, type: "notice", name: n.title || "Note", snippet: snip(n.body) });
     for (const m of monstersOf(g)) if (want("monster_template") && has(text, m.name, m.displayName, m.notes)) hits.push({ id: m.id, type: "monster_template", name: m.name, snippet: snip(m.notes) });
+    for (const it of g.items) if (want("shop_item") && has(text, it.name, it.description, it.dmNote)) hits.push({ id: it.id, type: "shop_item", name: it.name, snippet: snip(`${shopName(g, it.shopId)} · ${KIND_WORDS[it.kind]} · ${priceWords(it)}`) });
     for (const ep of g.episodes ?? []) if (want("run_sheet") && has(text, ep.title, ...ep.beats.map((b) => b.title))) hits.push({ id: ep.id, type: "run_sheet", name: ep.title, snippet: snip(ep.beats.map((b) => b.title).join(" / ")) });
   }
   for (const t of tablesOf(g)) if (want("table") && inArea(area, t.areas) && has(text, t.name, ...t.rows.map((r) => r.text))) hits.push({ id: t.id, type: "table", name: t.name, areas: [...t.areas], snippet: `d${t.die}, ${t.rows.length} rows` });
   return { hits: hits.slice(0, 25), more: hits.length > 25 };
+}
+
+/** How each item kind works, in the shop's own words. */
+const KIND_WORDS: Record<Item["kind"], string> = {
+  purchase: "buy",
+  recurring: "rent (charged each session)",
+  service: "service (the DM answers)",
+  order: "special order",
+  training: "training (paid in lessons)",
+  project: "town project (anyone chips in)",
+  earned: "earned (the DM grants it)",
+};
+
+function shopName(g: GameState, shopId: string): string {
+  return g.shops.find((x) => x.id === shopId)?.name ?? "No shop";
+}
+
+function priceWords(it: Item): string {
+  if (it.priceLabel?.trim()) return it.priceLabel.trim();
+  const gp = it.priceCp / 100;
+  return it.kind === "recurring" ? `${gp} gp per session` : it.kind === "project" ? `${gp} gp goal` : `${gp} gp`;
+}
+
+/** A shop item, without who bought it or anyone's money. */
+function itemBrief(it: Item) {
+  return { id: it.id, name: it.name, kind: it.kind, how: KIND_WORDS[it.kind], price: priceWords(it), tier: it.tier };
+}
+
+function itemFull(g: GameState, it: Item) {
+  return {
+    ...itemBrief(it),
+    type: "shop_item",
+    shop: { id: it.shopId, name: shopName(g, it.shopId) },
+    price_gp: it.priceCp / 100,
+    category: it.category,
+    description: it.description,
+    stock: it.stock,
+    ...(it.tier === "locked" ? { locked_because: it.reason } : {}),
+    ...(it.hint ? { hint: it.hint } : {}),
+    ...(it.kind === "order" && it.arrivesInSessions ? { arrives_in_sessions: it.arrivesInSessions } : {}),
+    ...(it.kind === "training" && it.installments ? { lessons: it.installments } : {}),
+    ...(it.renown ? { needs_renown: it.renown } : {}),
+    dm_note: it.dmNote ?? "",
+  };
 }
 
 function entryFull(g: GameState, e: Entry) {
@@ -95,6 +141,10 @@ function entryFull(g: GameState, e: Entry) {
     links: e.links.map((id) => byId.get(id)).filter((x): x is Entry => !!x).map((x) => ({ id: x.id, type: x.kind, name: x.name })),
     story_beats: st.beats.filter((b) => b.links.some((l) => (l.kind === "entry" && l.id === e.id) || (l.kind === "fact" && l.entryId === e.id))).map((b) => ({ id: b.id, title: b.title, status: b.status })),
   };
+  if (e.kind === "shop" && e.shopId) {
+    const sh = g.shops.find((x) => x.id === e.shopId);
+    if (sh) out.items = g.items.filter((x) => x.shopId === sh.id).map(itemBrief);
+  }
   if (e.kind === "person") {
     out.relation = e.relation ?? "stranger";
     out.wants = e.wants ?? "";
@@ -169,6 +219,8 @@ export function builderGet(g: GameState, id: string): Record<string, unknown> | 
   if (m) return monsterFull(m);
   const tb = tablesOf(g).find((x) => x.id === id);
   if (tb) return tableFull(tb);
+  const it = g.items.find((x) => x.id === id);
+  if (it) return itemFull(g, it);
   const ep = (g.episodes ?? []).find((x) => x.id === id);
   if (ep) return { id: ep.id, type: "run_sheet", title: ep.title, beats: ep.beats.map((x) => ({ title: x.title, read_aloud: x.readAloud ?? [], notes: [...x.notes] })) };
   return null;
@@ -225,6 +277,7 @@ export function builderOverview(g: GameState) {
   byType.notice = noticesOf(g).length;
   byType.monster_template = monstersOf(g).length;
   byType.table = tablesOf(g).length;
+  byType.shop_item = g.items.length;
   return {
     style_guide: g.builderNotes ?? "",
     campaign: { name: g.name, town: g.town ?? "Candlefair" },
