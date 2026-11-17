@@ -679,6 +679,19 @@ describe("pictures", () => {
     expect(r.data.rejected).toBe(2);
   });
 
+  it("reads say whether an entry has a picture yet, without the picture", async () => {
+    const id = entriesOf(await state()).find((e) => !e.sceneId)!.id;
+    const before = await call(KEY, "get_entry", { id });
+    expect(before.data.campaign_text.has_picture).toBe(false);
+    const p = await upload(KEY, id, JPG);
+    await dm("/api/builder-admin/approve", { ids: [p.data.draft_id] });
+    const after = await call(KEY, "get_entry", { id });
+    expect(after.data.campaign_text.has_picture).toBe(true);
+    expect(JSON.stringify(after.data)).not.toContain("/api/files/");
+    const hit = (await call(KEY, "search", { text: after.data.campaign_text.name })).data.campaign_text.find((h: { id: string }) => h.id === id);
+    expect(hit.has_picture).toBe(true);
+  });
+
   it("show in the review row and drawer", () => {
     const d: ReviewDraft = { id: "bd_aaaaaaaaaaaa", kind: "picture", label: "k", batch: "b", status: "pending", createdAt: 0, updatedAt: 0, keyId: "x", title: "Picture", refs: [{ id: "e1", name: "Mags", draft: false }], body: { entry: "e1", url: "/api/files/testcampaign/0123456789abcdef01234567.jpg", alt: "Mags", bytes: 10 } } as unknown as ReviewDraft;
     const row = renderToStaticMarkup(createElement(DraftRow, { draft: d, busy: false, onOpen() {}, onApprove() {}, onReject() {} }));

@@ -125,7 +125,7 @@ server.registerTool(
   "search",
   {
     title: "Search the campaign",
-    description: "Find entries, beats, threads, flyers, notices, monster templates, random tables, run sheets and shop items (type shop_item: price and kind, e.g. rent) by type, area and text. Up to 25 short hits.",
+    description: "Find entries, beats, threads, flyers, notices, monster templates, random tables, run sheets and shop items (type shop_item: price and kind, e.g. rent) by type, area and text. Up to 25 short hits. Entry hits say has_picture (whether it has a portrait yet; add one with upload_picture).",
     inputSchema: {
       type: z.enum(["person", "place", "shop", "monster", "mystery", "faction", "item", "beat", "thread", "flyer", "notice", "monster_template", "table", "run_sheet", "shop_item"]).optional(),
       area: s(40).optional(),

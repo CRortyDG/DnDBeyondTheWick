@@ -45,7 +45,15 @@ export interface SearchHit {
   name: string;
   areas?: string[];
   stage?: string;
+  /** Entries: whether it has a picture (portrait) yet. Never the picture itself. */
+  has_picture?: boolean;
   snippet: string;
+}
+
+/** An entry has a picture once its portrait scene has art (uploaded or built in). */
+export function hasPicture(g: GameState, e: Entry): boolean {
+  const sc = e.sceneId ? g.scenes.find((x) => x.id === e.sceneId) : undefined;
+  return !!(sc?.art?.url || sc?.art?.builtin);
 }
 
 const snip = (t: string) => (t.length > 160 ? t.slice(0, 159) + "\u2026" : t);
@@ -61,7 +69,7 @@ export function builderSearch(g: GameState, q: { type?: string; area?: string; t
   for (const e of entriesOf(g)) {
     if (!want(e.kind) || !inArea(area, e.areas)) continue;
     if (has(text, e.name, e.title, e.summary, e.nickname, e.hint, e.dmNote, e.secrets, ...e.facts.map((f) => f.text))) {
-      hits.push({ id: e.id, type: e.kind, name: e.name, areas: [...e.areas], stage: e.stage, snippet: snip(e.summary || e.title || e.hint) });
+      hits.push({ id: e.id, type: e.kind, name: e.name, areas: [...e.areas], stage: e.stage, has_picture: hasPicture(g, e), snippet: snip(e.summary || e.title || e.hint) });
     }
   }
   const st = storyOf(g);
@@ -135,6 +143,7 @@ function entryFull(g: GameState, e: Entry) {
     hint: e.hint,
     areas: [...e.areas],
     stage: e.stage,
+    has_picture: hasPicture(g, e),
     dm_note: e.dmNote,
     secrets: e.secrets,
     facts: e.facts.map((f) => ({ id: f.id, text: f.text, revealed: f.revealedAt !== undefined })),
