@@ -1200,8 +1200,8 @@ function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
   /** Quick slots, written out (games not yet upgraded start from their hotkeys). */
   const quickSlots = (): (string | null)[] => (s.quick = quickOf(s));
 
-  // keepTv: an episode run leaves the TV alone, so beat 1's own actions decide what goes up (not the notice board).
-  const startSession = (title?: string, keepTv = false): Session => {
+  // Starting a session leaves the TV alone: the DM (or beat 1 of an episode) decides what goes up, not the notice board.
+  const startSession = (title?: string): Session => {
     const number = nextSessionNumber(s);
     const sess: Session = {
       id: nextId("sess"),
@@ -1220,7 +1220,6 @@ function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
       n.sessionId = sess.id;
       delete n.partyId;
     }
-    if (!keepTv) showScene(homeScene());
     // Special orders due by this session arrive (whether started here or by run-game).
     // In a shared world chapters count per party: only orders for someone at this table arrive.
     const here = new Set(sess.attendeeIds);
@@ -3723,7 +3722,7 @@ function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
         if (cur.run.episodeId === ep.id) break; // resume where we are
         fail(`${cur.title} is running “${episode(cur.run.episodeId).title}”. End it first.`);
       }
-      const sess = cur ?? startSession(undefined, true);
+      const sess = cur ?? startSession();
       sess.run = { episodeId: ep.id, stage: "start", beat: Math.min(resumeBeat(ep.id), Math.max(0, ep.beats.length - 1)), notes: {} };
       break;
     }
