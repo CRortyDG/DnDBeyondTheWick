@@ -1177,7 +1177,7 @@ export interface GameState {
   /** The party levelled up: the TV moment, and each phone's "You're level 3!". */
   levelMoment?: { n: number; at: number; levels: { playerId: string; level: number }[] };
   /** The last dice roll on the TV (the DM's or a player's): the TV plays it when n changes. Secret and DM-only rolls never get here. */
-  diceRoll?: { n: number; at: number; groups: DiceGroup[]; plus: number; total: number; /** Set when a player rolled. */ name?: string; /** What the roll was for. */ for?: "initiative" };
+  diceRoll?: { n: number; at: number; groups: DiceGroup[]; plus: number; total: number; /** Set when a player rolled. */ name?: string; /** What the roll was for. */ for?: "initiative"; keep?: "high" | "low"; label?: string };
   /** DM-ONLY: every roll, the DM's and the players', newest last (capped). Players see only their own. */
   rolls?: RollEntry[];
   /** The soundboard: what the TV plays (see sound.ts). Missing: nothing chosen, auto cues on. */

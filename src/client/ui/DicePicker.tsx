@@ -81,11 +81,13 @@ export function DicePicker({ picks }: { picks: DicePicks }) {
 
 /** One roll in a log: the total, the dice and every die's number, and a tag for where it went. */
 export function RollLine({ r, who, tag, secret }: { r: DiceResult; who?: string; tag: string; secret?: boolean }) {
+  const label = r.label ? `${r.label}: ` : "";
   return (
     <li>
       <span className="dt-total">{r.total}</span>
       <span>
         {who ? <b className="dt-who">{who} </b> : null}
+        {label}
         {describeResult(r)}{" "}
         <span className="dt-rolls">
           ({r.groups.flatMap((g) => g.rolls).join(", ")}

@@ -83,6 +83,7 @@ export function PlayerRollCards() {
           <div className="dt-card-body">
             <span className="dt-card-total">{r.total}</span>
             <span>
+              {r.label ? `${r.label}: ` : ""}
               {describeResult(r)}
               <span className="dt-rolls">
                 {" "}
@@ -128,7 +129,7 @@ export function DiceTray() {
   useEffect(() => {
     if (!newest || newest.n === seen.current) return;
     seen.current = newest.n;
-    if (newest.by && newest.to === "tv" && !open) toast(`${newest.name} rolled ${newest.total} (${describeResult(newest)}) on the TV.`);
+    if (newest.by && newest.to === "tv" && !open) toast(`${newest.name} rolled ${newest.label ? `${newest.label} ` : ""}${newest.total} (${describeResult(newest)}) on the TV.`);
   }, [newest, toast, open]);
   // With the tray open, everything in the log counts as seen.
   useEffect(() => {

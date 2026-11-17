@@ -1,6 +1,8 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { describeResult, natural } from "@/shared/dice";
+import type { SheetRoll } from "@/shared/sheet";
 import type { PlayerView } from "@/shared/projection";
 import { STARTERS } from "@/shared/starters";
 import { CharacterSheetView } from "../ui/CharacterSheet";
@@ -30,6 +32,20 @@ export function CharacterTab({
   onLink: () => void;
 }) {
   const me = view.me;
+  const [adv, setAdv] = useState<"" | "adv" | "dis">("");
+  const [tv, setTv] = useState(true);
+  const [rollErr, setRollErr] = useState<string | null>(null);
+  const roll = async (r: SheetRoll) => {
+    const err = await send({
+      type: "me.sheetRoll",
+      roll: r,
+      ...(adv && (r.kind !== "attack" || r.part === "hit") ? { adv } : {}),
+      tv,
+    });
+    setRollErr(err);
+    // Advantage is for one roll: back to normal after it.
+    if (!err) setAdv("");
+  };
   // The DM turned the sheet off for this player: just gold and shops, as before.
   if (me.sheetOff) return <>{gold}</>;
   return (
@@ -52,6 +68,35 @@ export function CharacterTab({
             inspired={view.purse.find((p) => p.id === me.id)?.inspired}
             lockedOut={!!me.sheet.locked}
             onPatch={(patch) => send({ type: "me.sheet", patch })}
+            onRoll={roll}
+            rollBar={
+              <>
+                <div className="cs-rollwrap">
+                  <div className="cs-rollbar">
+                    <div className="pl-seg" role="group" aria-label="Advantage">
+                      {(["dis", "", "adv"] as const).map((m) => (
+                        <button key={m || "normal"} type="button" className={adv === m ? "on" : undefined} aria-pressed={adv === m} onClick={() => setAdv(m)}>
+                          {m === "adv" ? "Advantage" : m === "dis" ? "Disadv." : "Normal"}
+                        </button>
+                      ))}
+                    </div>
+                    <label className="check">
+                      <input type="checkbox" checked={tv} onChange={(e) => setTv(e.target.checked)} /> On TV
+                    </label>
+                  </div>
+                  {rollErr ? (
+                    <p className="cs-err" role="alert">
+                      {rollErr}
+                    </p>
+                  ) : null}
+                  <LastRoll view={view} />
+                </div>
+                <p className="cs-rollbar-hint">
+                  Tap any score, save, skill, initiative or attack to roll it
+                  {tv ? " on the TV" : " for the DM only"}.
+                </p>
+              </>
+            }
             hp={<MyHp hp={me.hp} hasSheet go={async (c) => !(await send(c))} />}
           />
           {me.dndbUrl ? (
@@ -64,6 +109,30 @@ export function CharacterTab({
         <StartSheet view={view} send={send} onLink={onLink} />
       )}
     </>
+  );
+}
+
+/** My newest roll from the sheet, big, for a few seconds after it lands. */
+function LastRoll({ view }: { view: PlayerView }) {
+  const r = view.myRolls[0];
+  const first = useRef(r?.n);
+  const [shown, setShown] = useState<number | null>(null);
+  useEffect(() => {
+    if (!r || r.n === first.current || !r.label) return;
+    setShown(r.n);
+    const t = setTimeout(() => setShown(null), 8000);
+    return () => clearTimeout(t);
+  }, [r?.n]); // eslint-disable-line react-hooks/exhaustive-deps
+  if (!r || shown !== r.n) return null;
+  const nat = natural(r);
+  return (
+    <div className={`cs-last${nat === 20 ? " crit" : nat === 1 ? " fumble" : ""}`} role="status">
+      <b>{r.total}</b>
+      <span>
+        {r.label}: {describeResult(r)} ({r.groups.flatMap((g) => g.rolls).join(", ")}){nat === 20 ? " · Natural 20!" : nat === 1 ? " · Natural 1" : ""}
+        {r.to === "tv" ? " · on the TV" : " · DM only"}
+      </span>
+    </div>
   );
 }
 

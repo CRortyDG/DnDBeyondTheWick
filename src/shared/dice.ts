@@ -41,6 +41,25 @@ export interface DiceResult {
   groups: DiceGroup[];
   plus: number;
   total: number;
+  /** Two d20s, keep the higher (advantage) or the lower (disadvantage). */
+  keep?: "high" | "low";
+  /** What it was for, from a character sheet ("Stealth", "Longsword damage"). */
+  label?: string;
+}
+
+/** A d20 test from a character sheet: one d20, or two with advantage or disadvantage, plus the bonus. */
+export function rollD20(plus: number, adv: "adv" | "dis" | undefined, rand: () => number): DiceResult {
+  const d = () => 1 + Math.floor(rand() * 20);
+  const rolls = adv ? [d(), d()] : [d()];
+  const kept = adv === "adv" ? Math.max(...rolls) : adv === "dis" ? Math.min(...rolls) : rolls[0];
+  return { groups: [{ sides: 20, rolls }], plus, total: kept + plus, ...(adv ? { keep: adv === "adv" ? ("high" as const) : ("low" as const) } : {}) };
+}
+
+/** With advantage or disadvantage: which of the two d20s counts (0 or 1). Otherwise null. */
+export function keptIndex(r: Pick<DiceResult, "groups" | "keep">): number | null {
+  if (!r.keep || r.groups.length !== 1 || r.groups[0].sides !== 20 || r.groups[0].rolls.length !== 2) return null;
+  const [a, b] = r.groups[0].rolls;
+  return r.keep === "high" ? (b > a ? 1 : 0) : b < a ? 1 : 0;
 }
 
 /** Roll a handful of dice. Groups keep the d4 → d100 order, whatever order they were picked in. */
@@ -69,7 +88,8 @@ export function describeDice(groups: { sides: number; count: number }[], plus: n
   return out;
 }
 
-export function describeResult(r: Pick<DiceResult, "groups" | "plus">): string {
+export function describeResult(r: Pick<DiceResult, "groups" | "plus" | "keep">): string {
+  if (keptIndex(r) !== null) return `d20 with ${r.keep === "high" ? "advantage" : "disadvantage"}${r.plus ? ` ${r.plus > 0 ? "+" : "−"} ${Math.abs(r.plus)}` : ""}`;
   return describeDice(
     r.groups.map((g) => ({ sides: g.sides, count: g.rolls.length })),
     r.plus,
@@ -77,7 +97,12 @@ export function describeResult(r: Pick<DiceResult, "groups" | "plus">): string {
 }
 
 /** A lone d20: a natural 20 or natural 1 gets called out on the TV. */
-export function natural(r: Pick<DiceResult, "groups">): 20 | 1 | null {
+export function natural(r: Pick<DiceResult, "groups" | "keep">): 20 | 1 | null {
+  const k = keptIndex(r);
+  if (k !== null) {
+    const v = r.groups[0].rolls[k];
+    return v === 20 ? 20 : v === 1 ? 1 : null;
+  }
   if (r.groups.length !== 1 || r.groups[0].sides !== 20 || r.groups[0].rolls.length !== 1) return null;
   const v = r.groups[0].rolls[0];
   return v === 20 ? 20 : v === 1 ? 1 : null;

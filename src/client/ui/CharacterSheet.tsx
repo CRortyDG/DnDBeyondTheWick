@@ -30,7 +30,9 @@ import {
   type ExtraKey,
   type SheetPatch,
   type SkillId,
+  type SheetRoll,
 } from "@/shared/sheet";
+import { AttackEditor, AttackList } from "./SheetAttacks";
 import "./sheet.css";
 
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
@@ -56,6 +58,8 @@ export function CharacterSheetView({
   canLock,
   onLock,
   editLabel = "Edit sheet",
+  onRoll,
+  rollBar,
 }: {
   sheet: CharacterSheet;
   level: number | undefined;
@@ -68,6 +72,10 @@ export function CharacterSheetView({
   canLock?: boolean;
   onLock?: (on: boolean) => void;
   editLabel?: string;
+  /** Tap a check, save, skill, initiative or attack to roll it (the player's phone). */
+  onRoll?: (r: SheetRoll) => void;
+  /** Advantage and where the roll goes, shown above the rollable parts. */
+  rollBar?: ReactNode;
 }) {
   const [editing, setEditing] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -79,6 +87,7 @@ export function CharacterSheetView({
   };
   const line = sheetLine(sheet, level);
   const fixed = editing && lockedOut;
+  const roll = !editing && onRoll ? onRoll : undefined;
 
   return (
     <div className={`cs${editing ? " editing" : ""}`}>
@@ -86,7 +95,13 @@ export function CharacterSheetView({
         <div className="cs-head-line">{line || (editing ? "" : "Tap Edit sheet to fill in your class and scores.")}</div>
         <div className="cs-head-acts">
           {canLock ? (
-            <button type="button" className={`btn small${sheet.locked ? " on" : ""}`} aria-pressed={!!sheet.locked} onClick={() => onLock?.(!sheet.locked)} title="Locks class, scores and proficiencies on their phone. HP, conditions and notes stay open.">
+            <button
+              type="button"
+              className={`btn small${sheet.locked ? " on" : ""}`}
+              aria-pressed={!!sheet.locked}
+              onClick={() => onLock?.(!sheet.locked)}
+              title="Locks class, scores and proficiencies on their phone. HP, conditions and notes stay open."
+            >
               {sheet.locked ? "Locked" : "Lock"}
             </button>
           ) : null}
@@ -129,7 +144,7 @@ export function CharacterSheetView({
 
       <div className="cs-stats" role="list" aria-label="Combat numbers">
         <Stat label="AC" value={String(n.ac)} sub={n.acWorkedOut ? "no armor" : undefined} />
-        <Stat label="Initiative" value={signed(n.init)} />
+        <Stat label="Initiative" value={signed(n.init)} onTap={roll ? () => roll({ kind: "init" }) : undefined} />
         <Stat label="Speed" value={`${n.speed} ft`} />
         <Stat label="Proficiency" value={signed(n.prof)} />
         <Stat label="Passive Perception" short="Passive Perc." value={String(n.passive)} />
@@ -152,31 +167,64 @@ export function CharacterSheetView({
 
       <Conditions sheet={sheet} send={send} />
 
+      {roll && rollBar ? rollBar : null}
+
+      {editing ? <AttackEditor sheet={sheet} level={level} send={send} /> : <AttackList sheet={sheet} level={level} onRoll={roll} />}
+
       <h3 className="cs-h">Abilities</h3>
       <div className="cs-abilities">
-        {ABILITIES.map((a) => (
-          <div key={a} className="cs-ab">
-            <div className="cs-ab-k" title={ABILITY_NAME[a]}>
-              {ABILITY_SHORT[a]}
+        {ABILITIES.map((a) =>
+          roll ? (
+            <button key={a} type="button" className="cs-ab cs-tap" aria-label={`Roll a ${ABILITY_NAME[a]} check, ${signed(mod(sheet.scores[a]))}`} onClick={() => roll({ kind: "check", ability: a })}>
+              <span className="cs-ab-k">{ABILITY_SHORT[a]}</span>
+              <span className="cs-ab-mod">{signed(mod(sheet.scores[a]))}</span>
+              <span className="cs-ab-score">{sheet.scores[a]}</span>
+            </button>
+          ) : (
+            <div key={a} className="cs-ab">
+              <div className="cs-ab-k" title={ABILITY_NAME[a]}>
+                {ABILITY_SHORT[a]}
+              </div>
+              <div className="cs-ab-mod">{signed(mod(sheet.scores[a]))}</div>
+              {editing ? (
+                <NumField label={ABILITY_NAME[a]} hideLabel value={sheet.scores[a]} min={SCORE_MIN} max={SCORE_MAX} required disabled={fixed} onCommit={(v) => (v === undefined ? Promise.resolve(false) : send({ scores: { [a]: v } }))} />
+              ) : (
+                <div className="cs-ab-score">{sheet.scores[a]}</div>
+              )}
             </div>
-            <div className="cs-ab-mod">{signed(mod(sheet.scores[a]))}</div>
-            {editing ? (
-              <NumField label={ABILITY_NAME[a]} hideLabel value={sheet.scores[a]} min={SCORE_MIN} max={SCORE_MAX} required disabled={fixed} onCommit={(v) => (v === undefined ? Promise.resolve(false) : send({ scores: { [a]: v } }))} />
-            ) : (
-              <div className="cs-ab-score">{sheet.scores[a]}</div>
-            )}
-          </div>
-        ))}
+          ),
+        )}
       </div>
 
       <h3 className="cs-h">Saving throws</h3>
       <ul className="cs-list cs-saves">
         {ABILITIES.map((a) => {
           const on = sheet.saves.includes(a);
+          if (roll)
+            return (
+              <li key={a}>
+                <button type="button" className="cs-row-tap" aria-label={`Roll a ${ABILITY_NAME[a]} save, ${signed(saveBonus(sheet, a, level))}`} onClick={() => roll({ kind: "save", ability: a })}>
+                  <span className={`cs-dot${on ? " on" : ""}`} />
+                  <span className="cs-name">{ABILITY_NAME[a]}</span>
+                  <span className="cs-bonus">{signed(saveBonus(sheet, a, level))}</span>
+                </button>
+              </li>
+            );
           return (
             <li key={a}>
               {editing ? (
-                <button type="button" className={`cs-dot${on ? " on" : ""}`} aria-pressed={on} aria-label={`${ABILITY_NAME[a]} save: ${on ? "proficient" : "not proficient"}`} disabled={fixed} onClick={() => send({ saves: on ? sheet.saves.filter((x) => x !== a) : [...sheet.saves, a] })} />
+                <button
+                  type="button"
+                  className={`cs-dot${on ? " on" : ""}`}
+                  aria-pressed={on}
+                  aria-label={`${ABILITY_NAME[a]} save: ${on ? "proficient" : "not proficient"}`}
+                  disabled={fixed}
+                  onClick={() =>
+                    send({
+                      saves: on ? sheet.saves.filter((x) => x !== a) : [...sheet.saves, a],
+                    })
+                  }
+                />
               ) : (
                 <span className={`cs-dot${on ? " on" : ""}`} aria-label={on ? "proficient" : undefined} />
               )}
@@ -194,6 +242,18 @@ export function CharacterSheetView({
         {SKILLS.map((s) => {
           const r = sheet.skills[s.id as SkillId] ?? 0;
           const label = r === 2 ? "expertise" : r === 1 ? "proficient" : "not proficient";
+          if (roll)
+            return (
+              <li key={s.id}>
+                <button type="button" className="cs-row-tap" aria-label={`Roll ${s.name}, ${signed(skillBonus(sheet, s.id as SkillId, level))}`} onClick={() => roll({ kind: "skill", skill: s.id as SkillId })}>
+                  <span className={`cs-dot${r ? " on" : ""}${r === 2 ? " ex" : ""}`} />
+                  <span className="cs-name">
+                    {s.name} <span className="cs-ab-tag">{ABILITY_SHORT[s.ability as Ability]}</span>
+                  </span>
+                  <span className="cs-bonus">{signed(skillBonus(sheet, s.id as SkillId, level))}</span>
+                </button>
+              </li>
+            );
           return (
             <li key={s.id}>
               {editing ? (
@@ -214,14 +274,21 @@ export function CharacterSheetView({
       <TextBlock title="Features and traits" value={sheet.traits} editing={editing} max={TRAITS_MAX} placeholder="Second Wind: once per short rest, regain 1d10 + level HP…" onCommit={(v) => send({ traits: v })} />
       <TextBlock title="Proficiencies and languages" value={sheet.profs} editing={editing} max={PROFS_MAX} placeholder="Light armor, simple weapons, thieves' tools. Common, Halfling." onCommit={(v) => send({ profs: v })} />
       <TextBlock title="Notes" value={sheet.notes} editing={editing} max={SHEET_NOTES_MAX} placeholder="Backstory, allies, what you owe and to whom." onCommit={(v) => send({ notes: v })} />
-      <p className="note cs-credit">
-        Class, species and background names come from the free D&amp;D System Reference Document 5.2 (CC-BY-4.0). Anything else, type in yourself.
-      </p>
+      <p className="note cs-credit">Class, species and background names come from the free D&amp;D System Reference Document 5.2 (CC-BY-4.0). Anything else, type in yourself.</p>
     </div>
   );
 }
 
-function Stat({ label, short, value, sub }: { label: string; short?: string; value: string; sub?: string }) {
+function Stat({ label, short, value, sub, onTap }: { label: string; short?: string; value: string; sub?: string; onTap?: () => void }) {
+  if (onTap)
+    return (
+      <button type="button" className="cs-stat cs-tap" role="listitem" aria-label={`Roll ${label.toLowerCase()}, ${value}`} onClick={onTap}>
+        <div className="cs-stat-v">{value}</div>
+        <div className="cs-stat-k" aria-hidden="true">
+          {short ?? label}
+        </div>
+      </button>
+    );
   return (
     <div className="cs-stat" role="listitem" aria-label={`${label} ${value}${sub ? `, ${sub}` : ""}`}>
       <div className="cs-stat-v">{value}</div>
@@ -242,7 +309,10 @@ function HitDice({ sheet, n, editing, fixed, send }: { sheet: CharacterSheet; n:
   return (
     <div className="cs-hd">
       <div className="cs-hd-k">
-        Hit dice{n.hitDie ? ` (d${n.hitDie})` : ""} <span className="cs-hd-left">{n.hitDiceLeft} of {n.hitDice} left</span>
+        Hit dice{n.hitDie ? ` (d${n.hitDie})` : ""}{" "}
+        <span className="cs-hd-left">
+          {n.hitDiceLeft} of {n.hitDice} left
+        </span>
       </div>
       <div className="cs-hd-pips" role="group" aria-label="Hit dice: tap to spend or get one back">
         {Array.from({ length: n.hitDice }, (_, i) => {
@@ -253,7 +323,16 @@ function HitDice({ sheet, n, editing, fixed, send }: { sheet: CharacterSheet; n:
       {editing ? (
         <label className="cs-field cs-inline">
           <span>Hit die</span>
-          <select className="fld" value={sheet.hitDie ?? ""} disabled={fixed} onChange={(e) => void send({ hitDie: e.target.value ? (Number(e.target.value) as 6 | 8 | 10 | 12) : null })}>
+          <select
+            className="fld"
+            value={sheet.hitDie ?? ""}
+            disabled={fixed}
+            onChange={(e) =>
+              void send({
+                hitDie: e.target.value ? (Number(e.target.value) as 6 | 8 | 10 | 12) : null,
+              })
+            }
+          >
             <option value="">{n.hitDie && !sheet.hitDie ? `From class (d${n.hitDie})` : "From class"}</option>
             {HIT_DICE.map((d) => (
               <option key={d} value={d}>
@@ -271,7 +350,10 @@ function Conditions({ sheet, send }: { sheet: CharacterSheet; send: (p: SheetPat
   const [open, setOpen] = useState(false);
   const on = sheet.conditions ?? [];
   const ex = sheet.exhaustion ?? 0;
-  const toggle = (c: ConditionId) => send({ conditions: on.includes(c) ? on.filter((x) => x !== c) : [...on, c] });
+  const toggle = (c: ConditionId) =>
+    send({
+      conditions: on.includes(c) ? on.filter((x) => x !== c) : [...on, c],
+    });
   return (
     <div className="cs-conds">
       <div className="cs-conds-row">
@@ -302,7 +384,11 @@ function Conditions({ sheet, send }: { sheet: CharacterSheet; send: (p: SheetPat
               +
             </button>
           </div>
-          {ex ? <p className="note">Each level: &minus;{2 * ex} on d20 rolls and &minus;{5 * ex} ft speed in all (2024 rules). A long rest takes one level off.</p> : null}
+          {ex ? (
+            <p className="note">
+              Each level: &minus;{2 * ex} on d20 rolls and &minus;{5 * ex} ft speed in all (2024 rules). A long rest takes one level off.
+            </p>
+          ) : null}
         </div>
       ) : null}
     </div>
@@ -385,7 +471,16 @@ function NumField({
   return (
     <label className={`cs-field${className ? ` ${className}` : ""}`}>
       <span className={hideLabel ? "sr-only" : undefined}>{label}</span>
-      <input className="fld" inputMode={min < 0 ? "text" : "numeric"} value={v} placeholder={placeholder} disabled={disabled} onChange={(e) => setV(e.target.value.replace(/[^\d\-+−]/g, "").slice(0, 4))} onBlur={() => void commit()} onKeyDown={(e) => e.key === "Enter" && (e.currentTarget as HTMLInputElement).blur()} />
+      <input
+        className="fld"
+        inputMode={min < 0 ? "text" : "numeric"}
+        value={v}
+        placeholder={placeholder}
+        disabled={disabled}
+        onChange={(e) => setV(e.target.value.replace(/[^\d\-+−]/g, "").slice(0, 4))}
+        onBlur={() => void commit()}
+        onKeyDown={(e) => e.key === "Enter" && (e.currentTarget as HTMLInputElement).blur()}
+      />
       {hint ? <small className="cs-hint">{hint}</small> : null}
     </label>
   );

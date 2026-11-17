@@ -379,3 +379,174 @@ button.cs-dot {
 .dm-sheet > h3 {
   margin: 0;
 }
+
+/* Tap to roll. */
+.cs-tap {
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.cs-tap:active,
+.cs-row-tap:active,
+.cs-atk-b:active {
+  transform: scale(0.97);
+}
+.cs-stat.cs-tap {
+  border-color: var(--cs-gold);
+  background: var(--cs-gold-soft);
+}
+button.cs-ab {
+  width: 100%;
+}
+.cs-list li:has(> .cs-row-tap) {
+  padding: 0;
+}
+.cs-row-tap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 44px;
+  padding: 4px 12px;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.cs-row-tap .cs-bonus {
+  color: var(--cs-gold);
+}
+.cs-rollwrap {
+  position: sticky;
+  top: calc(61px + env(safe-area-inset-top));
+  z-index: 5;
+  display: grid;
+  gap: 6px;
+}
+.cs-rollbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+  border-radius: 12px;
+  background: rgba(15, 11, 8, 0.92);
+  border: 1px solid var(--cs-line);
+  backdrop-filter: blur(6px);
+}
+.cs-rollbar .pl-seg {
+  flex: 1;
+  min-width: 0;
+}
+.cs-rollbar .pl-seg button {
+  min-height: 32px;
+  font-size: 12.5px;
+}
+.cs-rollbar .check {
+  font-size: 12.5px;
+  white-space: nowrap;
+  color: var(--cs-text-2);
+}
+.cs-rollbar-hint {
+  margin: -4px 0 0;
+  font-size: 12px;
+  color: var(--cs-text-3);
+}
+.cs-last {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--cs-gold);
+  background: linear-gradient(var(--cs-gold-soft), var(--cs-gold-soft)), var(--pl-bg-1, #17120e);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
+}
+.cs-last b {
+  font-size: 26px;
+  font-variant-numeric: tabular-nums;
+}
+.cs-last span {
+  font-size: 13px;
+  color: var(--cs-text-2);
+  min-width: 0;
+}
+.cs-last.crit b {
+  color: var(--cs-gold);
+}
+.cs-last.fumble b {
+  color: var(--cs-danger);
+}
+
+/* Attacks. */
+.cs-attacks li {
+  flex-wrap: wrap;
+  padding: 8px 12px;
+}
+.cs-attacks .cs-name {
+  flex-basis: 100%;
+  font-weight: 600;
+}
+.cs-atk-b {
+  display: grid;
+  justify-items: center;
+  gap: 0;
+  min-height: 44px;
+  padding: 4px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--cs-gold);
+  background: var(--cs-gold-soft);
+  color: var(--cs-text);
+  font: inherit;
+  cursor: pointer;
+}
+.cs-atk-b b {
+  font-size: 15px;
+}
+.cs-atk-b small {
+  font-size: 10.5px;
+  color: var(--cs-text-3);
+}
+.cs-atk-b.crit {
+  border-color: var(--cs-line);
+  background: var(--cs-bg-2);
+}
+.cs-atk-static {
+  font-size: 14px;
+  color: var(--cs-text-2);
+}
+.cs-atk-card {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--cs-line);
+  border-radius: 10px;
+  background: var(--cs-bg);
+}
+.cs-atk-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: end;
+}
+.cs-grow {
+  flex: 1 1 140px;
+}
+.cs-small {
+  width: 84px;
+}
+.cs-atk-checks {
+  align-items: center;
+  font-size: 13px;
+}
+.cs-atk-sum {
+  flex: 1;
+  text-align: right;
+  font-size: 13px;
+  color: var(--cs-gold);
+}
+.cs-add {
+  justify-self: start;
+}

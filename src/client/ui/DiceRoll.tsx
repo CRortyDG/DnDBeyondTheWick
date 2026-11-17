@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { describeResult, natural, type DieSides } from "@/shared/dice";
+import { describeResult, keptIndex, natural, type DieSides } from "@/shared/dice";
 import type { TvView } from "@/shared/projection";
 import { Die } from "./Die";
 import "./dice.css";
@@ -112,6 +112,8 @@ export function DiceRollCard({ roll, still, leaving }: { roll: Roll; still?: boo
   }, [use3d]);
 
   const all = landed >= n;
+  // Advantage or disadvantage: the die that doesn't count fades once they've landed.
+  const kept = keptIndex(roll);
   const nat = natural(roll);
   const lone = n === 1 && !roll.plus;
 
@@ -123,7 +125,7 @@ export function DiceRollCard({ roll, still, leaving }: { roll: Roll; still?: boo
     >
       <div className="dice-roll-card">
         <div className="dice-roll-kicker">
-          {roll.name ? <span className="dice-roll-who">{roll.name} rolls {roll.for === "initiative" ? "initiative: " : ""}</span> : null}
+          {roll.name ? <span className="dice-roll-who">{roll.name} rolls {roll.label ? `${roll.label}: ` : roll.for === "initiative" ? "initiative: " : ""}</span> : null}
           {describeResult(roll)}
         </div>
         {use3d ? (
@@ -133,7 +135,7 @@ export function DiceRollCard({ roll, still, leaving }: { roll: Roll; still?: boo
             {dice.map((d, i) => (
               <span
                 key={i}
-                className={`dice-roll-die${i < landed ? " landed" : ""}${d.sides === 20 && d.v === 20 && i < landed ? " crit" : ""}${d.sides === 20 && d.v === 1 && i < landed ? " fumble" : ""}`}
+                className={`dice-roll-die${i < landed ? " landed" : ""}${kept !== null && kept !== i && all ? " dropped" : ""}${d.sides === 20 && d.v === 20 && i < landed ? " crit" : ""}${d.sides === 20 && d.v === 1 && i < landed ? " fumble" : ""}`}
                 style={{ ["--i" as string]: i, ["--dx" as string]: `${((i * 37) % 9) - 4}`, ["--spin" as string]: `${(i % 2 ? -1 : 1) * (540 + ((i * 53) % 180))}deg` }}
               >
                 <Die sides={d.sides as DieSides} value={faces[i] ?? d.v} />
