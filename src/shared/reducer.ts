@@ -46,7 +46,7 @@ import { monstersOf, reslotCombatant } from "./combat";
 import { noticesOf } from "./board";
 import { fillRanges, TABLES_MAX, tablesOf } from "./tables";
 import type { MadeBy, RandomTable } from "./types";
-import { applySheet, isSheetCommand, mod, restSheet, rollSpec, syncInitiative } from "./sheet";
+import { applySheet, hitDieSpec, isSheetCommand, mod, restSheet, rollSpec, shortRestSheet, syncConcFromFight, syncInitiative } from "./sheet";
 import { FADE_DEFAULT, isLayerId, isSfxId, mixLayers } from "./sound";
 
 export class CommandError extends Error {
@@ -107,6 +107,8 @@ function fail(msg: string, code?: string): never {
 }
 
 /** The Chronicle line for a Renown award: "Renown +2: Saved Winterfest." */
+const sheetNoHitDie = (p: Player) => (p.sheet && !p.sheet.hitDie && !p.sheet.cls ? "Pick your class (or a hit die) on the sheet first." : "No hit dice left. They come back on a long rest.");
+
 function awardLine(amount: number, why: string): string {
   const sign = amount > 0 ? `+${amount}` : `−${-amount}`;
   return `Renown ${sign}${why ? `: ${why}` : ""}.`.replace(/([.!?])\.$/, "$1");
@@ -1017,10 +1019,10 @@ function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
     n.hidden = true;
   };
   /** A long rest gets a line in the Chronicle. A second press soon after (same chapter) doesn't add another. */
-  const logRest = (who: Player[] | null) => {
+  const logRest = (who: Player[] | null, kind: "long" | "short" = "long") => {
     if ((s.notes ?? []).length >= NOTES_MAX) return;
     const names = (who ?? []).map((p) => p.character?.trim() || p.name);
-    const text = who && names.length ? `${listNames(names)} took a long rest.` : "The party took a long rest.";
+    const text = who && names.length ? `${listNames(names)} took a ${kind} rest.` : `The party took a ${kind} rest.`;
     const last = (s.notes ?? []).at(-1);
     if (last && last.authorId === DM_AUTHOR && last.text === text && last.sessionId === chapterOf(undefined) && ctx.now - last.createdAt < REST_REPEAT_MS) return;
     addNote(DM_AUTHOR, "The DM", text, [], undefined);
@@ -1708,6 +1710,7 @@ function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
   if (isFightCommand(cmd)) {
     const wasOver = s.fight?.status === "over";
     applyFight(s, cmd, fightHelpers);
+    syncConcFromFight(s);
     syncFightTokens(s, nextId);
     if (cmd.type === "fight.end" && !wasOver) noteMonsters(true);
     else if (cmd.type === "fight.patch") noteMonsters(false);
@@ -1739,7 +1742,7 @@ function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
   }
 
   if (isSheetCommand(cmd)) {
-    applySheet(s, cmd, { actor: ctx.actor as { role: string; playerId?: string }, now: ctx.now, fail });
+    applySheet(s, cmd, { actor: ctx.actor as { role: string; playerId?: string }, now: ctx.now, fail, info: (m) => (out.info = m) });
     return out;
   }
 
@@ -2620,6 +2623,13 @@ function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
         p.hp.temp = 0;
       }
       logRest(cmd.playerIds ? who : null);
+      break;
+    }
+    case "party.shortRest": {
+      if (s.fight && s.fight.status !== "over") fail("A fight is still open. End it first.");
+      const who = cmd.playerIds ? cmd.playerIds.map(player) : s.players.filter((p) => !p.archived);
+      for (const p of who) shortRestSheet(p);
+      logRest(cmd.playerIds ? who : null, "short");
       break;
     }
 
@@ -4256,6 +4266,26 @@ function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
       const tag = forInit ? { for: "initiative" as const } : {};
       if (cmd.tv) s.diceRoll = { n, at: ctx.now, ...r, name: penName(p), ...tag };
       logRoll({ ...r, n, at: ctx.now, by: p.id, name: p.name, to, ...tag });
+      break;
+    }
+    case "me.hitDie": {
+      const p = me();
+      if (!p.sheet || p.sheetOff) fail("You don't have a character sheet here.");
+      if (s.fight && s.fight.status !== "over") fail("Hit dice are for a short rest, after the fight.");
+      if (!p.hp || p.hp.max <= 0) fail("Set your max HP first.");
+      if (p.hp.cur >= p.hp.max) fail("You're already at full HP.");
+      const last = (s.rolls ?? []).findLast((x) => x.by === p.id);
+      if (last && ctx.now - last.at < PLAYER_ROLL_GAP_MS) fail("One roll at a time. Try again in a moment.");
+      const spec = hitDieSpec(p.sheet, p.level) ?? fail(sheetNoHitDie(p));
+      const r = rollPool([{ sides: spec.sides, count: 1 }], spec.plus, rand);
+      r.label = "Hit die";
+      const heal = Math.max(1, r.total);
+      p.hp.cur = Math.min(p.hp.max, p.hp.cur + heal);
+      p.sheet.hitDiceSpent = (p.sheet.hitDiceSpent ?? 0) + 1;
+      const n = ++s.seq;
+      if (cmd.tv) s.diceRoll = { n, at: ctx.now, ...r, name: penName(p) };
+      logRoll({ ...r, n, at: ctx.now, by: p.id, name: p.name, to: cmd.tv ? "tv" : "dm" });
+      out.info = `Healed ${heal}. You're at ${p.hp.cur} of ${p.hp.max} HP.`;
       break;
     }
     case "me.update": {

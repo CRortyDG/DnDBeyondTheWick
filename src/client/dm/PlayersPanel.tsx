@@ -48,8 +48,9 @@ export function PlayersPanel() {
   const fightOpen = !!s.fight && s.fight.status !== "over";
   const longRest = async () => {
     setResting(false);
-    await run({ type: "party.longRest" }, "Long rest: everyone is back to full HP. Logged in the Chronicle.");
+    await run({ type: "party.longRest" }, sheetCount ? "Long rest: full HP, and every slot, hit die and feature back on the sheets. Logged in the Chronicle." : "Long rest: everyone is back to full HP. Logged in the Chronicle.");
   };
+  const shortRest = () => run({ type: "party.shortRest" }, sheetCount ? "Short rest: Pact slots and short-rest features are back. Players can spend hit dice on their sheets. Logged in the Chronicle." : "Short rest logged in the Chronicle.");
 
   const copyAll = () => {
     const text = [`TV: ${absoluteHref(view.state.id, "TV")}`, ...s.players.filter((p) => !p.archived).map((p) => `${p.name}: ${absoluteHref(view.state.id, p.handle)}`)].join("\n");
@@ -92,6 +93,11 @@ export function PlayersPanel() {
                 onClick={() => setResting(true)}
               >
                 Long rest{hurt.length ? ` (${hurt.length} hurt)` : ""}
+              </button>
+            )}
+            {resting ? null : (
+              <button className="btn" type="button" disabled={fightOpen} title={fightOpen ? "End the fight first." : "Pact slots and short-rest features come back. Players spend hit dice on their phones."} onClick={() => void shortRest()}>
+                Short rest
               </button>
             )}
             <LevelUpButton />
@@ -331,6 +337,7 @@ function PlayerDrawer({ p, onClose }: { p: DmPlayer; onClose: () => void }) {
             canLock
             onLock={(on) => void run({ type: "sheet.lock", playerId: p.id, on }, on ? `${p.name}'s class, scores and proficiencies are locked.` : `${p.name}'s sheet is unlocked.`)}
             onPatch={async (patch) => ((await run({ type: "sheet.update", playerId: p.id, patch })) ? null : "")}
+            onAct={async (act) => ((await run({ type: "sheet.act", playerId: p.id, act })) ? null : "")}
             hp={p.hp && p.hp.max > 0 ? <p className="note">HP {p.hp.cur} of {p.hp.max}{p.hp.temp ? `, ${p.hp.temp} temp` : ""}. They change it on their phone, or you do in a fight.</p> : <p className="note">No HP set yet.</p>}
             editLabel="Edit"
           />
