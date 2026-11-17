@@ -5602,3 +5602,74 @@ html[data-view="dm"][data-phone] .dm-drawer {
 :where(html[data-view="dm"]) .pg-empty .btn {
   margin-top: 8px;
 }
+
+/* "Your first night": the steps card on a campaign that has never had a session. */
+:where(html[data-view="dm"]) .first-steps {
+  border: 1px solid var(--dm-gold-line);
+  background: var(--dm-gold-soft);
+  border-radius: var(--dm-r-md);
+  padding: 16px 18px;
+  margin: 0 0 18px;
+}
+:where(html[data-view="dm"]) .fs-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+:where(html[data-view="dm"]) .fs-head h2 {
+  margin: 0 0 2px;
+  font-size: 17px;
+  font-family: var(--dm-font-ui);
+  font-weight: 600;
+  color: var(--dm-text);
+}
+:where(html[data-view="dm"]) .fs-steps {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+:where(html[data-view="dm"]) .fs-steps li {
+  display: grid;
+  grid-template-columns: 28px 1fr auto;
+  gap: 12px;
+  align-items: center;
+}
+:where(html[data-view="dm"]) .fs-steps li.done .fs-body {
+  opacity: 0.6;
+}
+:where(html[data-view="dm"]) .fs-body {
+  display: grid;
+  gap: 2px;
+  color: var(--dm-text);
+}
+:where(html[data-view="dm"]) .fs-tick {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 1px solid var(--dm-gold-line);
+  color: var(--dm-gold);
+  display: grid;
+  place-items: center;
+  font-size: 13px;
+  font-weight: 600;
+}
+:where(html[data-view="dm"]) .fs-steps li.done .fs-tick {
+  background: var(--dm-ok-soft);
+  border-color: var(--dm-ok);
+  color: var(--dm-ok);
+}
+:where(html[data-view="dm"]) .fs-code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: var(--dm-gold);
+}
+@media (max-width: 700px) {
+  :where(html[data-view="dm"]) .fs-steps li {
+    grid-template-columns: 28px 1fr;
+  }
+  :where(html[data-view="dm"]) .fs-steps li > :last-child:not(.fs-body) {
+    grid-column: 2;
+  }
+}

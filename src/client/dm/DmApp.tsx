@@ -8,6 +8,7 @@ import type { DmView } from "@/shared/projection";
 import { api, absoluteHref, authHeaders, hrefFor, practiceHref, rememberKey, type Ident } from "../api";
 import { PracticeBar, PracticeButton, PracticeItems, PracticeResume } from "./Practice";
 import { MenuItem, RowMenu } from "./RowMenu";
+import { FirstSteps } from "./FirstSteps";
 import { useGame, type CallResult } from "../useGame";
 import { Notice } from "../ui/Notice";
 import { Purse } from "../ui/Purse";
@@ -796,6 +797,7 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
                 <h1>{PAGE_LABEL[tab]}</h1>
               </div>
             )}
+            {tab === "features" || tab === "game" ? null : <FirstSteps onGo={setTab} openTv={openTv} />}
             <div className="panel">
               {tab === "world" ? <WorldPanel /> : null}
               {tab === "bank" ? <BankPanel /> : null}
