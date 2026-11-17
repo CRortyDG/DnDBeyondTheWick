@@ -1,6 +1,7 @@
 // Spoiler safety lives here. Each role gets a view built field-by-field from
 // an explicit allow-list, so a new DM-only field can't leak by accident.
 
+import { keyRack, myRoom, type KeyRackView, type MyRoom } from "./rooms";
 import { decodeBits, fogged, publicFog, type PublicFog } from "./fog";
 import { publicGrid, publicTokens, type PublicGrid, type PublicToken } from "./tokens";
 import { leadsView, type LeadsView } from "./leads";
@@ -338,6 +339,8 @@ export interface TvView extends Common {
   recap: { number: number; title: string; text: string; notes?: { text: string; author: string }[] } | null;
   /** The Table's seats and the QR links of unclaimed players: only while The Table is live. */
   table?: TableView;
+  /** The key rack, while it's on the TV: hooks, room names and who has each. */
+  keyRack?: KeyRackView;
   /** While the Arrival intro is live on the TV: what plays and where it's up to. */
   intro?: TvIntroView;
   /** Combat mode: the fight going on, as the room may see it. */
@@ -439,6 +442,8 @@ export interface PlayerView extends Common {
   jobs: MyJob[];
   /** Discovery: rumored, found and known entries only; revealed facts only. */
   entries: PublicEntry[];
+  /** My room at the inn: its key, perk, roommate and rent. Never its story. */
+  myRoom?: MyRoom;
   /** Leads the party can see, the vote (with this player's ballot), and "You chose". */
   leads: LeadsView;
   /** Per area, how much the party has found (and, in totals mode, how much there is). */
@@ -677,6 +682,7 @@ export function projectTv(table: GameState, version: number): TvView {
     recap: publicRecap(game),
     ...(game.scenes.find((sc) => sc.id === game.live.sceneId)?.kind === "table" ? { table: projectTable(game) } : {}),
     ...(game.scenes.find((sc) => sc.id === game.live.sceneId)?.kind === "intro" ? { intro: projectIntro(game, Date.now()) } : {}),
+    ...(game.scenes.find((sc) => sc.id === game.live.sceneId)?.kind === "keys" ? { keyRack: keyRack(game) } : {}),
     fight: publicFight(game),
     companions: publicCompanions(game),
     sound: tvSound(game),
@@ -695,6 +701,7 @@ function withoutOff(game: GameState, v: TvView): TvView {
   if (!on("discover")) delete v.discovery;
   if (!on("jobs")) v.jobs = [];
   if (!on("board")) v.notices = [];
+  if (!on("rooms")) delete v.keyRack;
   if (!on("companions")) v.companions = [];
   if (!on("sound")) v.sound = { ...v.sound, muted: true, auto: false, layers: {} };
   return v;
@@ -822,6 +829,7 @@ export function projectPlayer(table: GameState, version: number, playerId: strin
       return { ...pub, canTake: pub.status === "open" && !pub.needs && !pub.goodwill && !p.archived, asked } satisfies MyJob;
     }),
     entries: publicEntries(game, p.id),
+    ...(myRoom(game, p.id) ? { myRoom: myRoom(game, p.id) } : {}),
     leads: leadsView(game, Date.now(), p.id),
     areas: areaCounts(game),
   };
@@ -839,6 +847,10 @@ export function projectPlayer(table: GameState, version: number, playerId: strin
       view.myCompanions = [];
     }
     if (myOff.includes("shops")) view.items = [];
+    if (myOff.includes("rooms")) {
+      delete view.myRoom;
+      for (const e of view.entries) delete e.room;
+    }
   }
   return view;
 }
@@ -934,7 +946,7 @@ export function chapterAt(game: Pick<GameState, "sessions">, at: number): number
 function myThings(game: GameState, playerId: string): MyThings {
   const items = new Map(game.items.map((i) => [i.id, i]));
   return {
-    rentals: game.rentals.filter((r) => r.playerId === playerId && r.active).map((r) => ({ id: r.id, itemName: r.itemName, monthlyCp: r.monthlyCp })),
+    rentals: game.rentals.filter((r) => r.playerId === playerId && r.active && !r.roomId).map((r) => ({ id: r.id, itemName: r.itemName, monthlyCp: r.monthlyCp })),
     trainings: game.trainings.filter((t) => t.playerId === playerId && !t.cancelled).map((t) => ({ id: t.id, itemName: t.itemName, what: t.what, paid: t.paid, of: t.of, done: t.done })),
     stakes: [...stakeTotals(game.stakes, playerId)].flatMap(([itemId, cp]) => {
       const it = items.get(itemId);

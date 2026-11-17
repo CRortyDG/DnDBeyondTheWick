@@ -175,6 +175,20 @@ server.registerTool(
       knows: s(1000).optional(),
       voice: s(1000).optional(),
       facts: z.array(s(600).min(1)).max(20).optional().describe("Facts players can learn later. All start unrevealed."),
+      room: z
+        .object({
+          hook: z.number().int().min(1).max(12).describe("Its hook on the key rack, 1-12."),
+          type: z.enum(["guest", "good", "staff"]).describe("guest: rentable, two beds. good: the Good Room, earned. staff: never rented."),
+          key: s(80).describe('The physical key, players see it ("the seahorse key").'),
+          key_missing: z.boolean().optional().describe("The key is gone: an empty hook."),
+          perk: s(300).optional().describe("What living here gets you. Players see it."),
+          tag: s(120).optional().describe("The line on its paper tag."),
+          rent_gp: z.number().min(0).max(10000).optional().describe("Rent a month, if not the inn's usual."),
+          beds: z.number().int().min(1).max(4).optional(),
+          start_perk: z.enum(["inspiration", "rumor"]).optional().describe("A reminder at each session start for whoever lives here."),
+        })
+        .optional()
+        .describe("Places only: a room at an inn. Put its story hook in secret and the innkeeper's line in dm_note."),
     },
     annotations: draft,
   },

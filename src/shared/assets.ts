@@ -21,10 +21,10 @@ import type { Beat, BeatAction, Entry, GameState, Pin, Scene, SceneKind } from "
 export type AssetGame = Pick<GameState, "scenes" | "entries"> & Partial<Pick<GameState, "quick" | "monsters" | "notices" | "jobs" | "flyers">>;
 
 /** The built-in screens, and the scene kind each one shows (leads is an overlay, not a scene). */
-export const SCREENS = ["board", "leads", "table", "intro", "stinger", "black"] as const;
+export const SCREENS = ["board", "leads", "table", "keys", "intro", "stinger", "black"] as const;
 export type Screen = (typeof SCREENS)[number];
-const SCREEN_KIND: Record<Exclude<Screen, "leads">, SceneKind> = { board: "notice", table: "table", intro: "intro", stinger: "stinger", black: "black" };
-export const SCREEN_LABEL: Record<Screen, string> = { board: "Notice board", leads: "Leads board", table: "The Table", intro: "The Arrival intro", stinger: "The stinger", black: "Black screen" };
+const SCREEN_KIND: Record<Exclude<Screen, "leads">, SceneKind> = { board: "notice", table: "table", keys: "keys", intro: "intro", stinger: "stinger", black: "black" };
+export const SCREEN_LABEL: Record<Screen, string> = { board: "Notice board", leads: "Leads board", table: "The Table", keys: "Key rack", intro: "The Arrival intro", stinger: "The stinger", black: "Black screen" };
 
 /** Number keys in bar order. */
 export const QUICK_KEYS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 0] as const;
@@ -197,7 +197,9 @@ export function listAssets(g: AssetGame): Asset[] {
   }
   for (const sc of g.scenes) if (isProp(g, sc)) out.push({ ref: refForScene(g, sc), label: sc.label, group: "Props", sub: propSub(sc), scene: sc });
   for (const n of boardNotes(g)) out.push(noteAsset(n));
-  for (const screen of SCREENS) out.push(resolveRef(g, screen)!);
+  // The key rack only once there are rooms.
+  const rooms = entriesOf(g).some((e) => e.room);
+  for (const screen of SCREENS) if (screen !== "keys" || rooms) out.push(resolveRef(g, screen)!);
   for (const a of AMBIENT) out.push(ambientAsset(a));
   return out;
 }
@@ -317,6 +319,7 @@ function needles(g: AssetGame): Needle[] {
   add("black screen", "black", 4);
   add("stinger", "stinger", 4);
   add("arrival intro", "intro", 4);
+  if (entriesOf(g).some((e) => e.room)) add("key rack", "keys", 4);
   return out;
 }
 

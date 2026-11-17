@@ -1,0 +1,342 @@
+/* Rooms at the inn: the TV key rack, the phone's My room card, and the DM's key picker. */
+
+/* ---------- TV: the key rack ---------- */
+.keyrack-scene {
+  background: radial-gradient(circle at 50% 40%, #2a170c, #0c0604 75%);
+}
+.keyrack-stage {
+  position: relative;
+  width: 1920px;
+  height: 1080px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 28px;
+}
+.keyrack-title {
+  font-family: var(--font-sc);
+  font-size: 54px;
+  color: #f4dcae;
+  letter-spacing: 0.04em;
+  text-shadow: 0 2px 14px rgba(0, 0, 0, 0.7);
+}
+.keyrack-board {
+  display: grid;
+  grid-template-columns: repeat(6, 260px);
+  grid-auto-rows: 360px;
+  gap: 18px 24px;
+  padding: 34px 44px 22px;
+  border-radius: 14px;
+  background:
+    repeating-linear-gradient(90deg, rgba(0, 0, 0, 0.08) 0 3px, transparent 3px 41px),
+    linear-gradient(180deg, #5a3a20, #3b2412 60%, #2c1a0c);
+  box-shadow: inset 0 0 0 6px #2a170a, inset 0 0 40px rgba(0, 0, 0, 0.55), 0 30px 60px rgba(0, 0, 0, 0.6);
+}
+.kr-hook {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.kr-num {
+  font-family: var(--font-num);
+  font-size: 30px;
+  font-weight: 600;
+  color: #e8c98a;
+  background: linear-gradient(180deg, #8a6a2c, #5a4419);
+  border-radius: 6px;
+  padding: 0 14px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.6);
+}
+.kr-peg {
+  width: 16px;
+  height: 16px;
+  margin-top: 8px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, #f0d48c, #7a5a1e 70%);
+  box-shadow: 0 3px 4px rgba(0, 0, 0, 0.7);
+  z-index: 2;
+}
+.kr-key {
+  width: 52px;
+  height: 148px;
+  margin-top: -10px;
+  filter: drop-shadow(0 6px 5px rgba(0, 0, 0, 0.6));
+}
+.kr-ribbon {
+  position: absolute;
+  top: 54px;
+  width: 22px;
+  height: 120px;
+  background: linear-gradient(90deg, #4a0d14, #8a1f2a, #4a0d14);
+  border-radius: 3px;
+  z-index: 0;
+}
+.kr-hook.good .kr-key {
+  position: relative;
+  z-index: 1;
+}
+.kr-tag {
+  margin-top: -18px;
+  width: 210px;
+  min-height: 120px;
+  padding: 12px 14px;
+  background: #f1e6cc;
+  border-radius: 6px 6px 18px 18px;
+  color: #2b2118;
+  text-align: center;
+  box-shadow: 0 8px 14px rgba(0, 0, 0, 0.5);
+  transform: rotate(-1.5deg);
+}
+.kr-hook:nth-child(even) .kr-tag {
+  transform: rotate(1.5deg);
+}
+.kr-tag-inn {
+  font-family: var(--font-sc);
+  font-size: 15px;
+  color: #6b5a44;
+  letter-spacing: 0.08em;
+}
+.kr-tag-name {
+  font-family: var(--font-sc);
+  font-size: 28px;
+  line-height: 1.1;
+  color: #8a1f2a;
+  margin: 4px 0 6px;
+}
+.kr-tag-earned {
+  display: inline-block;
+  font-family: var(--font-sc);
+  font-size: 17px;
+  color: #f4dcae;
+  background: #8a1f2a;
+  border-radius: 4px;
+  padding: 0 10px;
+  margin-bottom: 6px;
+}
+.kr-tag-who {
+  font-family: var(--font-hand);
+  font-size: 30px;
+  line-height: 1.1;
+  color: #2a3a6a;
+}
+.kr-tag-who.free {
+  font-family: var(--font-body);
+  font-style: italic;
+  font-size: 22px;
+  color: #6b5a44;
+}
+.kr-hook.staff .kr-key {
+  opacity: 0.85;
+}
+
+/* ---------- Phone: my room ---------- */
+.my-room {
+  padding: 0;
+  overflow: hidden;
+  border-radius: 14px;
+}
+.my-room-tag {
+  background: #f1e6cc;
+  color: #2b2118;
+  padding: 14px 16px 12px;
+  border-bottom: 2px dashed #b8a27c;
+}
+.my-room-kicker {
+  font-family: var(--font-sc);
+  font-size: 13px;
+  letter-spacing: 0.08em;
+  color: #6b5a44;
+}
+.my-room .my-room-name {
+  font-family: var(--font-sc);
+  font-size: 26px;
+  color: #8a1f2a;
+  margin: 2px 0 0;
+}
+.my-room-line {
+  margin: 4px 0 0;
+  font-style: italic;
+  color: #4a3b2b;
+}
+.my-room-facts {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 6px 14px;
+  margin: 0;
+  padding: 12px 16px 14px;
+}
+.my-room-facts dt {
+  font-family: var(--font-sc);
+  opacity: 0.75;
+}
+.my-room-facts dd {
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.my-room-behind {
+  color: #e8a35c;
+  font-weight: 600;
+}
+
+/* ---------- DM: key picker, rooms box, session start ---------- */
+.run-attend-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.room-key {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: 100%;
+}
+.room-key-btn.on {
+  font-weight: 600;
+}
+.key-picker {
+  border: 1px solid currentColor;
+  border-color: color-mix(in srgb, currentColor 25%, transparent);
+  border-radius: 8px;
+  padding: 10px;
+  max-width: 720px;
+}
+.key-picker-hooks {
+  list-style: none;
+  margin: 0 0 8px;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 6px;
+}
+.key-hook button {
+  width: 100%;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  grid-template-rows: auto auto;
+  column-gap: 8px;
+  text-align: left;
+  padding: 6px 8px;
+  border-radius: 6px;
+  border: 1px solid color-mix(in srgb, currentColor 30%, transparent);
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+}
+.key-hook button:hover:not(:disabled) {
+  background: color-mix(in srgb, currentColor 10%, transparent);
+}
+.key-hook button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.key-hook.good button {
+  border-color: #b8862a;
+}
+.key-hook.empty {
+  opacity: 0.35;
+  padding: 6px 8px;
+}
+.key-hook-n {
+  grid-row: span 2;
+  font-family: var(--font-num, Georgia, serif);
+  font-weight: 700;
+  font-size: 18px;
+  min-width: 1.4em;
+  text-align: center;
+}
+.key-hook-name {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.key-hook-sub {
+  font-size: 0.85em;
+  opacity: 0.75;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.room-said {
+  margin: 0;
+  padding: 8px 10px;
+  border-left: 3px solid #b8862a;
+  background: color-mix(in srgb, #b8862a 12%, transparent);
+  border-radius: 4px;
+  max-width: 720px;
+}
+.rooms-rack,
+.rooms-register {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 12px;
+  display: grid;
+  gap: 4px;
+}
+.rooms-rack-row {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+.rooms-rack-row.staff {
+  opacity: 0.6;
+}
+.rooms-register .old {
+  font-style: italic;
+  opacity: 0.8;
+}
+.room-fields {
+  border: 1px solid color-mix(in srgb, currentColor 20%, transparent);
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin: 10px 0;
+}
+.room-start .room-flag,
+.room-start .room-perk,
+.room-start .room-moment {
+  border-left: 3px solid var(--gold, #b8862a);
+  padding: 4px 0 4px 12px;
+  margin-bottom: 10px;
+}
+.room-start .room-flag p,
+.room-start .room-moment p {
+  margin: 0 0 6px;
+}
+.room-rumor {
+  font-style: italic;
+}
+.room-start .dm-only {
+  color: #8a1f2a;
+}
+.run-section .room-key-btn {
+  color: var(--ink);
+  background: var(--parchment-3);
+  border-color: #b8a27c;
+}
+.run-section .key-picker {
+  color: var(--ink);
+}
+.room-key:not(.compact),
+.room-key.compact:has(.key-picker) {
+  display: flex;
+  flex-basis: 100%;
+  width: 100%;
+}
+.room-key:not(.compact) .room-key-btn,
+.room-key.compact .room-key-btn {
+  align-self: flex-start;
+}
+.room-drawer h3 {
+  margin-top: 16px;
+}
+.run-attend-row:has(.key-picker) {
+  flex-basis: 100%;
+}
+.run-attend-row {
+  align-items: flex-end;
+}

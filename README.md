@@ -200,6 +200,16 @@ One compendium for everything the party can find: people, places, shops, monster
 - **Ties** link entries together; players see a tie only when both ends are visible to them.
 - **Phones** get a **Discover** tab with a "new" badge for anything changed since they last looked, each entry's facts, and the table's notes (Chronicle notes tagged with the entry's name). Hidden entries, locked facts, real names behind nicknames, DM notes and secrets never leave your screen.
 
+## Rooms at the inn
+
+- **A room is a place** in Discover with a room block (Discover → open a place → **Make this a room at an inn**): its hook on the 12-hook key rack, its type (guest room, the Good Room, or a staff room that's never rented), the key, the perk players see, and the line on its paper tag. Its first area is its inn. Its **Secrets** are the room's story hook and its **DM notes** the innkeeper's line when someone takes the key; neither ever leaves the server. When the inn itself is found, its guest rooms and the Good Room are found with it; staff rooms stay hidden until you show one.
+- **Giving out keys:** the key button beside each name in run-game's **Who's here?** (or in a player's drawer on Players) opens the rack. Every guest room has two beds. Moving keeps what they've paid, and the old room is in the register. The innkeeper's line comes up for you to read aloud.
+- **Rent** is the shop's own recurring rent: one month is one session, charged in the session-end dues step. 3 gp by default (Players → Rooms), a room can set its own (the Leaky One is half), and a character's first room is free for its first month. Untick someone in the dues step and the next session start flags it, with **Move them** to the cheapest free room or **Waive it**. Nobody is moved on their own.
+- **The Good Room** is earned with Renown (default Known in town, a character's own rank in a shared world) or rented at a higher price (default 10 gp), set per campaign.
+- **Session start** reminds you to give the Good Room's tenants a Candle's Luck token (Heroic Inspiration, one tap), gives whoever is Over the Kitchen a free rumor (rolled from your rumor tables), and suggests one present player for a room moment, rotating through whoever has gone longest without one.
+- **Phones** show a **My room** card on the Gold tab: name, key, perk, roommate and rent paid through. **The TV** has a **Key rack** screen (in the finder once there are rooms): who has each room, Free, the crown key marked Earned, and an empty hook where a key is missing.
+- The **Worldbuilder** can draft rooms: `create_entry` takes a `room` block on a place.
+
 ## Leads and votes
 
 - **DM view → Leads:** threads the party can pull on. Each can be about an entry, point to a place, and be tied to a job flyer. Leads go Open → Followed → Closed. New leads start as drafts; tick **Shown** when the party learns of one. Players never see a draft, your note, or a lead about something still hidden. A rumored place or person reads as its hint.

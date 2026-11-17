@@ -6,6 +6,8 @@
 // name and picture, and each fact once you reveal it. Your notes and secrets
 // never leave this screen.
 
+import { featureOn } from "@/shared/features";
+import { RoomFields } from "./Rooms";
 import { ask } from "./ask";
 import { PlaceSceneFields } from "./OffScript";
 import { useRef, useState } from "react";
@@ -285,6 +287,8 @@ function EntryEditor({ entry: e, tv }: { entry: Entry; tv: boolean }) {
       </div>
       <Field label="Summary (players see this once found)" value={e.summary} multiline onCommit={(v) => patch({ summary: v.slice(0, SUMMARY_MAX) })} />
 
+      {e.kind === "place" && (e.room || featureOn(s, "rooms")) ? <RoomFields entry={e} /> : null}
+
       <h4>While it&rsquo;s a rumor</h4>
       <div className="inline">
         <Field label="Nickname (empty: ???)" value={e.nickname} placeholder="The man with the lantern" onCommit={(v) => patch({ nickname: v })} />
@@ -522,8 +526,8 @@ function EntryEditor({ entry: e, tv }: { entry: Entry; tv: boolean }) {
       </form>
 
       <div className="inline">
-        <Field label="DM notes (only you see this)" value={e.dmNote} multiline onCommit={(v) => patch({ dmNote: v })} />
-        <Field label="Secrets (only you see this)" value={e.secrets} multiline onCommit={(v) => patch({ secrets: v })} />
+        <Field label={e.room ? "DM notes: the innkeeper's line when they take the key (only you)" : "DM notes (only you see this)"} value={e.dmNote} multiline onCommit={(v) => patch({ dmNote: v })} />
+        <Field label={e.room ? "Secrets: the room's story hook (only you)" : "Secrets (only you see this)"} value={e.secrets} multiline onCommit={(v) => patch({ secrets: v })} />
         {e.kind === "person" ? (
           <>
             <Field label="Wants (only you see this)" value={e.wants ?? ""} multiline onCommit={(v) => patch({ wants: v })} />

@@ -1,5 +1,6 @@
 "use client";
 
+import { RoomKey, RoomsBox, roomsOn } from "./Rooms";
 import { useState } from "react";
 import { formatCp } from "@/shared/money";
 import type { DmPlayer } from "@/shared/projection";
@@ -192,6 +193,8 @@ export function PlayersPanel() {
         {list.length === 0 ? <li className="pg-empty">No players yet. Anyone who opens their link with a new name joins automatically.</li> : null}
       </ol>
 
+      <RoomsBox />
+
       {editingPlayer ? <PlayerDrawer p={editingPlayer} onClose={() => setEditing(null)} /> : null}
     </div>
   );
@@ -322,6 +325,12 @@ function PlayerDrawer({ p, onClose }: { p: DmPlayer; onClose: () => void }) {
           <InspireToggle playerId={p.id} name={p.name} on={!!p.inspired} />
         </div>
       </div>
+      {roomsOn(view.state) ? (
+        <section className="room-drawer" aria-label="Room">
+          <h3>Room</h3>
+          <RoomKey player={p} />
+        </section>
+      ) : null}
       <PlayerFeatures p={p} />
       {featureOn(view.state, "sheets") ? (
       <section className="dm-sheet" aria-label="Character sheet">
