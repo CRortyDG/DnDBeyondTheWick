@@ -5,3 +5,20 @@
 .rank-words-row { border: 1px solid var(--line, rgba(0,0,0,.12)); border-radius: 8px; padding: 8px 10px 10px; margin: 8px 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 8px; }
 .rank-words-row legend { font-size: 0.85em; opacity: 0.75; padding: 0 4px; }
 .rank-words-row label { display: grid; gap: 3px; font-size: 0.85em; }
+
+/* Monsters → Basic monsters: a tick list. */
+:where(html[data-view="dm"]) .basic-mon {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+  padding: 8px 12px;
+}
+:where(html[data-view="dm"]) .basic-mon input {
+  width: 18px;
+  height: 18px;
+  flex: none;
+}
+:where(html[data-view="dm"]) .pg-empty .btn {
+  margin-top: 8px;
+}
