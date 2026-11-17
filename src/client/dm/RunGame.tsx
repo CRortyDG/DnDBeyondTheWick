@@ -495,6 +495,7 @@ function StartStep({ session }: { session: Session }) {
               <label key={p.id} className="check">
                 <input type="checkbox" checked={here} onChange={(e) => run({ type: "run.attend", playerId: p.id, here: e.target.checked })} />
                 {p.name}
+                {!here && p.hereAsk !== undefined ? <span className="knock-tag">Says they&rsquo;re here</span> : null}
               </label>
             );
           })}

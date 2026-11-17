@@ -402,6 +402,10 @@ export interface PlayerView extends Common {
     off?: FeatureId[];
     /** Tabs I hid on my own phone. Missing: none. */
     hidden?: FeatureId[];
+    /** The DM has me away from tonight's session. Only set while a session is running. */
+    away?: boolean;
+    /** My "I'm here" ask: waiting for the DM, or the DM said not yet (when, so the phone knows when I can ask again). */
+    hereAsk?: { status: "waiting" } | { status: "notYet"; at: number };
   };
   /** I just levelled up: the phone says so when n changes. */
   levelUp?: { n: number; level: number };
@@ -759,6 +763,12 @@ export function projectPlayer(table: GameState, version: number, playerId: strin
       ...(p.arrival?.pick ? { starter: p.arrival.pick } : {}),
       ...(myOff.length ? { off: myOff } : {}),
       ...(hiddenOf(p).length ? { hidden: hiddenOf(p) } : {}),
+      ...(game.currentSessionId && p.away && !p.archived
+        ? {
+            away: true,
+            ...(p.hereAsk !== undefined ? { hereAsk: { status: "waiting" as const } } : p.hereNo !== undefined ? { hereAsk: { status: "notYet" as const, at: p.hereNo } } : {}),
+          }
+        : {}),
     },
     ...(() => {
       const mine = game.levelMoment?.levels.find((l) => l.playerId === p.id);

@@ -24,6 +24,7 @@ import { NAV_ICONS, PlayerNav, type Screen } from "./PlayerNav";
 import { DecisionBanners, MyRequests, RequestSheet, SendGold } from "./Requests";
 import { CharacterTab, type CharacterPart } from "./CharacterTab";
 import { FEATURE, FEATURES, type FeatureId } from "@/shared/features";
+import { HERE_ASK_COOLDOWN_MS } from "@/shared/attendance";
 
 export function PlayerApp({ ident: initial }: { ident: Ident }) {
   const [ident, setIdent] = useState(initial);
@@ -447,7 +448,7 @@ function PlayerScreen({ view, online, send, ident, setIdent }: { view: PlayerVie
             </span>
             ) : null}
             {me.level ? <span className="pl-side-level">Level {me.level}</span> : null}
-            <span className="pl-side-where">{view.session ? `Chapter ${view.session.number}, tonight` : view.game.name}</span>
+            <span className="pl-side-where">{view.session ? `Chapter ${view.session.number}, ${me.away ? "marked away" : "tonight"}` : view.game.name}</span>
           </button>
           {has("gold") ? (
           <button type="button" className="pl-side-coin" aria-haspopup="dialog" aria-label={`Your gold: ${formatCp(me.balanceCp)}. Open your purse.`} onClick={() => setWalletOpen("purse")}>
@@ -476,6 +477,7 @@ function PlayerScreen({ view, online, send, ident, setIdent }: { view: PlayerVie
         </p>
       ) : null}
       {view.world ? <WorldStrip world={view.world} /> : null}
+      {me.away ? <AwayStrip view={view} send={send} /> : null}
       <DecisionBanners view={view} />
       {screen !== "fight" ? <CompanionStrip view={view} send={send} /> : null}
       {f && screen !== "fight" ? (
@@ -564,7 +566,7 @@ function PlayerScreen({ view, online, send, ident, setIdent }: { view: PlayerVie
               </>
             ) : null}
             {has("renown") || me.level ? <span aria-hidden="true">·</span> : null}
-            <span className="pl-sub-where">{view.session ? `Chapter ${view.session.number}, tonight` : view.game.name}</span>
+            <span className="pl-sub-where">{view.session ? `Chapter ${view.session.number}, ${me.away ? "marked away" : "tonight"}` : view.game.name}</span>
           </span>
         </button>
         {has("gold") ? (
@@ -581,6 +583,7 @@ function PlayerScreen({ view, online, send, ident, setIdent }: { view: PlayerVie
         </p>
       ) : null}
       {view.world ? <WorldStrip world={view.world} /> : null}
+      {me.away ? <AwayStrip view={view} send={send} /> : null}
       <DecisionBanners view={view} />
       {screen !== "fight" ? <CompanionStrip view={view} send={send} /> : null}
       {f && screen !== "fight" ? (
@@ -794,6 +797,60 @@ function WorldStrip({ world: w }: { world: NonNullable<PlayerView["world"]> }) {
 function shortDay(d: string): string {
   const [y, m, day] = d.split("-").map(Number);
   return new Date(Date.UTC(y, m - 1, day)).toLocaleDateString(undefined, { month: "short", day: "numeric", timeZone: "UTC" });
+}
+
+/**
+ * The DM has me down as away tonight. Only the DM marks anyone present, so this asks them:
+ * a tap sends "I'm here", the DM accepts or keeps me away with one tap of their own.
+ */
+function AwayStrip({ view, send }: { view: PlayerView; send: (c: object) => Promise<string | null> }) {
+  const ask = view.me.hereAsk;
+  const [err, setErr] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  // After "not yet", the button comes back a minute later.
+  const [now, setNow] = useState(() => Date.now());
+  const waitUntil = ask?.status === "notYet" ? ask.at + HERE_ASK_COOLDOWN_MS : 0;
+  useEffect(() => {
+    if (!waitUntil || waitUntil <= Date.now()) return;
+    const t = window.setTimeout(() => setNow(Date.now()), Math.max(500, waitUntil - Date.now() + 250));
+    return () => window.clearTimeout(t);
+  }, [waitUntil]);
+  // The server's clock and this device's can differ a little: the server has the last word.
+  const coolingDown = waitUntil > now;
+  const go = async (cancel?: boolean) => {
+    setBusy(true);
+    setErr(await send({ type: "me.askHere", ...(cancel ? { cancel: true } : {}) }));
+    setBusy(false);
+  };
+  const waiting = ask?.status === "waiting";
+  return (
+    <section className={`pl-away${waiting ? " waiting" : ""}`} role="status" aria-live="polite" aria-label="You're marked away">
+      <div className="pl-away-text">
+        <span className="pl-away-k">{waiting ? "Asked the DM" : "You're marked away"}</span>
+        <span className="pl-away-v">
+          {waiting
+            ? "They'll mark you here in a moment. Until then you're left off the TV purse and out of fights."
+            : ask?.status === "notYet"
+              ? "The DM is keeping you away for now. If you're at the table, ask again in a minute."
+              : "The DM has you down as not at the table tonight. Here after all? Let them know."}
+        </span>
+        {err ? (
+          <span className="pl-away-err" role="alert">
+            {err}
+          </span>
+        ) : null}
+      </div>
+      {waiting ? (
+        <button type="button" className="btn small" disabled={busy} onClick={() => void go(true)}>
+          Never mind
+        </button>
+      ) : (
+        <button type="button" className="btn primary" disabled={busy || coolingDown} onClick={() => void go()}>
+          I&rsquo;m here
+        </button>
+      )}
+    </section>
+  );
 }
 
 /** No tabs at all (every one is off or hidden): say so, and keep the dice in reach. */

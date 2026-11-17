@@ -167,6 +167,10 @@ export interface Player {
   dndbUrl?: string;
   /** Not at the table tonight: hidden from the TV purse and skipped by "pay everyone". */
   away: boolean;
+  /** Marked away, they asked the DM to mark them here (when). Cleared once the DM answers or the session ends. */
+  hereAsk?: number;
+  /** The DM said "not yet" to their ask (when): they can ask again a minute later. Cleared when the session ends. */
+  hereNo?: number;
   archived: boolean;
   dropIn: boolean;
   balanceCp: number;

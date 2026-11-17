@@ -2616,3 +2616,51 @@ html[data-view="player"] {
   max-width: 220px;
   accent-color: var(--pl-gold);
 }
+
+/* Marked away tonight: say so, and let them ask the DM to mark them here. */
+:where(html[data-view="player"]) .pl-away {
+  display: flex;
+  align-items: center;
+  gap: var(--pl-s3);
+  margin: var(--pl-s2) 0;
+  padding: 12px 14px;
+  border-radius: var(--pl-r-md);
+  border: 1px solid var(--pl-gold-line);
+  background: var(--pl-gold-soft);
+  color: var(--pl-text);
+}
+:where(html[data-view="player"]) .pl-away.waiting {
+  border-style: dashed;
+  background: var(--pl-bg-2);
+}
+:where(html[data-view="player"]) .pl-away-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+:where(html[data-view="player"]) .pl-away-k {
+  font-family: var(--font-poster);
+  font-size: 19px;
+  line-height: 1.1;
+  color: var(--pl-gold);
+}
+:where(html[data-view="player"]) .pl-away-v {
+  font-size: 14px;
+  color: var(--pl-text-2);
+}
+:where(html[data-view="player"]) .pl-away-err {
+  font-size: 13px;
+  color: var(--pl-danger);
+}
+:where(html[data-view="player"]) .pl-away .btn {
+  flex: none;
+  min-height: var(--pl-control);
+}
+@media (max-width: 420px) {
+  :where(html[data-view="player"]) .pl-away {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
