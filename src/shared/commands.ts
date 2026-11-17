@@ -12,6 +12,7 @@ import { isLayerId, isSfxId, LAYER_IDS, mixById, SFX_IDS } from "./sound";
 import { HANDOUT_BODY_MAX, HANDOUT_SIGN_MAX, HANDOUT_TITLE_MAX } from "./handout";
 import { storyDmCommands } from "./storySchema";
 import { inviteDmCommands } from "./inviteSchema";
+import { sheetDmCommands, sheetPlayerCommands } from "./sheet";
 import { offscriptDmCommands } from "./offscriptSchema";
 import { CLIP_URL_RE, CLIP_VIDEO_MAX, INTRO_STEPS_MAX, SLIDE_TEXT_MAX, SLIDES_MAX, WELCOME_MAX } from "./arrival";
 import type { TokenColor } from "./types";
@@ -645,6 +646,9 @@ export const dmCommand = z.discriminatedUnion("type", [
 
   // Session invites.
   ...inviteDmCommands,
+
+  // Character sheets.
+  ...sheetDmCommands,
 ]);
 
 /** Commands a player may send about themselves. */
@@ -673,6 +677,8 @@ export const playerCommand = z.discriminatedUnion("type", [
   ...fightPlayerCommands,
   // Companions I control.
   ...companionPlayerCommands,
+  // My character sheet.
+  ...sheetPlayerCommands,
 ]);
 
 /** Commands the server issues itself; never accepted from a client. */
