@@ -759,13 +759,13 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
               <span key={k.id} className="knock">
                 <span className="knock-tag">Knocking</span>
                 <span>
-                  <b>{k.handle}</b> wants a seat.
+                  <b>{k.name || k.handle}</b> wants a seat.
                 </span>
                 <span className="spacer" />
                 <button className="btn small" type="button" onClick={() => run({ type: "knock.dismiss", knockId: k.id })}>
                   Dismiss
                 </button>
-                <button className="btn small primary" type="button" onClick={() => run({ type: "knock.admit", knockId: k.id }, `Let ${k.handle} in.`)}>
+                <button className="btn small primary" type="button" onClick={() => run({ type: "knock.admit", knockId: k.id }, `Let ${k.name || k.handle} in.`)}>
                   Let in
                 </button>
               </span>

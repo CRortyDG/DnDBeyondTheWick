@@ -3794,7 +3794,7 @@ function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
     case "knock.admit": {
       const k = s.knocks.find((x) => x.id === cmd.knockId) ?? fail("Nobody's knocking.");
       s.knocks = s.knocks.filter((x) => x.id !== k.id);
-      if (!s.players.some((p) => p.handle === k.handle)) createPlayer(k.handle, displayNameFrom(k.handle), "url");
+      if (!s.players.some((p) => p.handle === k.handle)) createPlayer(k.handle, k.name || displayNameFrom(k.handle), "url");
       break;
     }
     case "knock.dismiss":
@@ -4644,7 +4644,7 @@ function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
     case "system.knock": {
       const h = normaliseHandle(cmd.handle);
       if (!h || isReservedHandle(h)) fail("Pick a different name.");
-      if (!s.knocks.some((k) => k.handle === h)) s.knocks.push({ id: nextId("k"), handle: h, at: ctx.now });
+      if (!s.knocks.some((k) => k.handle === h)) s.knocks.push({ id: nextId("k"), handle: h, ...(cmd.name?.trim() ? { name: cmd.name.trim().slice(0, 32) } : {}), at: ctx.now });
       s.knocks = s.knocks.slice(-20);
       break;
     }

@@ -170,7 +170,7 @@ export async function hello(gameRaw: string | null, rawPlayer: string | null, ke
     const full = seatedCount(state) >= seatsOf(state);
     const running = !!state.currentSessionId;
     if (state.doorClosed || full || running) {
-      await execute(store, game, system, { type: "system.knock", handle: who.handle });
+      await execute(store, game, system, { type: "system.knock", handle: who.handle, name: who.name });
       return { status: full && !state.doorClosed ? "full" : "knocking" };
     }
     try {

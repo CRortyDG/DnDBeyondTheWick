@@ -695,7 +695,7 @@ export const playerCommand = z.discriminatedUnion("type", [
 export type SystemCommand =
   | { type: "system.join"; handle: string; name: string; keyHash?: string }
   | { type: "system.hello"; playerId: string }
-  | { type: "system.knock"; handle: string }
+  | { type: "system.knock"; handle: string; name?: string }
   | { type: "me.lockHashed"; keyHash: string }
   /** From /api/arrival: the server has already matched the link code to playerId. */
   | { type: "system.arrivalStep"; playerId: string; step: "open" | "finish" }
