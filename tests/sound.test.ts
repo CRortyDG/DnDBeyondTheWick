@@ -5,7 +5,7 @@ import { projectPlayer, projectTv } from "@/shared/projection";
 import { apply, type Ctx } from "@/shared/reducer";
 import { seedGame } from "@/shared/seed";
 import { parseEpisode, beatMarkdown } from "@/shared/runsheet";
-import { AMBIENT_SOUND, findMix, findSfx, LAYER_IDS, MIXES, SFX_IDS } from "@/shared/sound";
+import { AMBIENT_SOUND, findMix, findSfx, LAYER_IDS, MIX_GROUPS, MIXES, SFX, SFX_GROUPS, SFX_IDS } from "@/shared/sound";
 import { AMBIENT_IDS } from "@/shared/ambient";
 import { BATTLE_LEVEL, duckFor, stingerBed, tableBed, tableMix } from "@/client/sound/tableMix";
 import { LAYER_MAKERS } from "@/client/sound/layers";
@@ -198,5 +198,30 @@ describe("the catalog", () => {
     for (const m of MIXES) for (const id of Object.keys(m.layers)) expect(LAYER_IDS as string[]).toContain(id);
     for (const id of AMBIENT_IDS) expect(AMBIENT_SOUND[id], id).toBeDefined();
     for (const bed of Object.values(AMBIENT_SOUND)) for (const id of Object.keys(bed)) expect(LAYER_IDS as string[]).toContain(id);
+  });
+
+  it("keeps ids unique and every mix and effect in a group the soundboard shows", () => {
+    expect(new Set(MIXES.map((m) => m.id)).size).toBe(MIXES.length);
+    expect(new Set(LAYER_IDS).size).toBe(LAYER_IDS.length);
+    expect(new Set(SFX_IDS).size).toBe(SFX_IDS.length);
+    const mg = MIX_GROUPS.map((x) => x.id) as string[];
+    for (const m of MIXES) expect(mg, m.id).toContain(m.group);
+    const sg = SFX_GROUPS.map((x) => x.id) as string[];
+    for (const x of SFX) expect(sg, x.id).toContain(x.group);
+  });
+
+  it("finds the place mixes from run sheet lines", () => {
+    expect(findMix("The docks")).toBe("docks");
+    expect(findMix("docks")).toBe("docks");
+    expect(findMix("Aboard ship")).toBe("aboard");
+    expect(findMix("Feast hall")).toBe("feast");
+    expect(findMix("Winterfest")).toBe("winterfest");
+    expect(findMix("Dark woods")).toBe("dark-woods");
+    expect(findMix("layer/ship")).toBe("layer/ship");
+    expect(findMix("sea shanty")).toBe("layer/shanty");
+    expect(findSfx("Ship's bell")).toBe("ship-bell");
+    expect(findSfx("ships bell")).toBe("ship-bell");
+    expect(findSfx("ship-bell")).toBe("ship-bell");
+    expect(findSfx("shop door bell")).toBe("shop-bell");
   });
 });

@@ -5,6 +5,7 @@
 
 import { bell, envGain, midi, noise, panTo, pick, pluck, rnd, tone, type Kit, type SfxMaker } from "./engine";
 import { clickBuffer, laugh, rasp, resonate, utter, wander, type Vowel } from "./voice";
+import { PLACE_SFX } from "./sfxPlaces";
 
 export interface SfxOpts {
   vol?: number;
@@ -746,3 +747,6 @@ export const SFX_MAKERS: Record<string, SfxMaker> = {
     }
   },
 };
+
+// The docks, the smithy, the kitchen, the shop door, the snow and the woods (sfxPlaces.ts).
+Object.assign(SFX_MAKERS, PLACE_SFX);
