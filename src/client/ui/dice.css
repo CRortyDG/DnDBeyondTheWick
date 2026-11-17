@@ -174,6 +174,7 @@
 }
 @media (prefers-reduced-motion: reduce) {
   .dice-roll,
+  .dice-roll.together .dice-roll-slot,
   .dice-roll-die,
   .dice-roll-die.landed .die {
     animation: none;
@@ -182,12 +183,76 @@
     transition: none;
   }
 }
-.dice-roll.still .dice-roll-die,
-.dice-roll.still .dice-roll-die.landed .die {
+.dice-roll-slot.still .dice-roll-die,
+.dice-roll-slot.still .dice-roll-die.landed .die {
   animation: none;
 }
-.dice-roll.still .dice-roll-total {
+.dice-roll-slot.still .dice-roll-total {
   transition: none;
+}
+
+/* One roll: the slot is just a wrapper, and its 3D canvas covers the whole TV. */
+.dice-roll-slot {
+  display: contents;
+}
+
+/* Several rolls at once (everyone rolling initiative): cards side by side, two rows at most.
+   Each card's 3D dice stay inside it, and each card fades out on its own. */
+.dice-roll.together {
+  grid-template-columns: repeat(var(--cols, 2), minmax(0, calc(1760 * var(--u) / var(--cols, 2))));
+  place-content: center;
+  place-items: stretch;
+  gap: calc(30 * var(--u));
+  padding: calc(40 * var(--u));
+  background: rgba(13, 10, 8, 0.9);
+}
+.dice-roll.together .dice-roll-slot {
+  display: block;
+  position: relative;
+  min-width: 0;
+  animation: dice-in 0.35s ease both;
+}
+.dice-roll.together .dice-roll-slot.leaving {
+  animation: dice-out 0.6s ease both;
+}
+.dice-roll.together .dice-roll-card {
+  min-width: 0;
+  max-width: none;
+  width: 100%;
+  height: 100%;
+  align-content: space-between;
+  box-sizing: border-box;
+  gap: calc(14 * var(--u));
+  padding: calc(26 * var(--u)) calc(24 * var(--u)) calc(20 * var(--u));
+}
+.dice-roll.together .dice-roll-kicker {
+  font-size: calc(28 * var(--u));
+  text-align: center;
+  color: var(--muted);
+}
+.dice-roll.together .dice-roll-who {
+  display: block;
+  font-size: calc(46 * var(--u));
+  color: var(--gold-bright);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.dice-roll.together .dice-roll-total {
+  min-height: calc(90 * var(--u));
+  gap: calc(16 * var(--u));
+}
+.dice-roll.together .dice-roll-total-label {
+  font-size: calc(26 * var(--u));
+}
+.dice-roll.together .dice-roll-total-num {
+  font-size: calc(92 * var(--u));
+}
+.dice-roll.together .dice-roll-total-num.small {
+  font-size: calc(54 * var(--u));
+}
+.dice-roll.together .dice-roll-nat {
+  font-size: calc(60 * var(--u));
 }
 
 /* ================================================================ DM tray */

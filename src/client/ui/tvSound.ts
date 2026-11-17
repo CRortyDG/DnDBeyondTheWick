@@ -70,3 +70,32 @@ export function chime(kind: "reveal" | "fact" | "rumor") {
   if (!autoCues || !engine?.running) return;
   engine.play(kind === "reveal" ? "chime" : `chime-${kind}`);
 }
+
+// ---- Dice on the TV
+// The rattle starts as a roll's dice start tumbling on screen (DiceRoll.tsx calls this), so a
+// roll that waits its turn rattles when it shows, not when it arrived. When a few start together
+// (everyone rolling initiative) the rattles are staggered and softened rather than stacked, and
+// past a handful the table is already loud enough.
+const BURST_GAP_MS = 150;
+const BURST_RATTLES = 4;
+let burst = { at: -Infinity, k: 0, crit: false, fumble: false };
+
+/** dur: seconds until the last die lands. nat: a lone d20's natural 20 or 1, for its sting. */
+export function diceSound(o: { dice: number; dur: number; nat: 20 | 1 | null }) {
+  if (!autoCues || !engine?.running) return;
+  const now = performance.now();
+  if (now - burst.at > BURST_GAP_MS) burst = { at: now, k: 0, crit: false, fumble: false };
+  else burst.at = now;
+  const k = burst.k++;
+  if (k < BURST_RATTLES) {
+    engine.play("dice", { dur: Math.max(0.6, o.dur - 0.3), count: o.dice, delay: k * 0.09, vol: k ? 0.85 ** k : 1 });
+  }
+  // One fanfare (and one groan) per burst is plenty.
+  if (o.nat === 20 && !burst.crit) {
+    burst.crit = true;
+    engine.play("crit", { delay: o.dur });
+  } else if (o.nat === 1 && !burst.fumble) {
+    burst.fumble = true;
+    engine.play("fumble", { delay: o.dur });
+  }
+}

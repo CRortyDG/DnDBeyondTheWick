@@ -49,6 +49,8 @@ export interface Dice3DOptions {
   cols: number;
   /** Where on screen the dice should land (the card's dice area). */
   place: () => DOMRect;
+  /** Elements whose size moves the landing spot (the card's dice area): refit when they resize. */
+  watch?: Element[];
 }
 
 const LOOK: Record<number, { body: string; ink: string }> = {
@@ -202,6 +204,7 @@ export function mountDice3D(host: HTMLElement, dice: Die3D[], opt: Dice3DOptions
 
   const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(fit) : null;
   ro?.observe(canvas);
+  for (const el of opt.watch ?? []) ro?.observe(el);
 
   return () => {
     cancelAnimationFrame(raf);

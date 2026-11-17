@@ -338,6 +338,7 @@ export function playerLens(g: GameState, playerId: string): GameState {
     delete out.discovery;
     delete out.recapCard;
     delete out.diceRoll;
+    delete out.tvRolls;
     delete out.renownMoment;
     delete out.levelMoment;
     out.live = { ...out.live, focus: undefined, banner: undefined, leads: false, shopOpen: false };

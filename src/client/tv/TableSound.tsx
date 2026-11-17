@@ -7,14 +7,9 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { TvView } from "@/shared/projection";
-import { natural } from "@/shared/dice";
 import { duckFor, STINGER_CUES, stingerBed, tableMix } from "../sound/tableMix";
 import { SpeakerIcon } from "../ui/icons";
 import { setAutoCues, tableEngine, useSoundPref, writeSoundPref } from "../ui/tvSound";
-
-/** Matches DiceRoll.tsx: when the dice land. */
-const TUMBLE_MS = 1400;
-const STAGGER_MS = 90;
 
 export function TableSound({ view }: { view: TvView }) {
   const pref = useSoundPref();
@@ -111,17 +106,7 @@ export function TableSound({ view }: { view: TvView }) {
     else if (kind === "portrait" || kind === "image" || kind === "ambient") auto("whoosh", { vol: 0.45 });
   });
 
-  // Dice on the TV: the rattle and tumble, landing as the screen does; a natural 20 or 1 gets its sting.
-  const roll = view.diceRoll;
-  useChange(roll?.n, () => {
-    if (!roll) return;
-    const count = roll.groups.reduce((a, g) => a + g.rolls.length, 0);
-    const settle = (TUMBLE_MS + Math.min(count - 1, 12) * STAGGER_MS) / 1000;
-    auto("dice", { dur: settle - 0.3, count });
-    const nat = natural(roll);
-    if (nat === 20) auto("crit", { delay: settle });
-    else if (nat === 1) auto("fumble", { delay: settle });
-  });
+  // Dice on the TV rattle from DiceRoll.tsx (diceSound), as each roll starts on screen.
 
   // Fights.
   const f = view.fight;

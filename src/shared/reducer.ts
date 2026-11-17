@@ -35,7 +35,7 @@ import { capturesOf, CAPTURES_MAX, cluesOf, CLUES_MAX, hereRecord, writeHere } f
 import type { Capture, Clue } from "./types";
 import { catchUp, characterPoints, materialize, partiesFor, partiesOf, PARTIES_MAX, PARTY_COLORS, partyById, presentIds, recordKnowledge, seedKnowledge, tableParty, tablePoints, tableRenown, tellTable, tidyLive, WORLD_EVENTS_MAX } from "./world";
 import { pendingPlacement, STORY_SECTION, syncStoryStatus } from "./episodeBuilder";
-import type { Flyer, Party, WorldEvent } from "./types";
+import type { Flyer, Party, TvDiceRoll, WorldEvent } from "./types";
 import type { Actor, Beat, BeatAction, Entry, EntryFact, Episode, FlyerText, Stage, GameState, Item, ItemTier, Job, Lead, LedgerEntry, LedgerKind, MapData, MapToken, Note, Pin, PinLink, Player, Rental, RenownChange, Scene, Session, SessionRun, Shop, StoryBlock, TradeRequest, Vote } from "./types";
 import type { z } from "zod";
 import { currentValue, madeIndex, sameValue, SUGGEST_FIELDS, type BuilderOp, type BuilderRef } from "./builderOps";
@@ -1685,6 +1685,7 @@ function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
       delete s.recapCard;
       delete s.discovery;
       delete s.diceRoll;
+      delete s.tvRolls;
       delete s.renownMoment;
       delete s.levelMoment;
       delete s.chosen;
@@ -2270,7 +2271,7 @@ function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
     case "dice.roll": {
       const r = rollPool(cmd.dice, cmd.plus, rand);
       const n = ++s.seq;
-      if (!cmd.secret) s.diceRoll = { n, at: ctx.now, ...r };
+      if (!cmd.secret) showOnTv(s, { n, at: ctx.now, ...r });
       logRoll({ ...r, n, at: ctx.now, by: null, name: "DM", to: cmd.secret ? "secret" : "tv" });
       break;
     }
@@ -2309,6 +2310,7 @@ function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
     case "dice.clearTv":
       // "Clear TV" takes down anything sitting over the scene.
       delete s.diceRoll;
+      delete s.tvRolls;
       delete s.live.leads;
       delete s.live.note;
       break;
@@ -4265,7 +4267,7 @@ function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
         reslotCombatant(f!, c!);
       }
       const tag = forInit ? { for: "initiative" as const } : {};
-      if (cmd.tv) s.diceRoll = { n, at: ctx.now, ...r, name: penName(p), ...tag };
+      if (cmd.tv) showOnTv(s, { n, at: ctx.now, ...r, name: penName(p), ...tag });
       logRoll({ ...r, n, at: ctx.now, by: p.id, name: p.name, to, ...tag });
       break;
     }
@@ -4289,7 +4291,7 @@ function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
         reslotCombatant(f!, c!);
       }
       const tag = forInit ? { for: "initiative" as const } : {};
-      if (cmd.tv) s.diceRoll = { n, at: ctx.now, ...r, name: penName(p), ...tag };
+      if (cmd.tv) showOnTv(s, { n, at: ctx.now, ...r, name: penName(p), ...tag });
       logRoll({ ...r, n, at: ctx.now, by: p.id, name: p.name, to, ...tag });
       break;
     }
@@ -4308,7 +4310,7 @@ function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
       p.hp.cur = Math.min(p.hp.max, p.hp.cur + heal);
       p.sheet.hitDiceSpent = (p.sheet.hitDiceSpent ?? 0) + 1;
       const n = ++s.seq;
-      if (cmd.tv) s.diceRoll = { n, at: ctx.now, ...r, name: penName(p) };
+      if (cmd.tv) showOnTv(s, { n, at: ctx.now, ...r, name: penName(p) });
       logRoll({ ...r, n, at: ctx.now, by: p.id, name: p.name, to: cmd.tv ? "tv" : "dm" });
       out.info = `Healed ${heal}. You're at ${p.hp.cur} of ${p.hp.max} HP.`;
       break;
@@ -4831,4 +4833,14 @@ function checkUrl(url: string): string | undefined {
   if (!u) return undefined;
   if (!/^https:\/\/[^\s]+$/i.test(u)) fail("Links must start with https://");
   return u;
+}
+
+/** How many recent TV rolls the TV is sent, and how long one counts as recent. */
+export const TV_ROLLS_MAX = 12;
+export const TV_ROLL_FRESH_MS = 60_000;
+
+/** A roll goes up on the TV: the newest one, plus the last few, so a burst of rolls all arrives. */
+function showOnTv(s: GameState, roll: TvDiceRoll) {
+  s.diceRoll = roll;
+  s.tvRolls = [...(s.tvRolls ?? []).filter((r) => roll.at - r.at < TV_ROLL_FRESH_MS), roll].slice(-TV_ROLLS_MAX);
 }

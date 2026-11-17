@@ -412,6 +412,7 @@ export function freshStart(g: GameState): GameState {
   delete s.renownMoment;
   delete s.levelMoment;
   delete s.diceRoll;
+  delete s.tvRolls;
   delete s.rolls;
   s.jobs = (s.jobs ?? []).map(({ takenBy, takenAt, doneAt, paidCp, ...j }) => ({ ...j, status: "open" as const }));
   // The Chronicle starts again on an empty Chapter 1, and nobody has met anyone yet.
