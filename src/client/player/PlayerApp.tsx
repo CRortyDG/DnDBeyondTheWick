@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useDeviceSound, usePlayerSounds } from "./deviceSound";
 import { formatCp, formatDelta } from "@/shared/money";
 import type { PlayerView, PublicItem } from "@/shared/projection";
 import { hrefFor, rememberKey, signInLink, type Ident } from "../api";
@@ -167,6 +168,7 @@ function PlayerScreen({ view, online, send, ident, setIdent }: { view: PlayerVie
   useEffect(() => {
     if (myTurn) setScreenPick("fight");
   }, [myTurn, f?.round]);
+  usePlayerSounds(view, has("deviceSound"));
   const seen = useDiscoverySeen(view);
   const [mode, setMode] = useState<ShopMode>("category");
   const [category, setCategory] = useState<ItemCategory | undefined>(undefined);
@@ -418,6 +420,7 @@ function PlayerScreen({ view, online, send, ident, setIdent }: { view: PlayerVie
               <LockIcon size={18} /> Lock my name
             </button>
           )}
+          {has("deviceSound") ? <DeviceSound /> : null}
           <YourTabs view={view} send={send} />
           {msg && youOpen ? (
             <p className="player-msg" role="status">
@@ -434,7 +437,7 @@ function PlayerScreen({ view, online, send, ident, setIdent }: { view: PlayerVie
     return (
       <div className="pl-desk">
         <aside className="pl-side" aria-label="You">
-          <button type="button" className="pl-side-who" aria-haspopup="dialog" aria-label={`${me.character ?? me.name}: your character, D&D Beyond link and name lock`} onClick={() => setYouOpen(true)}>
+          <button type="button" className="pl-side-who" aria-haspopup="dialog" aria-label={`${me.character ?? me.name}: your character, D&D Beyond link, name lock and sound`} onClick={() => setYouOpen(true)}>
             <span className="pl-side-name">{me.character ?? me.name}</span>
             {has("renown") ? (
             <span className="pl-side-renown" title={view.renown.meaning}>
@@ -544,7 +547,7 @@ function PlayerScreen({ view, online, send, ident, setIdent }: { view: PlayerVie
   return (
     <div className="player-root">
       <header className="player-top pl-top">
-        <button type="button" className="pl-who" aria-haspopup="dialog" aria-label={`${me.character ?? me.name}: your character, D&D Beyond link and name lock`} onClick={() => setYouOpen(true)}>
+        <button type="button" className="pl-who" aria-haspopup="dialog" aria-label={`${me.character ?? me.name}: your character, D&D Beyond link, name lock and sound`} onClick={() => setYouOpen(true)}>
           <span className="player-name">{me.character ?? me.name}</span>
           <span className="pl-sub">
             {has("renown") ? (
@@ -804,6 +807,44 @@ function NoTabs({ dice, onDice }: { dice: boolean; onDice: () => void }) {
           Roll dice
         </button>
       ) : null}
+    </section>
+  );
+}
+
+/** "Sounds on this device": quiet sounds for my own things. Off until I turn it on. */
+function DeviceSound() {
+  const [pref, set] = useDeviceSound();
+  const [vol, setVol] = useState<number | null>(null);
+  const shown = vol ?? pref.volume;
+  return (
+    <section className="pl-your-tabs pl-device-sound" aria-labelledby="pl-device-sound-h">
+      <h3 id="pl-device-sound-h">Sounds on this device</h3>
+      <p className="note">Quiet sounds for your own things: a heal, a hit, gold, your turn in a fight, the DM answering you. The TV plays everything else.</p>
+      <ul>
+        <li>
+          <span>Play sounds here</span>
+          <button type="button" role="switch" aria-checked={pref.on} aria-label="Play sounds on this device" className={`pl-switch${pref.on ? " on" : ""}`} onClick={() => set({ on: !pref.on })}>
+            <span aria-hidden="true" />
+          </button>
+        </li>
+        {pref.on ? (
+          <li>
+            <label htmlFor="pl-device-vol">Volume</label>
+            <input
+              id="pl-device-vol"
+              type="range"
+              min={5}
+              max={100}
+              step={5}
+              value={Math.round(shown * 100)}
+              onChange={(e) => setVol(Number(e.target.value) / 100)}
+              onPointerUp={() => vol !== null && (set({ volume: vol }), setVol(null))}
+              onKeyUp={() => vol !== null && (set({ volume: vol }), setVol(null))}
+              onBlur={() => vol !== null && (set({ volume: vol }), setVol(null))}
+            />
+          </li>
+        ) : null}
+      </ul>
     </section>
   );
 }

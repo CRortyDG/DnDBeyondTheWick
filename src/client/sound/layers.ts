@@ -6,6 +6,7 @@
 
 import { bell, envGain, lfo, midi, noise, noiseBed, panTo, pick, pluck, rnd, tone, type Kit, type LayerKit, type LayerMaker } from "./engine";
 import { SFX_MAKERS } from "./sfx";
+import { laugh, makeVoice, phrase, rasp, shape, utter, type Voice } from "./voice";
 
 // ---------------------------------------------------------------------------
 // Ambience
@@ -16,65 +17,83 @@ function crowd(k: LayerKit, o: { voices: number; room: number; clinks: boolean; 
   const bus = ctx.createGain();
   const hp = ctx.createBiquadFilter();
   hp.type = "highpass";
-  hp.frequency.value = 140;
+  hp.frequency.value = 120;
   const lp = ctx.createBiquadFilter();
   lp.type = "lowpass";
-  lp.frequency.value = 2600;
+  lp.frequency.value = 3400;
   bus.connect(hp).connect(lp).connect(k.out);
   const wet = ctx.createGain();
   wet.gain.value = o.room;
   lp.connect(wet).connect(k.wet);
-  // Under the voices, the general hubbub.
-  const bed = noiseBed(k, "pink", "bandpass", 600, 0.8, 0.0, bus);
-  k.onStop(bed.stop);
 
-  const voices: { g: GainNode; f1: BiquadFilterNode; f2: BiquadFilterNode; osc: OscillatorNode; busy: boolean }[] = [];
+  // Far side of the room: noise shaped like speech, its level fluttering at
+  // the pace of syllables, blurred so no one voice stands out.
+  const babble = ctx.createGain();
+  babble.gain.value = 0;
+  const far = ctx.createBiquadFilter();
+  far.type = "lowpass";
+  far.frequency.value = 1800;
+  babble.connect(far).connect(bus);
+  const fw = ctx.createGain();
+  fw.gain.value = 0.6;
+  far.connect(fw).connect(k.wet);
+  const beds = [
+    [520, 1.4, 1],
+    [1250, 2, 0.6],
+    [2400, 2.5, 0.25],
+  ].map(([f, q, lv]) => {
+    const b = noiseBed(k, "pink", "bandpass", f, q, lv, babble);
+    const flutter = ctx.createGain();
+    flutter.gain.value = 0;
+    // Reconnect through a fluttering gain.
+    b.g.disconnect();
+    b.g.connect(flutter).connect(babble);
+    const base = ctx.createConstantSource();
+    base.offset.value = 0.55;
+    base.connect(flutter.gain);
+    base.start();
+    const r = rasp(k, flutter.gain, rnd(3.5, 5.5), 0.3, ctx.currentTime);
+    return () => (b.stop(), r.stop(), base.stop());
+  });
+  k.onStop(() => beds.forEach((x) => x()));
+
+  // Nearer voices, each one a person who talks now and then.
+  const voices: { v: Voice; base: number; busy: boolean; scale: number }[] = [];
   for (let i = 0; i < o.voices; i++) {
-    const osc = ctx.createOscillator();
-    osc.type = "sawtooth";
-    const base = pick([105, 120, 135, 170, 200, 220, 240]) * rnd(0.92, 1.08);
-    osc.frequency.value = base;
-    const f1 = ctx.createBiquadFilter();
-    f1.type = "bandpass";
-    f1.Q.value = 5;
-    f1.frequency.value = 600;
-    const f2 = ctx.createBiquadFilter();
-    f2.type = "bandpass";
-    f2.Q.value = 8;
-    f2.frequency.value = 1500;
-    const g = ctx.createGain();
-    g.gain.value = 0;
-    const p = panTo(ctx, bus, rnd(-0.9, 0.9));
-    const g2 = ctx.createGain();
-    g2.gain.value = 0.6;
-    osc.connect(f1).connect(g);
-    osc.connect(f2).connect(g2).connect(g);
-    g.connect(p);
-    osc.start();
-    k.onStop(() => osc.stop());
-    voices.push({ g, f1, f2, osc, busy: false });
+    const woman = Math.random() < 0.4;
+    const base = (woman ? rnd(175, 245) : rnd(95, 140)) * rnd(0.95, 1.05);
+    const v = makeVoice(k, bus, ctx.currentTime, { pitch: base, jitter: 0.03, pan: rnd(-0.9, 0.9) });
+    k.onStop(() => v.stop());
+    voices.push({ v, base, busy: false, scale: woman ? rnd(1.08, 1.16) : rnd(0.94, 1.02) });
   }
   const active = () => Math.round(2 + k.level() * (o.voices - 2));
-  /** One person says something: a few syllables, pitch wandering, vowels changing. */
+  /** One person says something: a phrase of syllables with consonants, the pitch falling to the end. */
   const speak = (vi: number) => {
-    const v = voices[vi];
-    if (!v || v.busy || !k.alive()) return;
-    v.busy = true;
-    const syl = Math.floor(rnd(3, 12));
+    const p = voices[vi];
+    if (!p || p.busy || !k.alive()) return;
+    p.busy = true;
+    const { v, base } = p;
     let t = ctx.currentTime + 0.05;
-    const loud = rnd(0.02, 0.05);
-    const base = v.osc.frequency.value;
-    for (let s = 0; s < syl; s++) {
-      const len = rnd(0.09, 0.22);
-      v.f1.frequency.setTargetAtTime(rnd(300, 850), t, 0.03);
-      v.f2.frequency.setTargetAtTime(rnd(1000, 2400), t, 0.03);
-      v.osc.frequency.setTargetAtTime(base * rnd(0.85, 1.2), t, 0.05);
-      v.g.gain.setTargetAtTime(loud * rnd(0.6, 1), t, 0.02);
-      v.g.gain.setTargetAtTime(loud * 0.15, t + len * 0.7, 0.03);
-      t += len;
+    // Some people are near, most are a table or two away.
+    const loud = rnd(0.012, 0.04);
+    const words = phrase(Math.floor(rnd(3, 11)));
+    for (const s of words) {
+      if (s.onset === "s" || s.onset === "t") {
+        v.hiss.gain.setTargetAtTime(0.1, t, 0.006);
+        v.hiss.gain.setTargetAtTime(0, t + (s.onset === "s" ? 0.06 : 0.015), 0.01);
+      }
+      v.breath.gain.setTargetAtTime(s.onset === "h" ? 1.4 : (s.breathy ?? 0.15) * 1.4, t, 0.015);
+      v.breath.gain.setTargetAtTime((s.breathy ?? 0.15) * 1.4, t + 0.05, 0.02);
+      shape(v, s.vowel, t, 0.03, p.scale);
+      v.osc.frequency.setTargetAtTime(base * (s.from ?? 1), t, 0.03);
+      v.out.gain.setTargetAtTime(loud * (s.amp ?? 1), t + (s.onset ? 0.03 : 0), 0.02);
+      v.out.gain.setTargetAtTime(loud * 0.1, t + s.len * 0.8, 0.03);
+      t += s.len + rnd(0.01, 0.05);
+      // A pause between words now and then.
+      if (Math.random() < 0.2) t += rnd(0.08, 0.25);
     }
-    v.g.gain.setTargetAtTime(0, t, 0.05);
-    setTimeout(() => (v.busy = false), (t - ctx.currentTime) * 1000 + 100);
+    v.out.gain.setTargetAtTime(0, t, 0.05);
+    setTimeout(() => (p.busy = false), (t - ctx.currentTime) * 1000 + rnd(200, 1200));
   };
   k.every(90, 260, () => {
     const n = active();
@@ -82,7 +101,7 @@ function crowd(k: LayerKit, o: { voices: number; room: number; clinks: boolean; 
     if (Math.random() < 0.55) speak(i);
   }, 50);
   const setLevel = (lv: number) => {
-    bed.g.gain.setTargetAtTime(0.02 + lv * 0.09, ctx.currentTime, 1);
+    babble.gain.setTargetAtTime(0.015 + lv * 0.07, ctx.currentTime, 1);
   };
   setLevel(k.level());
   if (o.clinks)
@@ -99,24 +118,11 @@ function crowd(k: LayerKit, o: { voices: number; room: number; clinks: boolean; 
   if (o.laughs)
     k.every(5000, 16000, () => {
       if (Math.random() > 0.2 + k.level() * 0.7) return;
-      const t = ctx.currentTime + 0.05;
-      const pitch = rnd(150, 280);
-      const pan = rnd(-0.8, 0.8);
-      const n = Math.floor(rnd(3, 7));
-      for (let i = 0; i < n; i++) {
-        const at = t + i * rnd(0.13, 0.18);
-        const osc = ctx.createOscillator();
-        osc.type = "sawtooth";
-        osc.frequency.setValueAtTime(pitch * (1 - i * 0.03), at);
-        const bp = ctx.createBiquadFilter();
-        bp.type = "bandpass";
-        bp.frequency.value = rnd(700, 900);
-        bp.Q.value = 4;
-        const g = envGain(ctx, panTo(ctx, bus, pan), at, 0.05 * (1 - i / (n + 2)), 0.015, 0.09);
-        osc.connect(bp).connect(g);
-        osc.start(at);
-        osc.stop(at + 0.15);
-      }
+      const woman = Math.random() < 0.4;
+      const kind = pick(["chuckle", "laugh", "laugh", "cackle"] as const);
+      laugh(k, bus, ctx.currentTime + 0.05, { pitch: woman ? rnd(220, 300) : rnd(120, 170), vol: rnd(0.03, 0.06), pan: rnd(-0.8, 0.8), kind });
+      // Laughter catches.
+      if (Math.random() < 0.35 * k.level()) laugh(k, bus, ctx.currentTime + rnd(0.2, 0.5), { pitch: rnd(120, 280), vol: rnd(0.02, 0.04), pan: rnd(-0.8, 0.8), kind: "chuckle" });
     });
   return { setLevel };
 }
@@ -143,14 +149,21 @@ function rain(k: LayerKit, heavy: number) {
   const lp = k.ctx.createBiquadFilter();
   const l = lfo(k, a.g.gain, 0.05, 0.1 * heavy);
   k.onStop(() => (a.stop(), b.stop(), l.stop(), lp.disconnect()));
-  // Drops on the roof and the puddles.
-  k.every(15, 70, () => {
+  // Drops: a fine patter on leaves and stone, the odd fat drop on wood, and
+  // now and then a drip off the eaves into a puddle.
+  k.every(8, 45, () => {
     const t = k.ctx.currentTime + 0.01;
-    noise(k, t, { vol: rnd(0.02, 0.09) * heavy, decay: 0.004, filter: "bandpass", freq: rnd(2000, 6000), q: 3, pan: rnd(-0.9, 0.9) });
+    noise(k, t, { vol: rnd(0.015, 0.07) * heavy, decay: rnd(0.003, 0.008), filter: "bandpass", freq: rnd(2500, 7000), q: rnd(1, 2.5), pan: rnd(-0.9, 0.9) });
   });
-  k.every(200, 900, () => {
+  k.every(60, 260, () => {
     const t = k.ctx.currentTime + 0.01;
-    tone(k, rnd(900, 1800), t, { vol: 0.02 * heavy, attack: 0.001, decay: 0.05, to: rnd(1800, 3000), glide: 0.03, pan: rnd(-0.8, 0.8) });
+    noise(k, t, { vol: rnd(0.04, 0.1) * heavy, decay: rnd(0.012, 0.03), filter: "bandpass", freq: rnd(500, 1400), q: rnd(3, 6), pan: rnd(-0.9, 0.9) });
+  });
+  k.every(900, 3200, () => {
+    const t = k.ctx.currentTime + 0.01;
+    const f = rnd(1400, 2600);
+    noise(k, t, { vol: 0.05 * heavy, decay: 0.006, filter: "bandpass", freq: 3000, q: 1.5, pan: rnd(-0.6, 0.6) });
+    tone(k, f, t + 0.004, { vol: 0.012 * heavy, attack: 0.002, decay: 0.025, to: f * 1.25, glide: 0.02, pan: rnd(-0.6, 0.6), wet: 0.3 });
   });
 }
 
@@ -226,12 +239,52 @@ function waves(k: LayerKit) {
 }
 
 function gulls(k: LayerKit) {
-  k.every(9000, 25000, () => {
+  // A herring gull: a harsh, nasal "kee-ow", then a string of "kyow-kyow-kyow".
+  const call = (t: number, base: number, pan: number, vol: number, len: number) => {
+    const { ctx } = k;
+    const o = ctx.createOscillator();
+    o.type = "sawtooth";
+    o.frequency.setValueAtTime(base * 0.8, t);
+    o.frequency.exponentialRampToValueAtTime(base * 1.25, t + len * 0.18);
+    o.frequency.exponentialRampToValueAtTime(base * 0.62, t + len);
+    const am = ctx.createGain();
+    am.gain.value = 0.7;
+    rasp(k, am.gain, rnd(60, 110), 0.35, t, t + len + 0.1);
+    const g = envGain(ctx, panTo(ctx, k.out, pan), t, vol, 0.015, len * 0.6, len * 0.35);
+    const w = ctx.createGain();
+    w.gain.value = 0.5;
+    g.connect(w).connect(k.wet);
+    for (const [f, q, lv] of [
+      [base * 1.6, 4, 1],
+      [base * 2.6, 6, 0.5],
+      [base * 0.9, 3, 0.4],
+    ] as const) {
+      const bp = ctx.createBiquadFilter();
+      bp.type = "bandpass";
+      bp.frequency.value = f;
+      bp.Q.value = q;
+      const lg = ctx.createGain();
+      lg.gain.value = lv;
+      o.connect(am).connect(bp).connect(lg).connect(g);
+    }
+    o.start(t);
+    o.stop(t + len + 0.1);
+  };
+  k.every(7000, 20000, () => {
     const t = k.ctx.currentTime + 0.02;
-    const pan = rnd(-0.9, 0.9);
-    for (let i = 0; i < Math.floor(rnd(2, 4)); i++) {
-      const at = t + i * rnd(0.3, 0.45);
-      tone(k, 1400, at, { type: "triangle", vol: 0.035, attack: 0.03, decay: 0.25, to: 2100, glide: 0.08, vibrato: { rate: 30, depth: 40 }, filter: { type: "bandpass", freq: 1800, q: 1.5 }, pan, wet: 0.4 });
+    const birds = Math.random() < 0.4 ? 2 : 1;
+    for (let b = 0; b < birds; b++) {
+      const pan = rnd(-0.9, 0.9);
+      const base = rnd(1050, 1400);
+      const far = b ? 0.5 : 1;
+      let at = t + b * rnd(0.6, 1.4);
+      call(at, base, pan, 0.05 * far, rnd(0.45, 0.6));
+      at += rnd(0.65, 0.85);
+      const n = Math.floor(rnd(2, 6));
+      for (let i = 0; i < n; i++) {
+        call(at, base * rnd(0.95, 1.05), pan, 0.04 * far * (1 - i / (n + 2)), rnd(0.14, 0.2));
+        at += rnd(0.2, 0.26);
+      }
     }
   });
 }
@@ -568,17 +621,29 @@ export const LAYER_MAKERS: Record<string, LayerMaker> = {
     gulls(k);
   },
   river: (k) => {
-    const bands = [500, 1100, 2400].map((f) => noiseBed(k, "white", "bandpass", f, 1.4, 0.06));
-    k.onStop(() => bands.forEach((b) => b.stop()));
-    k.every(60, 140, () => {
-      const t = k.ctx.currentTime;
-      for (const b of bands) b.g.gain.setTargetAtTime(rnd(0.02, 0.1), t, 0.05);
+    // Moving water: noise that swells and eases smoothly, not in steps.
+    const bands = [
+      [450, 0.8, 0.09],
+      [1100, 1.1, 0.06],
+      [2600, 1.3, 0.03],
+    ].map(([f, q, lv]) => {
+      const b = noiseBed(k, "pink", "bandpass", f, q, lv);
+      const m = lfo(k, b.g.gain, rnd(0.11, 0.37), lv * 0.35);
+      const w = rasp(k, b.g.gain, rnd(2, 4), lv * 0.3, k.ctx.currentTime);
+      return () => (b.stop(), m.stop(), w.stop());
     });
-    // Bubbling.
-    k.every(40, 160, () => {
+    k.onStop(() => bands.forEach((x) => x()));
+    // Bubbles: each one rings and rises in pitch as it shrinks. Lots of small
+    // high ones, a few big low ones, in clumps.
+    const bubble = (t: number) => {
+      const big = Math.random() < 0.15;
+      const f = big ? rnd(280, 650) : rnd(800, 2600);
+      tone(k, f, t, { vol: (big ? 0.03 : rnd(0.006, 0.018)), attack: 0.001, decay: big ? rnd(0.04, 0.08) : rnd(0.015, 0.04), to: f * rnd(1.15, 1.5), glide: big ? 0.06 : 0.03, pan: rnd(-0.8, 0.8), wet: 0.15 });
+    };
+    k.every(25, 120, () => {
       const t = k.ctx.currentTime + 0.01;
-      const f = rnd(350, 900);
-      tone(k, f, t, { vol: 0.025, attack: 0.002, decay: 0.04, to: f * 1.6, glide: 0.03, pan: rnd(-0.8, 0.8) });
+      const n = Math.random() < 0.3 ? Math.floor(rnd(2, 5)) : 1;
+      for (let i = 0; i < n; i++) bubble(t + i * rnd(0.01, 0.05));
     });
   },
   market: (k) => {
@@ -622,9 +687,27 @@ export const LAYER_MAKERS: Record<string, LayerMaker> = {
         [1.6, 0.5, 0.08],
       ], { pan: 0.5, wet: 0.6 });
     }, 4000);
+    // Something moaning far off: a breathy "ooh", sliding down, mostly echo.
     k.every(14000, 30000, () => {
       const t = k.ctx.currentTime + 0.02;
-      tone(k, 150, t, { type: "sawtooth", vol: 0.04, attack: 1, decay: 1.4, hold: 0.8, to: 105, glide: 3, filter: { type: "bandpass", freq: 380, q: 3 }, wet: 1, pan: rnd(-0.8, 0.8) });
+      const far = k.ctx.createBiquadFilter();
+      far.type = "lowpass";
+      far.frequency.value = 1400;
+      far.connect(k.out);
+      utter({ ...k, out: far }, far, t, {
+        pitch: rnd(130, 170),
+        vol: 0.05,
+        pan: rnd(-0.8, 0.8),
+        wet: 1.4,
+        jitter: 0.04,
+        rough: { rate: 28, depth: 0.25 },
+        syllables: [
+          { vowel: "o", len: 1.1, from: 1, to: 1.06, onset: "h", breathy: 0.5 },
+          { vowel: "u", len: 1.4, from: 1.04, to: 0.72, breathy: 0.6, amp: 0.8 },
+        ],
+        gap: 0,
+      });
+      setTimeout(() => far.disconnect(), 6000);
     }, 8000);
   },
   clock: (k) => {

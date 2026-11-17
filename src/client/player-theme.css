@@ -2609,3 +2609,10 @@ html[data-view="player"] {
   margin-top: 24px;
   text-align: center;
 }
+
+/* ---------- Sounds on this device ---------- */
+:where(html[data-view="player"]) .pl-device-sound input[type="range"] {
+  flex: 1;
+  max-width: 220px;
+  accent-color: var(--pl-gold);
+}

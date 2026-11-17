@@ -50,8 +50,8 @@ export type SfxMaker = (k: Kit, t: number, o: SfxOpts) => void;
 const BUS_GAIN = { music: 0.55, ambience: 0.7, sfx: 0.9 };
 
 /** Loudness trims so every sound sits at about the same level (measured by rendering each one). */
-const LAYER_TRIM: Record<string, number> = { crowd: 4.5, forest: 2.2, river: 3, market: 3.2, clock: 5, "quiet-lute": 2, travel: 1.6, wonder: 1.4, sorrow: 1.4, rain: 0.85, storm: 0.8 };
-const SFX_TRIM: Record<string, number> = { "sword-clash": 3, swing: 8, page: 5, whoosh: 3, gasp: 5, cheer: 4.5, shield: 3, arcane: 2, teleport: 2, dice: 1.7, coins: 2, "sword-hit": 1.5, punch: 1.4 };
+const LAYER_TRIM: Record<string, number> = { crowd: 6.5, forest: 2.2, river: 3, market: 4.4, clock: 5, "quiet-lute": 2, travel: 1.6, wonder: 1.4, sorrow: 1.4, rain: 0.85, storm: 0.8 };
+const SFX_TRIM: Record<string, number> = { "sword-clash": 9, swing: 8, page: 5, whoosh: 3, gasp: 5, cheer: 1.4, shield: 3, arcane: 2, knock: 3.5, growl: 1.6, howl: 0.67, door: 0.75, teleport: 2, dice: 1.7, coins: 2, "sword-hit": 1.5, punch: 1.4 };
 
 export class SoundEngine {
   readonly ctx: AudioContext;
