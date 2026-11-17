@@ -44,6 +44,7 @@ import { monstersOf, reslotCombatant } from "./combat";
 import { noticesOf } from "./board";
 import { fillRanges, TABLES_MAX, tablesOf } from "./tables";
 import type { MadeBy, RandomTable } from "./types";
+import { FADE_DEFAULT, isLayerId, isSfxId, mixLayers } from "./sound";
 
 export class CommandError extends Error {
   /** "recheck": a phone request no longer works at approval time; the DM may override or decline. */
@@ -1263,6 +1264,19 @@ function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
     }
     return beat;
   };
+  // The soundboard.
+  const soundOf = () => (s.sound ??= { layers: {} });
+  const setMix = (layers: Record<string, number | undefined>, fade: number | undefined, mix: string | undefined) => {
+    const snd = soundOf();
+    snd.layers = {};
+    for (const [k, v] of Object.entries(layers)) if (isLayerId(k) && v && v > 0) snd.layers[k] = Math.round(Math.min(1, v) * 100) / 100;
+    snd.fade = fade ?? FADE_DEFAULT;
+    if (mix && Object.keys(snd.layers).length) snd.mix = mix;
+    else delete snd.mix;
+  };
+  const cue = (id: string) => {
+    soundOf().cue = { id, n: ++s.seq, at: ctx.now };
+  };
   // Combat mode (combatReducer.ts) gets the same ids, ledger, Chronicle and TV as everything else.
   const fightHelpers: FightHelpers = {
     now: ctx.now,
@@ -1281,7 +1295,11 @@ function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
     endRental: (rid) => endRental(rid),
   };
   const fireAction = (a: BeatAction) => {
-    if (a.type === "scene") {
+    if (a.type === "sound") {
+      setMix(mixLayers(a.mix), undefined, a.mix === "off" ? undefined : a.mix);
+    } else if (a.type === "sfx") {
+      if (isSfxId(a.id)) cue(a.id);
+    } else if (a.type === "scene") {
       if (s.scenes.some((x) => x.id === a.sceneId)) showScene(a.sceneId);
     } else if (a.type === "show") {
       // Something deleted since the beat was written just does nothing.
@@ -2199,6 +2217,35 @@ function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
     }
     case "dice.clearLog":
       delete s.rolls;
+      break;
+
+    // ---------- The soundboard (played on the TV) ----------
+    case "sound.set": {
+      const snd = soundOf();
+      if (cmd.volume !== undefined) snd.volume = Math.round(cmd.volume * 100) / 100;
+      if (cmd.muted !== undefined) {
+        if (cmd.muted) snd.muted = true;
+        else delete snd.muted;
+      }
+      if (cmd.auto !== undefined) {
+        if (cmd.auto) delete snd.autoOff;
+        else snd.autoOff = true;
+      }
+      break;
+    }
+    case "sound.layer": {
+      const snd = soundOf();
+      if (cmd.volume > 0) snd.layers[cmd.id] = Math.round(cmd.volume * 100) / 100;
+      else delete snd.layers[cmd.id];
+      snd.fade = cmd.fade ?? FADE_DEFAULT;
+      delete snd.mix;
+      break;
+    }
+    case "sound.mix":
+      setMix(cmd.layers, cmd.fade, cmd.mix);
+      break;
+    case "sound.cue":
+      cue(cmd.id);
       break;
     case "dice.clearTv":
       // "Clear TV" takes down anything sitting over the scene.

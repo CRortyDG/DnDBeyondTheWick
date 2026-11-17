@@ -49,6 +49,16 @@ For first-time players, the seat page has **Pick a starting point**: six kinds o
 - **Sound** is off by default, with a toggle that's remembered per device. The waves, creaking, wind, door and hearth are made in the browser, so there are no files to download. To use recordings instead, put them in `public/arrival/sounds/` and list them in `SOUND_FILES` in the content file.
 - **Spoiler safety:** the Arrival page is its own part of the site with its own small bundle; it loads none of the main app's code or styles. `/api/arrival` sends only the seat names and the player's own progress.
 
+## Sound and the soundboard
+
+Sound plays from the TV. Every sound is made in the TV's browser with Web Audio (oscillators, filtered noise, plucked strings), so there are no audio files to download, host or license, and nothing is streamed from the server. The music is composed as it plays from a few rules (a key, a chord pattern, a rhythm), so it doesn't loop exactly. Code: `src/client/sound/` (engine, layers, one-shots), the catalog in `src/shared/sound.ts`.
+
+- **The soundboard:** the **Sound** button in the DM bar (also on the fight screen and in run-game mode). **Mixes** crossfade everything at once (Busy tavern, Quiet inn, Battle, Night camp, Storm, Dungeon, Wizard's study…). **Layers** has every loop with its own volume: music (Tavern jig, Quiet lute, On the road, Battle drums, Tension, Wonder, Sorrow) and ambience (Tavern crowd, Hearth fire, Rain, Wind, Thunderstorm, Forest birds, Night crickets, Ocean waves, River, Market bustle, Cave drips, Crypt, Ticking clock). **Effects** are one-shots: sword hits, arrows, roars, deaths, spells, dice, coins, fanfares, doors, bells, thunder, a war horn, a wolf howl… Fade picks how long changes take (1, 3 or 8 seconds). The TV volume and mute sit at the top.
+- **Moments make sounds** (on by default): dice rattle and land with the 3D dice (a natural 20 gets a sting, a natural 1 the sad trombone), a fight opens with a war horn, turns and rounds get a drum, crits clash, monsters die, a fallen player gets a heartbeat, and the end card plays victory or defeat. Rank-ups get a fanfare, level-ups a flourish, reveals a chime, handouts and maps a page turn. Ambient scenes bring their own bed (the campfire crackles, the coast has waves and gulls), and a fight brings battle drums. The DM's own layers always win over a scene's bed.
+- **The Table fills up:** while The Table is on the TV, the tavern music and the crowd grow with every seat claimed, each seat lights with a little chord, and the last one gets a cheer. The stinger has its own score.
+- **Run sheets:** `sound: busy tavern` (a mix), `sound: night crickets` (one layer), `sound: layer/rain` (just that layer when a mix has the same name), `sound: off`, and `sfx: war horn`.
+- **The click:** browsers won't let a page make sound until someone clicks or presses a key on it. The TV remembers that sound is on, but after a reload it may need one click; when the DM is using the soundboard and the TV can't play yet, it shows **Click anywhere for sound**. A TV inside the DM's practice preview stays quiet. **Hear it on this device too** on the soundboard plays a copy on the DM's device (for prep with headphones).
+
 ## Run it locally
 
 ```bash

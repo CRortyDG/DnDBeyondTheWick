@@ -8,6 +8,7 @@ import { DIE_SIDES, diceCount, MAX_DICE, MAX_OF_ONE, MAX_PLUS } from "./dice";
 import { fightDmCommands, fightPlayerCommands, monsterBody } from "./combatSchema";
 import { IMPORT_MAX } from "./bulkImport";
 import { SHOW_REF_RE } from "./assets";
+import { isLayerId, isSfxId, LAYER_IDS, mixById, SFX_IDS } from "./sound";
 import { HANDOUT_BODY_MAX, HANDOUT_SIGN_MAX, HANDOUT_TITLE_MAX } from "./handout";
 import { storyDmCommands } from "./storySchema";
 import { inviteDmCommands } from "./inviteSchema";
@@ -265,10 +266,15 @@ const jobFields = {
 };
 const itemPatch = z.object(itemFields).partial();
 
+const soundVol = z.number().min(0).max(1);
+const soundFade = z.number().min(0).max(20);
+
 // Run sheets (DM-only).
 const showRef = z.string().max(120).regex(SHOW_REF_RE);
 const beatAction = z.discriminatedUnion("type", [
   z.object({ type: z.literal("scene"), sceneId: id }),
+  z.object({ type: z.literal("sound"), mix: z.string().max(40).refine((m) => m === "off" || !!mixById(m) || (m.startsWith("layer/") && isLayerId(m.slice(6))), "Unknown sound mix.") }),
+  z.object({ type: z.literal("sfx"), id: z.string().max(40).refine((x): boolean => isSfxId(x), "Unknown sound effect.") }),
   z.object({ type: z.literal("black") }),
   z.object({ type: z.literal("stinger") }),
   z.object({ type: z.literal("bank") }),
@@ -397,6 +403,14 @@ export const dmCommand = z.discriminatedUnion("type", [
   z.object({ type: z.literal("dice.clearLog") }),
   /** Take the roll off the TV right away. */
   z.object({ type: z.literal("dice.clearTv") }),
+  /** The soundboard's master volume, mute, and whether moments (dice, fights, scenes) bring their own sounds. */
+  z.object({ type: z.literal("sound.set"), volume: soundVol.optional(), muted: z.boolean().optional(), auto: z.boolean().optional() }),
+  /** One looping layer's volume; 0 turns it off. */
+  z.object({ type: z.literal("sound.layer"), id: z.enum(LAYER_IDS), volume: soundVol, fade: soundFade.optional() }),
+  /** Every layer at once (a ready-made mix, or {} for silence), crossfading over fade seconds. */
+  z.object({ type: z.literal("sound.mix"), layers: z.partialRecord(z.enum(LAYER_IDS), soundVol), fade: soundFade.optional(), mix: z.string().max(40).optional() }),
+  /** Play a one-shot on the TV. */
+  z.object({ type: z.literal("sound.cue"), id: z.enum(SFX_IDS) }),
   /** A new job flyer (unpinned unless pin). followUpOf: the flyer it replaces, which is pulled. */
   z.object({ type: z.literal("job.add"), job: z.object(jobFields).partial(), followUpOf: id.optional(), pin: z.boolean().optional() }),
   /** status: back to open, or taken by hand. Done goes through job.done (it pays); expired through job.expire. */

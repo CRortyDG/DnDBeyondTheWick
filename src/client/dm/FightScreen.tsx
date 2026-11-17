@@ -17,6 +17,7 @@ import type { DmCommand } from "@/shared/commands";
 import type { Combatant, Fight, FightReminder, MonsterTemplate, Player } from "@/shared/types";
 import { useDm } from "./context";
 import { DiceButton } from "./DiceTray";
+import { SoundButton } from "./Soundboard";
 import { usePhone, useTablet } from "./tablet";
 import { FullScreenButton } from "./TabletBits";
 import "../ui/fight.css";
@@ -191,6 +192,7 @@ function FightConsole({ f, onExit, run, toast }: { f: Fight; onExit: () => void;
         <span className="spacer" />
         <FullScreenButton small />
         <FightMapButton />
+        <SoundButton small />
         <DiceButton small />
         <span className="run-tv" title="What the TV shows">
           TV: {f.status === "paused" ? `${live?.label ?? "the scene"} · Fight paused` : f.status === "setup" ? "Roll initiative!" : f.status === "over" ? "The fight is over" : "turn order"}
