@@ -119,8 +119,22 @@ export class SoundEngine {
   }
 
   /** From a tap or key press: let the page make sound. */
+  /**
+   * Call it straight from the tap's handler, not later in an effect: iPhones
+   * only let a page start sound inside the gesture itself.
+   */
   unlock(): Promise<void> {
     if (this.closed) return Promise.resolve();
+    playThroughSilentSwitch();
+    // An iPhone wants a sound started inside the gesture: a blank one will do.
+    try {
+      const src = this.ctx.createBufferSource();
+      src.buffer = this.ctx.createBuffer(1, 1, this.ctx.sampleRate);
+      src.connect(this.ctx.destination);
+      src.start(0);
+    } catch {
+      /* fine without */
+    }
     return this.ctx.resume().catch(() => {});
   }
 
@@ -536,4 +550,58 @@ export function lfo(k: Kit, target: AudioParam, rate: number, depth: number, typ
   o.connect(g).connect(target);
   o.start();
   return { stop: () => o.stop() };
+}
+
+/**
+ * iPhones treat Web Audio as "ambient" sound by default, which the ring/silent
+ * switch mutes, so a phone on silent hears nothing. Newer Safari (16.4+) lets a
+ * page say it plays media; older ones only route Web Audio as media while an
+ * <audio> element is playing, so we loop a silent one there.
+ */
+let silentEl: HTMLAudioElement | null = null;
+export function playThroughSilentSwitch() {
+  if (typeof navigator === "undefined") return;
+  const session = (navigator as unknown as { audioSession?: { type: string } }).audioSession;
+  if (session) {
+    try {
+      if (session.type !== "playback") session.type = "playback";
+    } catch {
+      /* ignore */
+    }
+    return;
+  }
+  if (!/iPad|iPhone|iPod/.test(navigator.userAgent) && !(navigator.maxTouchPoints > 1 && /Macintosh/.test(navigator.userAgent))) return;
+  try {
+    silentEl ??= Object.assign(document.createElement("audio"), { src: silentWav(), loop: true, preload: "auto" });
+    silentEl.setAttribute("playsinline", "");
+    silentEl.setAttribute("x-webkit-airplay", "deny");
+    if (silentEl.paused) void silentEl.play().catch(() => {});
+  } catch {
+    /* ignore */
+  }
+}
+
+/** A half-second of silence as a WAV data URL. */
+function silentWav(): string {
+  const rate = 8000;
+  const n = rate / 2;
+  const b = new DataView(new ArrayBuffer(44 + n));
+  const str = (o: number, t: string) => [...t].forEach((c, i) => b.setUint8(o + i, c.charCodeAt(0)));
+  str(0, "RIFF");
+  b.setUint32(4, 36 + n, true);
+  str(8, "WAVEfmt ");
+  b.setUint32(16, 16, true);
+  b.setUint16(20, 1, true);
+  b.setUint16(22, 1, true);
+  b.setUint32(24, rate, true);
+  b.setUint32(28, rate, true);
+  b.setUint16(32, 1, true);
+  b.setUint16(34, 8, true);
+  str(36, "data");
+  b.setUint32(40, n, true);
+  for (let i = 0; i < n; i++) b.setUint8(44 + i, 128);
+  let bin = "";
+  const u = new Uint8Array(b.buffer);
+  for (let i = 0; i < u.length; i++) bin += String.fromCharCode(u[i]);
+  return `data:audio/wav;base64,${btoa(bin)}`;
 }

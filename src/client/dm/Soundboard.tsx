@@ -44,11 +44,25 @@ export function Soundboard() {
 
   // "Hear it here too": a copy of the TV's sound on this device, for prep with headphones.
   const local = useRef<SoundEngine | null>(null);
-  useEffect(() => {
-    if (!hear) return;
+  // Woken from the tap itself (see turnHearOn): an iPhone ignores a resume() that comes later.
+  const wake = () => {
     const e = (local.current ??= SoundEngine.create());
     void e?.unlock();
+  };
+  const turnHearOn = (on: boolean) => {
+    if (on) wake();
+    setHear(on);
+  };
+  useEffect(() => {
+    if (!hear) return;
+    const e = local.current;
+    // The phone may have paused the sound while the app was in the background.
+    const back = () => {
+      if (document.visibilityState === "visible") void e?.unlock();
+    };
+    document.addEventListener("visibilitychange", back);
     return () => {
+      document.removeEventListener("visibilitychange", back);
       e?.setMix({}, 0.5);
     };
   }, [hear]);
@@ -62,7 +76,10 @@ export function Soundboard() {
 
   const cue = (id: SfxId) => {
     void run({ type: "sound.cue", id });
-    if (hear) local.current?.play(id);
+    if (hear) {
+      wake();
+      local.current?.play(id);
+    }
   };
   const setLayer = (id: LayerId, volume: number) => void run({ type: "sound.layer", id, volume, fade });
   const playMix = (id: string) => {
@@ -83,6 +100,9 @@ export function Soundboard() {
         className="box dt-panel sb-panel"
         role="dialog"
         aria-label="Soundboard"
+        onClickCapture={() => {
+          if (hear) wake();
+        }}
         onKeyDown={(e) => {
           // Keep the fight screen's and run-game's keys out of the panel.
           e.stopPropagation();
@@ -196,7 +216,7 @@ export function Soundboard() {
 
         <div className="sb-foot">
           <label className="sb-check">
-            <input type="checkbox" checked={hear} onChange={(e) => setHear(e.target.checked)} />
+            <input type="checkbox" checked={hear} onChange={(e) => turnHearOn(e.target.checked)} />
             Hear it on this device too
           </label>
           <p className="note">

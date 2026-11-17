@@ -45,12 +45,12 @@ export function TableSound({ view }: { view: TvView }) {
     setRunning(engine.running);
     // It may be allowed already (a site the browser trusts).
     void engine.unlock().then(() => setRunning(engine.running));
-    window.addEventListener("pointerdown", wake);
-    window.addEventListener("keydown", wake);
+    // iPhones only count touchend/click as "the user meant it", not pointerdown.
+    const evs = ["pointerdown", "touchend", "click", "keydown"] as const;
+    for (const ev of evs) window.addEventListener(ev, wake);
     return () => {
       clearInterval(poll);
-      window.removeEventListener("pointerdown", wake);
-      window.removeEventListener("keydown", wake);
+      for (const ev of evs) window.removeEventListener(ev, wake);
     };
   }, [engine]);
 
