@@ -15,7 +15,7 @@ import { LevelMoment } from "../ui/LevelMoment";
 import { DiscoveryMoment } from "../ui/DiscoveryMoment";
 import { ChosenMoment, LeadsBoard } from "../ui/LeadsBoard";
 import { RecapCard, WorldCorner, WorldNewsCard } from "../ui/RecapCard";
-import { useTvSound } from "../ui/tvSound";
+import { useTvAudio } from "../ui/tvSound";
 import { FightOverlay } from "../ui/FightOverlay";
 import { DiceRoll } from "../ui/DiceRoll";
 import { useFreshBuild } from "./useFreshBuild";
@@ -153,12 +153,22 @@ function TvScreen({ view, online }: { view: TvView; online: boolean }) {
   );
 }
 
-/** The TV's sound: off until someone turns it on (or clicks when the DM starts the soundboard), remembered on this device. */
+/** The TV's sound, as it really is: on (playing), off, or waiting for a click before the browser lets it play. */
 function SoundToggle() {
-  const [on, set] = useTvSound();
+  const [state, click] = useTvAudio();
   return (
-    <button type="button" className={`btn${on ? " on" : ""}`} aria-pressed={on} onClick={() => set(!on)}>
-      {on ? "Sound on" : "Sound off"}
+    <button
+      type="button"
+      className={`btn${state === "on" ? " on" : state === "blocked" ? " tv-sound-blocked" : ""}`}
+      aria-pressed={state === "on"}
+      title={state === "on" ? "Turn the TV's sound off" : state === "blocked" ? "The browser is holding the sound until you click" : "Turn the TV's sound on"}
+      onClick={(e) => {
+        // The click is this button's alone: the page-wide "click anywhere for sound" mustn't undo it.
+        e.nativeEvent.stopImmediatePropagation();
+        click();
+      }}
+    >
+      {state === "on" ? "Sound on" : state === "blocked" ? "Click for sound" : "Sound off"}
     </button>
   );
 }

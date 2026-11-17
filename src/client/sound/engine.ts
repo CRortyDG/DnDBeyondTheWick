@@ -138,6 +138,12 @@ export class SoundEngine {
     return this.ctx.resume().catch(() => {});
   }
 
+  /** Sound off on this device: everything stops until unlock() again. */
+  suspend(): Promise<void> {
+    if (this.closed) return Promise.resolve();
+    return this.ctx.suspend().catch(() => {});
+  }
+
   setMaster(volume: number, muted: boolean) {
     this.vol = Math.max(0, Math.min(1, volume));
     this.muted = muted;

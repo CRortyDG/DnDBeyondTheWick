@@ -40,12 +40,45 @@ export function useTvSound(): [boolean, (on: boolean) => void] {
   const p = useSoundPref();
   const set = useCallback((v: boolean) => {
     writeSoundPref(v ? "on" : "off");
-    if (v) {
-      const e = tableEngine();
-      void e?.unlock().then(() => e.play("chime-fact"));
-    }
+    const e = tableEngine();
+    if (v) void e?.unlock().then(() => e.play("chime-fact"));
+    else void engine?.suspend();
   }, []);
   return [p === "on", set];
+}
+
+/**
+ * What the TV's sound really is right now, for the one Sound button:
+ * "on" = actually playing; "blocked" = wanted, but the browser is holding it
+ * until someone clicks or presses a key on the TV; "off" = turned off (or never turned on).
+ */
+export type TvAudio = "on" | "blocked" | "off";
+export function useTvAudio(): [TvAudio, () => void] {
+  const pref = useSoundPref();
+  const [running, setRunning] = useState(false);
+  useEffect(() => {
+    const check = () => setRunning(!!engine?.running);
+    check();
+    const h = setInterval(check, 500);
+    return () => clearInterval(h);
+  }, []);
+  const state: TvAudio = pref === "off" ? "off" : running ? "on" : pref === "on" ? "blocked" : "off";
+  const click = useCallback(() => {
+    if (state === "on") {
+      writeSoundPref("off");
+      void engine?.suspend();
+      setRunning(false);
+      return;
+    }
+    // Off or blocked: this click is the gesture the browser wants.
+    writeSoundPref("on");
+    const e = tableEngine();
+    void e?.unlock().then(() => {
+      setRunning(e.running);
+      if (state === "off") e.play("chime-fact");
+    });
+  }, [state]);
+  return [state, click];
 }
 
 let engine: SoundEngine | null = null;
