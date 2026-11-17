@@ -72,6 +72,8 @@ export function CharacterTab({
             onPatch={(patch) => send({ type: "me.sheet", patch })}
             onAct={(act) => send({ type: "me.sheetAct", act })}
             onHitDie={() => send({ type: "me.hitDie", tv })}
+            giveTo={view.purse.filter((x) => x.sheet && x.id !== me.id).map((x) => ({ id: x.id, name: x.name }))}
+            onGive={(itemId, toPlayerId, qty) => send({ type: "me.giveItem", itemId, toPlayerId, qty })}
             onRoll={roll}
             rollBar={
               <>

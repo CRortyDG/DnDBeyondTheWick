@@ -1,13 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ABILITIES, ABILITY_SHORT, ATTACKS_MAX, attackBonus, DAMAGE_DICE, damageText, EXTRA_MAX, NAME_FIELD_MAX, signed, type CharacterSheet, type SheetAttack, type SheetPatch, type SheetRoll } from "@/shared/sheet";
+import { ABILITIES, ABILITY_SHORT, allAttacks, ATTACKS_MAX, attackBonus, DAMAGE_DICE, damageText, EXTRA_MAX, NAME_FIELD_MAX, signed, type CharacterSheet, type SheetAttack, type SheetPatch, type SheetRoll } from "@/shared/sheet";
 
 const newId = () => Math.random().toString(36).slice(2, 10);
 
 /** Attacks on the sheet: tap to-hit, then damage (or Crit for double dice). */
 export function AttackList({ sheet, level, onRoll }: { sheet: CharacterSheet; level: number | undefined; onRoll?: (r: SheetRoll) => void }) {
-  const list = sheet.attacks ?? [];
+  const list = allAttacks(sheet);
   if (!list.length) return null;
   return (
     <section className="cs-block">
@@ -102,6 +102,7 @@ export function AttackEditor({ sheet, level, send }: { sheet: CharacterSheet; le
           + Add an attack
         </button>
       ) : null}
+      {sheet.items?.some((x) => x.kind === "weapon" && x.equipped) ? <p className="note">Weapons you wield in your inventory show up as attacks on their own. These are extra ones (an unarmed strike, a cantrip).</p> : null}
       <p className="note">Weapons add your proficiency and the ability to hit and to damage. For a cantrip like Fire Bolt, pick its ability and untick &ldquo;add to damage&rdquo;.</p>
     </section>
   );

@@ -46,6 +46,7 @@ import { monstersOf, reslotCombatant } from "./combat";
 import { noticesOf } from "./board";
 import { fillRanges, TABLES_MAX, tablesOf } from "./tables";
 import type { MadeBy, RandomTable } from "./types";
+import { addBought } from "./sheetGear";
 import { applySheet, hitDieSpec, isSheetCommand, mod, restSheet, rollSpec, shortRestSheet, syncConcFromFight, syncInitiative } from "./sheet";
 import { FADE_DEFAULT, isLayerId, isSfxId, mixLayers } from "./sound";
 
@@ -107,6 +108,9 @@ function fail(msg: string, code?: string): never {
 }
 
 /** The Chronicle line for a Renown award: "Renown +2: Saved Winterfest." */
+/** Shop categories that are things you carry (not services, travel, buildings or trophies). */
+const INVENTORY_CATEGORIES = new Set<string>(["gear", "healing", "magic"]);
+
 const sheetNoHitDie = (p: Player) => (p.sheet && !p.sheet.hitDie && !p.sheet.cls ? "Pick your class (or a hit die) on the sheet first." : "No hit dice left. They come back on a long rest.");
 
 function awardLine(amount: number, why: string): string {
@@ -717,6 +721,11 @@ function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
       r.endedAt = ctx.now;
     }
   };
+  /** Gear, potions and magic items land on the buyer's sheet, if they keep one. */
+  const intoInventory = (p: Player, it: Pick<Item, "id" | "name" | "category"> | undefined, qty: number) => {
+    if (!it || !p.sheet || p.sheetOff || !INVENTORY_CATEGORIES.has(it.category)) return;
+    addBought(p.sheet, it, qty, () => nextId("it"));
+  };
   const fulfil = (p: Player, it: Item, qty: number, chargeCp: number, extra: Partial<LedgerEntry> = {}, more: { question?: string; flyer?: FlyerText; rewardCp?: number } = {}) => {
     if (it.kind === "earned") fail(`${it.name} can't be bought. You grant it.`);
     if (it.kind === "project") fail(`${it.name} is a project: contribute to it instead.`);
@@ -769,6 +778,7 @@ function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
       }
     } else {
       move(p, -chargeCp, `Bought ${what}${haggled}`, "purchase", ledgerExtra);
+      intoInventory(p, it, qty);
     }
     if (keepsStake(it)) addStake(it, p, chargeCp);
     if (it.effects?.length) turnOn(it);
@@ -1205,7 +1215,11 @@ function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
     // In a shared world chapters count per party: only orders for someone at this table arrive.
     const here = new Set(sess.attendeeIds);
     const due = s.orders.filter((o) => !o.arrived && o.arrivesAtSession <= number && (!s.world || here.has(o.playerId)));
-    for (const o of due) o.arrived = true;
+    for (const o of due) {
+      o.arrived = true;
+      const owner = s.players.find((p) => p.id === o.playerId);
+      if (owner) intoInventory(owner, s.items.find((x) => x.id === o.itemId) ?? { id: o.itemId, name: o.itemName, category: "gear" }, 1);
+    }
     const log: string[] = due.map((o) => `Arrived: ${o.itemName} for ${s.players.find((p) => p.id === o.playerId)?.name ?? "someone"}`);
     if (due.length === 1) {
       const who = s.players.find((p) => p.id === due[0].playerId);
@@ -1742,7 +1756,7 @@ function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
   }
 
   if (isSheetCommand(cmd)) {
-    applySheet(s, cmd, { actor: ctx.actor as { role: string; playerId?: string }, now: ctx.now, fail, info: (m) => (out.info = m) });
+    applySheet(s, cmd, { actor: ctx.actor as { role: string; playerId?: string }, now: ctx.now, fail, info: (m) => (out.info = m), newId: () => nextId("it") });
     return out;
   }
 
@@ -2721,6 +2735,7 @@ function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
       const o = s.orders.find((x) => x.id === cmd.orderId) ?? fail("That order doesn't exist.");
       if (!o.arrived) {
         o.arrived = true;
+        intoInventory(player(o.playerId), s.items.find((x) => x.id === o.itemId) ?? { id: o.itemId, name: o.itemName, category: "gear" }, 1);
         announce(`Arrived${fromAfar()}: ${o.itemName} for ${penName(player(o.playerId))}`);
       }
       break;

@@ -9,6 +9,7 @@
 
 import { z } from "zod";
 import type { Ability, CharacterSheet } from "./sheet";
+import { applyGearAct, gearActs } from "./sheetGear";
 import { CLASS_COUNTS, SPELLCASTING } from "./srdTables";
 
 const ABIL = ["str", "dex", "con", "int", "wis", "cha"] as const;
@@ -402,6 +403,7 @@ export const sheetAct = z.discriminatedUnion("k", [
   /** use: a slot of this level, a Pact Magic slot, or free (a cantrip, a ritual, a feature that casts it). */
   z.object({ k: z.literal("cast"), spellId: shortId, use: z.enum(["slot", "pact", "free"]), slot: z.number().int().min(1).max(9).optional() }),
   z.object({ k: z.literal("endConc") }),
+  ...gearActs,
 ]);
 export type SheetAct = z.infer<typeof sheetAct>;
 
@@ -463,5 +465,9 @@ export function applyAct(sheet: CharacterSheet, level: number | undefined, act: 
       if (!sheet.conc) return {};
       delete sheet.conc;
       return { conc: "end" };
+    case "equip":
+    case "attune":
+    case "qty":
+      return applyGearAct(sheet, act, fail);
   }
 }
