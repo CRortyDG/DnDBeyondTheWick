@@ -5711,6 +5711,7 @@ html[data-view="dm"] .basic-monsters label.basic-mon input {
   justify-content: flex-end;
   gap: 8px;
   flex-wrap: wrap;
+}
 
 /* Worldbuilder pictures: a thumbnail on the row, the picture in the drawer. */
 :where(html[data-view="dm"]) .draft-thumb {
