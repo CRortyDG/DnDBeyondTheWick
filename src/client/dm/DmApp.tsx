@@ -58,9 +58,11 @@ import { BuilderPanel, usePendingDrafts } from "./BuilderPanel";
 import { TablesPanel } from "./TablesPanel";
 import { usePhone, usePhoneAttr, useTablet, useTabletAttr, useWakeLock } from "./tablet";
 import { FullScreenButton, TabletOffer } from "./TabletBits";
-import { MailIcon, DieIcon, SparkIcon, BoardIcon, BookIcon, CoinIcon, EyeIcon, GearIcon, GlobeIcon, ListIcon, MapIcon, PanelRightIcon, PeopleIcon, PinIcon, PlayIcon, QuillIcon, SearchIcon, ShipIcon, SkullIcon, StoreIcon, SwordIcon } from "./navIcons";
+import { FeaturesPanel } from "./FeaturesPanel";
+import { featureOn, type FeatureId } from "@/shared/features";
+import { MailIcon, DieIcon, SparkIcon, BoardIcon, BookIcon, CoinIcon, EyeIcon, GearIcon, GlobeIcon, ListIcon, MapIcon, PanelRightIcon, PeopleIcon, PinIcon, PlayIcon, QuillIcon, SearchIcon, ShipIcon, SkullIcon, SlidersIcon, StoreIcon, SwordIcon } from "./navIcons";
 
-type Tab = "world" | "bank" | "shop" | "board" | "scenes" | "discovery" | "leads" | "players" | "arrival" | "invites" | "story" | "episodes" | "monsters" | "companions" | "tables" | "chronicle" | "builder" | "game";
+type Tab = "features" | "world" | "bank" | "shop" | "board" | "scenes" | "discovery" | "leads" | "players" | "arrival" | "invites" | "story" | "episodes" | "monsters" | "companions" | "tables" | "chronicle" | "builder" | "game";
 type NavItem = { id: Tab; label: string; icon: (p: { size?: number }) => ReactElement; key?: string };
 /** The DM pages, grouped by when you reach for them. */
 const NAV: { group: string; items: NavItem[] }[] = [
@@ -98,10 +100,34 @@ const NAV: { group: string; items: NavItem[] }[] = [
   },
 ];
 const SETTINGS: NavItem = { id: "game", label: "Settings", icon: GearIcon };
-const ALL_TABS: Tab[] = [...NAV.flatMap((g) => g.items.map((i) => i.id)), SETTINGS.id];
+const FEATURES_NAV: NavItem = { id: "features", label: "Features", icon: SlidersIcon };
+const ALL_TABS: Tab[] = [...NAV.flatMap((g) => g.items.map((i) => i.id)), FEATURES_NAV.id, SETTINGS.id];
+/** Pages a switched-off feature hides from the sidebar (the Features page itself never hides). */
+const PAGE_NEEDS: Partial<Record<Tab, FeatureId[]>> = {
+  bank: ["gold"],
+  shop: ["shops"],
+  discovery: ["discover"],
+  leads: ["leads"],
+  // The notice board also holds jobs, flyers and the Renown plaque: it goes only when all of those are off.
+  board: ["board", "jobs", "renown"],
+  monsters: ["combat"],
+  companions: ["companions"],
+  tables: ["tables"],
+  story: ["storyboard"],
+  invites: ["invites"],
+  arrival: ["arrival"],
+  chronicle: ["chronicle"],
+  builder: ["builder"],
+};
+/** The sidebar with the switched-off features' pages taken out. */
+function navFor(s: Pick<GameState, "featuresOff">): { group: string; items: NavItem[] }[] {
+  if (!s.featuresOff?.length) return NAV;
+  const shown = (t: Tab) => !PAGE_NEEDS[t] || PAGE_NEEDS[t]!.some((f) => featureOn(s, f));
+  return NAV.map((g) => ({ ...g, items: g.items.filter((i) => shown(i.id)) })).filter((g) => g.items.length);
+}
 /** Pages that draw their own header (with summary and buttons). */
-const OWN_HEAD = new Set<Tab>(["world", "bank", "players", "arrival", "invites", "shop", "discovery", "leads", "scenes", "board", "monsters", "companions", "tables", "episodes", "story", "chronicle", "builder", "game"]);
-const PAGE_LABEL = Object.fromEntries([...NAV.flatMap((g) => g.items), SETTINGS].map((i) => [i.id, i.label])) as Record<Tab, string>;
+const OWN_HEAD = new Set<Tab>(["world", "bank", "players", "arrival", "invites", "shop", "discovery", "leads", "scenes", "board", "monsters", "companions", "tables", "episodes", "story", "chronicle", "builder", "features", "game"]);
+const PAGE_LABEL = Object.fromEntries([...NAV.flatMap((g) => g.items), FEATURES_NAV, SETTINGS].map((i) => [i.id, i.label])) as Record<Tab, string>;
 
 /** The page in the address (#page=discovery), so a reload keeps your place. */
 function pageFromUrl(): Tab {
@@ -249,6 +275,13 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
   const [toastMsg, setToastMsg] = useState<{ text: string; n: number } | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const s = view.state;
+  // Feature switches: a switched-off feature's page leaves the sidebar, and its buttons leave the top bar.
+  const nav = useMemo(() => navFor(s), [s]);
+  const has = (f: FeatureId) => featureOn(s, f);
+  const pageShown = tab === "features" || tab === "game" || nav.some((g) => g.items.some((i) => i.id === tab));
+  useEffect(() => {
+    if (!pageShown) setTab("players");
+  }, [pageShown]);
 
   const toast = useCallback((text: string) => {
     setToastMsg((t) => ({ text, n: (t?.n ?? 0) + 1 }));
@@ -513,7 +546,7 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
               {online ? "Live" : "Reconnecting"}
             </span>
             <span className="spacer" />
-            <SoundButton />
+            {has("sound") ? <SoundButton /> : null}
             <DiceButton />
             {primary}
             <button className={`btn icon-only pm-more-btn${moreOpen ? " on" : ""}`} type="button" aria-expanded={moreOpen} onClick={() => setMoreOpen((v) => !v)} aria-label="More">
@@ -532,10 +565,10 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
                 <span className="dm-find-text">Find or show anything</span>
                 <span className="key">/</span>
               </button>
-              <RenownChip />
-              <OffScriptButton enabled={!runOpen && !finder && storyOpen === null && !editingMap} />
+              {has("renown") ? <RenownChip /> : null}
+              {has("offscript") ? <OffScriptButton enabled={!runOpen && !finder && storyOpen === null && !editingMap} /> : null}
               <Inbox />
-              {s.fight ? null : (
+              {s.fight || !has("combat") ? null : (
                 <button className="btn icon-only" type="button" onClick={startFight} title="Start a fight: Roll initiative! on the TV and phones" aria-label="Start fight">
                   <SwordIcon />
                 </button>
@@ -553,7 +586,7 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
               </button>
               <FullScreenButton />
               <span className="dm-top-sep" aria-hidden="true" />
-              {s.practice ? null : <PracticeButton episodeId={(runningEp ?? chosenEp)?.id} episodeTitle={(runningEp ?? chosenEp)?.title} />}
+              {s.practice || !has("practice") ? null : <PracticeButton episodeId={(runningEp ?? chosenEp)?.id} episodeTitle={(runningEp ?? chosenEp)?.title} />}
               {session ? (
                 <button className="btn" type="button" onClick={() => setEnding(true)}>
                   End session
@@ -625,15 +658,15 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
               <span className="dm-find-text">Find or show anything</span>
               <span className="key">/</span>
             </button>
-            <RenownChip />
-            <OffScriptButton enabled={!runOpen && !finder && storyOpen === null && !editingMap} />
+            {has("renown") ? <RenownChip /> : null}
+            {has("offscript") ? <OffScriptButton enabled={!runOpen && !finder && storyOpen === null && !editingMap} /> : null}
             <Inbox />
-            {s.fight ? null : (
+            {s.fight || !has("combat") ? null : (
               <button className="btn icon-only" type="button" onClick={startFight} title="Start a fight: Roll initiative! on the TV and phones" aria-label="Start fight">
                 <SwordIcon />
               </button>
             )}
-            <SoundButton />
+            {has("sound") ? <SoundButton /> : null}
             <DiceButton />
             {s.vttUrl ? (
               <a className="btn icon-only" href={s.vttUrl} target="_blank" rel="noopener noreferrer" title="Launch VTT" aria-label="Launch VTT">
@@ -648,7 +681,7 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
             </button>
             <FullScreenButton />
             <span className="dm-top-sep" aria-hidden="true" />
-            {s.practice ? null : <PracticeButton episodeId={(runningEp ?? chosenEp)?.id} episodeTitle={(runningEp ?? chosenEp)?.title} />}
+            {s.practice || !has("practice") ? null : <PracticeButton episodeId={(runningEp ?? chosenEp)?.id} episodeTitle={(runningEp ?? chosenEp)?.title} />}
             {session ? (
               <button className="btn" type="button" onClick={() => setEnding(true)}>
                 End session
@@ -720,7 +753,7 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
 
         <div className="dm-body">
           <nav className="dm-side" aria-label="DM pages">
-            {NAV.map((g) => (
+            {nav.map((g) => (
               <div key={g.group} className="dm-nav">
                 <div className="dm-nav-h">{g.group}</div>
                 {g.items.map((it) => (
@@ -729,6 +762,7 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
               </div>
             ))}
             <div className="dm-nav dm-nav-foot">
+              <NavButton item={FEATURES_NAV} current={tab === FEATURES_NAV.id} onPick={setTab} />
               <NavButton item={SETTINGS} current={tab === SETTINGS.id} onPick={setTab} />
             </div>
           </nav>
@@ -757,6 +791,7 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
               {tab === "chronicle" ? <ChroniclePanel /> : null}
               {tab === "tables" ? <TablesPanel /> : null}
               {tab === "builder" ? <BuilderPanel onCount={recountDrafts} /> : null}
+              {tab === "features" ? <FeaturesPanel /> : null}
               {tab === "game" ? <GamePanel /> : null}
             </div>
           </main>
@@ -849,6 +884,7 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
 
         {phone ? (
           <PhoneBar
+            nav={nav}
             tab={tab}
             onPick={pickPage}
             pagesOpen={pagesOpen}
@@ -895,14 +931,15 @@ function NavButton({ item, current, onPick, count = 0 }: { item: NavItem; curren
 const BAR_TABS: Tab[] = ["bank", "players", "discovery"];
 
 /** Phone layout: three everyday pages, the TV panel and every other page, along the bottom. */
-function PhoneBar({ tab, onPick, pagesOpen, tvOpen, onPages, onTv, counts }: { tab: Tab; onPick: (t: Tab) => void; pagesOpen: boolean; tvOpen: boolean; onPages: () => void; onTv: () => void; counts: Partial<Record<Tab, number>> }) {
-  const items = [...NAV.flatMap((g) => g.items), SETTINGS];
-  const elsewhere = !BAR_TABS.includes(tab);
-  const otherCount = items.filter((i) => !BAR_TABS.includes(i.id)).reduce((n, i) => n + (counts[i.id] ?? 0), 0);
+function PhoneBar({ nav, tab, onPick, pagesOpen, tvOpen, onPages, onTv, counts }: { nav: { group: string; items: NavItem[] }[]; tab: Tab; onPick: (t: Tab) => void; pagesOpen: boolean; tvOpen: boolean; onPages: () => void; onTv: () => void; counts: Partial<Record<Tab, number>> }) {
+  const items = [...nav.flatMap((g) => g.items), FEATURES_NAV, SETTINGS];
+  const bar = BAR_TABS.filter((id) => items.some((i) => i.id === id));
+  const elsewhere = !bar.includes(tab);
+  const otherCount = items.filter((i) => !bar.includes(i.id)).reduce((n, i) => n + (counts[i.id] ?? 0), 0);
   return (
     <>
       <nav className="pm-bar" aria-label="DM pages">
-        {BAR_TABS.map((id) => {
+        {bar.map((id) => {
           const it = items.find((i) => i.id === id)!;
           const Icon = it.icon;
           const on = tab === id && !pagesOpen && !tvOpen;
@@ -929,7 +966,7 @@ function PhoneBar({ tab, onPick, pagesOpen, tvOpen, onPages, onTv, counts }: { t
           <div className="pm-scrim" role="presentation" onClick={onPages} />
           <div className="pm-sheet pm-pages" role="dialog" aria-label="All pages">
             <div className="pm-grab" aria-hidden="true" />
-            {[...NAV, { group: "Campaign", items: [SETTINGS] }].map((g) => (
+            {[...nav, { group: "Campaign", items: [FEATURES_NAV, SETTINGS] }].map((g) => (
               <section key={g.group}>
                 <h2 className="pm-h">{g.group}</h2>
                 <div className="pm-grid">

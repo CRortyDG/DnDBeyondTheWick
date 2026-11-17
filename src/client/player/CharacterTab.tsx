@@ -24,8 +24,8 @@ export function CharacterTab({
   send: (c: object) => Promise<string | null>;
   part: CharacterPart;
   onPart: (p: CharacterPart) => void;
-  /** The Gold and shops page as it was. */
-  gold: ReactNode;
+  /** The Gold and shops page as it was. null: gold is turned off, so the tab is just the sheet. */
+  gold: ReactNode | null;
   /** Open "Your character" (the D&D Beyond link). */
   onLink: () => void;
 }) {
@@ -34,6 +34,7 @@ export function CharacterTab({
   if (me.sheetOff) return <>{gold}</>;
   return (
     <>
+      {gold === null ? null : (
       <div className="pl-seg pl-char-seg" role="tablist" aria-label="Your character">
         <button type="button" role="tab" aria-selected={part === "sheet"} className={part === "sheet" ? "on" : undefined} onClick={() => onPart("sheet")}>
           Sheet
@@ -42,7 +43,8 @@ export function CharacterTab({
           Gold &amp; shops
         </button>
       </div>
-      {part === "gold" ? (
+      )}
+      {part === "gold" && gold !== null ? (
         gold
       ) : me.sheet ? (
         <section className="pl-sheet" aria-label="Character sheet">

@@ -164,7 +164,8 @@ async function createCampaign(req: Request, env: Env, ctx: ExecutionContext): Pr
   if (env.CREATE_LIMIT && !(await env.CREATE_LIMIT.limit({ key: ip })).success) {
     return json({ error: "Too many new campaigns from here. Try again in a minute." }, 429);
   }
-  const body = (await req.json().catch(() => ({}))) as { name?: unknown; code?: unknown; from?: unknown };
+  const body = (await req.json().catch(() => ({}))) as { name?: unknown; code?: unknown; from?: unknown; features?: unknown };
+  const features = body.features === "minimal" || body.features === "standard" || body.features === "everything" ? body.features : undefined;
   const from = typeof body.from === "string" && /^(blank|candlefair|marrowmere|preset:[a-z0-9]{10})$/.test(body.from) ? body.from : "blank";
   const name = typeof body.name === "string" ? body.name.trim().slice(0, 80) : "";
   const wanted = typeof body.code === "string" && body.code.trim() ? normaliseGameId(body.code) : null;
@@ -176,7 +177,7 @@ async function createCampaign(req: Request, env: Env, ctx: ExecutionContext): Pr
     const res = await room(env, game).fetch(
       new Request(`https://room/internal/create?game=${encodeURIComponent(game)}`, {
         method: "POST",
-        body: JSON.stringify({ dmKeyHash: sha256(key), from, ...(name ? { name } : {}) }),
+        body: JSON.stringify({ dmKeyHash: sha256(key), from, ...(name ? { name } : {}), ...(features ? { features } : {}) }),
       }),
     );
     if (res.ok) return json({ game, key });

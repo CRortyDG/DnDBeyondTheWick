@@ -194,6 +194,10 @@ export interface Player {
   sheet?: import("./sheet").CharacterSheet;
   /** The DM turned the app's sheet off for this player (they'd rather use D&D Beyond). Their sheet, if any, is kept but hidden. */
   sheetOff?: boolean;
+  /** Per-player features the DM turned off for this player (see features.ts). Sheets use sheetOff. */
+  featuresOff?: import("./features").FeatureId[];
+  /** Tabs this player hid on their own phone (see features.ts). Only tidies their phone. */
+  tabsHidden?: import("./features").FeatureId[];
   /** DM-ONLY, practice copies only: a stand-in for rehearsing (see practice.ts). Never in a live game. */
   standIn?: StandIn;
 }
@@ -1236,6 +1240,8 @@ export interface GameState {
   tables?: RandomTable[];
   /** DM-ONLY: the Worldbuilder style guide (tone and rules Claude must follow). Read-only to builder keys. */
   builderNotes?: string;
+  /** Features the DM turned off for the whole table (see features.ts). Missing: every feature on. */
+  featuresOff?: import("./features").FeatureId[];
   /** DM-ONLY: where the party is now (one table). In a shared world each Party has its own. Read with hereOf(). */
   here?: Here;
   /** DM-ONLY: portable clues, per episode and in the campaign pool. Read with cluesOf(). */

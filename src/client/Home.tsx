@@ -1,5 +1,6 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { describeCounts } from "@/shared/presets";
+import { PRESETS, type PresetId } from "@/shared/features";
 import { devicePresets, presetInfo, type PresetInfo } from "./presets";
 import { dmLink, hrefFor } from "./api";
 import { CandleIcon } from "./ui/icons";
@@ -161,6 +162,14 @@ function StartForm({ onCreated, onBack }: { onCreated: (c: { game: string; key: 
   // "blank", "marrowmere" (the premade starter), or a preset code.
   const [from, setFrom] = useState("blank");
   const [mine] = useState(devicePresets);
+  // Which features it starts with. A saved preset keeps its own switches.
+  const [features, setFeatures] = useState<PresetId>("standard");
+  const pickFeatures = from === "blank" || from === "marrowmere";
+  // The premade uses every feature, so it starts with them all; a blank campaign starts on Standard.
+  useEffect(() => {
+    if (from === "marrowmere") setFeatures("everything");
+    else if (from === "blank") setFeatures("standard");
+  }, [from]);
   const codeChars = code.trim().replace(/[^a-z0-9]/gi, "").length;
   const codeShort = code.trim() !== "" && codeChars < PICKED_CODE_MIN;
   return (
@@ -187,6 +196,7 @@ function StartForm({ onCreated, onBack }: { onCreated: (c: { game: string; key: 
                 from: from === "blank" || from === "marrowmere" ? from : `preset:${from}`,
                 ...(name.trim() ? { name: name.trim() } : {}),
                 ...(code.trim() ? { code: code.trim() } : {}),
+                ...(pickFeatures ? { features } : {}),
               }),
             });
             const data = (await r.json().catch(() => ({}))) as { game?: string; key?: string; error?: string };
@@ -210,6 +220,21 @@ function StartForm({ onCreated, onBack }: { onCreated: (c: { game: string; key: 
           />
         </label>
         <StartFrom from={from} onFrom={setFrom} mine={mine} />
+        {pickFeatures ? (
+          <fieldset className="hm-from hm-features">
+            <legend className="hm-label">Features</legend>
+            {PRESETS.map((p) => (
+              <label className={`hm-opt${features === p.id ? " on" : ""}`} key={p.id}>
+                <input type="radio" name="features" value={p.id} checked={features === p.id} onChange={() => setFeatures(p.id)} />
+                <span className="hm-opt-text">
+                  <b>{p.name}</b>
+                  <span>{p.blurb}</span>
+                </span>
+              </label>
+            ))}
+            <span className="hm-hint">Change any of it later on the Features page.</span>
+          </fieldset>
+        ) : null}
         <details className="hm-more" open={code !== "" || undefined}>
           <summary>Pick your own campaign code</summary>
           <label className="hm-field">

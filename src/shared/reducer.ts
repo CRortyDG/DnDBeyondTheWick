@@ -24,6 +24,7 @@ import { addPartyTokens, freeSpot, snapToGrid, syncFightTokens, tokensOf, TOKENS
 import { levelLine } from "./levels";
 import { applyPractice, isPracticeCommand, trackPractice } from "./practice";
 import { applyCompanion, attachCompanion, companionsWith, companionTemplatesOf, endSessionCompanions, isCompanionCommand, rentalEnded } from "./companions";
+import { applyFeatures, checkFeature, isFeatureCommand } from "./features";
 import { applyFight, isFightCommand, startFightFromBeat, type FightHelpers } from "./combatReducer";
 import type { Notice, NotePlace } from "./types";
 import { beatSuggestions, entryRef, freeQuickKey, liveRef, QUICK_KEYS, quickOf, RECENT_MAX, refForScene, renameRefs, resolveRef, sceneSlug, uniqueSceneSlug } from "./assets";
@@ -466,6 +467,7 @@ function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
   if (isDmCommand(cmd.type) && ctx.actor.role !== "dm") fail("Only the DM can do that.");
   if (cmd.type.startsWith("me.") && ctx.actor.role !== "player") fail("Only a player can do that.");
   if (cmd.type.startsWith("system.") && ctx.actor.role !== "system") fail("Not allowed.");
+  checkFeature(input, cmd, ctx.actor as { role: string; playerId?: string }, fail);
   if (cmd.type === "import.bulk") return importBulk(input, cmd, ctx);
   if (cmd.type === "system.builderApply") return builderApply(input, cmd.ops, ctx);
   if (cmd.type === "capture.make") return makeFromCapture(input, cmd, ctx);
@@ -1711,6 +1713,11 @@ function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
       applyCompanion(s, c, { now: ctx.now, nextId, fail, task: (t) => task(t), endRental });
     }
     syncFightTokens(s, nextId);
+    return out;
+  }
+
+  if (isFeatureCommand(cmd)) {
+    applyFeatures(s, cmd, { actor: ctx.actor as { role: string; playerId?: string }, fail });
     return out;
   }
 
