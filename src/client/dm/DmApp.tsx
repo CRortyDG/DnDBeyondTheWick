@@ -6,7 +6,8 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement } 
 import type { DmCommand } from "@/shared/commands";
 import type { DmView } from "@/shared/projection";
 import { api, absoluteHref, authHeaders, hrefFor, practiceHref, rememberKey, type Ident } from "../api";
-import { PracticeBar, PracticeButton } from "./Practice";
+import { PracticeBar, PracticeButton, PracticeItems, PracticeResume } from "./Practice";
+import { MenuItem, RowMenu } from "./RowMenu";
 import { useGame, type CallResult } from "../useGame";
 import { Notice } from "../ui/Notice";
 import { Purse } from "../ui/Purse";
@@ -670,20 +671,20 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
             )}
             {has("sound") ? <SoundButton /> : null}
             <DiceButton />
-            {s.vttUrl ? (
-              <a className="btn icon-only" href={s.vttUrl} target="_blank" rel="noopener noreferrer" title="Launch VTT" aria-label="Launch VTT">
-                <DiceIcon />
-              </a>
-            ) : null}
-            <button className="btn icon-only" type="button" onClick={openTv} title={`Open the TV window: ${absoluteHref(ident.game, "TV")}`} aria-label="Open TV window">
-              <TvIcon />
-            </button>
             <button className={`btn icon-only${railOpen ? " on" : ""}`} type="button" onClick={toggleRail} aria-pressed={railOpen} title={railOpen ? "Hide the TV panel" : "Show the TV panel"} aria-label="TV panel">
               <PanelRightIcon />
             </button>
             <FullScreenButton />
+            {/* Less-used things live in ⋯, so the bar stays short and Practice isn't beside Start session. */}
+            <RowMenu label="More">
+              <MenuItem onClick={openTv} title={absoluteHref(ident.game, "TV")}>
+                Open the TV in a window
+              </MenuItem>
+              {s.vttUrl ? <MenuItem onClick={() => window.open(s.vttUrl!, "_blank", "noopener,noreferrer")}>Launch VTT</MenuItem> : null}
+              {s.practice || !has("practice") ? null : <PracticeItems episodeId={(runningEp ?? chosenEp)?.id} episodeTitle={(runningEp ?? chosenEp)?.title} />}
+            </RowMenu>
             <span className="dm-top-sep" aria-hidden="true" />
-            {s.practice || !has("practice") ? null : <PracticeButton episodeId={(runningEp ?? chosenEp)?.id} episodeTitle={(runningEp ?? chosenEp)?.title} />}
+            {s.practice || !has("practice") ? null : <PracticeResume />}
             {session ? (
               <button className="btn" type="button" onClick={() => setEnding(true)}>
                 End session
