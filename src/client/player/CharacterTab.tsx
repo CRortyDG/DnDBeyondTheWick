@@ -70,6 +70,8 @@ export function CharacterTab({
             inspired={view.purse.find((p) => p.id === me.id)?.inspired}
             lockedOut={!!me.sheet.locked}
             onPatch={(patch) => send({ type: "me.sheet", patch })}
+            onAct={(act) => send({ type: "me.sheetAct", act })}
+            onHitDie={() => send({ type: "me.hitDie", tv })}
             onRoll={roll}
             rollBar={
               <>
@@ -94,7 +96,7 @@ export function CharacterTab({
                   <LastRoll view={view} />
                 </div>
                 <p className="cs-rollbar-hint">
-                  Tap any score, save, skill, initiative or attack to roll it
+                  Tap any score, save, skill, initiative or attack to roll it. Tap a spell to cast or roll it
                   {tv ? " on the TV" : " for the DM only"}.
                 </p>
               </>

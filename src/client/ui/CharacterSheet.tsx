@@ -32,7 +32,10 @@ import {
   type SkillId,
   type SheetRoll,
 } from "@/shared/sheet";
+import type { SheetAct } from "@/shared/sheetMagic";
 import { AttackEditor, AttackList } from "./SheetAttacks";
+import { FeaturesBlock } from "./SheetFeatures";
+import { SpellsBlock } from "./SheetSpells";
 import "./sheet.css";
 
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
@@ -60,6 +63,8 @@ export function CharacterSheetView({
   editLabel = "Edit sheet",
   onRoll,
   rollBar,
+  onAct,
+  onHitDie,
 }: {
   sheet: CharacterSheet;
   level: number | undefined;
@@ -76,6 +81,10 @@ export function CharacterSheetView({
   onRoll?: (r: SheetRoll) => void;
   /** Advantage and where the roll goes, shown above the rollable parts. */
   rollBar?: ReactNode;
+  /** Use a slot or a feature, cast a spell, end concentration. Returns an error or null. */
+  onAct: (a: SheetAct) => Promise<string | null>;
+  /** The player's phone: spend a hit die (roll it and heal). */
+  onHitDie?: () => Promise<string | null>;
 }) {
   const [editing, setEditing] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -85,6 +94,17 @@ export function CharacterSheetView({
     setErr(e || null);
     return e === null;
   };
+  const act = async (a: SheetAct) => {
+    const e = await onAct(a);
+    setErr(e || null);
+    return e === null;
+  };
+  const hitDie = onHitDie
+    ? async () => {
+        const e = await onHitDie();
+        setErr(e || null);
+      }
+    : undefined;
   const line = sheetLine(sheet, level);
   const fixed = editing && lockedOut;
   const roll = !editing && onRoll ? onRoll : undefined;
@@ -161,7 +181,7 @@ export function CharacterSheetView({
       {hp ? <div className="cs-hp">{hp}</div> : null}
 
       <div className="cs-row2">
-        <HitDice sheet={sheet} n={n} editing={editing} fixed={fixed} send={send} />
+        <HitDice sheet={sheet} n={n} editing={editing} fixed={fixed} send={send} onSpend={editing ? undefined : hitDie} />
         {inspired ? <div className="cs-insp">Heroic Inspiration</div> : null}
       </div>
 
@@ -170,6 +190,10 @@ export function CharacterSheetView({
       {roll && rollBar ? rollBar : null}
 
       {editing ? <AttackEditor sheet={sheet} level={level} send={send} /> : <AttackList sheet={sheet} level={level} onRoll={roll} />}
+
+      <FeaturesBlock sheet={sheet} level={level} editing={editing} send={send} act={act} />
+
+      <SpellsBlock sheet={sheet} level={level} editing={editing} fixed={fixed} send={send} act={act} onRoll={roll} />
 
       <h3 className="cs-h">Abilities</h3>
       <div className="cs-abilities">
@@ -274,7 +298,7 @@ export function CharacterSheetView({
       <TextBlock title="Features and traits" value={sheet.traits} editing={editing} max={TRAITS_MAX} placeholder="Second Wind: once per short rest, regain 1d10 + level HP…" onCommit={(v) => send({ traits: v })} />
       <TextBlock title="Proficiencies and languages" value={sheet.profs} editing={editing} max={PROFS_MAX} placeholder="Light armor, simple weapons, thieves' tools. Common, Halfling." onCommit={(v) => send({ profs: v })} />
       <TextBlock title="Notes" value={sheet.notes} editing={editing} max={SHEET_NOTES_MAX} placeholder="Backstory, allies, what you owe and to whom." onCommit={(v) => send({ notes: v })} />
-      <p className="note cs-credit">Class, species and background names come from the free D&amp;D System Reference Document 5.2 (CC-BY-4.0). Anything else, type in yourself.</p>
+      <p className="note cs-credit">Class, species, background, spell and class feature names and text come from the free D&amp;D System Reference Document 5.2 by Wizards of the Coast (CC-BY-4.0). Anything else, type in yourself.</p>
     </div>
   );
 }
@@ -304,7 +328,7 @@ function Stat({ label, short, value, sub, onTap }: { label: string; short?: stri
   );
 }
 
-function HitDice({ sheet, n, editing, fixed, send }: { sheet: CharacterSheet; n: ReturnType<typeof sheetNumbers>; editing: boolean; fixed: boolean; send: (p: SheetPatch) => Promise<boolean> }) {
+function HitDice({ sheet, n, editing, fixed, send, onSpend }: { sheet: CharacterSheet; n: ReturnType<typeof sheetNumbers>; editing: boolean; fixed: boolean; send: (p: SheetPatch) => Promise<boolean>; onSpend?: () => Promise<void> }) {
   const spent = Math.min(n.hitDice, sheet.hitDiceSpent ?? 0);
   return (
     <div className="cs-hd">
@@ -317,9 +341,14 @@ function HitDice({ sheet, n, editing, fixed, send }: { sheet: CharacterSheet; n:
       <div className="cs-hd-pips" role="group" aria-label="Hit dice: tap to spend or get one back">
         {Array.from({ length: n.hitDice }, (_, i) => {
           const used = i >= n.hitDice - spent;
-          return <button key={i} type="button" className={`cs-pip${used ? " used" : ""}`} aria-label={used ? "Spent hit die: tap to get it back" : "Hit die: tap to spend it"} onClick={() => send({ hitDiceSpent: used ? spent - 1 : spent + 1 })} />;
+          return <button key={i} type="button" className={`cs-pip${used ? " used" : ""}`} aria-label={used ? "Spent hit die: tap to get it back" : "Hit die: tap to mark it spent"} onClick={() => send({ hitDiceSpent: used ? spent - 1 : spent + 1 })} />;
         })}
       </div>
+      {onSpend && n.hitDie && n.hitDiceLeft > 0 ? (
+        <button type="button" className="btn small cs-hd-spend" onClick={() => void onSpend()} title="Short rest: roll a hit die plus Constitution and heal that much">
+          Spend one to heal (d{n.hitDie} {signed(mod(sheet.scores.con))})
+        </button>
+      ) : null}
       {editing ? (
         <label className="cs-field cs-inline">
           <span>Hit die</span>

@@ -11,6 +11,7 @@
 import { z } from "zod";
 import type { GameState, Player } from "./types";
 import { STARTERS, type StarterId } from "./starters";
+import { applyAct, castAbilityOf, longRestMagic, magicPatchShape, patchMagic, sheetAct, shortRestMagic, spellAttackBonus, spellDice, type SheetMagic } from "./sheetMagic";
 
 export const ABILITIES = ["str", "dex", "con", "int", "wis", "cha"] as const;
 export type Ability = (typeof ABILITIES)[number];
@@ -114,11 +115,11 @@ export interface SheetAttack {
   type?: string;
 }
 
-/** Where a typed "extra" can go: on a save, a skill, initiative or passive Perception. */
-export type ExtraKey = `save.${Ability}` | `skill.${SkillId}` | "init" | "passive";
-export const EXTRA_KEY_RE = new RegExp(`^(save\\.(${ABILITIES.join("|")})|skill\\.(${SKILL_IDS.join("|")})|init|passive)$`);
+/** Where a typed "extra" can go: on a save, a skill, initiative, passive Perception, spell attack or spell save DC. */
+export type ExtraKey = `save.${Ability}` | `skill.${SkillId}` | "init" | "passive" | "spellAtk" | "spellDc";
+export const EXTRA_KEY_RE = new RegExp(`^(save\\.(${ABILITIES.join("|")})|skill\\.(${SKILL_IDS.join("|")})|init|passive|spellAtk|spellDc)$`);
 
-export interface CharacterSheet {
+export interface CharacterSheet extends SheetMagic {
   cls?: string;
   subclass?: string;
   species?: string;
@@ -230,7 +231,8 @@ export type SheetRoll =
   | { kind: "save"; ability: Ability }
   | { kind: "skill"; skill: SkillId }
   | { kind: "init" }
-  | { kind: "attack"; attackId: string; part: "hit" | "damage"; crit?: boolean };
+  | { kind: "attack"; attackId: string; part: "hit" | "damage"; crit?: boolean }
+  | { kind: "spell"; spellId: string; part: "hit" | "damage"; crit?: boolean };
 
 /** What a tap on the sheet rolls: a d20 test (with its bonus) or damage dice, and its name. */
 export function rollSpec(sheet: CharacterSheet, level: number | undefined, r: SheetRoll): { label: string; d20: true; plus: number } | { label: string; d20: false; count: number; sides: DamageDie; plus: number } | null {
@@ -251,6 +253,14 @@ export function rollSpec(sheet: CharacterSheet, level: number | undefined, r: Sh
       if (r.part === "hit") return d20(`${a.name} to hit`, attackBonus(sheet, a, level));
       if (!a.count) return null;
       return { label: `${a.name} damage${r.crit ? " (critical)" : ""}`, d20: false, count: a.count * (r.crit ? 2 : 1), sides: a.sides, plus: damagePlus(sheet, a) };
+    }
+    case "spell": {
+      const sp = sheet.spells?.find((x) => x.id === r.spellId);
+      if (!sp) return null;
+      if (r.part === "hit") return d20(`${sp.name} spell attack`, spellAttackBonus(sheet, level));
+      const d = spellDice(sheet, sp, level);
+      if (!d) return null;
+      return { label: `${sp.name}${r.crit ? " (critical)" : ""}`, d20: false, count: d.count * (r.crit ? 2 : 1), sides: d.sides, plus: d.plus };
     }
   }
 }
@@ -350,12 +360,13 @@ export const sheetPatch = z
     notes: z.string().max(SHEET_NOTES_MAX),
     /** The whole list, in order. */
     attacks: z.array(attackBody).max(ATTACKS_MAX),
+    ...magicPatchShape,
   })
   .partial();
 export type SheetPatch = z.infer<typeof sheetPatch>;
 
 /** Fields a locked sheet keeps (the DM locks them after session 0). HP, conditions, hit dice and notes stay open. */
-export const LOCKED_FIELDS = ["cls", "subclass", "species", "background", "scores", "saves", "skills", "extra", "hitDie"] as const satisfies readonly (keyof SheetPatch)[];
+export const LOCKED_FIELDS = ["cls", "subclass", "species", "background", "scores", "saves", "skills", "extra", "hitDie", "castAbility", "slotsMax"] as const satisfies readonly (keyof SheetPatch)[];
 
 export const sheetDmCommands = [
   /** Change any part of a player's sheet (starts one if they have none). */
@@ -366,6 +377,8 @@ export const sheetDmCommands = [
   z.object({ type: z.literal("sheet.enable"), playerId: id.optional(), on: z.boolean() }),
   /** Lock class, scores and proficiencies on one sheet, or (no playerId) on every sheet there is now. */
   z.object({ type: z.literal("sheet.lock"), playerId: id.optional(), on: z.boolean() }),
+  /** Use a slot or a feature, cast a spell, end concentration, on a player's sheet. */
+  z.object({ type: z.literal("sheet.act"), playerId: id, act: sheetAct }),
 ] as const;
 
 const sheetRoll = z.discriminatedUnion("kind", [
@@ -374,6 +387,7 @@ const sheetRoll = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("skill"), skill: z.enum(SKILL_IDS) }),
   z.object({ kind: z.literal("init") }),
   z.object({ kind: z.literal("attack"), attackId: z.string().min(1).max(24), part: z.enum(["hit", "damage"]), crit: z.boolean().optional() }),
+  z.object({ kind: z.literal("spell"), spellId: z.string().min(1).max(24), part: z.enum(["hit", "damage"]), crit: z.boolean().optional() }),
 ]);
 
 export const sheetPlayerCommands = [
@@ -381,14 +395,18 @@ export const sheetPlayerCommands = [
   z.object({ type: z.literal("me.sheet"), patch: sheetPatch, starter: z.boolean().optional() }),
   /** Roll from my sheet: the server works out the bonus. tv: on the TV, or for the DM only. */
   z.object({ type: z.literal("me.sheetRoll"), roll: sheetRoll, adv: z.enum(["adv", "dis"]).optional(), tv: z.boolean() }),
+  /** Use a slot or a feature, cast a spell, end concentration. */
+  z.object({ type: z.literal("me.sheetAct"), act: sheetAct }),
+  /** Spend a hit die: roll it plus Constitution and heal that much (a short rest). */
+  z.object({ type: z.literal("me.hitDie"), tv: z.boolean() }),
 ] as const;
 
 export type SheetDmCommand = z.infer<(typeof sheetDmCommands)[number]>;
 export type SheetPlayerCommand = z.infer<(typeof sheetPlayerCommands)[number]>;
-export type SheetCommand = SheetDmCommand | Extract<SheetPlayerCommand, { type: "me.sheet" }>;
+export type SheetCommand = SheetDmCommand | Extract<SheetPlayerCommand, { type: "me.sheet" | "me.sheetAct" }>;
 
 export function isSheetCommand(cmd: { type: string }): cmd is SheetCommand {
-  return cmd.type.startsWith("sheet.") || cmd.type === "me.sheet";
+  return cmd.type.startsWith("sheet.") || cmd.type === "me.sheet" || cmd.type === "me.sheetAct";
 }
 
 const clean = (v: string) => v.replace(/\s+/g, " ").trim();
@@ -467,6 +485,7 @@ export function patchSheet(sheet: CharacterSheet, patch: SheetPatch, opts: { loc
     if (list.length) sheet.attacks = list;
     else delete sheet.attacks;
   }
+  patchMagic(sheet, patch);
   for (const k of ["traits", "profs", "notes"] as const) {
     const v = patch[k];
     if (v === undefined) continue;
@@ -487,7 +506,28 @@ export function syncInitiative(s: GameState, p: Player) {
   if (c && s.fight!.status !== "over") c.initBonus = p.initBonus ?? null;
 }
 
-export function applySheet(s: GameState, cmd: SheetCommand, h: { actor: { role: string; playerId?: string }; now: number; fail: (m: string) => never }) {
+/** Concentration on the sheet shows in an open fight, so a hit reminds them to save. */
+function followConc(s: GameState, p: Player, conc: "start" | "end" | undefined) {
+  if (!conc) return;
+  const f = s.fight;
+  const c = f && f.status !== "over" ? f.order.find((x) => x.kind === "player" && x.playerId === p.id) : undefined;
+  if (!c) return;
+  c.concentrating = conc === "start";
+  delete c.concDc;
+}
+
+/** After the fight changes: a player whose concentration the fight ended (dropped to 0, the DM untoggled it) loses it on the sheet too. */
+export function syncConcFromFight(s: GameState) {
+  const f = s.fight;
+  if (!f || f.status === "over") return;
+  for (const c of f.order) {
+    if (c.kind !== "player" || c.concentrating || !c.playerId) continue;
+    const p = s.players.find((x) => x.id === c.playerId);
+    if (p?.sheet?.conc) delete p.sheet.conc;
+  }
+}
+
+export function applySheet(s: GameState, cmd: SheetCommand, h: { actor: { role: string; playerId?: string }; now: number; fail: (m: string) => never; info?: (m: string) => void }) {
   const find = (pid: string) => s.players.find((p) => p.id === pid) ?? h.fail("That player isn't here.");
   switch (cmd.type) {
     case "sheet.enable": {
@@ -519,6 +559,24 @@ export function applySheet(s: GameState, cmd: SheetCommand, h: { actor: { role: 
       syncInitiative(s, p);
       return;
     }
+    case "sheet.act": {
+      const p = find(cmd.playerId);
+      if (!p.sheet) h.fail(`${p.name} has no sheet.`);
+      const r = applyAct(p.sheet, p.level, cmd.act, h.fail);
+      p.sheet.updatedAt = h.now;
+      followConc(s, p, r.conc);
+      if (r.info) h.info?.(r.info);
+      return;
+    }
+    case "me.sheetAct": {
+      const p = find(h.actor.role === "player" ? (h.actor.playerId ?? "") : "");
+      if (!p.sheet || p.sheetOff) h.fail("You don't have a character sheet here.");
+      const r = applyAct(p.sheet, p.level, cmd.act, h.fail);
+      p.sheet.updatedAt = h.now;
+      followConc(s, p, r.conc);
+      if (r.info) h.info?.(r.info);
+      return;
+    }
     case "me.sheet": {
       const p = find(h.actor.role === "player" ? (h.actor.playerId ?? "") : "");
       if (p.sheetOff) h.fail("Character sheets are turned off for you. Ask the DM if you'd like one.");
@@ -530,13 +588,28 @@ export function applySheet(s: GameState, cmd: SheetCommand, h: { actor: { role: 
   }
 }
 
-/** A long rest (2024 rules): every spent hit die back, and one level of exhaustion off. */
+/** A long rest (2024 rules): every spent hit die, slot and feature use back, and one level of exhaustion off. */
 export function restSheet(p: Player) {
   const sh = p.sheet;
   if (!sh) return;
+  longRestMagic(sh, p.level);
   delete sh.hitDiceSpent;
   if (sh.exhaustion) {
     if (sh.exhaustion > 1) sh.exhaustion -= 1;
     else delete sh.exhaustion;
   }
 }
+
+/** A short rest: Pact Magic and short-rest features back. Hit dice they spend themselves, from the sheet. */
+export function shortRestSheet(p: Player) {
+  if (p.sheet) shortRestMagic(p.sheet, p.level);
+}
+
+/** Spending a hit die heals its roll plus Constitution (at least 1). */
+export function hitDieSpec(sheet: CharacterSheet, level: number | undefined): { sides: HitDie; plus: number } | null {
+  const n = sheetNumbers(sheet, level);
+  if (!n.hitDie || n.hitDiceLeft <= 0) return null;
+  return { sides: n.hitDie, plus: mod(sheet.scores.con) };
+}
+
+export { castAbilityOf };

@@ -6,6 +6,7 @@ import { seedGame } from "@/shared/seed";
 import { hydrate } from "@/server/store";
 import { dmCommand, playerCommand, type Command } from "@/shared/commands";
 import { blankSheet, mod, proficiency, saveBonus, sheetFromStarter, sheetNumbers, skillBonus } from "@/shared/sheet";
+import { featureFrom, featureNow, pactOf, slotsMaxOf, spellAttackBonus, spellSaveDc, suggestedFeatures } from "@/shared/sheetMagic";
 import type { GameState } from "@/shared/types";
 
 const DM: Ctx = { now: 1000, actor: { role: "dm" } };
@@ -206,5 +207,123 @@ describe("tap to roll", () => {
     expect(() => roll(g2, { roll: { kind: "init" }, tv: true }, 0.5, 5500)).toThrow(/One roll/);
     expect(() => roll(setup(), { roll: { kind: "attack", attackId: "zz", part: "hit" }, tv: true })).toThrow(/isn't on your sheet/);
     expect(playerCommand.safeParse({ type: "me.sheetRoll", roll: { kind: "skill", skill: "flying" }, tv: true }).success).toBe(false);
+  });
+});
+
+describe("spells and features", () => {
+  const bless = { id: "s1", name: "Bless", level: 1, srd: "bless", prepared: true, conc: true };
+  const bolt = { id: "s2", name: "Fire Bolt", level: 0, srd: "fire-bolt", attack: true, count: 1, sides: 10 as const, scale: true, type: "fire" };
+  const cure = { id: "s3", name: "Cure Wounds", level: 1, prepared: true, count: 2, sides: 8 as const, addMod: true, type: "healing" };
+  const cleric = (level = 5) => {
+    let g = table();
+    g.players[0].level = level;
+    g = run(g, { type: "me.sheet", patch: { cls: "Cleric", scores: { wis: 16 }, spells: [bless, bolt, cure] } }, as("p1"));
+    return g;
+  };
+  const act = (g: GameState, a: Extract<Command, { type: "me.sheetAct" }>["act"], pid = "p1") => run(g, { type: "me.sheetAct", act: a }, as(pid));
+
+  it("works out slots, spell attack and save DC from the class and level", () => {
+    const sh = cleric(5).players[0].sheet!;
+    expect(slotsMaxOf(sh, 5)).toEqual([4, 3, 2, 0, 0, 0, 0, 0, 0]);
+    // +3 Wis, +3 proficiency.
+    expect(spellAttackBonus(sh, 5)).toBe(6);
+    expect(spellSaveDc(sh, 5)).toBe(14);
+    // Half casters get slots from level 1 (2024); a Warlock's are Pact Magic.
+    expect(slotsMaxOf({ ...blankSheet(0), cls: "Paladin" }, 1)).toEqual([2, 0, 0, 0, 0, 0, 0, 0, 0]);
+    expect(slotsMaxOf({ ...blankSheet(0), cls: "Warlock" }, 5)).toEqual(Array(9).fill(0));
+    expect(pactOf({ ...blankSheet(0), cls: "Warlock" }, 5)).toEqual({ count: 2, level: 3 });
+    expect(slotsMaxOf({ ...blankSheet(0), cls: "Fighter" }, 5)).toEqual(Array(9).fill(0));
+  });
+
+  it("casting uses a slot, and refuses with none left", () => {
+    let g = cleric(1);
+    g = act(g, { k: "cast", spellId: "s3", use: "slot", slot: 1 });
+    g = act(g, { k: "cast", spellId: "s3", use: "slot", slot: 1 });
+    expect(g.players[0].sheet!.slotsUsed).toEqual([2, 0, 0, 0, 0, 0, 0, 0, 0]);
+    expect(() => act(g, { k: "cast", spellId: "s3", use: "slot", slot: 1 })).toThrow(/No 1st level slots left/);
+    expect(() => act(g, { k: "cast", spellId: "s3", use: "slot", slot: 2 })).toThrow(/no 2nd level slots/);
+    // Tapping a pip gives one back.
+    g = act(g, { k: "slot", level: 1, delta: -1 });
+    expect(g.players[0].sheet!.slotsUsed![0]).toBe(1);
+  });
+
+  it("concentration shows in an open fight, and the fight ending it clears the sheet", () => {
+    let g = cleric();
+    g = run(g, { type: "fight.start" });
+    g = act(g, { k: "cast", spellId: "s1", use: "slot", slot: 2 });
+    const c = () => g.fight!.order.find((x) => x.playerId === "p1")!;
+    expect(g.players[0].sheet!.conc).toBe("Bless");
+    expect(c().concentrating).toBe(true);
+    g = run(g, { type: "fight.patch", combatantIds: [c().id], patch: { concentrating: false } });
+    expect(g.players[0].sheet!.conc).toBeUndefined();
+    // Concentrating before a fight carries into it.
+    let h = cleric();
+    h = act(h, { k: "cast", spellId: "s1", use: "slot", slot: 1 });
+    h = run(h, { type: "fight.start" });
+    expect(h.fight!.order.find((x) => x.playerId === "p1")!.concentrating).toBe(true);
+    h = act(h, { k: "endConc" });
+    expect(h.fight!.order.find((x) => x.playerId === "p1")!.concentrating).toBe(false);
+  });
+
+  it("spell rolls: attack with the casting bonus, cantrip dice grow with level, healing adds the modifier", () => {
+    const r = (g: GameState, roll: Extract<Command, { type: "me.sheetRoll" }>["roll"]) => apply(g, { type: "me.sheetRoll", roll, tv: true }, { now: 5000, actor: { role: "player", playerId: "p1" }, rand: () => 0.5 }).state.diceRoll;
+    expect(r(cleric(5), { kind: "spell", spellId: "s2", part: "hit" })).toMatchObject({ label: "Fire Bolt spell attack", total: 11 + 6 });
+    expect(r(cleric(5), { kind: "spell", spellId: "s2", part: "damage" })!.groups).toEqual([{ sides: 10, rolls: [6, 6] }]);
+    expect(r(cleric(4), { kind: "spell", spellId: "s2", part: "damage" })!.groups).toEqual([{ sides: 10, rolls: [6] }]);
+    expect(r(cleric(5), { kind: "spell", spellId: "s3", part: "damage" })).toMatchObject({ label: "Cure Wounds", plus: 3, total: 5 + 5 + 3 });
+  });
+
+  it("class features count uses by level; rests bring them back", () => {
+    let g = table();
+    g.players[0].level = 4;
+    g = run(g, { type: "me.sheet", patch: { cls: "Fighter", features: [featureFrom("secondwind", "f1"), featureFrom("actionsurge", "f2"), { id: "f3", name: "Wand", max: 7, used: 0, reset: "none" }] } }, as("p1"));
+    const sh = () => g.players[0].sheet!;
+    expect(featureNow(sh(), sh().features![0], 4)).toMatchObject({ max: 3, reset: "short1" });
+    expect(suggestedFeatures(sh(), 9)).toEqual(["indomitable"]);
+    for (const id of ["f1", "f1", "f2", "f3"]) g = act(g, { k: "feature", featureId: id, delta: 1 });
+    expect(() => act(g, { k: "feature", featureId: "f2", delta: 1 })).toThrow(/No Action Surge left/);
+    g = run(g, { type: "party.shortRest" });
+    expect(sh().features!.map((f) => f.used)).toEqual([1, 0, 1]);
+    expect(g.notes!.at(-1)!.text).toBe("The party took a short rest.");
+    g = run(g, { type: "party.longRest" });
+    expect(sh().features!.map((f) => f.used)).toEqual([0, 0, 1]);
+  });
+
+  it("a short rest gives back Pact slots; a long rest every slot and ends concentration", () => {
+    let g = table();
+    g.players[0].level = 5;
+    g = run(g, { type: "me.sheet", patch: { cls: "Warlock", spells: [{ ...bless, id: "s1" }] } }, as("p1"));
+    g = act(g, { k: "cast", spellId: "s1", use: "pact" });
+    expect(g.players[0].sheet).toMatchObject({ pactUsed: 1, conc: "Bless" });
+    g = run(g, { type: "party.shortRest" });
+    expect(g.players[0].sheet!.pactUsed).toBeUndefined();
+    expect(g.players[0].sheet!.conc).toBe("Bless");
+    g = run(g, { type: "party.longRest" });
+    expect(g.players[0].sheet!.conc).toBeUndefined();
+  });
+
+  it("spending a hit die rolls it plus Con and heals", () => {
+    let g = table();
+    g.players[0].level = 3;
+    g = run(g, { type: "me.sheet", patch: { cls: "Fighter", scores: { con: 14 } } }, as("p1"));
+    g = run(g, { type: "me.hp", max: 30, cur: 10 }, as("p1"));
+    g = apply(g, { type: "me.hitDie", tv: true }, { now: 5000, actor: { role: "player", playerId: "p1" }, rand: () => 0.5 }).state;
+    // d10 rolls 6, +2 Con.
+    expect(g.players[0].hp).toMatchObject({ cur: 18 });
+    expect(g.players[0].sheet!.hitDiceSpent).toBe(1);
+    expect(g.diceRoll).toMatchObject({ label: "Hit die", total: 8 });
+    g = run(g, { type: "fight.start" });
+    expect(() => apply(g, { type: "me.hitDie", tv: true }, { now: 9000, actor: { role: "player", playerId: "p1" }, rand: () => 0.5 })).toThrow(/after the fight/);
+  });
+
+  it("the DM can use a slot on a player's sheet; the lock keeps slots by hand but not spells", () => {
+    let g = cleric(3);
+    g = run(g, { type: "sheet.act", playerId: "p1", act: { k: "slot", level: 2, delta: 1 } });
+    expect(g.players[0].sheet!.slotsUsed![1]).toBe(1);
+    g = run(g, { type: "sheet.lock", playerId: "p1", on: true });
+    expect(() => run(g, { type: "me.sheet", patch: { slotsMax: [9, 0, 0, 0, 0, 0, 0, 0, 0] } }, as("p1"))).toThrow(/locked/);
+    g = run(g, { type: "me.sheet", patch: { spells: [bless] } }, as("p1"));
+    expect(g.players[0].sheet!.spells).toHaveLength(1);
+    expect(playerCommand.safeParse({ type: "sheet.act", playerId: "p1", act: { k: "endConc" } }).success).toBe(false);
   });
 });

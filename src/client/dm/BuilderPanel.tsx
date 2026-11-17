@@ -77,7 +77,12 @@ const FIELD_LABEL: Record<string, string> = {
 };
 const label = (k: string) => FIELD_LABEL[k] ?? k.charAt(0).toUpperCase() + k.slice(1).replace(/_/g, " ");
 /** Fields the card doesn't list (shown another way, or ids). */
-const HIDDEN_FIELDS = new Set(["entry", "a", "b", "thread", "target", "target_name", "field", "before", "value"]);
+const HIDDEN_FIELDS = new Set(["entry", "a", "b", "thread", "target", "target_name", "field", "before", "value", "url", "bytes", "alt"]);
+
+/** Links, facts and pictures hang off the draft they're about. */
+const hangs = (d: ReviewDraft) => d.kind === "link" || d.kind === "fact" || d.kind === "picture";
+/** A builder picture's link: only this site's uploaded files are shown. */
+const pictureUrl = (d: ReviewDraft) => (typeof d.body.url === "string" && d.body.url.startsWith("/api/files/") ? d.body.url : "");
 
 /** Any value as plain text for the card. */
 function asText(v: unknown): string {
@@ -119,6 +124,7 @@ const SECTIONS: { key: string; label: string; one: string; test: (d: ReviewDraft
   { key: "table", label: "Random tables", one: "Random table", test: (d) => d.kind === "table" },
   { key: "fact", label: "Facts", one: "Fact", test: (d) => d.kind === "fact" },
   { key: "link", label: "Links", one: "Link", test: (d) => d.kind === "link" },
+  { key: "picture", label: "Pictures", one: "Picture", test: (d) => d.kind === "picture" },
   { key: "suggestion", label: "Suggested changes", one: "Suggested change", test: (d) => d.kind === "suggestion" },
 ];
 const sectionOf = (d: ReviewDraft) => SECTIONS.find((s) => s.test(d)) ?? SECTIONS[3];
@@ -136,7 +142,7 @@ export function foldDrafts(pending: ReviewDraft[]): { top: ReviewDraft[]; hanger
   const hangers = new Map<string, ReviewDraft[]>();
   const top: ReviewDraft[] = [];
   for (const d of pending) {
-    if (d.kind === "link" || d.kind === "fact") {
+    if (hangs(d)) {
       const parents = d.refs.filter((r) => r.draft && ids.has(r.id));
       if (parents.length) {
         for (const p of parents) hangers.set(p.id, [...(hangers.get(p.id) ?? []), d]);
@@ -156,7 +162,7 @@ export function approveSet(pending: ReviewDraft[], ids: string[]): string[] {
   for (let grew = true; grew; ) {
     grew = false;
     for (const d of pending) {
-      if (chosen.has(d.id) || (d.kind !== "link" && d.kind !== "fact")) continue;
+      if (chosen.has(d.id) || !hangs(d)) continue;
       const ends = d.refs.filter((r) => r.draft && waiting.has(r.id));
       if (ends.length && ends.every((r) => chosen.has(r.id))) chosen.add(d.id), (grew = true);
     }
@@ -204,6 +210,8 @@ export function rowText(d: ReviewDraft): { title: string; aside: string; sub: st
     }
     case "suggestion":
       return { title: str(b.target_name) || d.title, aside: `change ${label(str(b.field)).toLowerCase()}`, sub: str(b.reason) };
+    case "picture":
+      return { title: d.refs[0] ? `Picture of ${refName(d.refs[0])}` : "Picture", aside: "", sub: str(b.alt) };
     default:
       return { title: d.title, aside: "", sub: "" };
   }
@@ -251,10 +259,12 @@ export function DraftRow({
   const links = hangers.filter((h) => h.kind === "link").length;
   const facts = hangers.filter((h) => h.kind === "fact").length + (Array.isArray(b.facts) ? b.facts.length : 0);
   const bad = draft.diff?.stale || draft.diff?.gone;
+  const pic = draft.kind === "picture" ? pictureUrl(draft) : [...hangers].reverse().map(pictureUrl).find(Boolean) ?? "";
   return (
     <li className={`list-row draft-row${selected ? " selected" : ""}${bad ? " draft-stale" : ""}`}>
       <div className="scene-row">
         {onPick ? <input type="checkbox" className="draft-pick" checked={!!picked} onChange={(e) => onPick(e.target.checked)} aria-label={`Pick ${t.title}`} /> : null}
+        {pic ? <img className="draft-thumb" src={pic} alt="" loading="lazy" /> : null}
         <button type="button" className="row-main" onClick={onOpen} title="Read it all">
           <span className="row-title">
             {t.title}
@@ -272,7 +282,7 @@ export function DraftRow({
             </span>
           ) : null}
         </span>
-        <button className="btn small draft-yes" type="button" disabled={busy || bad} onClick={onApprove} title={hangers.length ? "Approve, with the links and facts on it" : "Approve"}>
+        <button className="btn small draft-yes" type="button" disabled={busy || bad} onClick={onApprove} title={hangers.length ? "Approve, with the links, facts and picture on it" : "Approve"}>
           <IconCheck />
           <span className="draft-btn-text">Approve</span>
         </button>
@@ -281,7 +291,7 @@ export function DraftRow({
         </button>
         <RowMenu label={t.title}>
           <MenuItem onClick={onOpen}>Read it all</MenuItem>
-          {onEdit && !draft.diff ? <MenuItem onClick={onEdit}>Edit then approve</MenuItem> : null}
+          {onEdit && !draft.diff && draft.kind !== "picture" ? <MenuItem onClick={onEdit}>Edit then approve</MenuItem> : null}
           <MenuItem danger onClick={onReject}>
             Reject
           </MenuItem>
@@ -342,6 +352,7 @@ export function DraftDetail({
   const rest = Object.keys(b).filter((k) => !SHOWN_ELSEWHERE.has(k) && !PLAYER_FIELDS.includes(k) && !DM_FIELDS.includes(k));
   const facts = [...(Array.isArray(b.facts) ? (b.facts as unknown[]).map((f) => ({ id: "", text: asText(f) })) : []), ...hangers.filter((h) => h.kind === "fact").map((h) => ({ id: h.id, text: str(h.body.text) }))];
   const links = hangers.filter((h) => h.kind === "link");
+  const pictures = draft.kind === "picture" ? [draft] : hangers.filter((h) => h.kind === "picture");
   const RefName = ({ r }: { r: { id: string; name: string; draft: boolean } }) =>
     r.draft && r.id !== draft.id && onOpenRef ? (
       <button type="button" className="draft-ref" onClick={() => onOpenRef(r.id)} title="Open that draft">
@@ -375,6 +386,22 @@ export function DraftDetail({
           {draft.refs.some((r) => r.draft) ? ". Approving this approves that draft too." : ""}
         </p>
       ) : null}
+      {pictures.map((p) =>
+        pictureUrl(p) ? (
+          <figure key={p.id} className="draft-picture">
+            <img src={pictureUrl(p)} alt={str(p.body.alt)} />
+            <figcaption>
+              {str(p.body.alt) || "No description"}
+              {pictures.length > 1 || p.id !== draft.id ? null : <span className="note"> · Approving puts it on the entry as its picture. Players only see it once you show it.</span>}
+              {p.id !== draft.id && onRejectOne ? (
+                <button type="button" className="btn small" disabled={busy} onClick={() => onRejectOne(p.id)}>
+                  Reject the picture
+                </button>
+              ) : null}
+            </figcaption>
+          </figure>
+        ) : null,
+      )}
       {d ? (
         <div className="draft-diff">
           <p className="note">
@@ -475,7 +502,7 @@ export function DraftDetail({
         <button className="btn primary" type="button" disabled={busy || d?.stale || d?.gone} onClick={onApprove}>
           <IconCheck /> Approve
         </button>
-        {!d ? (
+        {!d && draft.kind !== "picture" ? (
           <button className="btn" type="button" disabled={busy} onClick={() => setEditing(true)}>
             Edit then approve
           </button>
@@ -868,7 +895,7 @@ export function BuilderPanel({ onCount }: { onCount?: () => void }) {
             onReject={() => void act("reject", [openDraft.id], nameOf(openDraft))}
             onRejectOne={(id) => {
               const x = all.find((d) => d.id === id);
-              void act("reject", [id], x?.kind === "fact" ? "the fact" : "the link");
+              void act("reject", [id], x?.kind === "fact" ? "the fact" : x?.kind === "picture" ? "the picture" : "the link");
             }}
             onEdit={async (b) => (await edit(openDraft.id, b)) && (await act("approve", [openDraft.id], nameOf(openDraft)), true)}
           />

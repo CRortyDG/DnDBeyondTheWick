@@ -171,6 +171,7 @@ export async function handleBuilderAdmin(req: Request, store: Store, game: strin
     const { id, body } = await parse(z.object({ id: z.string().regex(DRAFT_ID_RE), body: z.record(z.string(), z.unknown()) }), req);
     const d = await loadDraft(b, id);
     if (!d || d.status !== "pending") throw new HttpError(404, "That draft was already reviewed.");
+    if (d.kind === "picture") throw new HttpError(400, "A picture can't be edited. Approve or reject it.");
     if (d.kind === "suggestion") {
       const s = d.body as unknown as SuggestionBody;
       if (typeof body.value !== "string" && !Array.isArray(body.value)) throw new HttpError(400, "Change the suggested text.");

@@ -5711,4 +5711,31 @@ html[data-view="dm"] .basic-monsters label.basic-mon input {
   justify-content: flex-end;
   gap: 8px;
   flex-wrap: wrap;
+
+/* Worldbuilder pictures: a thumbnail on the row, the picture in the drawer. */
+:where(html[data-view="dm"]) .draft-thumb {
+  width: 34px;
+  height: 34px;
+  border-radius: 6px;
+  object-fit: cover;
+  flex: none;
+  border: 1px solid var(--line, rgba(255, 255, 255, 0.15));
+}
+:where(html[data-view="dm"]) .draft-picture {
+  margin: 0 0 14px;
+  display: grid;
+  gap: 8px;
+}
+:where(html[data-view="dm"]) .draft-picture img {
+  max-width: min(100%, 260px);
+  max-height: 320px;
+  border-radius: 10px;
+  object-fit: contain;
+  border: 1px solid var(--line, rgba(255, 255, 255, 0.15));
+}
+:where(html[data-view="dm"]) .draft-picture figcaption {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
 }

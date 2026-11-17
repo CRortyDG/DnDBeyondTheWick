@@ -53,6 +53,11 @@ export interface Store {
   practiceBase?(game: string): Promise<GameState | null>;
   /** Delete the practice copy and hang up its screens. */
   endPractice?(game: string): Promise<void>;
+  /**
+   * Store a Worldbuilder picture as one of the campaign's files, counted against its image space
+   * like a DM upload. Returns its /api/files/ link. Missing: the builder can't upload pictures here.
+   */
+  putBuilderPicture?(game: string, bytes: Uint8Array, ext: "jpg" | "png" | "webp"): Promise<{ url: string } | { error: string; status: number; code: string }>;
   /** Worldbuilder keys, drafts and Activity, kept beside the game (never in it). Missing: no Worldbuilder. */
   builder?: BuilderStore;
 }
@@ -114,6 +119,14 @@ export class MemoryStore implements Store {
   }
   /** One campaign per test store is enough for the Worldbuilder tests. */
   builder: MemoryBuilderStore = new MemoryBuilderStore();
+  /** Builder pictures, by their /api/files/ link (tests). */
+  files = new Map<string, Uint8Array>();
+  async putBuilderPicture(game: string, bytes: Uint8Array, ext: "jpg" | "png" | "webp") {
+    const name = [...crypto.getRandomValues(new Uint8Array(12))].map((b) => b.toString(16).padStart(2, "0")).join("");
+    const url = `/api/files/${game}/${name}.${ext}`;
+    this.files.set(url, bytes);
+    return { url };
+  }
 
   private load(game: string): MemoryGame {
     let g = this.games.get(game);

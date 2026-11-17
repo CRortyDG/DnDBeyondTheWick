@@ -14,7 +14,7 @@ import type { BuilderOp, BuilderRef, SuggestTarget } from "./builderOps";
 import type { Stage } from "./types";
 
 /** Everything a builder key can create. */
-export const DRAFT_KINDS = ["entry", "fact", "link", "thread", "beat", "flyer", "monster", "table", "suggestion"] as const;
+export const DRAFT_KINDS = ["entry", "fact", "link", "thread", "beat", "flyer", "monster", "table", "suggestion", "picture"] as const;
 export type DraftKind = (typeof DRAFT_KINDS)[number];
 export type DraftStatus = "pending" | "approved" | "rejected" | "withdrawn";
 
@@ -148,7 +148,21 @@ export interface SuggestionBody {
   reason: string;
 }
 
-/** The schema for each kind's stored body (suggestions are built by the server). */
+/**
+ * A picture draft's stored body. Built by the server from an upload (never sent
+ * as JSON by the builder), so the url is always one of this campaign's own files.
+ */
+export interface PictureBody {
+  entry: string;
+  /** /api/files/<campaign>/<random>.<ext> */
+  url: string;
+  alt?: string;
+  /** Stored size, for the review page. */
+  bytes: number;
+}
+export const PICTURE_ALT_MAX = 300;
+
+/** The schema for each kind's stored body (suggestions and pictures are built by the server). */
 export const DRAFT_SCHEMAS = {
   entry: entryInput,
   fact: factInput,
@@ -240,6 +254,8 @@ export function draftTitle(d: Pick<Draft, "kind" | "body">): string {
       return s(b.text).slice(0, 80);
     case "link":
       return "Link";
+    case "picture":
+      return "Picture";
     case "suggestion":
       return `${s(b.target_name)}: ${s(b.field)}`;
     default:
@@ -253,6 +269,7 @@ export function draftRefs(d: Pick<Draft, "kind" | "body">): string[] {
   if (d.kind === "fact") return [b.entry];
   if (d.kind === "link") return [b.a, b.b];
   if (d.kind === "beat") return [b.thread];
+  if (d.kind === "picture") return [b.entry];
   return [];
 }
 
@@ -343,6 +360,10 @@ export function draftToOp(d: Draft, stage: Stage): BuilderOp {
     case "suggestion": {
       const b = d.body as unknown as SuggestionBody;
       return { ...head, kind: "suggestion", target: b.target, field: b.field, before: b.before, value: b.value };
+    }
+    case "picture": {
+      const b = d.body as unknown as PictureBody;
+      return { ...head, kind: "picture", entry: ref(b.entry), url: b.url, ...(b.alt ? { alt: b.alt } : {}) };
     }
   }
 }
