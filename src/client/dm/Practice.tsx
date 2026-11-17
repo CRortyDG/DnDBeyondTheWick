@@ -4,6 +4,8 @@
 // preview, reset, end), the preview of the practice TV and a stand-in's phone,
 // the end screen, and the live console's way in.
 
+import { ask } from "./ask";
+import { MenuItem } from "./RowMenu";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { aboutDuration, formatDuration, practiceTimes, type PracticeEdit, type PracticeTimes } from "@/shared/practice";
 import type { PracticeInfo } from "@/shared/types";
@@ -59,6 +61,41 @@ export async function openPractice(ident: Ident, episodeId?: string): Promise<st
 }
 
 /** The top bar button on the live console: Practice, or Resume practice when one is waiting. */
+/** Practice in the top bar's ⋯ menu, away from Start session. While a practice is running, PracticeButton shows Resume instead. */
+export function PracticeItems({ episodeId, episodeTitle }: { episodeId?: string; episodeTitle?: string }) {
+  const { ident, toast } = useDm();
+  const { status } = usePracticeStatus(ident);
+  if (status?.active) return null;
+  const go = async (ep?: string) => {
+    const err = await openPractice(ident, ep);
+    if (err) toast(err);
+  };
+  return (
+    <>
+      {episodeId ? (
+        <MenuItem onClick={() => go(episodeId)} title="Rehearse alone on a private copy. Nothing reaches the real TV or phones.">
+          Practice {episodeTitle ? `“${episodeTitle}”` : "this episode"}
+        </MenuItem>
+      ) : null}
+      <MenuItem onClick={() => go()} title="A private copy of the campaign as it is now. Opens in a new tab; the real TV and phones never see it.">
+        Practice mode
+      </MenuItem>
+    </>
+  );
+}
+
+/** Only shown while a practice is running: one tap back into it. */
+export function PracticeResume() {
+  const { ident, toast } = useDm();
+  const { status } = usePracticeStatus(ident);
+  if (!status?.active) return null;
+  return (
+    <button className="btn practice-btn active" type="button" onClick={async () => { const err = await openPractice(ident); if (err) toast(err); }} title={`Practice started ${new Date(status.startedAt ?? 0).toLocaleString()}`}>
+      Resume practice{status.episodeTitle ? `: ${status.episodeTitle}` : ""}
+    </button>
+  );
+}
+
 export function PracticeButton({ episodeId, episodeTitle }: { episodeId?: string; episodeTitle?: string }) {
   const { ident, toast } = useDm();
   const { status } = usePracticeStatus(ident);
@@ -151,7 +188,7 @@ export function PracticeBar({ practice }: { practice: PracticeInfo }) {
   }, [s.name]);
 
   const reset = async () => {
-    if (!window.confirm("Start practice over from the live game as it is now? Edits you haven't kept yet are lost. Your practice notes stay.")) return;
+    if (!(await ask("Start practice over from the live game as it is now? Edits you haven't kept yet are lost. Your practice notes stay."))) return;
     try {
       await api("/api/practice/start", ident, {
         method: "POST",
@@ -453,7 +490,7 @@ export function EndPractice({ onClose }: { onClose: () => void }) {
   const lines = notes.split("\n").filter((x) => x.trim()).length;
 
   const finish = async (discard: boolean) => {
-    if (discard && !window.confirm("Throw away the whole practice copy? No edits or notes are kept.")) return;
+    if (discard && !(await ask("Throw away the whole practice copy? No edits or notes are kept."))) return;
     setBusy(true);
     try {
       const r = await api<{ applied: number; notes: number }>("/api/practice/end", ident, {

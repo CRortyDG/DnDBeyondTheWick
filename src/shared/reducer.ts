@@ -948,6 +948,15 @@ function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
     while (s.players.some((x) => x.arrival?.token === t)) t = ctx.token();
     p.arrival = { ...p.arrival, token: t };
   };
+  /**
+   * Joining with the campaign code, or opening their own page, is taking their seat, the
+   * same as claiming it from an Arrival link: the Arrival page and the Ready check agree.
+   * (Unlike an Arrival claim, it never closes the door: the rest of the table may not be here yet.)
+   */
+  const sitDown = (p: Player) => {
+    if (p.archived || !p.arrival || p.arrival.claimedAt) return;
+    p.arrival.claimedAt = ctx.now;
+  };
   /** The player a /api/arrival call is for (already matched to the link code by the server). */
   const arriving = (playerId: string): Player => {
     const p = player(playerId);
@@ -3812,7 +3821,7 @@ function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
     case "knock.admit": {
       const k = s.knocks.find((x) => x.id === cmd.knockId) ?? fail("Nobody's knocking.");
       s.knocks = s.knocks.filter((x) => x.id !== k.id);
-      if (!s.players.some((p) => p.handle === k.handle)) createPlayer(k.handle, displayNameFrom(k.handle), "url");
+      if (!s.players.some((p) => p.handle === k.handle)) createPlayer(k.handle, k.name || displayNameFrom(k.handle), "url");
       break;
     }
     case "knock.dismiss":
@@ -4637,7 +4646,7 @@ function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
       const p = arriving(cmd.playerId);
       const a = p.arrival!;
       // Once seats are locked, a first claim still works (a late arrival at the table), but nobody can change theirs.
-      if (a.claimedAt && s.arrival?.seatsLocked) fail("Seats are locked. Ask the DM if you need to change yours.", "locked");
+      if (a.claimedAt && s.arrival?.seatsLocked && p.character) fail("Seats are locked. Ask the DM if you need to change yours.", "locked");
       const character = cmd.character.replace(/\s+/g, " ").trim().slice(0, CHARACTER_MAX);
       const why = cmd.why.replace(/\s+/g, " ").trim().slice(0, WHY_MAX);
       if (character) p.character = character;
@@ -4662,6 +4671,7 @@ function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
       if (s.players.some((p) => p.handle === h)) fail("That name is taken.");
       const p = createPlayer(h, cmd.name, "url", cmd.keyHash);
       p.lastSeenAt = ctx.now;
+      sitDown(p);
       s.knocks = s.knocks.filter((k) => k.handle !== h);
       break;
     }
@@ -4677,12 +4687,13 @@ function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
       // Opening the app counts only for someone the DM has at the table. Someone marked away
       // stays away until the DM marks them here (they can ask from their device).
       if (!p.archived && !p.away) markAttending(p.id);
+      sitDown(p);
       break;
     }
     case "system.knock": {
       const h = normaliseHandle(cmd.handle);
       if (!h || isReservedHandle(h)) fail("Pick a different name.");
-      if (!s.knocks.some((k) => k.handle === h)) s.knocks.push({ id: nextId("k"), handle: h, at: ctx.now });
+      if (!s.knocks.some((k) => k.handle === h)) s.knocks.push({ id: nextId("k"), handle: h, ...(cmd.name?.trim() ? { name: cmd.name.trim().slice(0, 32) } : {}), at: ctx.now });
       s.knocks = s.knocks.slice(-20);
       break;
     }

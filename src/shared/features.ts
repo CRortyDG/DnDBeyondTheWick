@@ -54,8 +54,10 @@ export interface FeatureDef {
   playerHide?: boolean;
   /** Only works while this one is on. */
   needs?: FeatureId;
-  /** The smallest preset that has it on. DM-only tools are on in every preset. */
+  /** The smallest preset that has it on. A preset sets the DM's own tools too, so Standard starts with a shorter sidebar. */
   from: PresetId;
+  /** Kept as a switch but not listed on the Features page (Hosting costs: a note for whoever runs the server). */
+  unlisted?: boolean;
 }
 
 export const FEATURES: FeatureDef[] = [
@@ -81,12 +83,12 @@ export const FEATURES: FeatureDef[] = [
   { id: "arrival", name: "Arrival intro", blurb: "The intro link players open before the first session, and seat claiming.", group: "story", shows: ["dm", "tv", "phone"], from: "standard" },
   { id: "invites", name: "Session invites", blurb: "One link for a session; the first players to claim it get a seat.", group: "story", shows: ["dm"], from: "everything" },
   // DM-only tools: they only tidy your sidebar.
-  { id: "storyboard", name: "Storyboard", blurb: "Threads, beats and planned dates.", group: "dm", shows: ["dm"], from: "minimal" },
-  { id: "tables", name: "Random tables", blurb: "Rumors, encounters, names and weather.", group: "dm", shows: ["dm"], from: "minimal" },
-  { id: "offscript", name: "Off-script kit", blurb: "Generators, clues and quick notes for when the party wanders.", group: "dm", shows: ["dm"], from: "minimal" },
-  { id: "builder", name: "Worldbuilder", blurb: "Drafts from Claude waiting for your review.", group: "dm", shows: ["dm"], from: "minimal" },
-  { id: "practice", name: "Practice mode", blurb: "Rehearse an episode in a copy of the game.", group: "dm", shows: ["dm"], from: "minimal" },
-  { id: "hosting", name: "Hosting costs", blurb: "What this campaign would cost on a paid plan.", group: "dm", shows: ["dm"], from: "minimal" },
+  { id: "storyboard", name: "Storyboard", blurb: "Threads, beats and planned dates.", group: "dm", shows: ["dm"], from: "everything" },
+  { id: "tables", name: "Random tables", blurb: "Rumors, encounters, names and weather.", group: "dm", shows: ["dm"], from: "standard" },
+  { id: "offscript", name: "Off-script kit", blurb: "Generators, clues and quick notes for when the party wanders.", group: "dm", shows: ["dm"], from: "standard" },
+  { id: "builder", name: "Worldbuilder", blurb: "Drafts from Claude waiting for your review.", group: "dm", shows: ["dm"], from: "everything" },
+  { id: "practice", name: "Practice mode", blurb: "Rehearse an episode in a copy of the game.", group: "dm", shows: ["dm"], from: "everything" },
+  { id: "hosting", name: "Hosting costs", blurb: "What this campaign would cost on a paid plan.", group: "dm", shows: ["dm"], from: "minimal", unlisted: true },
 ];
 
 export const FEATURE: Record<FeatureId, FeatureDef> = Object.fromEntries(FEATURES.map((f) => [f.id, f])) as Record<FeatureId, FeatureDef>;
@@ -102,18 +104,25 @@ export function isFeatureId(x: string): x is FeatureId {
   return (FEATURE_IDS as readonly string[]).includes(x);
 }
 
-/** What a preset turns off. DM-only tools stay as they are (pass the current list to keep them). */
+/**
+ * What a preset turns off, the DM's own tools included: Standard hides the
+ * Storyboard, Worldbuilder and Practice so a new DM's sidebar is short.
+ * Unlisted switches keep whatever they were (pass the current list).
+ */
 export function presetOff(preset: PresetId, current: readonly FeatureId[] = []): FeatureId[] {
-  const keep = current.filter((id) => FEATURE[id].group === "dm");
-  const off = FEATURES.filter((f) => f.group !== "dm" && RANK[f.from] > RANK[preset]).map((f) => f.id);
+  const keep = current.filter((id) => FEATURE[id].unlisted);
+  const off = FEATURES.filter((f) => !f.unlisted && RANK[f.from] > RANK[preset]).map((f) => f.id);
   return [...off, ...keep];
 }
+
+/** The features the Features page lists. */
+export const LISTED_FEATURES = (): FeatureDef[] => FEATURES.filter((f) => !f.unlisted);
 
 /** Which preset the switches match, or "custom". DM-only tools don't count. */
 export function presetOf(off: readonly FeatureId[]): PresetId | "custom" {
   const mine = new Set(off.filter((id) => FEATURE[id].group !== "dm"));
   for (const p of PRESETS) {
-    const want = presetOff(p.id);
+    const want = presetOff(p.id).filter((id) => FEATURE[id].group !== "dm");
     if (want.length === mine.size && want.every((id) => mine.has(id))) return p.id;
   }
   return "custom";

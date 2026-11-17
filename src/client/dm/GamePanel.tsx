@@ -1,4 +1,5 @@
 
+import { ask, askText } from "./ask";
 import { useEffect, useRef, useState } from "react";
 import { originOf, PRESET_NAME_MAX, townOf } from "@/shared/presets";
 import { deletePresetOnline, devicePresets, forgetPreset, rememberPreset, renamePresetOnline, type DevicePreset } from "../presets";
@@ -28,8 +29,8 @@ export function GamePanel() {
       mode === "play"
         ? "Zero every purse, wipe the ledger and delete all sessions? Players, scenes and shops stay."
         : `Reset the whole game to ${startLabel}? Players, scenes, shops and items you added or changed will be gone.`;
-    if (!confirm(msg)) return;
-    if (mode === "all" && prompt('Type RESET to confirm.') !== "RESET") return;
+    if (!(await ask(msg))) return;
+    if (mode === "all" && (await askText("Type RESET to confirm.", { mustBe: "RESET", placeholder: "RESET", yes: "Reset everything", danger: true })) === null) return;
     try {
       await api("/api/reset", ident, { method: "POST", body: JSON.stringify({ mode }) });
       toast(mode === "play" ? "Fresh start: purses at 0 gp, ledger and sessions cleared." : `Back to ${startLabel}.`);
@@ -40,7 +41,7 @@ export function GamePanel() {
 
   const restore = async (f: File | undefined) => {
     if (!f) return;
-    if (!confirm("Replace this whole game with the backup? A safety snapshot of right now is kept first.")) return;
+    if (!(await ask("Replace this whole game with the backup? A safety snapshot of right now is kept first."))) return;
     try {
       await restoreBackup(ident, f, toast);
       toast("Backup restored.");
@@ -60,7 +61,7 @@ export function GamePanel() {
   };
 
   const rekey = async () => {
-    if (!confirm("Make a new DM key? Your old DM link stops working on every device, including ones you've already opened it on.")) return;
+    if (!(await ask("Make a new DM key? Your old DM link stops working on every device, including ones you've already opened it on."))) return;
     try {
       const r = await api<{ key: string }>("/api/rekey", ident, { method: "POST" });
       rememberKey(ident, r.key);
@@ -179,8 +180,8 @@ export function GamePanel() {
           <button
             className="btn danger"
             type="button"
-            onClick={() => {
-              if (confirm("Replace every shop and item with the starter catalog? All shops start hidden. Gold, the ledger and special orders stay as they are."))
+            onClick={async () => {
+              if (await ask("Replace every shop and item with the starter catalog? All shops start hidden. Gold, the ledger and special orders stay as they are."))
                 void run({ type: "catalog.reset" }, "Starter catalog loaded. Every shop is hidden until you open it.");
             }}
           >
@@ -250,7 +251,9 @@ function SessionsBox() {
                   className="btn small danger"
                   type="button"
                   onClick={() => {
-                    if (confirm(`Delete \u201c${x.title}\u201d? Its ledger lines stay, filed under \u201cbetween sessions\u201d.`)) void run({ type: "session.remove", sessionId: x.id }, `Deleted ${x.title}.`);
+                    void ask(`Delete \u201c${x.title}\u201d? Its ledger lines stay, filed under \u201cbetween sessions\u201d.`).then((ok) => {
+                      if (ok) void run({ type: "session.remove", sessionId: x.id }, `Deleted ${x.title}.`);
+                    });
                   }}
                 >
                   Delete
@@ -279,7 +282,7 @@ function PresetsBox() {
   const save = async (over?: DevicePreset) => {
     const n = (over ? over.name : name).trim();
     if (!n) return toast("Give the preset a name.");
-    if (over && !confirm(`Save this campaign's setup over \u201c${over.name}\u201d? Campaigns already started from it don't change.`)) return;
+    if (over && !(await ask(`Save this campaign's setup over \u201c${over.name}\u201d? Campaigns already started from it don't change.`))) return;
     setBusy(true);
     try {
       const r = await api<{ code: string; token: string; name: string; savedAt: number }>("/api/preset/save", ident, {
@@ -297,7 +300,7 @@ function PresetsBox() {
   };
 
   const rename = async (p: DevicePreset) => {
-    const n = prompt("Rename the preset", p.name)?.trim();
+    const n = (await askText("Rename the preset", { value: p.name, yes: "Rename" }))?.trim();
     if (!n || n === p.name) return;
     try {
       const r = await renamePresetOnline(p, n);
@@ -309,7 +312,7 @@ function PresetsBox() {
   };
 
   const remove = async (p: DevicePreset) => {
-    if (!confirm(`Delete the preset \u201c${p.name}\u201d? Its code stops working. Campaigns already started from it keep everything.`)) return;
+    if (!(await ask(`Delete the preset \u201c${p.name}\u201d? Its code stops working. Campaigns already started from it keep everything.`))) return;
     try {
       await deletePresetOnline(p);
       forgetPreset(p.code);
@@ -397,7 +400,7 @@ function Snapshots() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, version]);
   const back = async (x: { id: number; at: number; reason: string }) => {
-    if (!confirm(`Put the whole game back to ${new Date(x.at).toLocaleString()} (${x.reason})? A snapshot of right now is kept first.`)) return;
+    if (!(await ask(`Put the whole game back to ${new Date(x.at).toLocaleString()} (${x.reason})? A snapshot of right now is kept first.`))) return;
     try {
       await api("/api/snapshots/restore", ident, { method: "POST", body: JSON.stringify({ id: x.id }) });
       toast("Back to that snapshot.");

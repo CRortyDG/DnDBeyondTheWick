@@ -1099,6 +1099,8 @@ export interface SessionRun {
 export interface Knock {
   id: string;
   handle: string;
+  /** The name as they typed it ("Sam", not "sam"). Older knocks have none. */
+  name?: string;
   at: number;
 }
 

@@ -6,7 +6,10 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement } 
 import type { DmCommand } from "@/shared/commands";
 import type { DmView } from "@/shared/projection";
 import { api, absoluteHref, authHeaders, hrefFor, practiceHref, rememberKey, type Ident } from "../api";
-import { PracticeBar, PracticeButton } from "./Practice";
+import { PracticeBar, PracticeButton, PracticeItems, PracticeResume } from "./Practice";
+import { MenuItem, RowMenu } from "./RowMenu";
+import { FirstSteps } from "./FirstSteps";
+import { AskHost } from "./ask";
 import { useGame, type CallResult } from "../useGame";
 import { Notice } from "../ui/Notice";
 import { Purse } from "../ui/Purse";
@@ -670,20 +673,20 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
             )}
             {has("sound") ? <SoundButton /> : null}
             <DiceButton />
-            {s.vttUrl ? (
-              <a className="btn icon-only" href={s.vttUrl} target="_blank" rel="noopener noreferrer" title="Launch VTT" aria-label="Launch VTT">
-                <DiceIcon />
-              </a>
-            ) : null}
-            <button className="btn icon-only" type="button" onClick={openTv} title={`Open the TV window: ${absoluteHref(ident.game, "TV")}`} aria-label="Open TV window">
-              <TvIcon />
-            </button>
             <button className={`btn icon-only${railOpen ? " on" : ""}`} type="button" onClick={toggleRail} aria-pressed={railOpen} title={railOpen ? "Hide the TV panel" : "Show the TV panel"} aria-label="TV panel">
               <PanelRightIcon />
             </button>
             <FullScreenButton />
+            {/* Less-used things live in ⋯, so the bar stays short and Practice isn't beside Start session. */}
+            <RowMenu label="More">
+              <MenuItem onClick={openTv} title={absoluteHref(ident.game, "TV")}>
+                Open the TV in a window
+              </MenuItem>
+              {s.vttUrl ? <MenuItem onClick={() => window.open(s.vttUrl!, "_blank", "noopener,noreferrer")}>Launch VTT</MenuItem> : null}
+              {s.practice || !has("practice") ? null : <PracticeItems episodeId={(runningEp ?? chosenEp)?.id} episodeTitle={(runningEp ?? chosenEp)?.title} />}
+            </RowMenu>
             <span className="dm-top-sep" aria-hidden="true" />
-            {s.practice || !has("practice") ? null : <PracticeButton episodeId={(runningEp ?? chosenEp)?.id} episodeTitle={(runningEp ?? chosenEp)?.title} />}
+            {s.practice || !has("practice") ? null : <PracticeResume />}
             {session ? (
               <button className="btn" type="button" onClick={() => setEnding(true)}>
                 End session
@@ -759,13 +762,13 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
               <span key={k.id} className="knock">
                 <span className="knock-tag">Knocking</span>
                 <span>
-                  <b>{k.handle}</b> wants a seat.
+                  <b>{k.name || k.handle}</b> wants a seat.
                 </span>
                 <span className="spacer" />
                 <button className="btn small" type="button" onClick={() => run({ type: "knock.dismiss", knockId: k.id })}>
                   Dismiss
                 </button>
-                <button className="btn small primary" type="button" onClick={() => run({ type: "knock.admit", knockId: k.id }, `Let ${k.handle} in.`)}>
+                <button className="btn small primary" type="button" onClick={() => run({ type: "knock.admit", knockId: k.id }, `Let ${k.name || k.handle} in.`)}>
                   Let in
                 </button>
               </span>
@@ -795,6 +798,7 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
                 <h1>{PAGE_LABEL[tab]}</h1>
               </div>
             )}
+            {tab === "features" || tab === "game" ? null : <FirstSteps onGo={setTab} openTv={openTv} />}
             <div className="panel">
               {tab === "world" ? <WorldPanel /> : null}
               {tab === "bank" ? <BankPanel /> : null}
@@ -932,6 +936,7 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
       <PlayerRollCards />
       <TvDiceBar />
       <TabletOffer />
+      <AskHost />
       <div className={`toast${toastMsg ? " show" : ""}`} role="status" aria-live="polite">
         {toastMsg?.text}
       </div>

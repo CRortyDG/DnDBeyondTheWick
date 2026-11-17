@@ -3,6 +3,7 @@
 // The DM's monster library (templates for combat mode) and the fight history.
 // DM-only: none of this reaches the TV or the phones.
 
+import { ask } from "./ask";
 import { useState } from "react";
 import { monstersOf, rechargeText, isDice } from "@/shared/combat";
 import { formatCp } from "@/shared/money";
@@ -13,6 +14,8 @@ import { PlusIcon, SwordIcon } from "./navIcons";
 import { Drawer } from "./Drawer";
 import { BulkImport } from "./BulkImport";
 import { MenuItem, RowMenu } from "./RowMenu";
+import { BASIC_MONSTERS, BASIC_MONSTERS_CREDIT } from "@/shared/basicMonsters";
+import type { DmCommand } from "@/shared/commands";
 
 type Draft = Omit<MonsterTemplate, "id" | "abilities"> & { abilities: (Omit<MonsterAbility, "id"> & { id?: string })[] };
 
@@ -25,6 +28,7 @@ export function MonstersPanel({ onFight }: { onFight: () => void }) {
   const [editing, setEditing] = useState<string | "new" | null>(null);
   const [counts, setCounts] = useState<Record<string, string>>({});
   const [importing, setImporting] = useState(false);
+  const [basics, setBasics] = useState(false);
   const hist = [...(s.fights ?? [])].reverse();
 
   const start = async (t?: MonsterTemplate) => {
@@ -49,6 +53,9 @@ export function MonstersPanel({ onFight }: { onFight: () => void }) {
                 <SwordIcon size={16} /> Empty fight
               </button>
             )}
+            <button className="btn" type="button" onClick={() => setBasics(true)} title="Goblins, wolves, bandits and more, ready to fight">
+              Basic monsters
+            </button>
             <button className="btn" type="button" onClick={() => setImporting(true)}>
               Import
             </button>
@@ -66,6 +73,11 @@ export function MonstersPanel({ onFight }: { onFight: () => void }) {
       {importing ? (
         <Drawer title="Import monsters" subtitle="Paste several at once" onClose={() => setImporting(false)} closeLabel="Cancel" wide>
           <BulkImport kind="monsters" onDone={() => setImporting(false)} />
+        </Drawer>
+      ) : null}
+      {basics ? (
+        <Drawer title="Basic monsters" subtitle="Pick any to add to your library" onClose={() => setBasics(false)} closeLabel="Cancel" wide>
+          <BasicMonsters have={list.map((t) => t.name.toLowerCase())} onDone={() => setBasics(false)} />
         </Drawer>
       ) : null}
       {editing === "new" ? (
@@ -101,7 +113,7 @@ export function MonstersPanel({ onFight }: { onFight: () => void }) {
               ) : null}
               <RowMenu label={t.name}>
                 <MenuItem onClick={() => setEditing(t.id)}>Edit</MenuItem>
-                <MenuItem danger onClick={() => window.confirm(`Delete ${t.name} from the library?`) && run({ type: "monster.remove", monsterId: t.id }, `${t.name} deleted.`)}>
+                <MenuItem danger onClick={() => void ask(`Delete ${t.name} from the library?`).then((ok) => ok && run({ type: "monster.remove", monsterId: t.id }, `${t.name} deleted.`))}>
                   Delete
                 </MenuItem>
               </RowMenu>
@@ -114,13 +126,18 @@ export function MonstersPanel({ onFight }: { onFight: () => void }) {
           </li>
         ))}
       </ul>
-      {!list.length && editing !== "new" ? <p className="pg-empty">No monsters yet. Add one from a stat block with + Monster.</p> : null}
+      {!list.length && editing !== "new" ? <div className="pg-empty">
+          <p>No monsters yet. Start with a few basics (goblins, wolves, bandits and more), or add your own from a stat block with + Monster.</p>
+          <button className="btn primary" type="button" onClick={() => setBasics(true)}>
+            Add basic monsters
+          </button>
+        </div> : null}
 
       <div className="fx-hist-row">
         <h3 className="fx-hist-h">Past fights</h3>
         <span className="spacer" />
         {hist.length ? (
-          <button className="btn small danger" type="button" onClick={() => window.confirm(`Delete all ${hist.length} past fight${hist.length === 1 ? "" : "s"}? Loot paid and Chronicle notes stay.`) && run({ type: "fight.forget" }, "Past fights cleared.")}>
+          <button className="btn small danger" type="button" onClick={() => void ask(`Delete all ${hist.length} past fight${hist.length === 1 ? "" : "s"}? Loot paid and Chronicle notes stay.`).then((ok) => ok && run({ type: "fight.forget" }, "Past fights cleared."))}>
             Clear all
           </button>
         ) : null}
@@ -147,7 +164,7 @@ export function MonstersPanel({ onFight }: { onFight: () => void }) {
                   >
                     Run again
                   </button>
-                  <button className="btn small danger" type="button" onClick={() => window.confirm(`Delete “${h.title}” from past fights? Loot paid and its Chronicle note stay.`) && run({ type: "fight.forget", fightId: h.id }, "Fight deleted.")}>
+                  <button className="btn small danger" type="button" onClick={() => void ask(`Delete “${h.title}” from past fights? Loot paid and its Chronicle note stay.`).then((ok) => ok && run({ type: "fight.forget", fightId: h.id }, "Fight deleted."))}>
                     Delete
                   </button>
                 </div>
@@ -329,6 +346,57 @@ function MonsterEditor({ id, draft, onDone }: { id?: string; draft: Draft; onDon
           Cancel
         </button>
       </div>
+    </div>
+  );
+}
+
+/** The basics list: tick some, add them in one go. Ones already in the library are left out. */
+function BasicMonsters({ have, onDone }: { have: string[]; onDone: () => void }) {
+  const { run } = useDm();
+  const avail = BASIC_MONSTERS.filter((m) => !have.includes(m.name.toLowerCase()));
+  const [pick, setPick] = useState<Set<string>>(() => new Set(avail.filter((m) => ["Goblin", "Wolf", "Bandit", "Skeleton"].includes(m.name)).map((m) => m.name)));
+  const toggle = (n: string) => setPick((p) => {
+    const next = new Set(p);
+    if (next.has(n)) next.delete(n);
+    else next.add(n);
+    return next;
+  });
+  const add = async () => {
+    const monsters = avail
+      .filter((m) => pick.has(m.name))
+      .map((m) => ({ name: m.name, displayName: "", ac: m.ac, hp: m.hp, initBonus: m.initBonus, speed: m.speed, attacks: m.attacks, abilities: m.abilities, resist: m.resist ?? "", immune: m.immune ?? "", notes: m.notes ?? "", dmNote: "" }));
+    if (!monsters.length) return;
+    if (await run({ type: "import.bulk", monsters } as unknown as DmCommand, `Added ${monsters.length} ${monsters.length === 1 ? "monster" : "monsters"} to the library.`)) onDone();
+  };
+  if (!avail.length) return <p className="note">Every basic monster is already in your library.</p>;
+  return (
+    <div className="form basic-monsters">
+      <ul className="row-list">
+        {avail.map((m) => (
+          <li key={m.name} className="list-row">
+            <label className="basic-mon">
+              <input type="checkbox" checked={pick.has(m.name)} onChange={() => toggle(m.name)} />
+              <span className="basic-mon-text">
+                <span className="row-title">
+                  {m.name} <span className="row-aside">· CR {m.cr}</span>
+                </span>
+                <span className="row-sub">
+                  AC {m.ac} · HP {m.hp} · {m.attacks.map((x) => `${x.name} ${x.bonus >= 0 ? "+" : ""}${x.bonus}`).join(", ")}
+                </span>
+              </span>
+            </label>
+          </li>
+        ))}
+      </ul>
+      <div className="inline">
+        <button className="btn primary" type="button" disabled={!pick.size} onClick={() => void add()}>
+          Add {pick.size || ""} to the library
+        </button>
+        <button className="btn" type="button" onClick={() => setPick(new Set(avail.map((m) => m.name)))}>
+          Tick all
+        </button>
+      </div>
+      <p className="note">You can change any of them afterwards. {BASIC_MONSTERS_CREDIT}</p>
     </div>
   );
 }

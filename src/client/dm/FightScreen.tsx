@@ -8,6 +8,7 @@
 // damages the selected, Shift+Enter heals them, Esc clears, Ctrl/Cmd+Z undoes
 // the last HP or condition change.
 
+import { ask } from "./ask";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CONDITIONS, condLabel, HEALTH_LABEL, healthState, monstersOf, rechargeText, upNext, TIMER_DEFAULT } from "@/shared/combat";
 import { controllerName, templateAsMonster } from "@/shared/companions";
@@ -113,7 +114,7 @@ function FightConsole({ f, onExit, run, toast }: { f: Fight; onExit: () => void;
     const order = fRef.current.order;
     // Anyone still without an initiative goes last this round; say so first.
     const missing = order.filter((c) => initOf(c) === null && !c.hidden).map((c) => c.name);
-    if (missing.length && !confirm(`Still no initiative for ${missing.join(", ")}. Begin anyway? They go last this round and move to their place from round 2.`)) return;
+    if (missing.length && !(await ask(`Still no initiative for ${missing.join(", ")}. Begin anyway? They go last this round and move to their place from round 2.`, { yes: "Begin anyway", no: "Wait for them" }))) return;
     beganAt.current = Date.now();
     void run({ type: "fight.begin" });
   };
@@ -818,7 +819,7 @@ function UndoHistory({ f, onUndo }: { f: Fight; onUndo: () => void }) {
               <button
                 className="btn small"
                 type="button"
-                onClick={() => confirm(`Undo the last ${i + 1} changes, back to “${u.label}”?`) && run({ type: "fight.undo", undoId: u.id }, `Undid ${i + 1} changes.`)}
+                onClick={() => void ask(`Undo the last ${i + 1} changes, back to “${u.label}”?`).then((ok) => ok && run({ type: "fight.undo", undoId: u.id }, `Undid ${i + 1} changes.`))}
               >
                 Undo to here
               </button>

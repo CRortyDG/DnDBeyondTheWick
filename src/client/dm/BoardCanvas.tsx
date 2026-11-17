@@ -3,6 +3,7 @@
 // The DM's notice board: a live copy of the TV board where every note can be
 // dragged, tilted, resized, restacked, edited, taken down into the drawer, or thrown away.
 
+import { ask } from "./ask";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type DragEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import { BOARD_MAX, boardNotes, defaultWidth, FONT_IDS, FONT_LABELS, LIST_MAX, noticesOf, PAPERS, PIN_IDS, PIN_LABELS, TITLE_SIZE_MAX, TITLE_SIZE_MIN, topZ, type NoteKind } from "@/shared/board";
 import { projectTv, publicFlyer, publicJob, publicNotice } from "@/shared/projection";
@@ -293,8 +294,8 @@ export function BoardCanvas({ onEditJob, onNewJob }: { onEditJob: (id: string) =
                   <button
                     type="button"
                     className="btn small danger"
-                    onClick={() => {
-                      if (!confirm(`Throw away “${d.title}”?`)) return;
+                    onClick={async () => {
+                      if (!(await ask(`Throw away “${d.title}”?`))) return;
                       void run(d.key.kind === "notice" ? { type: "notice.remove", noticeId: d.key.id } : { type: "flyer.remove", flyerId: d.key.id });
                     }}
                   >
@@ -409,7 +410,7 @@ function NoteEditor({ thing, onClose }: { thing: Thing; onClose: () => void }) {
     onClose();
   };
   const remove = async () => {
-    if (!confirm(`Throw away “${d.title || "this note"}”?`)) return;
+    if (!(await ask(`Throw away “${d.title || "this note"}”?`))) return;
     const r = thing.kind === "notice" ? await call({ type: "notice.remove", noticeId: thing.n.id }) : thing.kind === "flyer" ? await call({ type: "flyer.remove", flyerId: thing.f.id }) : { error: "" };
     if (r.error) return toast(r.error);
     onClose();

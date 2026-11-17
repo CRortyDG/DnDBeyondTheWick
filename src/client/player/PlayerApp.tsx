@@ -135,8 +135,8 @@ function PlayerScreen({ view, online, send, ident, setIdent }: { view: PlayerVie
   const wide = useWide();
   // During a session the phone opens on the Chronicle, so a note is one tap away.
   const [screenPick, setScreenPick] = useState<Screen>(view.map ? "map" : view.session ? "chronicle" : "purse");
-  // The Character tab: the sheet, or gold and shops. Without a sheet it opens on gold, as before.
-  const [charPart, setCharPart] = useState<CharacterPart>(view.me.sheet ? "sheet" : "gold");
+  // The Character tab opens on the sheet (or the "start your sheet" card), so it is the first thing a player sees there.
+  const [charPart, setCharPart] = useState<CharacterPart>("sheet");
   const setScreen = (s: Screen) => {
     setScreenPick(s);
     window.scrollTo({ top: 0 });

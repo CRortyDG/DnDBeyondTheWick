@@ -10,6 +10,7 @@
 // Everything here is plain text: React escapes it, nothing is read as HTML or
 // Markdown, and no link or image from a draft is ever followed.
 
+import { ask } from "./ask";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { api, type Ident } from "../api";
 import { useDm } from "./context";
@@ -775,7 +776,9 @@ export function BuilderPanel({ onCount }: { onCount?: () => void }) {
                       disabled={busy}
                       onClick={() => {
                         const ids = shown.flatMap((s) => s.list.map((d) => d.id));
-                        if (window.confirm(`Approve ${plural(ids.length, "draft")}${show === "all" ? "" : ` in ${shown[0]?.label ?? ""}`}, with their links and facts? They go in as ${stage}.`)) void act("approve", ids);
+                        void ask(`Approve ${plural(ids.length, "draft")}${show === "all" ? "" : ` in ${shown[0]?.label ?? ""}`}, with their links and facts? They go in as ${stage}.`).then((ok) => {
+                          if (ok) void act("approve", ids);
+                        });
                       }}
                     >
                       <IconCheck /> Approve all{show === "all" ? "" : ` ${shown[0]?.label.toLowerCase() ?? ""}`}
@@ -786,7 +789,9 @@ export function BuilderPanel({ onCount }: { onCount?: () => void }) {
                       disabled={busy}
                       onClick={() => {
                         const ids = shown.flatMap((s) => s.list.map((d) => d.id));
-                        if (window.confirm(`Reject ${plural(ids.length, "draft")}${show === "all" ? "" : ` in ${shown[0]?.label ?? ""}`}? This can't be undone.`)) void act("reject", ids);
+                        void ask(`Reject ${plural(ids.length, "draft")}${show === "all" ? "" : ` in ${shown[0]?.label ?? ""}`}? This can't be undone.`).then((ok) => {
+                          if (ok) void act("reject", ids);
+                        });
                       }}
                     >
                       Reject all
