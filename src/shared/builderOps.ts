@@ -98,7 +98,9 @@ type OpBody =
   | { kind: "flyer"; flyer: FlyerDraftBody }
   | { kind: "monster"; monster: MonsterBody }
   | { kind: "table"; table: TableDraftBody }
-  | { kind: "suggestion"; target: SuggestTarget; field: string; before: unknown; value: unknown };
+  | { kind: "suggestion"; target: SuggestTarget; field: string; before: unknown; value: unknown }
+  /** A picture the builder uploaded, for an entry (one in the game or one approved alongside). */
+  | { kind: "picture"; entry: BuilderRef; url: string; alt?: string };
 
 export type BuilderOp = { draft: string; label: string } & OpBody;
 

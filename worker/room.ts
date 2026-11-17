@@ -388,10 +388,16 @@ export class GameRoom extends DurableObject<Env> implements Store {
     const size = Math.max(0, Number(url.searchParams.get("size")) || 0);
     // A map cut into tiles for fog of war comes as one batch.
     const count = Math.min(100, Math.max(1, Math.floor(Number(url.searchParams.get("count")) || 1)));
+    const err = this.takeUploadSpace(size, count);
+    return err ? json({ error: err, code: "quota" }, 413) : json({ ok: true });
+  }
+
+  /** Counts an upload against the campaign's image space, or says why there's no room. */
+  private takeUploadSpace(size: number, count: number): string | null {
     this.sql.exec("CREATE TABLE IF NOT EXISTS uploads (id INTEGER PRIMARY KEY CHECK (id = 1), bytes INTEGER NOT NULL, files INTEGER NOT NULL)");
     const used = this.sql.exec<{ bytes: number; files: number }>("SELECT bytes, files FROM uploads WHERE id = 1").toArray()[0] ?? { bytes: 0, files: 0 };
     if (used.files + count > UPLOAD_QUOTA_FILES || used.bytes + size > UPLOAD_QUOTA_BYTES) {
-      return json({ error: `This campaign has used its image space (${Math.round(UPLOAD_QUOTA_BYTES / 1024 / 1024)} MB or ${UPLOAD_QUOTA_FILES} images).`, code: "quota" }, 413);
+      return `This campaign has used its image space (${Math.round(UPLOAD_QUOTA_BYTES / 1024 / 1024)} MB or ${UPLOAD_QUOTA_FILES} images).`;
     }
     this.sql.exec(
       "INSERT INTO uploads (id, bytes, files) VALUES (1, ?, ?) ON CONFLICT(id) DO UPDATE SET bytes = bytes + excluded.bytes, files = files + excluded.files",
@@ -399,7 +405,19 @@ export class GameRoom extends DurableObject<Env> implements Store {
       count,
     );
     this.count({ uploads: count, uploadBytes: size });
-    return json({ ok: true });
+    return null;
+  }
+
+  /** A Worldbuilder picture: the builder door has checked the key; this stores it like a DM upload. */
+  async putBuilderPicture(game: string, bytes: Uint8Array, ext: "jpg" | "png" | "webp") {
+    const err = this.takeUploadSpace(bytes.length, 1);
+    if (err) return { error: err, status: 413, code: "quota" };
+    const rand = new Uint8Array(12);
+    crypto.getRandomValues(rand);
+    const name = `${game}/${[...rand].map((b) => b.toString(16).padStart(2, "0")).join("")}.${ext}`;
+    const type = ext === "jpg" ? "image/jpeg" : `image/${ext}`;
+    await this.env.FILES.put(name, bytes, { httpMetadata: { contentType: type } });
+    return { url: `/api/files/${name}` };
   }
 
   /** The browser's first message carries its key (a WebSocket can't send headers). */
