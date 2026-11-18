@@ -17,6 +17,7 @@ import { notesOf, penName, projectChronicle, type ChronicleView } from "./chroni
 import { discoveryView, jobsLocked, PORTRAIT_ART, portraitArtAllowed, publicEntries, sceneSpoils, type DiscoveryView, type PublicEntry } from "./discovery";
 import { jobsOf, jobTitle, progressOf, rankName, ranksOf, renownMet, renownNeeded, renownOf, shopOpenNow, tierOf, trustText } from "./renown";
 import { fightView, myFight, type FightView, type MyFight } from "./combat";
+import { stashView, type StashView } from "./stash";
 import { controlledBy, publicCompanions, type ControlledCompanion, type PublicCompanion } from "./companions";
 import type { Art, Banner, Flyer, FlyerText, GameState, Job, JobStyle, Item, ItemCategory, ItemKind, LedgerEntry, LegendStyle, LiveState, NoteLook, NotePlace, Notice, Player, RequestStatus, Scene, Shop } from "./types";
 import { noticesOf } from "./board";
@@ -452,6 +453,8 @@ export interface PlayerView extends Common {
   leads: LeadsView;
   /** Per area, how much the party has found (and, in totals mode, how much there is). */
   areas: AreaCount[];
+  /** The party stash: loot nobody has claimed yet (my parties' only). Missing: the stash is off. */
+  stash?: StashView;
   /** My own last few dice rolls, newest first. Never anyone else's. */
   myRolls: { n: number; at: number; groups: DiceGroup[]; plus: number; total: number; to: RollTo; for?: "initiative"; keep?: "high" | "low"; label?: string }[];
 }
@@ -839,6 +842,7 @@ export function projectPlayer(table: GameState, version: number, playerId: strin
     ...(myRoom(game, p.id) ? { myRoom: myRoom(game, p.id) } : {}),
     leads: leadsView(game, Date.now(), p.id),
     areas: areaCounts(game),
+    ...(featureOn(game, "stash") ? { stash: stashView(table, p.id) } : {}),
   };
   // Gold waits until a shop is open to me. Once I've asked a shop for anything it stays, even if the shop shuts.
   if (waitsToUnlock(game, "gold") && !view.shops.length && !view.myRequests.some((r) => r.kind === "buy" || r.kind === "contribute") && !view.myOrders.length && !view.me.heldCp) view.goldLocked = true;

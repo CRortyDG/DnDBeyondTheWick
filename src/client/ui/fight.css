@@ -1461,3 +1461,35 @@ html.fc-myturn body {
 .fc-pad-num.tumbling {
   color: var(--muted);
 }
+
+/* Things found: one line each, to a character or the party stash. */
+.fx-items {
+  display: grid;
+  gap: 6px;
+}
+.fx-items-head {
+  font-size: 15px;
+  color: var(--muted);
+}
+.fx-item-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+.fx-item-row .fld {
+  width: auto;
+}
+.fx-item-row .fx-grow {
+  flex: 1 1 200px;
+  min-width: 0;
+}
+.fx-item-qty {
+  flex: 0 0 64px;
+  width: 64px !important;
+  text-align: center;
+}
+.fx-item-row select {
+  flex: 0 1 200px;
+  min-width: 0;
+}

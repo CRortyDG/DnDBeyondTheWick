@@ -21,6 +21,7 @@ import { CompanionStrip } from "./Companions";
 import { Maps } from "./PhoneMap";
 import { Sheet, useConfirm } from "./Sheet";
 import { NAV_ICONS, PlayerNav, type Screen } from "./PlayerNav";
+import { PartyStash } from "./Stash";
 import { DecisionBanners, MyRequests, RequestSheet, SendGold } from "./Requests";
 import { CharacterTab } from "./CharacterTab";
 import { MyRoomCard } from "./MyRoom";
@@ -210,6 +211,7 @@ function PlayerScreen({ view, online, send, ident, setIdent }: { view: PlayerVie
     fight: f ? (myTurn ? ("turn" as const) : upNext ? ("next" as const) : ("on" as const)) : null,
     discoverCount: seen.newCount,
     jobsCount: view.jobs.filter((j) => j.canTake && !j.asked).length,
+    stashCount: view.stash?.items.length ?? 0,
     voteOpen: !!view.leads.vote && !view.leads.vote.closed && !view.leads.vote.mine,
     sheetOff: !sheetsOn,
     has,
@@ -256,6 +258,9 @@ function PlayerScreen({ view, online, send, ident, setIdent }: { view: PlayerVie
           </section>
 
           {view.myRoom ? <MyRoomCard room={view.myRoom} /> : null}
+
+          {/* With a Character tab, the stash sits there, next to the inventory. */}
+          {!sheetsOn ? <PartyStash view={view} send={send} /> : null}
 
           {has("shops") ? <MyRequests requests={view.myRequests} send={send} onMsg={setMsg} /> : null}
 

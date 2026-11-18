@@ -267,17 +267,28 @@ export function addBought(sheet: CharacterSheet, shopItem: { id: string; name: s
   (sheet.items ??= []).push(it);
 }
 
+/**
+ * Put qty of an item on a sheet: onto a matching unequipped stack, or as a new
+ * row (never equipped or attuned). The caller checks the sheet has room.
+ */
+export function stackInto(to: CharacterSheet, it: SheetItem, qty: number, newId: () => string) {
+  const stack = to.items?.find((x) => x.name === it.name && x.kind === it.kind && !x.equipped && (x.srd ?? "") === (it.srd ?? "") && (x.from ?? "") === (it.from ?? ""));
+  if (stack) {
+    stack.qty = Math.min(QTY_MAX, stack.qty + qty);
+    return;
+  }
+  const moved: SheetItem = { ...it, id: newId(), qty: Math.min(QTY_MAX, qty) };
+  delete moved.equipped;
+  delete moved.attuned;
+  (to.items ??= []).push(moved);
+}
+
 /** Hand some of an item to another sheet. Returns the line for the giver. */
 export function giveItem(from: CharacterSheet, to: CharacterSheet, itemId: string, qty: number, newId: () => string, fail: (m: string) => never): string {
   const it = from.items?.find((x) => x.id === itemId) ?? fail("That item isn't in your inventory any more.");
   if (qty > it.qty) fail(`You only have ${it.qty}.`);
   if ((to.items?.length ?? 0) >= ITEMS_MAX) fail("Their inventory is full.");
-  const moved: SheetItem = { ...it, id: newId(), qty };
-  delete moved.equipped;
-  delete moved.attuned;
-  const stack = to.items?.find((x) => x.name === it.name && x.kind === it.kind && !x.equipped && (x.srd ?? "") === (it.srd ?? "") && (x.from ?? "") === (it.from ?? ""));
-  if (stack) stack.qty = Math.min(QTY_MAX, stack.qty + qty);
-  else (to.items ??= []).push(moved);
+  stackInto(to, it, qty, newId);
   if (qty === it.qty) {
     from.items = from.items!.filter((x) => x !== it);
     if (!from.items.length) delete from.items;

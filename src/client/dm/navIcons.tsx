@@ -24,6 +24,12 @@ export const StoreIcon = (p: P) => (
     <path d="M3.5 9.5 5 4h14l1.5 5.5M4.5 9.5V20h15V9.5M3.5 9.5h17M10 20v-5.5h4V20" />
   </svg>
 );
+/** A chest: the party stash. */
+export const ChestIcon = (p: P) => (
+  <svg {...base(p)}>
+    <path d="M3.5 10.5V18a1.5 1.5 0 0 0 1.5 1.5h14a1.5 1.5 0 0 0 1.5-1.5v-7.5M3.5 10.5C3.5 7 5.5 4.5 8 4.5h8c2.5 0 4.5 2.5 4.5 6M3.5 10.5h17M10.5 10.5v3h3v-3" />
+  </svg>
+);
 export const BoardIcon = (p: P) => (
   <svg {...base(p)}>
     <rect x="3" y="4" width="18" height="16" rx="2" />
