@@ -28,6 +28,7 @@ import { levelLine } from "./levels";
 import { applyPractice, isPracticeCommand, trackPractice } from "./practice";
 import { applyCompanion, attachCompanion, companionsWith, companionTemplatesOf, endSessionCompanions, isCompanionCommand, rentalEnded } from "./companions";
 import { applyFeatures, checkFeature, featureOn, isFeatureCommand } from "./features";
+import { applyJournal, isJournalCommand } from "./journal";
 import { ATTITUDE_LOG_MAX, attitudeSettings, bandInfo, bandLine, clampScore, jobPerson, offsetOf, partyScore, relationOf, scoreFor, syncBands } from "./attitude";
 import type { AttitudeShift, Relation } from "./types";
 import { applyRooms, cleanRoom, isRoomCommand, roomsOf } from "./rooms";
@@ -1847,6 +1848,11 @@ function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
 
   if (isFeatureCommand(cmd)) {
     applyFeatures(s, cmd, { actor: ctx.actor as { role: string; playerId?: string }, fail });
+    return out;
+  }
+
+  if (isJournalCommand(cmd)) {
+    applyJournal(s, cmd, { actor: ctx.actor as { role: string; playerId?: string }, now: ctx.now, fail, newId: () => nextId("jn") });
     return out;
   }
 

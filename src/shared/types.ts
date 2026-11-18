@@ -202,6 +202,8 @@ export interface Player {
   featuresOff?: import("./features").FeatureId[];
   /** Tabs this player hid on their own phone (see features.ts). Only tidies their phone. */
   tabsHidden?: import("./features").FeatureId[];
+  /** Their personal journal: goals, backstory, private notes (see journal.ts). Only this player and the DM see it. */
+  journal?: import("./journal").Journal;
   /** DM-ONLY, practice copies only: a stand-in for rehearsing (see practice.ts). Never in a live game. */
   standIn?: StandIn;
 }

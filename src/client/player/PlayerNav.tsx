@@ -2,7 +2,7 @@
 
 import type { ReactNode } from "react";
 
-export type Screen = "fight" | "map" | "chronicle" | "discovery" | "sheet" | "purse" | "jobs";
+export type Screen = "fight" | "map" | "chronicle" | "discovery" | "sheet" | "journal" | "purse" | "jobs";
 
 type Tab = { id: Screen; label: string; icon: ReactNode; count?: number; alert?: boolean; alertText?: string };
 
@@ -43,6 +43,12 @@ export const NAV_ICONS = {
       <path d="M5 20c.8-3.6 3.6-5.5 7-5.5s6.2 1.9 7 5.5" />
     </>,
   ),
+  journal: svg(
+    <>
+      <path d="M6 3h11a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z" />
+      <path d="M8 3v18M11 8h4M11 11h4" />
+    </>,
+  ),
   jobs: svg(
     <>
       <path d="M6 3h12v18l-6-3-6 3z" />
@@ -74,6 +80,7 @@ export function PlayerNav({
   voteOpen,
   vertical,
   sheetOff,
+  journal,
   has = () => true,
 }: {
   screen: Screen;
@@ -88,6 +95,8 @@ export function PlayerNav({
   vertical?: boolean;
   /** No character sheet for this player: no Character tab. */
   sheetOff?: boolean;
+  /** Journals are on: with no sheet, the journal gets its own tab. */
+  journal?: boolean;
   /** Feature switches: a tab whose feature is off (for the table, for me, or hidden by me) isn't there. */
   has?: (id: "chronicle" | "discover" | "maps" | "gold" | "jobs") => boolean;
 }) {
@@ -96,7 +105,7 @@ export function PlayerNav({
     ...(has("chronicle") ? [{ id: "chronicle" as const, label: "Story", icon: NAV_ICONS.story }] : []),
     ...(has("discover") ? [{ id: "discovery" as const, label: "Discover", icon: NAV_ICONS.discover, count: discoverCount, alert: !!voteOpen, alertText: "a vote is open" }] : []),
     ...(hasMaps && has("maps") ? [{ id: "map" as const, label: "Map", icon: NAV_ICONS.map }] : []),
-    ...(!sheetOff ? [{ id: "sheet" as const, label: "Character", icon: NAV_ICONS.character }] : []),
+    ...(!sheetOff ? [{ id: "sheet" as const, label: "Character", icon: NAV_ICONS.character }] : journal ? [{ id: "journal" as const, label: "Journal", icon: NAV_ICONS.journal }] : []),
     ...(has("gold") ? [{ id: "purse" as const, label: "Gold", icon: NAV_ICONS.gold }] : []),
     ...(has("jobs") ? [{ id: "jobs" as const, label: "Jobs", icon: NAV_ICONS.jobs, count: jobsCount }] : []),
   ];

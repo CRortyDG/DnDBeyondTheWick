@@ -7,6 +7,7 @@ import { decodeBits, fogged, publicFog, type PublicFog } from "./fog";
 import { publicGrid, publicTokens, type PublicGrid, type PublicToken } from "./tokens";
 import { leadsView, type LeadsView } from "./leads";
 import type { CharacterSheet } from "./sheet";
+import { journalForPlayer, type Journal } from "./journal";
 import { effectiveOff, featureOn, FEATURES, hiddenOf, playerOff, waitsToUnlock, type FeatureId } from "./features";
 import { areaCounts, type AreaCount } from "./discovery";
 import { townOf } from "./presets";
@@ -410,6 +411,10 @@ export interface PlayerView extends Common {
     off?: FeatureId[];
     /** Tabs I hid on my own phone. Missing: none. */
     hidden?: FeatureId[];
+    /** What I said on the Arrival seat page ("Why did you get on that boat?"): a journal can start from it. */
+    why?: string;
+    /** My personal journal, without the DM's hook ideas. Missing: empty, or journals are off for me. */
+    journal?: Journal;
     /** The DM has me away from tonight's session. Only set while a session is running. */
     away?: boolean;
     /** My "I'm here" ask: waiting for the DM, or the DM said not yet (when, so the phone knows when I can ask again). */
@@ -781,8 +786,13 @@ export function projectPlayer(table: GameState, version: number, playerId: strin
       ...(p.level ? { level: p.level } : {}),
       ...(noSheet ? { sheetOff: true } : p.sheet ? { sheet: structuredClone(p.sheet) } : {}),
       ...(p.arrival?.pick ? { starter: p.arrival.pick } : {}),
+      ...(p.arrival?.why?.trim() ? { why: p.arrival.why.trim() } : {}),
       ...(myOff.length ? { off: myOff } : {}),
       ...(hiddenOf(p).length ? { hidden: hiddenOf(p) } : {}),
+      ...(() => {
+        const j = myOff.includes("journal") ? undefined : journalForPlayer(p.journal);
+        return j ? { journal: j } : {};
+      })(),
       ...(game.currentSessionId && p.away && !p.archived
         ? {
             away: true,

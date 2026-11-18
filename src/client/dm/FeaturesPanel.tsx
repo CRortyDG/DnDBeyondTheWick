@@ -39,7 +39,8 @@ function phoneTabs(on: (id: FeatureId) => boolean): string[] {
   if (on("discover")) tabs.push("Discover");
   if (on("maps")) tabs.push("Map");
   if (on("sheets")) tabs.push("Character");
-  else if (on("gold")) tabs.push("Gold");
+  else if (on("journal")) tabs.push("Journal");
+  if (on("gold")) tabs.push("Gold");
   if (on("jobs")) tabs.push("Jobs");
   return tabs;
 }

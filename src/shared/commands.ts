@@ -17,6 +17,7 @@ import { inviteDmCommands } from "./inviteSchema";
 import { sheetDmCommands, sheetPlayerCommands } from "./sheet";
 import { buildCommands } from "./sheetBuild";
 import { featureDmCommands, featurePlayerCommands } from "./features";
+import { journalDmCommands, journalPlayerCommands } from "./journal";
 import { offscriptDmCommands } from "./offscriptSchema";
 import { roomDmCommands, roomInfoSchema } from "./rooms";
 import { CLIP_URL_RE, CLIP_VIDEO_MAX, INTRO_STEPS_MAX, SLIDE_TEXT_MAX, SLIDES_MAX, WELCOME_MAX } from "./arrival";
@@ -683,6 +684,9 @@ export const dmCommand = z.discriminatedUnion("type", [
   // Feature switches.
   ...featureDmCommands,
 
+  // Personal journals: the DM's hook ideas.
+  ...journalDmCommands,
+
   // Rooms at the inn.
   ...roomDmCommands,
 ]);
@@ -720,6 +724,8 @@ export const playerCommand = z.discriminatedUnion("type", [
   ...buildCommands,
   // The tabs I hide.
   ...featurePlayerCommands,
+  // My personal journal.
+  ...journalPlayerCommands,
 ]);
 
 /** Commands the server issues itself; never accepted from a client. */
