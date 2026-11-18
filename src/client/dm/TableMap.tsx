@@ -505,7 +505,7 @@ function Table({ scene, onClose }: { scene: Scene; onClose: () => void }) {
               return (
                 <Token
                   key={t.id}
-                  t={{ label: face.label, name: face.name, color: t.color, w: tokenWidth(g, t.size), art: t.art, down: face.down, current: face.current }}
+                  t={{ label: face.label, name: face.name, color: t.color, w: tokenWidth(g, t.size), art: t.art, look: t.playerId && !t.art?.url ? s.players.find((p) => p.id === t.playerId)?.look : undefined, down: face.down, current: face.current }}
                   x={pos.x}
                   y={pos.y}
                   boxWidth={box.width}
