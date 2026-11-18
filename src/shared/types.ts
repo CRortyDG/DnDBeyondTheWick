@@ -779,6 +779,19 @@ export interface Session {
   duesCharged?: boolean;
   /** Shared world: the party that played it. */
   partyId?: string;
+  /** The "Last time on…" card for players' devices: the DM's draft, and what was sent. */
+  playerRecap?: PlayerRecap;
+}
+
+/** Players only ever get `sent`, and only once the session has ended. The draft is DM-only. */
+export interface PlayerRecap {
+  text: string;
+  /** Chronicle notes from that chapter to show under it (only while they stay visible). */
+  noteIds: string[];
+  /** Send it by itself when the session ends. */
+  onEnd?: boolean;
+  /** What players got. n changes on every send, so their devices pop it up again. */
+  sent?: { text: string; noteIds: string[]; at: number; n: number };
 }
 
 // ---------- the Chronicle (the table's shared story notes) ----------

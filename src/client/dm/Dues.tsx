@@ -10,6 +10,7 @@ import type { Session } from "@/shared/types";
 import { useDm } from "./context";
 import { downloadBackup } from "./backup";
 import { useAutosave } from "./useAutosave";
+import { useLastTime } from "./LastTimeEditor";
 
 export function useDues(session: Session | undefined): Due[] {
   const { view } = useDm();
@@ -136,11 +137,13 @@ export function EndSessionDialog({ session, onClose }: { session: Session; onClo
   const s = view.state;
   const due = useDues(session);
   const recap = useAutosave(session.recap ?? "", (text) => run({ type: "run.recap", sessionId: session.id, text }));
+  const lastTime = useLastTime(session);
   const waiting = s.requests.filter((r) => r.status === "pending").length;
   const fight = s.fight;
   const [saved, setSaved] = useState(false);
   const end = async () => {
     await recap.flush();
+    await lastTime.flush();
     if (await run({ type: "session.end" }, `${session.title} ended.`)) onClose();
   };
   return (
@@ -179,6 +182,10 @@ export function EndSessionDialog({ session, onClose }: { session: Session; onClo
             <span className="note">A few lines for next time&rsquo;s &ldquo;Previously on&hellip;&rdquo;. Players see it in the Chronicle once the session ends. {recap.state === "saved" ? "" : recap.state === "saving" ? "Saving…" : "…"}</span>
             <textarea className="fld" rows={5} value={recap.text} onChange={(e) => recap.onChange(e.target.value)} onBlur={() => void recap.flush()} placeholder="What happened tonight, in the party's words" />
           </label>
+        </section>
+        <section className="wrapup-step">
+          <h3>Players&rsquo; recap card</h3>
+          {lastTime.body}
         </section>
         <section className="wrapup-step">
           <h3>Backup</h3>

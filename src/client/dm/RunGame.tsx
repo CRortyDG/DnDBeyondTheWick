@@ -15,6 +15,7 @@ import { Finder, quickKey, typing } from "./QuickBar";
 import { BankPanel } from "./BankPanel";
 import { Inbox, isInboxOpen } from "./Inbox";
 import { Dues } from "./Dues";
+import { useLastTime } from "./LastTimeEditor";
 import { useDm } from "./context";
 import { useAutosave } from "./useAutosave";
 import { LevelUpButton, LevelUpDialog } from "./LevelUp";
@@ -560,6 +561,7 @@ function StartStep({ session }: { session: Session }) {
 function EndStep({ session, episode, onBank, onEnded }: { session: Session; episode: Episode; onBank: () => void; onEnded: () => void }) {
   const { run } = useDm();
   const recap = useAutosave(session.recap ?? "", (text) => run({ type: "run.recap", sessionId: session.id, text }));
+  const lastTime = useLastTime(session);
   const { view } = useDm();
   const tableNotes = view.chronicle.notes.filter((n) => n.chapterId === session.id).sort((a, b) => a.at - b.at);
   const notes = episode.beats.map((b, i) => ({ b, i, text: session.run?.notes[b.id] })).filter((x) => x.text?.trim());
@@ -586,6 +588,10 @@ function EndStep({ session, episode, onBank, onEnded }: { session: Session; epis
           <span className="note">Saved with this session. Next time it&rsquo;s your &ldquo;Previously on&hellip;&rdquo; card. {recap.state === "saved" ? "Saved." : recap.state === "saving" ? "Saving…" : ""}</span>
           <textarea className="fld run-recap" rows={8} value={recap.text} onChange={(e) => recap.onChange(e.target.value)} onBlur={() => void recap.flush()} />
         </label>
+      </section>
+      <section className="run-section">
+        <h2>Players&rsquo; recap card</h2>
+        {lastTime.body}
       </section>
       <section className="run-section">
         <h2>The table&rsquo;s notes</h2>
@@ -628,6 +634,7 @@ function EndStep({ session, episode, onBank, onEnded }: { session: Session; epis
         type="button"
         onClick={async () => {
           await recap.flush();
+          await lastTime.flush();
           if (await run({ type: "session.end" }, `${session.title} ended.`)) onEnded();
         }}
       >

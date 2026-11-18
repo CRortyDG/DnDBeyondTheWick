@@ -10,6 +10,7 @@ import type { GameState, Note, Player, Session } from "./types";
 import { DM_AUTHOR } from "./types";
 import { shopOpenNow, tierOf } from "./renown";
 import { entriesOf, entryTags, isFound, sceneSpoils } from "./discovery";
+import { publicLastTime, type LastTimeCard } from "./lastTime";
 
 export const NOTE_MAX = 2000;
 export const TAG_MAX = 40;
@@ -89,6 +90,8 @@ export interface ChronicleChapter {
   noteTaker?: { id: string; name: string };
   /** Players: only once the session has ended. */
   recap?: string;
+  /** Players: the "Last time on…" card the DM sent for this chapter. */
+  card?: LastTimeCard;
   /** Shared world: the party that played it. The "World news" page has kind "world". */
   party?: string;
   kind?: "world";
@@ -161,6 +164,8 @@ export function projectChronicle(g: GameState, viewer: Viewer): ChronicleView {
     const nt = x.noteTakerId ? names.get(x.noteTakerId) : undefined;
     if (nt) c.noteTaker = { id: nt.id, name: penName(nt) };
     if (x.recap?.trim() && (viewer.dm || ended)) c.recap = x.recap;
+    const card = viewer.dm ? null : publicLastTime(g, x);
+    if (card) c.card = card;
     const party = x.partyId ? parties.get(x.partyId) : undefined;
     if (label && party) c.party = party;
     return c;
