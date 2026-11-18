@@ -9,6 +9,8 @@ import type { Env } from "./env";
 import { R2Presets } from "./presets";
 import type { PresetStore } from "@/server/presets";
 import type { BuilderRow, BuilderStore } from "@/server/builderStore";
+import type { CampaignStory, CampaignSummary, RoomFacts } from "@/shared/admin";
+import { storyFor, summarise } from "@/server/adminStory";
 import { addUsage, USAGE_FIELDS, utcDay, ZERO_USAGE, type UsageCounts, type UsageReport } from "@/shared/hosting";
 
 /** A campaign idle this long is deleted, with its images. */
@@ -574,6 +576,37 @@ export class GameRoom extends DurableObject<Env> implements Store {
       imageFiles: up?.files ?? 0,
       since: days[0]?.day ?? null,
     };
+  }
+
+  // ---------------------------------------------------------------- the admin console
+  //
+  // Read-only: what the site owner's console sees (src/server/admin.ts). Never a key or a key hash.
+  // Asking doesn't count as use: it doesn't save, so it doesn't hold off the six-month cleanup.
+
+  private hasTable(name: string): boolean {
+    return this.hasSchema && this.sql.exec("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?", name).toArray().length > 0;
+  }
+
+  private roomFacts(): RoomFacts {
+    const touched = this.hasSchema ? this.sql.exec<{ touched_at: number }>("SELECT touched_at FROM doc WHERE id = 1").toArray()[0]?.touched_at ?? null : null;
+    const days = this.hasTable("usage") ? this.sql.exec<{ day: string }>("SELECT day FROM usage WHERE roomRequests > 0 OR socketMessages > 0 ORDER BY day").toArray().map((r) => r.day) : [];
+    const up = this.hasTable("uploads") ? this.sql.exec<{ files: number }>("SELECT files FROM uploads WHERE id = 1").toArray()[0] : undefined;
+    return { touchedAt: touched, activeDays: days, openScreens: this.ctx.getWebSockets().length, imageFiles: up?.files ?? 0, storageBytes: this.hasSchema ? this.sql.databaseSize : 0 };
+  }
+
+  async adminSummary(): Promise<CampaignSummary & { practice: boolean; game: string | null }> {
+    const d = this.load();
+    const out = { ...summarise(d.game ?? "", d.state, this.roomFacts()), practice: this.practiceMode, game: d.game };
+    this.cursors.length = 0;
+    return out;
+  }
+
+  async adminStory(): Promise<CampaignStory | null> {
+    const d = this.load();
+    if (!d.state || this.practiceMode) return null;
+    const out = storyFor(d.game ?? "", d.state, this.roomFacts());
+    this.cursors.length = 0;
+    return out;
   }
 
   // ---------------------------------------------------------------- cleanup

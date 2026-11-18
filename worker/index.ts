@@ -11,10 +11,13 @@ import { whenText, type InviteView } from "@/shared/invites";
 import type { Env } from "./env";
 import { R2Presets } from "./presets";
 import { GameRoom } from "./room";
+import { Registry } from "./registry";
+import { adminDeps, registry } from "./admin";
+import { handleAdmin, isAdminPath } from "@/server/admin";
 import { BATCH_HEADER, COUNTRY_HEADER, PICTURE_ALT_HEADER, PICTURE_ENTRY_HEADER } from "@/server/builder";
 import { carriesBuilderKey, parseBuilderAuth } from "@/server/builderKeys";
 
-export { GameRoom };
+export { GameRoom, Registry };
 
 /**
  * The front door. Serves the built app, sends each campaign's API calls and
@@ -180,7 +183,16 @@ async function createCampaign(req: Request, env: Env, ctx: ExecutionContext): Pr
         body: JSON.stringify({ dmKeyHash: sha256(key), from, ...(name ? { name } : {}), ...(features ? { features } : {}) }),
       }),
     );
-    if (res.ok) return json({ game, key });
+    if (res.ok) {
+      // The admin console's list. Never in the way of starting a campaign.
+      const country = (req as Request & { cf?: { country?: unknown } }).cf?.country;
+      ctx.waitUntil(
+        registry(env)
+          .created(game, from, typeof country === "string" ? country : undefined, ip, Date.now())
+          .catch((e) => console.error("registry add failed", e)),
+      );
+      return json({ game, key });
+    }
     if (res.status !== 409) {
       // A preset code that doesn't exist is a guess like any other.
       if (res.status === 404) await noteMiss(env, ctx, ip);
@@ -464,6 +476,11 @@ export default {
         if (path.startsWith("/api/builder/")) return withHeaders(await builderDoor(req, env, ctx, ip));
         // A Worldbuilder key opens nothing else (the room says the same for its own routes).
         if (carriesBuilderKey(req)) return withHeaders(json({ error: "A Worldbuilder key only works on the Worldbuilder API.", code: "wrong-door" }, 403));
+        if (isAdminPath(path)) {
+          const res = withHeaders(await settle(await handleAdmin(req, adminDeps(env, ip)), env, ctx, ip));
+          res.headers.set("Cache-Control", "no-store");
+          return res;
+        }
         if (path === "/api/create" && req.method === "POST") return withHeaders(await createCampaign(req, env, ctx));
         if (path === "/api/upload" && req.method === "POST") return withHeaders(await upload(req, env, ctx, ip));
         if (path === "/api/upload-tiles" && req.method === "POST") return withHeaders(await uploadTiles(req, env, ctx, ip));

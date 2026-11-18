@@ -1,8 +1,16 @@
 import type { GameRoom } from "./room";
+import type { Registry } from "./registry";
 
 export interface Env {
   /** One Durable Object per campaign, named by its code. */
   ROOMS: DurableObjectNamespace<GameRoom>;
+  /** The list of campaign codes, for the admin console (one object, "admin:registry"). */
+  REGISTRY: DurableObjectNamespace<Registry>;
+  /** The admin console's key (a Worker secret, 32+ characters). Missing: the console is off. */
+  ADMIN_KEY?: string;
+  /** Optional, for the console's full scan of older campaigns: a Cloudflare API token that can read Durable Objects, and the account id. */
+  CF_API_TOKEN?: string;
+  CF_ACCOUNT_ID?: string;
   /** Images the DM uploads, stored as <campaign code>/<random>.<ext>. */
   FILES: R2Bucket;
   /** The built app (Vite output). */
