@@ -13,6 +13,7 @@ import { HANDOUT_BODY_MAX, HANDOUT_SIGN_MAX, HANDOUT_TITLE_MAX } from "./handout
 import { storyDmCommands } from "./storySchema";
 import { inviteDmCommands } from "./inviteSchema";
 import { sheetDmCommands, sheetPlayerCommands } from "./sheet";
+import { stashDmCommands, stashPlayerCommands } from "./stash";
 import { buildCommands } from "./sheetBuild";
 import { featureDmCommands, featurePlayerCommands } from "./features";
 import { offscriptDmCommands } from "./offscriptSchema";
@@ -661,6 +662,9 @@ export const dmCommand = z.discriminatedUnion("type", [
   // Character sheets.
   ...sheetDmCommands,
 
+  // The party stash.
+  ...stashDmCommands,
+
   // Feature switches.
   ...featureDmCommands,
 
@@ -699,6 +703,8 @@ export const playerCommand = z.discriminatedUnion("type", [
   // My character sheet.
   ...sheetPlayerCommands,
   ...buildCommands,
+  // The party stash.
+  ...stashPlayerCommands,
   // The tabs I hide.
   ...featurePlayerCommands,
 ]);

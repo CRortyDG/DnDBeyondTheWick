@@ -1,0 +1,121 @@
+/* The party stash: the DM's page and the phone's card. */
+
+/* ---------- DM ---------- */
+.stash-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+}
+.stash-row .scene-row {
+  align-items: center;
+}
+.stash-qty-badge {
+  flex: 0 0 auto;
+  min-width: 40px;
+  padding: 4px 8px;
+  border-radius: 8px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  background: color-mix(in srgb, currentColor 8%, transparent);
+}
+.stash-row .row-main {
+  cursor: default;
+}
+.stash-want {
+  cursor: pointer;
+  border: 0;
+  font: inherit;
+  font-size: 12px;
+}
+.stash-give {
+  box-sizing: border-box;
+  max-width: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 0 12px 10px 60px;
+  font-size: 14px;
+}
+.stash-row .stash-give select.fld {
+  width: 0 !important;
+  flex: 1 1 140px !important;
+  min-width: 0;
+  max-width: 280px;
+}
+.stash-qty {
+  width: 64px !important;
+  flex: 0 0 64px;
+  text-align: center;
+}
+.stash-add,
+.stash-edit {
+  flex-wrap: wrap;
+}
+.stash-edit {
+  padding: 0 12px 10px 60px;
+}
+.stash-log ul {
+  margin: 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 4px;
+}
+@media (max-width: 640px) {
+  .stash-row .stash-give select.fld {
+    max-width: none;
+  }
+  .stash-give,
+  .stash-edit {
+    padding-left: 12px;
+  }
+}
+
+/* ---------- phone ---------- */
+.pl-stash {
+  display: grid;
+  gap: 10px;
+}
+.pl-stash h2 {
+  margin: 0;
+}
+.pl-stash-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+.pl-stash-item {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 4px 10px;
+  align-items: center;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid color-mix(in srgb, currentColor 16%, transparent);
+}
+.pl-stash-item b {
+  font-weight: 600;
+}
+.pl-stash-item .note {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+.pl-stash-btns {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.pl-stash-item.mine {
+  border-color: color-mix(in srgb, var(--gold, #c99a3a) 70%, transparent);
+}
+.pl-stash-log {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 14px;
+  opacity: 0.85;
+}

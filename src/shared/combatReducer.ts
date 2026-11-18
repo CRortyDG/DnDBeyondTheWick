@@ -33,6 +33,9 @@ import {
 import { formatCp } from "./money";
 import { companionCombatant, companionFate, companionsOf, companionsWith, companionTemplatesOf, placeFollowers, syncCompanions, templateAsMonster } from "./companions";
 import { rollDice } from "./progress";
+import { lootFromFight } from "./stash";
+import { worldOn } from "./world";
+import { featureOn } from "./features";
 import type { Combatant, Fight, FightGroup, FightSummary, FoeSetup, FightMoment, FightReminder, FightReminderKind, FightUndo, GameState, LedgerEntry, LedgerKind, MonsterAbility, MonsterTemplate, Player } from "./types";
 import { DM_AUTHOR } from "./types";
 import type { z } from "zod";
@@ -60,6 +63,8 @@ export interface FightHelpers {
   task: (text: string) => void;
   /** End a rental (a hireling who died). */
   endRental: (rentalId: string) => void;
+  /** A line back to the DM's screen. */
+  info?: (m: string) => void;
 }
 
 /** Set up a new fight: everyone at the table, plus monsters. Fails if one is already going. */
@@ -815,6 +820,18 @@ function applyFightCore(s: GameState, cmd: FightCommand, h: FightHelpers): void 
       // A companion left at 0 HP with no death saves (the DM chose "dies", or never chose) died.
       for (const c of f.order) if (c.kind === "companion" && c.hp <= 0 && !c.deathSaves && companionsOf(s).find((x) => x.id === c.companionId)?.status === "with") fate(c, "dies");
       const items = (cmd.items ?? "").trim();
+      // Things found: straight to a character, or into the party stash.
+      if (cmd.loot?.length) {
+        const r = lootFromFight(
+          s,
+          cmd.loot,
+          { source: `${f.title}${f.where ? ` (${f.where})` : ""}`, fightId: f.id, ...(worldOn(s) && s.partyId ? { partyId: s.partyId } : {}) },
+          { now: h.now, fail, stashId: () => h.nextId("st"), itemId: () => h.nextId("it") },
+          featureOn(s, "stash"),
+        );
+        const bits = [r.stashed ? `${r.stashed === 1 ? "1 thing" : `${r.stashed} things`} in the party stash` : "", r.atTable.length ? `Hand over at the table: ${r.atTable.join(", ")}` : ""].filter(Boolean);
+        if (bits.length) h.info?.(`${bits.join(". ")}.`);
+      }
       let noteId: string | undefined;
       const text = cmd.note?.trim();
       if (text) noteId = h.addNote(DM_AUTHOR, "DM", text);

@@ -49,6 +49,7 @@ import { noticesOf } from "./board";
 import { fillRanges, TABLES_MAX, tablesOf } from "./tables";
 import type { MadeBy, RandomTable } from "./types";
 import { addBought, ITEMS_MAX } from "./sheetGear";
+import { applyStash, isStashCommand } from "./stash";
 import { applySheet, armorClass, type HitDie, hitDieSpec, isSheetCommand, mod, restSheet, rollSpec, shortRestSheet, syncConcFromFight, syncInitiative } from "./sheet";
 import { buildSheet, levelUpSheet, maxHpFor } from "./sheetBuild";
 import { FADE_DEFAULT, isLayerId, isSfxId, mixLayers } from "./sound";
@@ -1353,6 +1354,7 @@ function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
     showScene: (id) => showScene(id),
     task: (text) => task(text),
     endRental: (rid) => endRental(rid),
+    info: (m) => (out.info = m),
   };
   const fireAction = (a: BeatAction) => {
     if (a.type === "sound") {
@@ -1792,6 +1794,11 @@ function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
 
   if (isSheetCommand(cmd)) {
     applySheet(s, cmd, { actor: ctx.actor as { role: string; playerId?: string }, now: ctx.now, fail, info: (m) => (out.info = m), newId: () => nextId("it") });
+    return out;
+  }
+
+  if (isStashCommand(cmd)) {
+    applyStash(s, cmd, { actor: ctx.actor as { role: string; playerId?: string }, now: ctx.now, fail, info: (m) => (out.info = m), stashId: () => nextId("st"), itemId: () => nextId("it") });
     return out;
   }
 

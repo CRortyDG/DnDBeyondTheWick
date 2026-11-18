@@ -62,10 +62,11 @@ import { TablesPanel } from "./TablesPanel";
 import { usePhone, usePhoneAttr, useTablet, useTabletAttr, useWakeLock } from "./tablet";
 import { FullScreenButton, TabletOffer } from "./TabletBits";
 import { FeaturesPanel } from "./FeaturesPanel";
+import { StashPanel } from "./StashPanel";
 import { featureOn, type FeatureId } from "@/shared/features";
-import { MailIcon, DieIcon, SparkIcon, BoardIcon, BookIcon, CoinIcon, EyeIcon, GearIcon, GlobeIcon, ListIcon, MapIcon, PanelRightIcon, PeopleIcon, PinIcon, PlayIcon, QuillIcon, SearchIcon, ShipIcon, SkullIcon, SlidersIcon, StoreIcon, SwordIcon } from "./navIcons";
+import { ChestIcon, MailIcon, DieIcon, SparkIcon, BoardIcon, BookIcon, CoinIcon, EyeIcon, GearIcon, GlobeIcon, ListIcon, MapIcon, PanelRightIcon, PeopleIcon, PinIcon, PlayIcon, QuillIcon, SearchIcon, ShipIcon, SkullIcon, SlidersIcon, StoreIcon, SwordIcon } from "./navIcons";
 
-type Tab = "features" | "world" | "bank" | "shop" | "board" | "scenes" | "discovery" | "leads" | "players" | "arrival" | "invites" | "story" | "episodes" | "monsters" | "companions" | "tables" | "chronicle" | "builder" | "game";
+type Tab = "features" | "world" | "bank" | "stash" | "shop" | "board" | "scenes" | "discovery" | "leads" | "players" | "arrival" | "invites" | "story" | "episodes" | "monsters" | "companions" | "tables" | "chronicle" | "builder" | "game";
 type NavItem = { id: Tab; label: string; icon: (p: { size?: number }) => ReactElement; key?: string };
 /** The DM pages, grouped by when you reach for them. */
 const NAV: { group: string; items: NavItem[] }[] = [
@@ -74,6 +75,7 @@ const NAV: { group: string; items: NavItem[] }[] = [
     items: [
       { id: "bank", label: "Bank", icon: CoinIcon, key: "B" },
       { id: "players", label: "Players", icon: PeopleIcon },
+      { id: "stash", label: "Party stash", icon: ChestIcon },
       { id: "shop", label: "Shop", icon: StoreIcon },
     ],
   },
@@ -108,6 +110,7 @@ const ALL_TABS: Tab[] = [...NAV.flatMap((g) => g.items.map((i) => i.id)), FEATUR
 /** Pages a switched-off feature hides from the sidebar (the Features page itself never hides). */
 const PAGE_NEEDS: Partial<Record<Tab, FeatureId[]>> = {
   bank: ["gold"],
+  stash: ["stash"],
   shop: ["shops"],
   discovery: ["discover"],
   leads: ["leads"],
@@ -129,7 +132,7 @@ function navFor(s: Pick<GameState, "featuresOff">): { group: string; items: NavI
   return NAV.map((g) => ({ ...g, items: g.items.filter((i) => shown(i.id)) })).filter((g) => g.items.length);
 }
 /** Pages that draw their own header (with summary and buttons). */
-const OWN_HEAD = new Set<Tab>(["world", "bank", "players", "arrival", "invites", "shop", "discovery", "leads", "scenes", "board", "monsters", "companions", "tables", "episodes", "story", "chronicle", "builder", "features", "game"]);
+const OWN_HEAD = new Set<Tab>(["world", "bank", "stash", "players", "arrival", "invites", "shop", "discovery", "leads", "scenes", "board", "monsters", "companions", "tables", "episodes", "story", "chronicle", "builder", "features", "game"]);
 const PAGE_LABEL = Object.fromEntries([...NAV.flatMap((g) => g.items), FEATURES_NAV, SETTINGS].map((i) => [i.id, i.label])) as Record<Tab, string>;
 
 /** The page in the address (#page=discovery), so a reload keeps your place. */
@@ -782,7 +785,7 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
               <div key={g.group} className="dm-nav">
                 <div className="dm-nav-h">{g.group}</div>
                 {g.items.map((it) => (
-                  <NavButton key={it.id} item={it} current={tab === it.id} onPick={setTab} count={it.id === "players" ? s.knocks.length + hereAsks.length : it.id === "builder" ? drafts + reviewCount(s) : 0} />
+                  <NavButton key={it.id} item={it} current={tab === it.id} onPick={setTab} count={it.id === "players" ? s.knocks.length + hereAsks.length : it.id === "stash" ? (s.stash ?? []).filter((x) => x.wants?.length).length : it.id === "builder" ? drafts + reviewCount(s) : 0} />
                 ))}
               </div>
             ))}
@@ -808,6 +811,7 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
               {tab === "discovery" ? <DiscoveryPanel /> : null}
               {tab === "leads" ? <LeadsPanel /> : null}
               {tab === "players" ? <PlayersPanel /> : null}
+              {tab === "stash" ? <StashPanel /> : null}
               {tab === "arrival" ? <ArrivalPanel /> : null}
               {tab === "invites" ? <InvitesPanel /> : null}
               {tab === "story" ? <StoryPanel onOpen={(id) => setStoryOpen(id ?? "")} /> : null}

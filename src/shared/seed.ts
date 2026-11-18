@@ -414,6 +414,9 @@ export function freshStart(g: GameState): GameState {
   delete s.diceRoll;
   delete s.tvRolls;
   delete s.rolls;
+  // Test loot goes: the stash starts empty.
+  delete s.stash;
+  delete s.stashLog;
   s.jobs = (s.jobs ?? []).map(({ takenBy, takenAt, doneAt, paidCp, ...j }) => ({ ...j, status: "open" as const }));
   // The Chronicle starts again on an empty Chapter 1, and nobody has met anyone yet.
   s.notes = [];

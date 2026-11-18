@@ -1,5 +1,6 @@
 // Combat mode commands. Spread into the DM and player command lists in commands.ts.
 import { z } from "zod";
+import { fightLoot } from "./stash";
 
 const id = z.string().min(1).max(64);
 const text = (max: number) => z.string().max(max);
@@ -101,6 +102,8 @@ export const fightDmCommands = [
     /** Companions who take a share: it's held on them ("Fennick has 14 gp"). Never hirelings. */
     companionPayouts: z.array(z.object({ companionId: id, cp })).max(20).optional(),
     items: text(600).optional(),
+    /** Things found: to one character's sheet, or (no "to") into the party stash. */
+    loot: z.array(fightLoot).max(30).optional(),
     note: text(2000).nullable().optional(),
   }),
   /** Throw a fight away (set up by mistake): no history, no Chronicle. */

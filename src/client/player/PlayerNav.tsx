@@ -70,6 +70,7 @@ export function PlayerNav({
   hasMaps,
   discoverCount,
   jobsCount,
+  stashCount = 0,
   fight,
   voteOpen,
   vertical,
@@ -81,6 +82,8 @@ export function PlayerNav({
   hasMaps: boolean;
   discoverCount: number;
   jobsCount: number;
+  /** Things waiting in the party stash: counted on the tab that shows it (Character, or Gold without a sheet). */
+  stashCount?: number;
   /** A fight is on: its tab leads, and lights up when you're next or it's your turn. */
   fight: "on" | "next" | "turn" | null;
   /** A vote on the leads is open and this player hasn't voted: the Discover tab lights up. */
@@ -96,8 +99,8 @@ export function PlayerNav({
     ...(has("chronicle") ? [{ id: "chronicle" as const, label: "Story", icon: NAV_ICONS.story }] : []),
     ...(has("discover") ? [{ id: "discovery" as const, label: "Discover", icon: NAV_ICONS.discover, count: discoverCount, alert: !!voteOpen, alertText: "a vote is open" }] : []),
     ...(hasMaps && has("maps") ? [{ id: "map" as const, label: "Map", icon: NAV_ICONS.map }] : []),
-    ...(!sheetOff ? [{ id: "sheet" as const, label: "Character", icon: NAV_ICONS.character }] : []),
-    ...(has("gold") ? [{ id: "purse" as const, label: "Gold", icon: NAV_ICONS.gold }] : []),
+    ...(!sheetOff ? [{ id: "sheet" as const, label: "Character", icon: NAV_ICONS.character, count: stashCount }] : []),
+    ...(has("gold") ? [{ id: "purse" as const, label: "Gold", icon: NAV_ICONS.gold, ...(sheetOff ? { count: stashCount } : {}) }] : []),
     ...(has("jobs") ? [{ id: "jobs" as const, label: "Jobs", icon: NAV_ICONS.jobs, count: jobsCount }] : []),
   ];
   if (!tabs.length) return null;

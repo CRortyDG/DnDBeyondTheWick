@@ -1319,6 +1319,12 @@ export interface GameState {
   clues?: Clue[];
   /** DM-ONLY: quick notes from play. Read with capturesOf(). */
   captures?: Capture[];
+  /** The party stash: loot nobody has claimed yet (see stash.ts). Read with stashOf(). */
+  stash?: import("./stash").StashItem[];
+  /** What left the stash lately, oldest first. */
+  stashLog?: import("./stash").StashMove[];
+  /** Players may take things from the stash themselves. Missing: they ask and the DM hands out. */
+  stashTake?: boolean;
   /** Session invites: one link per game night, seats claimed first come first served. Read with invitesOf(). Players and the TV never get these; an invite's own page gets a cut-down copy (see invites.ts). */
   invites?: Invite[];
   seq: number;

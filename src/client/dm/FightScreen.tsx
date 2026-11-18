@@ -23,6 +23,7 @@ import { usePhone, useTablet } from "./tablet";
 import { FullScreenButton } from "./TabletBits";
 import "../ui/fight.css";
 import { sheetNumbers } from "@/shared/sheet";
+import { featureOn } from "@/shared/features";
 
 type DmPlayer = Player & { hasKey: boolean };
 
@@ -955,8 +956,10 @@ function AddCombatant({ f, templates, notIn }: { f: Fight; templates: MonsterTem
 // ---------------------------------------------------------------------------
 // The end: loot, the Chronicle, back to the scene.
 
+type LootRow = { key: number; name: string; qty: string; to: string };
+
 function EndStep({ f, players, onDone }: { f: Fight; players: DmPlayer[]; onDone: () => void }) {
-  const { run, view } = useDm();
+  const { run, call, toast, view } = useDm();
   const players0 = useMemo(() => players.filter((p) => f.order.some((c) => c.playerId === p.id) && !p.archived), [players, f.order]);
   // Companions who take a share (never hirelings: they're paid by the day). Their share is held on them. Keys "c:<id>".
   const sharers = useMemo(
@@ -968,7 +971,14 @@ function EndStep({ f, players, onDone }: { f: Fight; players: DmPlayer[]; onDone
   );
   const inFight = useMemo(() => [...players0.map((p) => ({ id: p.id, name: p.name, character: p.character })), ...sharers], [players0, sharers]);
   const [coins, setCoins] = useState("");
-  const [items, setItems] = useState("");
+  // Things found: each line to one character's inventory, or into the party stash.
+  const [rows, setRows] = useState<LootRow[]>(() => [{ key: 1, name: "", qty: "1", to: "" }]);
+  const named = rows.filter((r) => r.name.trim());
+  const lootLines = named.map((r) => ({ name: r.name.trim().slice(0, 60), qty: Math.max(1, Math.min(999, Math.floor(Number(r.qty) || 1))), ...(r.to ? { to: r.to } : {}) }));
+  const items = lootLines.map((x) => (x.qty > 1 ? `${x.qty} ${x.name}` : x.name)).join(", ").slice(0, 600);
+  const stashOn = featureOn(view.state, "stash");
+  const inStash = (view.state.stash ?? []).length;
+  const givable = players.filter((p) => !p.archived);
   const [split, setSplit] = useState<"even" | "each">("even");
   const [who, setWho] = useState<string[]>(() => inFight.map((p) => p.id));
   const [each, setEach] = useState<Record<string, string>>({});
@@ -994,10 +1004,13 @@ function EndStep({ f, players, onDone }: { f: Fight; players: DmPlayer[]; onDone
 
   const finish = async (skip: boolean) => {
     setBusy(true);
-    const ok = await run(
-      skip ? { type: "fight.close", note: null } : { type: "fight.close", payouts, ...(companionPayouts.length ? { companionPayouts } : {}), items, note: writeNote && text.trim() ? text.trim() : null },
-      skip ? "Fight closed. The TV is back on the scene." : lootCp ? `Paid ${formatCp(lootCp)} in loot.` : "Fight closed. The TV is back on the scene.",
-    );
+    const cmd: DmCommand = skip
+      ? { type: "fight.close", note: null }
+      : { type: "fight.close", payouts, ...(companionPayouts.length ? { companionPayouts } : {}), items, ...(lootLines.length ? { loot: lootLines } : {}), note: writeNote && text.trim() ? text.trim() : null };
+    const r = await call(cmd);
+    const paid = lootCp ? `Paid ${formatCp(lootCp)} in loot.` : "";
+    toast(r.error ?? (skip ? "Fight closed. The TV is back on the scene." : [paid, r.info].filter(Boolean).join(" ") || "Fight closed. The TV is back on the scene."));
+    const ok = !r.error;
     setBusy(false);
     if (ok) onDone();
   };
@@ -1051,10 +1064,46 @@ function EndStep({ f, players, onDone }: { f: Fight; players: DmPlayer[]; onDone
           </div>
         )}
         {coins && split === "even" && parseAmount(coins) === null ? <p className="error-text">That amount didn&rsquo;t make sense. Try “12 gp” or “40 sp”.</p> : null}
-        <label>
-          Items (they add them in D&amp;D Beyond)
-          <input className="fld" placeholder="a silver ladle, a scorched recipe card" value={items} maxLength={600} onChange={(e) => setItems(e.target.value)} />
-        </label>
+        <div className="fx-items" role="group" aria-label="Things found">
+          <span className="fx-items-head">
+            Things found
+            <span className="note">
+              {" "}
+              {stashOn ? "Give each to someone, or leave it in the party stash for later." : "Give each to someone's sheet, or just note it in the Chronicle."}
+              {stashOn && inStash ? ` ${inStash} already waiting in the stash.` : ""}
+            </span>
+          </span>
+          {rows.map((r, i) => (
+            <div key={r.key} className="fx-item-row">
+              <input
+                className="fld fx-grow"
+                placeholder={i === 0 ? "a silver ladle, Potion of Healing" : "another thing"}
+                value={r.name}
+                maxLength={60}
+                aria-label="Thing found"
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setRows((xs) => {
+                    const next = xs.map((x) => (x.key === r.key ? { ...x, name: v } : x));
+                    // Typing in the last line opens another.
+                    if (v.trim() && next.at(-1)!.key === r.key && next.length < 30) next.push({ key: Math.max(...next.map((x) => x.key)) + 1, name: "", qty: "1", to: "" });
+                    return next;
+                  });
+                }}
+              />
+              <input className="fld fx-item-qty" inputMode="numeric" aria-label="How many" value={r.qty} onChange={(e) => setRows((xs) => xs.map((x) => (x.key === r.key ? { ...x, qty: e.target.value } : x)))} />
+              <select className="fld" aria-label="Goes to" value={r.to} onChange={(e) => setRows((xs) => xs.map((x) => (x.key === r.key ? { ...x, to: e.target.value } : x)))}>
+                <option value="">{stashOn ? "Party stash" : "Nobody (just the Chronicle)"}</option>
+                {givable.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.character?.trim() || p.name}
+                    {p.sheet && !p.sheetOff ? "" : " (at the table)"}
+                  </option>
+                ))}
+              </select>
+            </div>
+          ))}
+        </div>
       </section>
 
       <section className="box fx-note" aria-label="Chronicle entry">

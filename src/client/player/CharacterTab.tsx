@@ -8,6 +8,7 @@ import { STARTERS } from "@/shared/starters";
 import { CharacterSheetView } from "../ui/CharacterSheet";
 import { LevelUpCard, SheetBuilder } from "../ui/SheetBuilder";
 import { MyHp } from "./FightCard";
+import { PartyStash } from "./Stash";
 
 /**
  * The Character tab: the sheet. Gold and shops have their own tab. A player who
@@ -42,6 +43,7 @@ export function CharacterTab({
   if (building) return <SheetBuilder level={me.level} starter={me.starter} replacing={!!me.sheet} send={send} onClose={() => setBuilding(false)} />;
   return (
     <>
+      <PartyStash view={view} send={send} />
       {me.sheet ? (
         <section className="pl-sheet" aria-label="Character sheet">
           <LevelUpCard sheet={me.sheet} level={me.level} send={send} />
