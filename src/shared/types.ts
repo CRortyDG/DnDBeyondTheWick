@@ -782,6 +782,8 @@ export interface Session {
   duesCharged?: boolean;
   /** Shared world: the party that played it. */
   partyId?: string;
+  /** Shared world: the campaign's night count when it started (every group's sessions in one line). Rent, lessons and special orders count these. Missing: worked out from start times (nightOf). */
+  night?: number;
   /** The "Last time on…" card for players' devices: the DM's draft, and what was sent. */
   playerRecap?: PlayerRecap;
 }
@@ -1462,6 +1464,8 @@ export interface Party {
   createdAt: number;
   /** DM-ONLY: where this party is now. */
   here?: Here;
+  /** Plays every open-call invite night (made by the first one). */
+  openTable?: boolean;
 }
 
 /** A dated event everyone in the world lives through ("Winterfest"). Days are YYYY-MM-DD. */

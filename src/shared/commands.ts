@@ -501,6 +501,8 @@ export const dmCommand = z.discriminatedUnion("type", [
   z.object({ type: z.literal("session.reopen"), sessionId: id }),
   z.object({ type: z.literal("session.remove"), sessionId: id }),
   z.object({ type: z.literal("session.noteTaker"), sessionId: id, playerId: id.nullable() }),
+  /** Who was at a session, fixed afterwards (the running one: the same as Run's attendance ticks). */
+  z.object({ type: z.literal("session.attend"), sessionId: id, playerId: id, here: z.boolean() }),
 
   // The Chronicle: the DM can write, edit, move, star, hide and delete any note.
   z.object({ type: z.literal("note.add"), text: noteText, tags: noteTags.optional(), chapterId: id.optional() }),

@@ -37,7 +37,8 @@ function fails(actor: Actor, cmd: Command): string {
 const bal = (pid: string) => g.players.find((p) => p.id === pid)!.balanceCp;
 const pay = (pid: string, gp: number) => dm({ type: "money.adjust", playerId: pid, amountCp: gp * GP, note: "" });
 const curNumber = () => g.sessions.find((s) => s.id === g.currentSessionId)!.number;
-const chargeAllDue = () => dm({ type: "dues.charge", ids: duesFor(g, curNumber()).map((d) => d.id) });
+const curSession = () => g.sessions.find((s) => s.id === g.currentSessionId)!;
+const chargeAllDue = () => dm({ type: "dues.charge", ids: duesFor(g, curSession()).map((d) => d.id) });
 const roomId = (name: string) => roomsOf(g).find((e) => e.name === name)!.id;
 const assign = (pid: string, name: string | null, extra: { free?: boolean } = {}) => dm({ type: "room.assign", playerId: pid, roomId: name === null ? null : roomId(name), ...extra });
 
@@ -124,10 +125,10 @@ describe("rent", () => {
     dm({ type: "session.start" });
     assign("p1", "The Hearth Room");
     expect(bal("p1")).toBe(20 * GP); // the welcome
-    expect(duesFor(g, curNumber())).toEqual([]); // the first month is paid
+    expect(duesFor(g, curSession())).toEqual([]); // the first month is paid
     dm({ type: "session.end" });
     dm({ type: "session.start" });
-    expect(duesFor(g, curNumber()).map((d) => d.cp)).toEqual([3 * GP]);
+    expect(duesFor(g, curSession()).map((d) => d.cp)).toEqual([3 * GP]);
     chargeAllDue();
     chargeAllDue();
     expect(bal("p1")).toBe(17 * GP);

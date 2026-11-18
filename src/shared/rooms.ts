@@ -9,6 +9,7 @@ import { formatCp } from "./money";
 import { entriesOf } from "./discovery";
 import { rankName, renownOf } from "./renown";
 import { tableRenown } from "./world";
+import { lastEndedClock } from "./progress";
 import type { Entry, GameState, Item, LedgerEntry, LedgerKind, Player, Rental, RoomInfo, RoomMoment, RoomSettings, RoomType, Shop } from "./types";
 
 export const HOOKS = 12;
@@ -88,9 +89,8 @@ export function lastEnded(g: Pick<GameState, "sessions">): number {
 }
 
 /** Room rentals behind on rent: a payment was missed at the last session end. */
-export function behindOnRent(g: Pick<GameState, "rentals" | "sessions">): Rental[] {
-  const n = lastEnded(g);
-  return g.rentals.filter((r) => r.active && r.roomId && r.paidThrough < n);
+export function behindOnRent(g: Pick<GameState, "rentals" | "sessions"> & Partial<Pick<GameState, "world">>): Rental[] {
+  return g.rentals.filter((r) => r.active && r.roomId && r.paidThrough < lastEndedClock(g, r.playerId));
 }
 
 /** A character has had a room here before (the first month is only free once). */
@@ -204,7 +204,7 @@ export function myRoom(g: Pick<GameState, "rentals" | "players" | "entries" | "s
     roommates,
     monthlyCp: r.monthlyCp,
     paidThrough: r.paidThrough,
-    behind: r.paidThrough < lastEnded(g),
+    behind: r.paidThrough < lastEndedClock(g, r.playerId),
   };
 }
 
@@ -396,7 +396,7 @@ export function applyRooms(s: GameState, cmd: RoomCommand, h: RoomHelpers): void
     }
     case "room.waive": {
       const r = s.rentals.find((x) => x.id === cmd.rentalId && x.roomId) ?? h.fail("That room rental isn't there any more.");
-      r.paidThrough = Math.max(r.paidThrough, lastEnded(s));
+      r.paidThrough = Math.max(r.paidThrough, lastEndedClock(s, r.playerId));
       h.info(`Waived: ${r.itemName} is paid up.`);
       return;
     }

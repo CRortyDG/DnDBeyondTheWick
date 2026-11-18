@@ -8,7 +8,7 @@ import { canAfford, formatCp } from "./money";
 import { beatBody } from "./commands";
 import { availableCp, availableStock, boughtPhrase, heldStock, isSecretShop } from "./requests";
 import { candlefairMap, emptyProgress, SEED_ITEMS, SEED_SHOPS, STINGER_SCENE, swordCoastMap } from "./seed";
-import { creditCp, duesFor, firstChargeCp, installmentCp, keepsStake, liveEffects, priceOf, raisedCp, rollDice, sharesOf, splitByShare } from "./progress";
+import { clockNow, clockOf, creditCp, duesFor, firstChargeCp, nextNight, nightOf, installmentCp, keepsStake, liveEffects, priceOf, raisedCp, rollDice, sharesOf, splitByShare } from "./progress";
 import { chapterAt, shopVisibleTo } from "./projection";
 import { CHARACTER_MAX, CLIP_GIF_MAX, CLIP_VIDEO_MAX, INTRO_SCENE_ID, STINGER_SCENE_ID, TABLE_SCENE_ID, WHY_MAX } from "./arrival";
 import { starterById } from "./starters";
@@ -524,7 +524,7 @@ function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
   };
   const item = (id: string): Item => s.items.find((x) => x.id === id) ?? fail("That item doesn't exist.");
   /** The session a payment made now covers: the running one, or the next one between sessions. */
-  const coversSession = () => s.sessions.find((x) => x.id === s.currentSessionId)?.number ?? nextSessionNumber(s);
+  const coversSession = () => clockNow(s);
   const task = (text: string, extra: { playerId?: string; itemId?: string } = {}) => {
     s.tasks.push({ id: nextId("t"), at: ctx.now, text, done: false, ...extra });
     // Keep every open task and the latest 100 done ones.
@@ -761,7 +761,8 @@ function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
       move(p, -chargeCp, `${it.name}${t.what ? ` (${t.what})` : ""}: lesson 1 of ${of}${haggled}`, "purchase", ledgerExtra);
       if (t.done) task(`Record a new proficiency: ${p.name} finished ${it.name}${t.what ? `: ${t.what}` : ""}.`, { playerId: p.id, itemId: it.id });
     } else if (it.arrivesInSessions) {
-      const now = s.sessions.find((x) => x.id === s.currentSessionId)?.number ?? nextSessionNumber(s) - 1;
+      const cur = s.sessions.find((x) => x.id === s.currentSessionId);
+      const now = cur ? clockOf(s, cur) : clockNow(s) - 1;
       const arrivesAtSession = now + it.arrivesInSessions;
       for (let i = 0; i < qty; i++) {
         s.orders.push({ id: nextId("o"), playerId: p.id, itemId: it.id, itemName: it.name, priceCp: Math.round(chargeCp / qty), orderedAt: ctx.now, arrivesAtSession, arrived: false });
@@ -848,12 +849,17 @@ function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
       const j = jobs.find((x) => x.id === r.jobId) ?? fail(`${r.jobTitle ?? "That job"} has come down. Decline it instead.`);
       if (j.status !== "open") fail(`${jobTitle(j)} is already ${j.status}.`, "recheck");
       if (!override && p.archived) fail(`${p.name} has left the table.`, "recheck");
-      // A job belongs to the whole party, whoever tapped the button (in a shared world, the party at the table).
+      // A job belongs to the whole party, whoever tapped the button. In a shared world: the asker's party
+      // (the one at the table if they're in it, else the first they play in).
       j.status = "taken";
       delete j.takenBy;
       j.takenAt = ctx.now;
-      takeForParty(j);
-      if (j.pinned) announce(`${s.world && tableParty(s) ? tableParty(s)!.name : "The party"} took the job: ${jobTitle(j)}`);
+      const mine = s.world ? partiesFor(s, p.id) : [];
+      const taker = mine.find((x) => x.id === s.partyId) ?? mine[0];
+      if (taker) j.partyId = taker.id;
+      else takeForParty(j);
+      const who = s.world ? partyById(s, j.partyId)?.name : undefined;
+      if (j.pinned) announce(`${who ?? "The party"} took the job: ${jobTitle(j)}`);
       // Nobody else needs to ask for it now.
       for (const o of s.requests) {
         if (o.id !== r.id && o.status === "pending" && o.kind === "job" && o.jobId === j.id) {
@@ -1231,6 +1237,7 @@ function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
       endedAt: null,
       attendeeIds: s.players.filter((p) => !p.archived && !p.away).map((p) => p.id),
       ...(s.world && s.partyId ? { partyId: s.partyId } : {}),
+      ...(s.world ? { night: nextNight(s) } : {}),
     };
     s.sessions.push(sess);
     s.currentSessionId = sess.id;
@@ -1241,9 +1248,10 @@ function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
       delete n.partyId;
     }
     // Special orders due by this session arrive (whether started here or by run-game).
-    // In a shared world chapters count per party: only orders for someone at this table arrive.
+    // In a shared world orders count nights (every group's sessions), and only arrive for someone at this table.
     const here = new Set(sess.attendeeIds);
-    const due = s.orders.filter((o) => !o.arrived && o.arrivesAtSession <= number && (!s.world || here.has(o.playerId)));
+    const tonight = clockOf(s, sess);
+    const due = s.orders.filter((o) => !o.arrived && o.arrivesAtSession <= tonight && (!s.world || here.has(o.playerId)));
     for (const o of due) {
       o.arrived = true;
       const owner = s.players.find((p) => p.id === o.playerId);
@@ -1834,7 +1842,8 @@ function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
       // Session end: keep a hireling for the next session. The buyer pays now, once per session.
       const comp = companionsWith(s).find((x) => x.id === c.companionId) ?? fail("That companion isn't with the party.");
       const r = (comp.hire && s.rentals.find((x) => x.id === comp.hire!.rentalId && x.active)) || fail(`${comp.name} isn't a hireling.`);
-      const through = (s.sessions.find((x) => x.id === s.currentSessionId) ?? s.sessions.at(-1))?.number ?? 0;
+      const at = s.sessions.find((x) => x.id === s.currentSessionId) ?? s.sessions.at(-1);
+      const through = at ? clockOf(s, at) : 0;
       if (r.paidThrough > through) fail(`${comp.name} is already paid for the next session.`);
       const p = player(r.playerId);
       move(p, -r.monthlyCp, `Kept ${comp.name} on (${r.itemName})`, "rent", { itemId: r.itemId });
@@ -2259,19 +2268,20 @@ function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
     case "dues.charge": {
       const sess = curSession();
       const want = new Set(cmd.ids);
-      const due = duesFor(s, sess.number).filter((d) => want.has(d.id));
+      const due = duesFor(s, sess).filter((d) => want.has(d.id));
+      const tonight = clockOf(s, sess);
       for (const d of due) {
         const p = player(d.playerId);
         if (d.kind === "rent") {
           const r = s.rentals.find((x) => x.id === d.id)!;
           move(p, -d.cp, `Rent: ${r.itemName}`, "rent", { itemId: r.itemId });
-          r.paidThrough = sess.number;
+          r.paidThrough = tonight;
         } else {
           const t = s.trainings.find((x) => x.id === d.id)!;
           move(p, -d.cp, `${t.itemName}${t.what ? ` (${t.what})` : ""}: lesson ${t.paid + 1} of ${t.of}`, "purchase", { itemId: t.itemId });
           t.paid++;
           t.paidCp += d.cp;
-          t.paidThrough = sess.number;
+          t.paidThrough = tonight;
           if (t.paid >= t.of) {
             t.done = true;
             task(`Record a new proficiency: ${p.name} finished ${t.itemName}${t.what ? `: ${t.what}` : ""}.`, { playerId: p.id, itemId: t.itemId });
@@ -2911,14 +2921,18 @@ function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
         const ids = seated(inv).map((e) => e.playerId).filter((x): x is string => !!x && s.players.some((p) => p.id === x && !p.archived));
         if (s.world) {
           let party = inv.partyId ? partyById(s, inv.partyId) : undefined;
-          // An open call in a shared world: the night's table becomes a party of its own.
+          // An open call in a shared world: every open-call night is played by one standing "Open table" party
+          // (made the first time), so pick-up nights don't fill the world with one-off parties.
           if (!party) {
             const list = (s.parties ??= []);
-            if (list.length >= PARTIES_MAX) fail(`A world holds up to ${PARTIES_MAX} parties. Pick a party for this invite, or remove an old party.`);
-            let name = inv.title.trim().slice(0, 40) || "Pick-up party";
-            for (let n = 2; list.some((x) => x.name.toLowerCase() === name.toLowerCase()); n++) name = `${inv.title.trim().slice(0, 34) || "Pick-up party"} ${n}`;
-            party = { id: nextId("pty"), name, color: PARTY_COLORS[list.length % PARTY_COLORS.length], memberIds: [], createdAt: ctx.now };
-            list.push(party);
+            party = list.find((x) => x.openTable);
+            if (!party) {
+              if (list.length >= PARTIES_MAX) fail(`A world holds up to ${PARTIES_MAX} parties. Pick a party for this invite, or remove an old party.`);
+              let name = "Open table";
+              for (let n = 2; list.some((x) => x.name.toLowerCase() === name.toLowerCase()); n++) name = `Open table ${n}`;
+              party = { id: nextId("pty"), name, color: PARTY_COLORS[list.length % PARTY_COLORS.length], memberIds: [], createdAt: ctx.now, openTable: true };
+              list.push(party);
+            }
             inv.partyId = party.id;
           }
           for (const id of ids) {
@@ -3008,6 +3022,18 @@ function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
       for (const n of s.notes ?? []) if (n.sessionId === cmd.sessionId) n.sessionId = null;
       break;
     }
+    case "session.attend": {
+      const sess = session(cmd.sessionId);
+      const p = player(cmd.playerId);
+      if (sess.id === s.currentSessionId) {
+        p.away = !cmd.here;
+        delete p.hereAsk;
+        if (cmd.here) delete p.hereNo;
+      }
+      if (cmd.here && !sess.attendeeIds.includes(p.id)) sess.attendeeIds.push(p.id);
+      else if (!cmd.here) sess.attendeeIds = sess.attendeeIds.filter((x) => x !== p.id);
+      break;
+    }
     case "session.noteTaker": {
       const sess = session(cmd.sessionId);
       if (cmd.playerId === null) delete sess.noteTakerId;
@@ -3029,7 +3055,11 @@ function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
         const first: Party = { id: nextId("pty"), name: cmd.firstName?.trim() || "The first party", color: PARTY_COLORS[0], memberIds: s.players.filter((p) => !p.archived).map((p) => p.id), createdAt: ctx.now };
         list.push(first);
         s.partyId = first.id;
-        for (const sess of s.sessions) sess.partyId = first.id;
+        // Rent and orders were counted by session number: those numbers become the first nights.
+        for (const sess of s.sessions) {
+          sess.partyId = first.id;
+          sess.night = sess.number;
+        }
         for (const n of s.notes ?? []) if (n.sessionId === null) n.partyId = first.id;
         for (const l of s.leads ?? []) l.partyId = first.id;
         if (s.vote) s.vote.partyId = first.id;
@@ -3071,8 +3101,11 @@ function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
         if (cmd.catchUp !== false) catchUp(s, p.id, party);
         party.memberIds.push(p.id);
         p.renown ??= s.renown ?? 0;
-        // Joining the party at the table seats them.
-        if (s.partyId === party.id && !s.currentSessionId) p.away = false;
+        // Joining the party at the table seats them (mid-session too: they've just sat down).
+        if (s.partyId === party.id && !p.archived) {
+          p.away = false;
+          markAttending(p.id);
+        }
       } else if (!cmd.member && isIn) {
         party.memberIds = party.memberIds.filter((x) => x !== p.id);
         if (s.partyId === party.id && !s.currentSessionId) p.away = true;
