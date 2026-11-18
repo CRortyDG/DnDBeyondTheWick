@@ -18,7 +18,7 @@ import {
   SWATCHES,
 } from "@/shared/look";
 import { drawLookHd } from "@/shared/lookArtHd";
-import { lookUrl, pixUrl } from "./PixelLook";
+import { lookUrl, savePicture } from "./PixelLook";
 
 /**
  * The character maker: a big pixel-art preview, a tab per part of the body,
@@ -64,10 +64,7 @@ export function LookEditor({
     else onClose();
   };
   const download = () => {
-    const a = document.createElement("a");
-    a.href = pixUrl(drawLookHd(look), 4);
-    a.download = `${(name || "character").replace(/[^\w-]+/g, "-").toLowerCase()}.png`;
-    a.click();
+    void savePicture(drawLookHd(look), 4, `${(name || "character").replace(/[^\w-]+/g, "-").toLowerCase()}.png`);
   };
 
   const layers = LAYERS.filter((l) => l.group === tab);

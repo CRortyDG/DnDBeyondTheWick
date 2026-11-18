@@ -540,3 +540,64 @@ export const OUTFITS_HD: Outfit[] = [
   },
 ];
 
+
+/** A thick spellbook held against the hip, drawn at full size. */
+export function bookHd(p: Pix, h: HFrame, c: Ctx) {
+  const W = 17;
+  const H = 20;
+  const x0 = h.lax - 1;
+  const y0 = h.handY - 8;
+  const cov = c.trim;
+  const page = "#efe6cc";
+  const pageLo = "#c4b48e";
+  // Back cover peeking out under the pages.
+  p.hl(x0, x0 + W, y0 + H, cov.deep);
+  p.vl(x0 + W, y0 + 2, y0 + H, cov.deep);
+  // Pages: the right side and the bottom, with leaf lines.
+  for (let y = y0 + 1; y < y0 + H; y++) for (let x = x0 + W - 3; x < x0 + W; x++) p.set(x, y, x === x0 + W - 2 ? pageLo : page);
+  for (let x = x0 + 2; x < x0 + W; x++) {
+    p.set(x, y0 + H - 2, page);
+    p.set(x, y0 + H - 1, pageLo);
+  }
+  // The front cover.
+  for (let y = y0; y < y0 + H - 2; y++)
+    for (let x = x0; x < x0 + W - 3; x++) p.set(x, y, y === y0 ? cov.hi : x === x0 + W - 4 || y === y0 + H - 3 ? cov.lo : cov.base);
+  // Spine with raised gold bands.
+  for (let y = y0; y <= y0 + H; y++) {
+    p.set(x0, y, cov.deep);
+    p.set(x0 + 1, y, cov.lo);
+    p.set(x0 + 2, y, cov.deep);
+  }
+  for (const by of [y0 + 3, y0 + H - 5]) {
+    p.hl(x0, x0 + 2, by, GOLD.hi);
+    p.hl(x0, x0 + 2, by + 1, GOLD.lo);
+  }
+  // Gold corner caps.
+  const ex = x0 + W - 4;
+  for (const [cy, dy] of [[y0, 1], [y0 + H - 3, -1]] as const) for (let i = 0; i < 3; i++) p.hl(ex - 2 + i, ex, cy + i * dy, i === 0 ? GOLD.hi : GOLD.base);
+  // A tooled frame and a glowing sigil.
+  const fx0 = x0 + 4;
+  const fx1 = x0 + W - 6;
+  const fy0 = y0 + 3;
+  const fy1 = y0 + H - 6;
+  p.hl(fx0, fx1, fy0, GOLD.lo);
+  p.hl(fx0, fx1, fy1, GOLD.lo);
+  p.vl(fx0, fy0, fy1, GOLD.lo);
+  p.vl(fx1, fy0, fy1, GOLD.lo);
+  const mx = (fx0 + fx1) >> 1;
+  const my = (fy0 + fy1) >> 1;
+  for (let i = -3; i <= 3; i++) {
+    const w = 3 - Math.abs(i);
+    p.hl(mx - w, mx + w, my + i, i < 0 ? GOLD.hi : GOLD.base);
+  }
+  p.set(mx, my, "#bff4ff");
+  p.set(mx, my - 1, "#7fe0ff");
+  p.set(mx - 1, my, "#7fe0ff");
+  p.set(mx + 1, my, "#4ab4e0");
+  p.set(mx, my + 1, "#4ab4e0");
+  // The clasp over the page edge.
+  const cy = y0 + (H >> 1) - 2;
+  p.rect(x0 + W - 5, cy, 6, 3, c.metal.base);
+  p.hl(x0 + W - 5, x0 + W, cy, c.metal.hi);
+  p.set(x0 + W - 4, cy + 1, c.metal.lo);
+}
