@@ -259,7 +259,7 @@ export function renameRefs(g: Pick<GameState, "quick" | "recent" | "episodes">, 
   if (g.recent) g.recent = g.recent.map((r) => renameIn(r, from, to));
   for (const ep of g.episodes ?? []) {
     for (const b of ep.beats) {
-      for (const a of b.actions) if (a.type === "show" || a.type === "reveal" || a.type === "fact") a.ref = renameIn(a.ref, from, to);
+      for (const a of b.actions) if (a.type === "show" || a.type === "reveal" || a.type === "fact" || a.type === "mood") a.ref = renameIn(a.ref, from, to);
       if (b.dismissed) b.dismissed = b.dismissed.map((r) => renameIn(r, from, to));
     }
   }

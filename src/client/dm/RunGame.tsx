@@ -9,6 +9,8 @@ import { Leftovers, MentionText, RunStoryBlocks } from "./EpisodeBuilder";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { previousRecap } from "@/shared/reducer";
 import { beatFirstLine } from "@/shared/runsheet";
+import { findRef } from "@/shared/discovery";
+import { signed } from "@/shared/attitude";
 import type { Beat, BeatAction, Episode, Session, SessionRun } from "@/shared/types";
 import { beatAssets, quickOf, resolveRef, type AssetGame } from "@/shared/assets";
 import { Finder, quickKey, typing } from "./QuickBar";
@@ -37,6 +39,10 @@ export function actionLabel(a: BeatAction, g: AssetGame): string {
   if (a.type === "fight") return `Fight: ${a.monsters.map((m) => (m.count > 1 ? `${m.name} ×${m.count}` : m.name)).join(", ")} · TV → Roll initiative!`;
   if (a.type === "reveal") return a.stage === "rumored" ? `Rumor: ${a.ref}` : `Reveal: ${a.ref}${a.stage === "known" ? " (known)" : ""}`;
   if (a.type === "fact") return `Reveal fact: ${a.ref}`;
+  if (a.type === "mood") {
+    const who = findRef(g, a.ref)?.entry.name ?? a.ref;
+    return `Attitude button → ${who} ${signed(a.delta)}${a.reason ? ` · ${a.reason}` : ""}`;
+  }
   if (a.type === "show") {
     const hit = resolveRef(g, a.ref);
     if (!hit) return `TV → ${a.ref} (not found)`;
@@ -47,7 +53,7 @@ export function actionLabel(a: BeatAction, g: AssetGame): string {
   return sc.kind === "portrait" ? `TV → ${sc.label}’s portrait` : `TV → ${sc.label}`;
 }
 
-const tapAction = (a: BeatAction) => (a.type === "sound" || a.type === "sfx") && !!a.tap;
+const tapAction = (a: BeatAction) => ((a.type === "sound" || a.type === "sfx") && !!a.tap) || a.type === "mood";
 
 export function RunGame({ onExit, onFight }: { onExit: () => void; onFight?: () => void }) {
   const { view, run } = useDm();
@@ -388,7 +394,7 @@ function BeatCard({ beat, onBeat, episodeId }: { beat: Beat; onBeat: string[]; e
             <li key={i}>
               <span>{actionLabel(a, g)}</span>
               <button className={`btn small${tapAction(a) ? " primary" : ""}`} type="button" onClick={() => run({ type: "run.fire", beatId: beat.id, index: i })}>
-                {tapAction(a) ? "▶ Play" : "↻ Again"}
+                {a.type === "mood" ? "Apply" : tapAction(a) ? "▶ Play" : "↻ Again"}
               </button>
             </li>
           ))}
