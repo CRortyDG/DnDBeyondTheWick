@@ -20,6 +20,7 @@ import { CharacterSheetView } from "../ui/CharacterSheet";
 import { sheetNumbers } from "@/shared/sheet";
 import { featureOn, FEATURES, hiddenOf, playerOff } from "@/shared/features";
 import { Switch } from "./FeaturesPanel";
+import { GoalsBox, PlayerJournal } from "./Journals";
 
 function seenText(t?: number | null) {
   if (!t) return "never seen";
@@ -193,6 +194,8 @@ export function PlayersPanel() {
         {list.length === 0 ? <li className="pg-empty">No players yet. Anyone who opens their link with a new name joins automatically.</li> : null}
       </ol>
 
+      <GoalsBox onOpen={setEditing} />
+
       <RoomsBox />
 
       {editingPlayer ? <PlayerDrawer p={editingPlayer} onClose={() => setEditing(null)} /> : null}
@@ -362,6 +365,7 @@ function PlayerDrawer({ p, onClose }: { p: DmPlayer; onClose: () => void }) {
         )}
       </section>
       ) : null}
+      <PlayerJournal p={p} />
       <section className="box danger-zone">
         <h3>{p.name}</h3>
         <div className="inline">

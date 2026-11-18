@@ -49,6 +49,15 @@ For first-time players, the seat page has **Pick a starting point**: six kinds o
 - **Sound** is off by default, with a toggle that's remembered per device. The waves, creaking, wind, door and hearth are made in the browser, so there are no files to download. To use recordings instead, put them in `public/arrival/sounds/` and list them in `SOUND_FILES` in the content file.
 - **Spoiler safety:** the Arrival page is its own part of the site with its own small bundle; it loads none of the main app's code or styles. `/api/arrival` sends only the seat names and the player's own progress.
 
+## Personal journals
+
+Each player keeps a journal on their phone: what their character wants (goals they tick off when they happen), a backstory, and private notes stamped with the chapter. It sits beside the sheet on the **Character** tab (**Sheet | Journal**), or gets its own **Journal** tab when the sheet is off. It starts as three small invitations and a part only takes room once there's something in it; on the boat, a player's Arrival line can start their backstory.
+
+- **Private to the player and the DM.** The phone says so at the top. No other phone and never the TV (tests in `tests/journal.test.ts`).
+- **The DM** reads it in the player's drawer on **Players**, and can jot a **hook idea** under any goal. Hook ideas are DM-only: they never reach the phone. **What the characters want** on the Players page lists every open goal at the table.
+- **Switch:** Features → Story → Personal journals (on in Standard and Everything, off in Minimal). Players can hide the tab themselves. Off hides; nothing is deleted.
+- Limits: 8 goals, 100 notes of up to 1,000 characters, a 4,000-character backstory. Code: `src/shared/journal.ts`, `src/client/player/Journal.tsx`, `src/client/dm/Journals.tsx`.
+
 ## Sound and the soundboard
 
 Sound plays from the TV. Every sound is made in the TV's browser with Web Audio (oscillators, filtered noise, plucked strings), so there are no audio files to download, host or license, and nothing is streamed from the server. The music is composed as it plays from a few rules (a key, a chord pattern, a rhythm), so it doesn't loop exactly. Code: `src/client/sound/` (engine, layers, one-shots), the catalog in `src/shared/sound.ts`.

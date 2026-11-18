@@ -23,6 +23,7 @@ import { Sheet, useConfirm } from "./Sheet";
 import { NAV_ICONS, PlayerNav, type Screen } from "./PlayerNav";
 import { DecisionBanners, MyRequests, RequestSheet, SendGold } from "./Requests";
 import { CharacterTab } from "./CharacterTab";
+import { Journal } from "./Journal";
 import { LastTime } from "./LastTime";
 import { MyRoomCard } from "./MyRoom";
 import { FEATURE, FEATURES, type FeatureId } from "@/shared/features";
@@ -134,6 +135,8 @@ function PlayerScreen({ view, online, send, ident, setIdent }: { view: PlayerVie
   const [youOpen, setYouOpen] = useState(false);
   const [diceOpen, setDiceOpen] = useState(false);
   const [looking, setLooking] = useState<string | null>(null);
+  /** The Character tab holds the sheet and the journal. */
+  const [charPart, setCharPart] = useState<"sheet" | "journal">("sheet");
   const wide = useWide();
   // During a session the phone opens on the Chronicle, so a note is one tap away.
   const [screenPick, setScreenPick] = useState<Screen>(view.map ? "map" : view.session ? "chronicle" : "purse");
@@ -149,12 +152,14 @@ function PlayerScreen({ view, online, send, ident, setIdent }: { view: PlayerVie
   const has = (id: FeatureId) => !offHere.has(id) && !(id === "jobs" && view.jobsLocked) && !(id === "gold" && view.goldLocked);
   // The Character tab (the sheet) and the Gold tab are separate; the sheet only when it's on for me.
   const sheetsOn = !view.me.sheetOff && has("sheets");
+  // The journal sits beside the sheet on the Character tab, or has its own tab when there's no sheet.
+  const journalOn = has("journal");
   const open: Screen[] = [
     ...(view.fight ? (["fight"] as const) : []),
     ...(has("chronicle") ? (["chronicle"] as const) : []),
     ...(has("discover") ? (["discovery"] as const) : []),
     ...(hasMaps && has("maps") ? (["map"] as const) : []),
-    ...(sheetsOn ? (["sheet"] as const) : []),
+    ...(sheetsOn ? (["sheet"] as const) : journalOn ? (["journal"] as const) : []),
     ...(has("gold") ? (["purse"] as const) : []),
     ...(has("jobs") ? (["jobs"] as const) : []),
   ];
@@ -213,8 +218,24 @@ function PlayerScreen({ view, online, send, ident, setIdent }: { view: PlayerVie
     jobsCount: view.jobs.filter((j) => j.canTake && !j.asked).length,
     voteOpen: !!view.leads.vote && !view.leads.vote.closed && !view.leads.vote.mine,
     sheetOff: !sheetsOn,
+    journal: journalOn,
     has,
   };
+
+  const characterPage = (
+    <>
+      {journalOn ? (
+        <div className="pl-seg jr-seg" role="tablist" aria-label="Your character">
+          {(["sheet", "journal"] as const).map((x) => (
+            <button key={x} type="button" role="tab" aria-selected={charPart === x} className={charPart === x ? "on" : undefined} onClick={() => setCharPart(x)}>
+              {x === "sheet" ? "Sheet" : "Journal"}
+            </button>
+          ))}
+        </div>
+      ) : null}
+      {journalOn && charPart === "journal" ? <Journal view={view} send={send} /> : <CharacterTab view={view} send={send} onLink={() => setYouOpen(true)} />}
+    </>
+  );
 
   const goldPage = (
     <>
@@ -506,7 +527,8 @@ function PlayerScreen({ view, online, send, ident, setIdent }: { view: PlayerVie
       {screen === "chronicle" ? <Chronicle view={view.chronicle} gameName={view.game.name} send={send} /> : null}
       {screen === "jobs" ? <Jobs view={view} send={send} availableAt={availableAt} /> : null}
       {screen === "discovery" ? <Discovery view={view} send={send} seen={seen} /> : null}
-      {screen === "sheet" ? <CharacterTab view={view} send={send} onLink={() => setYouOpen(true)} /> : null}
+      {screen === "sheet" ? characterPage : null}
+      {screen === "journal" ? <Journal view={view} send={send} /> : null}
       {screen === "purse" ? goldPage : null}
       {noTabs ? <NoTabs dice={has("dice")} onDice={() => setDiceOpen(true)} /> : null}
 
@@ -622,7 +644,8 @@ function PlayerScreen({ view, online, send, ident, setIdent }: { view: PlayerVie
       {screen === "chronicle" ? <Chronicle view={view.chronicle} gameName={view.game.name} send={send} /> : null}
       {screen === "jobs" ? <Jobs view={view} send={send} availableAt={availableAt} /> : null}
       {screen === "discovery" ? <Discovery view={view} send={send} seen={seen} /> : null}
-      {screen === "sheet" ? <CharacterTab view={view} send={send} onLink={() => setYouOpen(true)} /> : null}
+      {screen === "sheet" ? characterPage : null}
+      {screen === "journal" ? <Journal view={view} send={send} /> : null}
       {screen === "purse" ? goldPage : null}
       {noTabs ? <NoTabs dice={has("dice")} onDice={() => setDiceOpen(true)} /> : null}
 
@@ -932,7 +955,7 @@ function YourTabs({ view, send }: { view: PlayerView; send: (c: object) => Promi
     const next = show ? hidden.filter((x) => x !== id) : [...hidden, id];
     setErr(await send({ type: "me.tabs", hidden: next }));
   };
-  const LABEL: Partial<Record<FeatureId, string>> = { chronicle: "Story", discover: "Discover", maps: "Map", jobs: "Jobs", renown: "Renown line", sheets: "Character sheet" };
+  const LABEL: Partial<Record<FeatureId, string>> = { chronicle: "Story", discover: "Discover", maps: "Map", jobs: "Jobs", renown: "Renown line", sheets: "Character sheet", journal: "Journal" };
   return (
     <section className="pl-your-tabs" aria-labelledby="pl-your-tabs-h">
       <h3 id="pl-your-tabs-h">Your tabs</h3>
@@ -966,6 +989,7 @@ const NEW_TAB_LINE: Partial<Record<Screen, string>> = {
   discovery: "New tab: Discover. Everything you find goes here.",
   map: "New tab: Map. You can open it on your phone now.",
   chronicle: "New tab: Story.",
+  journal: "New tab: Journal. Notes and goals just for you (and your DM).",
 };
 
 /** A tab that wasn't there a moment ago: say so, once. Not on first load, and not for the fight screen. */

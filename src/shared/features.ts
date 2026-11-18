@@ -14,6 +14,7 @@ export const FEATURE_IDS = [
   "combat",
   "sheets",
   "chronicle",
+  "journal",
   "gold",
   "shops",
   "maps",
@@ -85,6 +86,7 @@ export const FEATURES: FeatureDef[] = [
   // Story
   { id: "chronicle", name: "Chronicle", blurb: "The shared story notes: the phone's Story tab.", group: "story", shows: ["dm", "phone"], playerHide: true, from: "minimal" },
   { id: "arrival", name: "Arrival intro", blurb: "The intro link players open before the first session, and seat claiming.", group: "story", shows: ["dm", "tv", "phone"], from: "standard" },
+  { id: "journal", name: "Personal journals", blurb: "Each player keeps their character's goals, backstory and private notes on their phone. Only they and you can read it.", group: "story", shows: ["dm", "phone"], playerHide: true, from: "standard" },
   { id: "invites", name: "Session invites", blurb: "One link for a session; the first players to claim it get a seat.", group: "story", shows: ["dm"], from: "everything" },
   // DM-only tools: they only tidy your sidebar.
   { id: "storyboard", name: "Storyboard", blurb: "Threads, beats and planned dates.", group: "dm", shows: ["dm"], from: "everything" },
@@ -258,6 +260,7 @@ const PLAYER_NEEDS: Record<string, FeatureId> = {
   "me.noteUpdate": "chronicle",
   "me.noteRemove": "chronicle",
   "me.tokenMove": "maps",
+  "me.journal": "journal",
   "me.sheet": "sheets",
   "me.sheetRoll": "sheets",
   "me.sheetAct": "sheets",

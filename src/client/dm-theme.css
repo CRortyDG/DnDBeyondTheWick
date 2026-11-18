@@ -5740,3 +5740,107 @@ html[data-view="dm"] .basic-monsters label.basic-mon input {
   align-items: center;
   gap: 8px;
 }
+
+/* Players → a player's journal (drawer), and "What the characters want". */
+:where(html[data-view="dm"]) .jr-dm {
+  margin: var(--dm-s4) 0;
+  display: grid;
+  gap: var(--dm-s2);
+}
+:where(html[data-view="dm"]) .jr-dm h3,
+:where(html[data-view="dm"]) .jr-dm h4,
+:where(html[data-view="dm"]) .jr-dm p {
+  margin: 0;
+}
+:where(html[data-view="dm"]) .jr-dm h4 {
+  margin-top: var(--dm-s2);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--dm-text-3);
+}
+:where(html[data-view="dm"]) .jr-dm-goals,
+:where(html[data-view="dm"]) .jr-dm-notes {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 4px;
+}
+:where(html[data-view="dm"]) .jr-dm-goal,
+:where(html[data-view="dm"]) .jr-dm-notes li {
+  padding: 8px var(--dm-s3);
+  border-radius: var(--dm-r-sm);
+  background: var(--dm-bg-0);
+  font-size: 13.5px;
+}
+:where(html[data-view="dm"]) .jr-dm-goal-top {
+  display: flex;
+  align-items: center;
+  gap: var(--dm-s3);
+  justify-content: space-between;
+}
+:where(html[data-view="dm"]) .jr-dm-goal-text {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+:where(html[data-view="dm"]) .jr-dm-goal.done .jr-dm-goal-text {
+  color: var(--dm-text-3);
+}
+:where(html[data-view="dm"]) .jr-dm-hook {
+  margin: 6px 0 0;
+  padding-left: 10px;
+  border-left: 2px solid var(--dm-gold, #e3b65c);
+  color: var(--dm-text-2);
+}
+:where(html[data-view="dm"]) .jr-dm-hook-edit {
+  display: grid;
+  gap: 6px;
+  margin-top: 6px;
+}
+:where(html[data-view="dm"]) .jr-dm-hook-edit .fld {
+  width: 100%;
+  box-sizing: border-box;
+}
+:where(html[data-view="dm"]) .jr-dm-back,
+:where(html[data-view="dm"]) .jr-dm-note-text {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+:where(html[data-view="dm"]) .jr-dm-back {
+  padding: 10px var(--dm-s3);
+  border-radius: var(--dm-r-sm);
+  background: var(--dm-bg-0);
+  font-size: 13.5px;
+  line-height: 1.5;
+  max-height: 16em;
+  overflow: auto;
+}
+:where(html[data-view="dm"]) .jr-goals-box ul {
+  list-style: none;
+  margin: var(--dm-s2) 0 0;
+  padding: 0;
+  display: grid;
+  gap: 2px;
+}
+:where(html[data-view="dm"]) .jr-goals-box .row-main {
+  display: grid;
+  gap: 2px;
+  width: 100%;
+  text-align: left;
+  padding: 8px var(--dm-s3);
+  border: 0;
+  border-radius: var(--dm-r-sm);
+  background: var(--dm-bg-0);
+  color: inherit;
+  cursor: pointer;
+}
+:where(html[data-view="dm"]) .jr-goals-box .row-sub {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+}
+:where(html[data-view="dm"]) .jr-goals-box-goal .tag {
+  margin-left: 6px;
+}
