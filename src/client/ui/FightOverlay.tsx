@@ -5,6 +5,7 @@
 // moments. It sits over the live scene's art, dimmed. Everything here comes
 // from the filtered fight view: no monster numbers, real names or hidden foes.
 
+import { PixelLook } from "./PixelLook";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { HEALTH_LABEL, type FightView, type PublicCombatant } from "@/shared/combat";
 import { artSrc } from "./SceneView";
@@ -236,6 +237,7 @@ function Health({ c, small }: { c: PublicCombatant; small?: boolean }) {
 function Badge({ c, size }: { c: PublicCombatant; size: "sm" | "md" | "lg" }) {
   const src = c.art ? artSrc(c.art) : undefined;
   if (src) return <img className={`fv-badge ${size}`} src={src} alt="" />;
+  if (c.look) return <PixelLook look={c.look} face className={`fv-badge ${size} fv-look`} />;
   if (c.kind === "player" || c.kind === "companion") {
     return (
       <span className={`fv-badge ${size} player${c.kind === "companion" ? " companion" : ""}`} aria-hidden="true">

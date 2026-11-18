@@ -8,6 +8,8 @@ import { STARTERS } from "@/shared/starters";
 import { CharacterSheetView } from "../ui/CharacterSheet";
 import { LevelUpCard, SheetBuilder } from "../ui/SheetBuilder";
 import { MyHp } from "./FightCard";
+import { LookEditor } from "../ui/LookEditor";
+import { PixelLook } from "../ui/PixelLook";
 
 /**
  * The Character tab: the sheet. Gold and shops have their own tab. A player who
@@ -42,6 +44,7 @@ export function CharacterTab({
   if (building) return <SheetBuilder level={me.level} starter={me.starter} replacing={!!me.sheet} send={send} onClose={() => setBuilding(false)} />;
   return (
     <>
+      <LookCard view={view} send={send} />
       {me.sheet ? (
         <section className="pl-sheet" aria-label="Character sheet">
           <LevelUpCard sheet={me.sheet} level={me.level} send={send} />
@@ -101,6 +104,43 @@ export function CharacterTab({
         <StartSheet view={view} send={send} onLink={onLink} onBuild={() => setBuilding(true)} />
       )}
     </>
+  );
+}
+
+/** My pixel-art look, and the button that opens the character maker. */
+export function LookCard({ view, send }: { view: PlayerView; send: (c: object) => Promise<string | null> }) {
+  const me = view.me;
+  const [open, setOpen] = useState(false);
+  const onOpen = () => setOpen(true);
+  return (
+    <section className="box look-card" aria-label="Your look">
+      {open ? (
+        <LookEditor
+          initial={me.look}
+          name={me.character || me.name}
+          title={me.look ? "Change your look" : "Make your look"}
+          onSave={(look) => send({ type: "me.look", look })}
+          onRemove={me.look ? () => send({ type: "me.look", look: null }) : undefined}
+          onClose={() => setOpen(false)}
+        />
+      ) : null}
+      {me.look ? (
+        <button type="button" className="look-card-pic" onClick={onOpen} aria-label="Change your look" style={{ all: "unset", cursor: "pointer" }}>
+          <PixelLook look={me.look} alt="" />
+        </button>
+      ) : (
+        <span className="look-card-blank" aria-hidden="true">
+          🧝
+        </span>
+      )}
+      <div className="look-card-text">
+        <h2>{me.look ? "Your look" : "Make your look"}</h2>
+        <p className="note">{me.look ? "Shown on your map token, the TV and the turn order." : "A little pixel-art you: pick hair, outfit, gear, even a pet. It shows on your map token and the TV."}</p>
+        <button type="button" className={`btn${me.look ? "" : " primary"}`} onClick={onOpen}>
+          {me.look ? "Change my look" : "Make my look"}
+        </button>
+      </div>
+    </section>
   );
 }
 

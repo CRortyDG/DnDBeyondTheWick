@@ -1,5 +1,7 @@
 "use client";
 
+import { LookEditor } from "../ui/LookEditor";
+import { PixelLook } from "../ui/PixelLook";
 import { RoomKey, RoomsBox, roomsOn } from "./Rooms";
 import { useState } from "react";
 import { formatCp } from "@/shared/money";
@@ -214,9 +216,13 @@ function PlayerRow({ p, onEdit, selected }: { p: DmPlayer; onEdit: () => void; s
   return (
     <li className={`scene-item list-row player-row${p.archived ? " archived" : ""}${p.away ? " away" : ""}${selected ? " selected" : ""}`}>
       <div className="scene-row">
-        <span className="pg-avatar" aria-hidden="true">
-          {p.name.trim().charAt(0).toUpperCase() || "?"}
-        </span>
+        {p.look ? (
+          <PixelLook look={p.look} face className="pg-avatar pg-look" />
+        ) : (
+          <span className="pg-avatar" aria-hidden="true">
+            {p.name.trim().charAt(0).toUpperCase() || "?"}
+          </span>
+        )}
         <button type="button" className="row-main" onClick={onEdit} title={`Edit ${p.name}`}>
           <span className="row-title">{p.name}</span>
           <span className="row-sub">{sub}</span>
@@ -281,12 +287,33 @@ function PlayerDrawer({ p, onClose }: { p: DmPlayer; onClose: () => void }) {
   const { view, run, toast } = useDm();
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [confirmSheet, setConfirmSheet] = useState(false);
+  const [styling, setStyling] = useState(false);
   const link = absoluteHref(view.state.id, p.handle);
   return (
     <Drawer wide={!!p.sheet && !p.sheetOff} title={p.name} subtitle={`${formatCp(p.balanceCp)} · ${seenText(p.lastSeenAt)}`} onClose={onClose}>
       <div className="form">
         <Field label="Name" value={p.name} onCommit={(v) => run({ type: "player.update", playerId: p.id, patch: { name: v } })} />
         <Field label="Character name" value={p.character ?? ""} placeholder="Signs their Chronicle notes" onCommit={(v) => run({ type: "player.update", playerId: p.id, patch: { character: v } })} />
+        <div className="pg-look-row">
+          {p.look ? <PixelLook look={p.look} className="pg-look-big" alt={`${p.character || p.name}'s look`} /> : null}
+          <div>
+            <span className="label">Look</span>
+            <p className="hint">{p.look ? "Their pixel-art character, on their token and the TV. Players usually make their own." : "No look yet. Players make one on their phone's Character tab, or you can make it for them."}</p>
+            <button type="button" className="btn small" onClick={() => setStyling(true)}>
+              {p.look ? "Change look" : "Make a look"}
+            </button>
+          </div>
+        </div>
+        {styling ? (
+          <LookEditor
+            initial={p.look}
+            name={p.character || p.name}
+            title={`${p.character || p.name}'s look`}
+            onSave={async (look) => ((await run({ type: "player.look", playerId: p.id, look })) ? null : "Couldn't save the look.")}
+            onRemove={p.look ? async () => ((await run({ type: "player.look", playerId: p.id, look: null })) ? null : "Couldn't remove it.") : undefined}
+            onClose={() => setStyling(false)}
+          />
+        ) : null}
         <Field
           label="Level"
           value={p.level ? String(p.level) : ""}

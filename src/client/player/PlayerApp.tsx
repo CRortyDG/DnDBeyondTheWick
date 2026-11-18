@@ -22,7 +22,7 @@ import { Maps } from "./PhoneMap";
 import { Sheet, useConfirm } from "./Sheet";
 import { NAV_ICONS, PlayerNav, type Screen } from "./PlayerNav";
 import { DecisionBanners, MyRequests, RequestSheet, SendGold } from "./Requests";
-import { CharacterTab } from "./CharacterTab";
+import { CharacterTab, LookCard } from "./CharacterTab";
 import { LastTime } from "./LastTime";
 import { MyRoomCard } from "./MyRoom";
 import { FEATURE, FEATURES, type FeatureId } from "@/shared/features";
@@ -414,6 +414,7 @@ function PlayerScreen({ view, online, send, ident, setIdent }: { view: PlayerVie
               Launch the VTT
             </a>
           ) : null}
+          {!sheetsOn ? <LookCard view={view} send={send} /> : null}
           <CharacterLink current={me.dndbUrl} onSave={async (url) => setMsg((await send({ type: "me.update", patch: { dndbUrl: url } })) ?? "Saved.")} />
           <p className="note gold-note">Your gold lives here, not on D&amp;D Beyond: keep D&amp;D Beyond&rsquo;s coins at 0. Anything you buy, add to your D&amp;D Beyond inventory yourself.</p>
           {me.locked ? (

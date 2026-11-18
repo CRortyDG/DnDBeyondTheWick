@@ -182,6 +182,8 @@ export interface Player {
   lastSeenAt?: number;
   /** Their character's name ("Brin Ashcombe"). Empty or missing: not chosen yet. Shared with the Chronicle. */
   character?: string;
+  /** Their pixel-art look (see look.ts): a tiny recipe, drawn on tokens, the TV and phones. Missing: none made yet. */
+  look?: import("./look").Look;
   /** The Arrival intro: their private link and how far they've got. */
   arrival?: PlayerArrival;
   /** Hit points for the table in combat mode (D&D Beyond stays the real sheet). Missing: not set yet. */
@@ -956,6 +958,8 @@ export interface Entry {
   review?: { at: number; sessionId: string | null; placeId?: string };
   /** Places: a room at an inn, with its key on the rack (see rooms.ts). Players see it once the room is found. */
   room?: RoomInfo;
+  /** DM-ONLY: the pixel-art recipe its picture was made from (look.ts), to edit it again. */
+  pixelLook?: import("./look").Look;
 }
 
 /** guest: rentable, two beds. good: the Good Room, earned. staff: on the rack but never rented. */
