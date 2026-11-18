@@ -1311,6 +1311,8 @@ export interface GameState {
   builderNotes?: string;
   /** Features the DM turned off for the whole table (see features.ts). Missing: every feature on. */
   featuresOff?: import("./features").FeatureId[];
+  /** Tabs that wait on phones until there's something in them (see UNLOCKABLE in features.ts). Missing: all show from the start. */
+  unlockAsFound?: import("./features").UnlockId[];
   /** DM-ONLY: where the party is now (one table). In a shared world each Party has its own. Read with hereOf(). */
   here?: Here;
   /** DM-ONLY: portable clues, per episode and in the campaign pool. Read with cluesOf(). */

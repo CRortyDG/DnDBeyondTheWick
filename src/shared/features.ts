@@ -167,11 +167,25 @@ export function hiddenOf(p: Pick<Player, "tabsHidden">): FeatureId[] {
 
 const featureId = z.enum(FEATURE_IDS);
 
+/**
+ * Tabs that can wait until there's something in them, so a new player's phone
+ * starts small and grows as they find things. Opt-in per campaign.
+ *   gold: until a shop is open to them (it stays once they've asked a shop for anything).
+ */
+export const UNLOCKABLE = ["gold"] as const satisfies readonly FeatureId[];
+export type UnlockId = (typeof UNLOCKABLE)[number];
+export const UNLOCK_LABEL: Record<UnlockId, string> = { gold: "Gold tab waits until a shop opens to them" };
+export function waitsToUnlock(g: Pick<GameState, "unlockAsFound">, id: UnlockId): boolean {
+  return !!g.unlockAsFound?.includes(id);
+}
+
 export const featureDmCommands = [
   /** The campaign's switches: every feature in off is off for the whole table. */
   z.object({ type: z.literal("features.set"), off: z.array(featureId).max(FEATURE_IDS.length) }),
   /** One per-player feature on or off for one player. */
   z.object({ type: z.literal("features.player"), playerId: z.string().min(1).max(64), feature: featureId, on: z.boolean() }),
+  /** A tab waits until there's something in it (on) or shows from the start (off). */
+  z.object({ type: z.literal("features.unlock"), feature: z.enum(UNLOCKABLE), on: z.boolean() }),
 ] as const;
 
 export const featurePlayerCommands = [
@@ -210,6 +224,14 @@ export function applyFeatures(s: GameState, cmd: FeatureCommand, h: { actor: { r
       else set.add(cmd.feature);
       if (set.size) p.featuresOff = FEATURE_IDS.filter((id) => set.has(id));
       else delete p.featuresOff;
+      return;
+    }
+    case "features.unlock": {
+      const set = new Set(s.unlockAsFound ?? []);
+      if (cmd.on) set.add(cmd.feature);
+      else set.delete(cmd.feature);
+      if (set.size) s.unlockAsFound = UNLOCKABLE.filter((id) => set.has(id));
+      else delete s.unlockAsFound;
       return;
     }
     case "me.tabs": {

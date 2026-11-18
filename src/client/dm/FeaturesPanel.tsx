@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import { FEATURE, FEATURES, featureOn, featuresOffOf, GROUP_LABEL, playerOff, PRESETS, presetOf, presetOff, type FeatureDef, type FeatureGroup, type FeatureId, type PresetId } from "@/shared/features";
+import { FEATURE, FEATURES, featureOn, featuresOffOf, UNLOCK_LABEL, waitsToUnlock, GROUP_LABEL, playerOff, PRESETS, presetOf, presetOff, type FeatureDef, type FeatureGroup, type FeatureId, type PresetId } from "@/shared/features";
 import type { DmCommand } from "@/shared/commands";
 import { useDm } from "./context";
 import { PageHead } from "./PageHead";
@@ -192,6 +192,7 @@ function SubOptions({ id }: { id: FeatureId }) {
     opts.push({ key: "progress", label: "Players see progress to the next rank", on: !!s.renownProgress, set: (v) => run({ type: "renown.progress", on: v }) });
   }
   if (id === "discover") opts.push({ key: "totals", label: "Counters show how much is left to find", on: !!s.discoveryTotals, set: (v) => run({ type: "discovery.totals", on: v }) });
+  if (id === "gold") opts.push({ key: "unlock-gold", label: UNLOCK_LABEL.gold, on: waitsToUnlock(s, "gold"), set: (v) => run({ type: "features.unlock", feature: "gold", on: v }, v ? "New players won't see Gold until a shop opens to them." : "Gold shows from the start.") });
   if (id === "sound") opts.push({ key: "auto", label: "Moments bring their own sounds (dice, fights, rank-ups)", on: !s.sound?.autoOff, set: (v) => run({ type: "sound.set", auto: v }) });
   if (!opts.length) return null;
   return (
