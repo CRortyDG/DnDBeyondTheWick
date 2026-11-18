@@ -477,6 +477,37 @@ describe("places, shops and monsters", () => {
     dm({ type: "fight.patch", combatantIds: [m.id], patch: { revealed: true } });
     expect(ent(e.id).stage).toBe("found");
     expect(g.entries!.filter((x) => x.templateId === tpl.id)).toHaveLength(1);
+    // Ended without a win: still just encountered.
+    dm({ type: "fight.end" });
+    expect(ent(e.id).stage).toBe("found");
+    dm({ type: "fight.close" });
+  });
+
+  it("winning a fight with a monster's name revealed makes it Known; unrevealed stays a rumor", () => {
+    const tpl = g.monsters![0];
+    const fight = (reveal: boolean) => {
+      dm({ type: "fight.start", groups: [{ templateId: tpl.id, count: 1 }] });
+      for (const c of g.fight!.order) dm({ type: "fight.init", combatantId: c.id, init: 10, bonus: 0 });
+      dm({ type: "fight.begin" });
+      const m = g.fight!.order.find((c) => c.kind === "monster")!;
+      if (reveal) dm({ type: "fight.patch", combatantIds: [m.id], patch: { revealed: true } });
+      dm({ type: "fight.hp", combatantIds: [m.id], mode: "damage", amount: 999 });
+      dm({ type: "fight.end" });
+      expect(g.fight!.outcome).toBe("won");
+      dm({ type: "fight.close" });
+    };
+    // Won, but they never learned its name: a rumor, no spoiler.
+    fight(false);
+    const e = g.entries!.find((x) => x.templateId === tpl.id)!;
+    expect(e.stage).toBe("rumored");
+    expect(phoneJson()).not.toContain(tpl.name);
+    // Won with its name out: Known.
+    fight(true);
+    expect(ent(e.id).stage).toBe("known");
+    expect(pub(e.id)!.name).toBe(tpl.name);
+    // A DM-set stage is never lowered by a later fight.
+    fight(false);
+    expect(ent(e.id).stage).toBe("known");
   });
 });
 

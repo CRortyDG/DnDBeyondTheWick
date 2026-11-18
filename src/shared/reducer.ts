@@ -1502,7 +1502,9 @@ function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
     if (pin.discovered && !isFound(e.stage)) setStage(e, "found", false);
     else syncOut(e, e.stage);
   };
-  /** Monsters the party fought: a rumor under the TV name, or encountered once revealed. create: make entries for new ones (at the end of a fight). */
+  /** Monsters the party fought: a rumor under the TV name, or encountered once revealed.
+   * create: at the end of a fight, making entries for new ones. A won fight with the
+   * name revealed makes the monster Known (never lowers a stage). */
   const noteMonsters = (create: boolean) => {
     const f = s.fight;
     if (!f) return;
@@ -1521,7 +1523,8 @@ function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
         e = blankEntry(list, nextId("e"), "monster", t.name, { nickname: t.displayName.trim(), templateId: tid });
         list.push(e);
       }
-      if (revealed) setStage(e, isFound(e.stage) ? e.stage : "found", false);
+      if (revealed && create && f.outcome === "won") setStage(e, "known", false);
+      else if (revealed) setStage(e, isFound(e.stage) ? e.stage : "found", false);
       else if (create && e.stage === "hidden") setStage(e, "rumored", false);
     }
   };
