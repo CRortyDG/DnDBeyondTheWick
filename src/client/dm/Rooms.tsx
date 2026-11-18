@@ -9,7 +9,8 @@ import { cpToGpInput, formatCp, parseAmount } from "@/shared/money";
 import { ranksOf, rankName } from "@/shared/renown";
 import { featureOn } from "@/shared/features";
 import { rollTable, tablesOf } from "@/shared/tables";
-import { bedsOf, behindOnRent, goodRoomLock, HOOKS, registerOf, rentFor, ROOM_TYPES, roomRentalOf, roomSettings, roomsOf, startPerks, suggestMoment, tenancies, type RoomEntry } from "@/shared/rooms";
+import { bedsOf, behindOnRent, goodRoomLock, HOOKS, registerOf, rentFor, ROOM_TYPES, roomRentalOf, roomSettings, roomsOf, startPerks, suggestMoment, tenancies, type RegisterLine, type RoomEntry } from "@/shared/rooms";
+import { ask } from "./ask";
 import { useDm } from "./context";
 import { Field } from "./Field";
 import { Check } from "./Check";
@@ -287,30 +288,128 @@ export function RoomsBox() {
         )}
       </div>
       <p className="note">{set.good.mode === "renown" ? `Locked until a character reaches ${rankName(set.good.rank, s)}${s.world ? " (their own Renown)" : ""}, then the normal rent.` : "Anyone who'll pay can have it."} Moving in frees their old bed.</p>
-      <h4>The register</h4>
-      <p className="note">Every check-in, newest first. Only you see it.</p>
-      <ol className="rooms-register">
-        {register.slice(0, 30).map((x, i) => (
-          <li key={i}>
-            {new Date(x.at).toLocaleDateString()} · <b>{x.who}</b> · {x.room}
-            {x.active ? "" : x.endedAt ? ` (left ${new Date(x.endedAt).toLocaleDateString()})` : " (left)"}
-          </li>
-        ))}
-        {set.register.map((line, i) => (
-          <li key={`old${i}`} className="old">
-            {line}
-          </li>
-        ))}
-        {!register.length && !set.register.length ? <li className="note">Nobody has checked in yet.</li> : null}
-      </ol>
-      <Field
-        label="Older register lines (one per line, written in by hand)"
-        multiline
-        value={set.register.join("\n")}
-        placeholder="Last Nightal · a guest who left no name, only a broken-ring mark · The Good Room"
-        onCommit={(v) => run({ type: "rooms.settings", patch: { register: v.split("\n") } })}
-      />
+      <Register register={register} handLines={set.register} />
     </section>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// The register: every stay, each one fixable or struck out
+
+/** A timestamp as a date input's value, in local time. */
+const dayOf = (t: number) => {
+  const d = new Date(t);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+};
+/** A date input's value back to a timestamp, keeping the original time of day. */
+const atDay = (v: string, keep: number) => {
+  const [y, m, d] = v.split("-").map(Number);
+  const t = new Date(keep);
+  t.setFullYear(y, m - 1, d);
+  return t.getTime();
+};
+
+function Register({ register, handLines }: { register: RegisterLine[]; handLines: string[] }) {
+  const { view, run } = useDm();
+  const s = view.state;
+  const [open, setOpen] = useState<string | null>(null);
+  const [all, setAll] = useState(false);
+  const [add, setAdd] = useState("");
+  const shown = all ? register : register.slice(0, 30);
+  const setLines = (lines: string[]) => run({ type: "rooms.settings", patch: { register: lines } });
+  const strike = async (x: RegisterLine) => {
+    const ok = await ask(
+      x.active ? `Delete ${x.who}'s stay in ${x.room}?` : `Delete this line from the register?`,
+      { detail: x.active ? "They won't have the room any more, and it won't count as their first stay. Gold they already paid stays paid." : `${x.who}, ${x.room}, from ${new Date(x.at).toLocaleDateString()}.` },
+    );
+    if (ok) {
+      run({ type: "room.stay.delete", rentalId: x.rentalId });
+      setOpen(null);
+    }
+  };
+  return (
+    <>
+      <h4>The register</h4>
+      <p className="note">Every stay, newest first. Only you see it. Tap a line to fix it or delete it.</p>
+      <ol className="rooms-register">
+        {shown.map((x) => (
+          <li key={x.rentalId} className={open === x.rentalId ? "open" : ""}>
+            <button type="button" className="rooms-register-line" aria-expanded={open === x.rentalId} onClick={() => setOpen(open === x.rentalId ? null : x.rentalId)}>
+              {new Date(x.at).toLocaleDateString()} · <b>{x.who}</b> · {x.room}
+              {x.active ? " (here now)" : x.endedAt ? ` (left ${new Date(x.endedAt).toLocaleDateString()})` : " (left)"}
+            </button>
+            {open === x.rentalId ? (
+              <div className="rooms-register-edit">
+                {x.active ? (
+                  <p className="note">To move them, use the key rack. Checking out sets the day they left.</p>
+                ) : (
+                  <label>
+                    Room
+                    <select className="fld" value={x.roomId} onChange={(e) => run({ type: "room.stay.edit", rentalId: x.rentalId, patch: { roomId: e.target.value } })}>
+                      {roomsOf(s)
+                        .filter((r) => r.room.type !== "staff" || r.id === x.roomId)
+                        .map((r) => (
+                          <option key={r.id} value={r.id}>
+                            {r.room.hook}. {r.name}
+                          </option>
+                        ))}
+                    </select>
+                  </label>
+                )}
+                <label>
+                  Arrived
+                  <input className="fld" type="date" value={dayOf(x.at)} onChange={(e) => e.target.value && run({ type: "room.stay.edit", rentalId: x.rentalId, patch: { startedAt: atDay(e.target.value, x.at) } })} />
+                </label>
+                {x.active ? null : (
+                  <label>
+                    Left
+                    <input className="fld" type="date" value={x.endedAt ? dayOf(x.endedAt) : ""} onChange={(e) => e.target.value && run({ type: "room.stay.edit", rentalId: x.rentalId, patch: { endedAt: atDay(e.target.value, x.endedAt ?? x.at) } })} />
+                  </label>
+                )}
+                <button type="button" className="btn small danger" onClick={() => void strike(x)}>
+                  {x.active ? "Delete this stay" : "Delete line"}
+                </button>
+              </div>
+            ) : null}
+          </li>
+        ))}
+        {register.length > 30 && !all ? (
+          <li>
+            <button type="button" className="btn small" onClick={() => setAll(true)}>
+              Show all {register.length}
+            </button>
+          </li>
+        ) : null}
+        {!register.length && !handLines.length ? <li className="note">Nobody has checked in yet.</li> : null}
+      </ol>
+      <h4>Older lines, written in by hand</h4>
+      <ol className="rooms-register">
+        {handLines.map((line, i) => (
+          <li key={`${i}:${line}`} className="old inline">
+            <span className="grow">
+              <Field label={`Line ${i + 1}`} value={line} onCommit={(v) => setLines(v.trim() ? handLines.map((l, j) => (j === i ? v : l)) : handLines.filter((_, j) => j !== i))} />
+            </span>
+            <button type="button" className="btn small danger" aria-label={`Delete line ${i + 1}`} onClick={async () => { if (await ask("Delete this line from the register?", { detail: line })) setLines(handLines.filter((_, j) => j !== i)); }}>
+              Delete
+            </button>
+          </li>
+        ))}
+      </ol>
+      <form
+        className="inline"
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (!add.trim()) return;
+          setLines([...handLines, add]);
+          setAdd("");
+        }}
+      >
+        <input className="fld grow" aria-label="Add an old register line" value={add} onChange={(e) => setAdd(e.target.value)} placeholder="Last Nightal · a guest who left no name, only a broken-ring mark · The Good Room" />
+        <button type="submit" className="btn small" disabled={!add.trim()}>
+          Add line
+        </button>
+      </form>
+    </>
   );
 }
 

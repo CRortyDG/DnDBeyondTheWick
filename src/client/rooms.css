@@ -340,3 +340,35 @@
 .run-attend-row {
   align-items: flex-end;
 }
+.rooms-register-line {
+  all: unset;
+  cursor: pointer;
+  display: block;
+  width: 100%;
+  padding: 2px 0;
+}
+.rooms-register-line:hover,
+.rooms-register-line:focus-visible {
+  text-decoration: underline;
+}
+.rooms-register-edit {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  align-items: end;
+  padding: 8px 10px;
+  margin: 4px 0 8px;
+  border: 1px solid color-mix(in srgb, currentColor 20%, transparent);
+  border-radius: 8px;
+}
+.rooms-register .old .fld {
+  font-style: italic;
+}
+.rooms-register-edit > .note {
+  flex-basis: 100%;
+  margin: 0;
+}
+.rooms-register .old .btn {
+  font-style: normal;
+  align-self: end;
+}

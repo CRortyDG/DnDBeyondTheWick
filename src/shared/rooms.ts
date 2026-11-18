@@ -132,13 +132,24 @@ export function startPerks(g: Pick<GameState, "players" | "rentals" | "entries">
 }
 
 /** The register: every check-in, newest first. DM-ONLY. */
-export function registerOf(g: Pick<GameState, "rentals" | "players" | "entries">): { at: number; endedAt?: number; who: string; room: string; active: boolean }[] {
+export interface RegisterLine {
+  rentalId: string;
+  playerId: string;
+  roomId: string;
+  at: number;
+  endedAt?: number;
+  who: string;
+  room: string;
+  active: boolean;
+}
+
+export function registerOf(g: Pick<GameState, "rentals" | "players" | "entries">): RegisterLine[] {
   const names = new Map(roomsOf(g).map((e) => [e.id, e.name]));
   return g.rentals
     .filter((r) => r.roomId)
     .map((r) => {
       const p = g.players.find((x) => x.id === r.playerId);
-      return { at: r.startedAt, ...(r.endedAt ? { endedAt: r.endedAt } : {}), who: p ? p.character?.trim() || p.name : "someone", room: names.get(r.roomId!) ?? r.itemName, active: r.active };
+      return { rentalId: r.id, playerId: r.playerId, roomId: r.roomId!, at: r.startedAt, ...(r.endedAt ? { endedAt: r.endedAt } : {}), who: p ? p.character?.trim() || p.name : "someone", room: names.get(r.roomId!) ?? r.itemName, active: r.active };
     })
     .sort((a, b) => b.at - a.at);
 }
@@ -275,6 +286,17 @@ export const roomDmCommands = [
       })
       .partial(),
   }),
+  /**
+   * Fix a line in the register: which room a past stay was in, and when it
+   * started and ended. A current stay's room is changed with room.assign.
+   */
+  z.object({
+    type: z.literal("room.stay.edit"),
+    rentalId: id,
+    patch: z.object({ roomId: id, startedAt: z.number().int().positive(), endedAt: z.number().int().positive() }).partial(),
+  }),
+  /** Strike a line from the register. A current stay is undone (they no longer have the room); gold already paid stays paid. */
+  z.object({ type: z.literal("room.stay.delete"), rentalId: id }),
   /** A "because of your room" moment happened (logs it for the rotation). */
   z.object({ type: z.literal("room.moment"), playerId: id, note: z.string().max(300).optional() }),
 ] as const;
@@ -388,6 +410,30 @@ export function applyRooms(s: GameState, cmd: RoomCommand, h: RoomHelpers): void
         register: p.register ? p.register.map((x) => x.trim()).filter(Boolean) : cur.register,
       };
       s.rooms = next;
+      return;
+    }
+    case "room.stay.edit": {
+      const r = s.rentals.find((x) => x.id === cmd.rentalId && x.roomId) ?? h.fail("That stay isn't in the register any more.");
+      const p = cmd.patch;
+      if (p.roomId !== undefined && p.roomId !== r.roomId) {
+        if (r.active) h.fail("They're still in that room. Move them with the key rack instead.");
+        const room = roomsOf(s).find((e) => e.id === p.roomId) ?? h.fail("That room isn't there any more.");
+        r.roomId = room.id;
+        r.itemName = room.name;
+      }
+      const start = p.startedAt ?? r.startedAt;
+      if (p.endedAt !== undefined && r.active) h.fail("They haven't left yet. Check them out first.");
+      const end = p.endedAt ?? r.endedAt;
+      if (end !== undefined && end < start) h.fail("They can't leave before they arrived.");
+      r.startedAt = start;
+      if (end !== undefined) r.endedAt = end;
+      return;
+    }
+    case "room.stay.delete": {
+      const r = s.rentals.find((x) => x.id === cmd.rentalId && x.roomId) ?? h.fail("That stay isn't in the register any more.");
+      s.rentals = s.rentals.filter((x) => x !== r);
+      const p = s.players.find((x) => x.id === r.playerId);
+      h.info(r.active ? `${charName(p)} no longer has ${r.itemName}. Gold already paid stays paid.` : `Struck from the register: ${charName(p)}, ${r.itemName}.`);
       return;
     }
     case "room.moment": {
