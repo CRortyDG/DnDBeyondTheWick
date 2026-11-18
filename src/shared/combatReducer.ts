@@ -573,7 +573,9 @@ function applyFightCore(s: GameState, cmd: FightCommand, h: FightHelpers): void 
       const f = fight();
       const c = who(f, cmd.combatantId);
       if (c.kind === "monster") fail("Only players and companions make death saves.");
+      const okBefore = c.deathSaves?.ok ?? 0;
       markDeathSave(c, playerOf(c), cmd.mark);
+      markSave(f, c, cmd.mark, okBefore);
       if (c.kind === "companion" && c.deathSaves && c.deathSaves.fail >= 3) fate(c, "dies");
       break;
     }
@@ -581,7 +583,9 @@ function applyFightCore(s: GameState, cmd: FightCommand, h: FightHelpers): void 
       const { c } = myCombatant();
       const p = h.player(h.actorPlayerId!);
       if (playerHp(p).cur > 0) fail("You're not at 0 HP.");
+      const okBefore = c.deathSaves?.ok ?? 0;
       markDeathSave(c, p, cmd.mark);
+      markSave(s.fight!, c, cmd.mark, okBefore);
       break;
     }
     case "me.initiative": {
@@ -833,6 +837,16 @@ function applyFightCore(s: GameState, cmd: FightCommand, h: FightHelpers): void 
         items,
         ...(noteId ? { noteId } : {}),
         foes: f.order.filter((c) => c.kind === "monster").map(foeSetup),
+        ...(f.outcome ? { outcome: f.outcome } : {}),
+        ...(() => {
+          // Keepsake moments: who went down (once each), plus the death-save marks from the fight.
+          const marks = [...(f.marks ?? [])];
+          for (const id of f.downed) {
+            const c = f.order.find((x) => x.id === id);
+            if (c?.kind === "player" && c.playerId && !marks.some((m) => m.kind === "downed" && m.playerId === c.playerId)) marks.push({ kind: "downed", playerId: c.playerId });
+          }
+          return marks.length ? { marks } : {};
+        })(),
         ...(s.scenes.find((x) => x.id === s.live.sceneId)?.kind === "map" ? { mapSceneId: s.live.sceneId } : {}),
       });
       if (hist.length > FIGHTS_KEPT) s.fights = hist.slice(-FIGHTS_KEPT);
@@ -988,3 +1002,12 @@ export function chronicleLine(f: Fight, items = "", lootCp = 0): string {
 }
 
 export { currentOf, condLabel };
+
+/** Keep the death-save moments a keepsake could come from (players only, once each per fight). */
+function markSave(f: Fight, c: Combatant, mark: string, okBefore: number): void {
+  if (c.kind !== "player" || !c.playerId) return;
+  const kind = mark === "nat20" ? "save20" : mark === "ok" && okBefore < 3 && (c.deathSaves?.ok ?? 0) >= 3 ? "stable" : null;
+  if (!kind) return;
+  const marks = (f.marks ??= []);
+  if (!marks.some((m) => m.kind === kind && m.playerId === c.playerId)) marks.push({ kind, playerId: c.playerId });
+}

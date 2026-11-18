@@ -103,6 +103,7 @@ export function presetSetup(g: GameState): GameState {
   for (const sc of s.scenes) if (sc.map?.tokens) sc.map.tokens = sc.map.tokens.filter((t) => !t.playerId && !t.combatantId);
   delete s.fight;
   delete s.fights;
+  delete s.keepsakes;
   delete s.recent;
   delete s.vttUrl;
   // The Arrival's words and intro travel with the preset; whether seats were locked doesn't.

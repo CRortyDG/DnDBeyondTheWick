@@ -5740,3 +5740,112 @@ html[data-view="dm"] .basic-monsters label.basic-mon input {
   align-items: center;
   gap: 8px;
 }
+
+/* Keepsakes: the DM's give form, lists and "Tonight's keepsakes". */
+:where(html[data-view="dm"]) .ks-tonight,
+:where(html[data-view="dm"]) .ks-form {
+  display: grid;
+  gap: var(--dm-s3);
+}
+:where(html[data-view="dm"]) .ks-form {
+  padding: var(--dm-s3);
+  border: 1px solid var(--dm-gold-line);
+  border-radius: var(--dm-r-md);
+  background: var(--dm-bg-1);
+}
+:where(html[data-view="dm"]) .ks-field {
+  display: grid;
+  gap: var(--dm-s1);
+  font-size: 13px;
+  color: var(--dm-text-2);
+}
+:where(html[data-view="dm"]) .ks-field .fld {
+  width: 100%;
+}
+:where(html[data-view="dm"]) .ks-who {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--dm-s2) var(--dm-s4);
+}
+:where(html[data-view="dm"]) .ks-who legend {
+  font-size: 13px;
+  color: var(--dm-text-2);
+  margin-bottom: var(--dm-s1);
+}
+:where(html[data-view="dm"]) .ks-who .check,
+:where(html[data-view="dm"]) .ks-inspire {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+}
+:where(html[data-view="dm"]) .ks-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--dm-s2);
+}
+:where(html[data-view="dm"]) .ks-row {
+  display: flex;
+  gap: var(--dm-s3);
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: var(--dm-s2) var(--dm-s3);
+  border-radius: var(--dm-r-sm);
+  background: var(--dm-bg-0);
+  border: 1px solid var(--dm-border);
+}
+:where(html[data-view="dm"]) .ks-row.ks-sugg {
+  border-style: dashed;
+  border-color: var(--dm-border-strong);
+}
+:where(html[data-view="dm"]) .ks-row-text {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+:where(html[data-view="dm"]) .ks-row-text b {
+  color: var(--dm-gold);
+}
+:where(html[data-view="dm"]) .ks-row-acts {
+  display: flex;
+  gap: var(--dm-s2);
+  flex-shrink: 0;
+}
+:where(html[data-view="dm"]) .ks-why {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+:where(html[data-view="dm"]) .ks-drawer {
+  margin: var(--dm-s4) 0;
+  display: grid;
+  gap: var(--dm-s2);
+}
+:where(html[data-view="dm"]) .ks-drawer h3 {
+  margin: 0;
+}
+:where(html[data-view="dm"]) .ks-drawer .ks-give,
+:where(html[data-view="dm"]) .ks-tonight .ks-give {
+  justify-self: start;
+}
+:where(html[data-view="dm"]) .ks-note {
+  margin-top: var(--dm-s2);
+}
+:where(html[data-view="dm"]) .ks-note .ks-give {
+  background: none;
+  border: 0;
+  padding: 0;
+  min-height: 0;
+  color: var(--dm-text-3);
+  text-decoration: underline;
+  font-size: 13px;
+}
+@media (max-width: 640px) {
+  :where(html[data-view="dm"]) .ks-row {
+    flex-direction: column;
+  }
+}

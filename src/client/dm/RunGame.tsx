@@ -18,6 +18,7 @@ import { BankPanel } from "./BankPanel";
 import { Inbox, isInboxOpen } from "./Inbox";
 import { Dues } from "./Dues";
 import { useLastTime } from "./LastTimeEditor";
+import { TonightsKeepsakes, useKeepsakesOn } from "./Keepsakes";
 import { useDm } from "./context";
 import { useAutosave } from "./useAutosave";
 import { LevelUpButton, LevelUpDialog } from "./LevelUp";
@@ -568,6 +569,7 @@ function EndStep({ session, episode, onBank, onEnded }: { session: Session; epis
   const { run } = useDm();
   const recap = useAutosave(session.recap ?? "", (text) => run({ type: "run.recap", sessionId: session.id, text }));
   const lastTime = useLastTime(session);
+  const keepsakesOn = useKeepsakesOn();
   const { view } = useDm();
   const tableNotes = view.chronicle.notes.filter((n) => n.chapterId === session.id).sort((a, b) => a.at - b.at);
   const notes = episode.beats.map((b, i) => ({ b, i, text: session.run?.notes[b.id] })).filter((x) => x.text?.trim());
@@ -599,6 +601,12 @@ function EndStep({ session, episode, onBank, onEnded }: { session: Session; epis
         <h2>Players&rsquo; recap card</h2>
         {lastTime.body}
       </section>
+      {keepsakesOn ? (
+        <section className="run-section">
+          <h2>Tonight&rsquo;s keepsakes</h2>
+          <TonightsKeepsakes session={session} />
+        </section>
+      ) : null}
       <section className="run-section">
         <h2>The table&rsquo;s notes</h2>
         {tableNotes.length ? (

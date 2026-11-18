@@ -28,6 +28,8 @@ import { levelLine } from "./levels";
 import { applyPractice, isPracticeCommand, trackPractice } from "./practice";
 import { applyCompanion, attachCompanion, companionsWith, companionTemplatesOf, endSessionCompanions, isCompanionCommand, rentalEnded } from "./companions";
 import { applyFeatures, checkFeature, featureOn, isFeatureCommand } from "./features";
+import { isKeepsakeCommand, keepsakeNoteText, keepsakesOf, KEEPSAKES_MAX, namesList } from "./keepsakes";
+import type { Keepsake } from "./types";
 import { ATTITUDE_LOG_MAX, attitudeSettings, bandInfo, bandLine, clampScore, jobPerson, offsetOf, partyScore, relationOf, scoreFor, syncBands } from "./attitude";
 import type { AttitudeShift, Relation } from "./types";
 import { applyRooms, cleanRoom, isRoomCommand, roomsOf } from "./rooms";
@@ -1847,6 +1849,60 @@ function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
 
   if (isFeatureCommand(cmd)) {
     applyFeatures(s, cmd, { actor: ctx.actor as { role: string; playerId?: string }, fail });
+    return out;
+  }
+
+  if (isKeepsakeCommand(cmd)) {
+    const c = cmd;
+    const ks = keepsakesOf(s);
+    const who = (ids: string[]) => {
+      const list = [...new Set(ids)].map((pid) => player(pid));
+      for (const p of list) if (p.archived) fail(`${p.name} has left the table.`);
+      return list;
+    };
+    const clean = (t: string) => cleanText(t).replace(/\s+/g, " ").trim();
+    const noteFor = (k: Keepsake) => {
+      const n = k.noteId ? (s.notes ?? []).find((x) => x.id === k.noteId) : undefined;
+      const text = keepsakeNoteText(k, who(k.playerIds).map(penName));
+      if (n) n.text = text;
+      else if ((s.notes ?? []).length < NOTES_MAX) {
+        const sid = k.sessionId ?? undefined;
+        k.noteId = addNote(DM_AUTHOR, "DM", text, ["keepsake"], sid).id;
+      }
+    };
+    if (c.type === "keepsake.give") {
+      if (ks.length >= KEEPSAKES_MAX) fail("That's a lot of keepsakes. Remove some old ones first.");
+      const list = who(c.playerIds);
+      const name = clean(c.name);
+      if (!name) fail("Give it a name first.");
+      const sessionId = c.sessionId ? session(c.sessionId).id : s.currentSessionId ?? null;
+      if (c.source && ks.some((k) => k.source === c.source)) fail("That one has already been given.");
+      const k: Keepsake = { id: nextId("ks"), playerIds: list.map((p) => p.id), name, line: clean(c.line), sessionId, at: ctx.now, ...(c.source ? { source: c.source } : {}) };
+      (s.keepsakes ??= []).push(k);
+      noteFor(k);
+      if (c.inspire) for (const p of list) p.inspired = true;
+      out.info = `${namesList(list.map(penName))} ${list.length === 1 ? "has" : "have"} a new keepsake${c.inspire ? " and Heroic Inspiration" : ""}.`;
+    } else if (c.type === "keepsake.edit") {
+      const k = ks.find((x) => x.id === c.keepsakeId) ?? fail("That keepsake isn't here.");
+      if (c.name !== undefined) {
+        const name = clean(c.name);
+        if (!name) fail("A keepsake needs a name.");
+        k.name = name;
+      }
+      if (c.line !== undefined) k.line = clean(c.line);
+      if (c.playerIds) k.playerIds = who(c.playerIds).map((p) => p.id);
+      noteFor(k);
+    } else if (c.type === "keepsake.remove") {
+      const k = ks.find((x) => x.id === c.keepsakeId) ?? fail("That keepsake isn't here.");
+      s.keepsakes = ks.filter((x) => x !== k);
+      if (!s.keepsakes.length) delete s.keepsakes;
+      if (k.noteId && s.notes) s.notes = s.notes.filter((n) => n.id !== k.noteId);
+    } else {
+      const sess = session(c.sessionId);
+      const skips = (sess.keepsakeSkips ??= []);
+      if (!skips.includes(c.source)) skips.push(c.source);
+      if (skips.length > 200) sess.keepsakeSkips = skips.slice(-200);
+    }
     return out;
   }
 

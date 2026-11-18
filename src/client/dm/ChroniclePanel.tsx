@@ -4,6 +4,7 @@ import { Chronicle } from "../ui/Chronicle";
 import { useDm } from "./context";
 import { PageHead } from "./PageHead";
 import { LastTimeChapter } from "./LastTimeEditor";
+import { GiveKeepsake } from "./Keepsakes";
 
 /** The DM's Chronicle: every note, with stars, hiding and the note-taker. */
 export function ChroniclePanel() {
@@ -34,6 +35,18 @@ export function ChroniclePanel() {
           const sess = view.state.sessions.find((x) => x.id === ch.id);
           return sess && sess.endedAt !== null ? <LastTimeChapter session={sess} /> : null;
         }}
+        noteExtra={(n) =>
+          n.tags.includes("keepsake") || n.hidden ? null : (
+            <div className="ks-note">
+              <GiveKeepsake
+                playerIds={view.state.players.some((p) => p.id === n.authorId && !p.archived) ? [n.authorId] : []}
+                line={n.text.slice(0, 240)}
+                sessionId={view.state.sessions.some((x) => x.id === n.chapterId) ? n.chapterId : undefined}
+                label="Give a keepsake for this"
+              />
+            </div>
+          )
+        }
       />
     </div>
   );

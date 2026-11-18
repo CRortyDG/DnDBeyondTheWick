@@ -24,7 +24,7 @@ const day = (ms: number) => new Date(ms).toLocaleDateString(undefined, { weekday
 const time = (ms: number) => new Date(ms).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
 const sameDay = (a: number, b: number) => new Date(a).toDateString() === new Date(b).toDateString();
 
-export function Chronicle({ view, gameName, send, chapterExtra }: { view: ChronicleView; gameName: string; send: Send; /** DM: more under a chapter's recap (the players' recap card). */ chapterExtra?: (c: ChronicleChapter) => ReactNode }) {
+export function Chronicle({ view, gameName, send, chapterExtra, noteExtra }: { view: ChronicleView; gameName: string; send: Send; /** DM: more under a chapter's recap (the players' recap card). */ chapterExtra?: (c: ChronicleChapter) => ReactNode; /** DM: more under a note (Give a keepsake). */ noteExtra?: (n: ChronicleNote) => ReactNode }) {
   const [order, setOrder] = useState<"newest" | "oldest">("newest");
   useEffect(() => setOrder(loadOrder()), []);
   const [q, setQ] = useState("");
@@ -155,6 +155,7 @@ export function Chronicle({ view, gameName, send, chapterExtra }: { view: Chroni
           onTag={pickTag}
           onCopy={() => void copy(c.id)}
           extra={chapterExtra?.(c)}
+          noteExtra={noteExtra}
           gameName={gameName}
         />
       ))}
@@ -334,9 +335,11 @@ function Chapter({
   onTag,
   onCopy,
   extra,
+  noteExtra,
   gameName,
 }: {
   extra?: ReactNode;
+  noteExtra?: (n: ChronicleNote) => ReactNode;
   gameName: string;
   chapter: ChronicleChapter;
   notes: ChronicleNote[];
@@ -395,7 +398,7 @@ function Chapter({
           {notes.length ? (
             <ol className="chron-notes">
               {notes.map((n) => (
-                <NoteLine key={n.id} note={n} chapter={c} view={view} send={send} onTag={onTag} />
+                <NoteLine key={n.id} note={n} chapter={c} view={view} send={send} onTag={onTag} extra={noteExtra?.(n)} />
               ))}
             </ol>
           ) : (
@@ -445,7 +448,7 @@ function Quill() {
   );
 }
 
-export function NoteLine({ note: n, chapter, view, send, onTag }: { note: ChronicleNote; chapter: ChronicleChapter; view: ChronicleView; send: Send; onTag: (t: string) => void }) {
+export function NoteLine({ note: n, chapter, view, send, onTag, extra }: { note: ChronicleNote; chapter: ChronicleChapter; view: ChronicleView; send: Send; onTag: (t: string) => void; extra?: ReactNode }) {
   const [editing, setEditing] = useState(false);
   const [confirmDel, setConfirmDel] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -533,6 +536,7 @@ export function NoteLine({ note: n, chapter, view, send, onTag }: { note: Chroni
           )}
         </div>
       ) : null}
+      {extra}
       {err ? <p className="note error-text">{err}</p> : null}
     </li>
   );

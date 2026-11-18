@@ -2715,3 +2715,91 @@ html[data-view="player"] {
   max-height: 60vh;
   overflow-y: auto;
 }
+
+/* Keepsakes: a small shelf of things the character carried away from real moments. */
+:where(html[data-view="player"]) .ks-shelf {
+  margin: var(--pl-s5) 0;
+  padding: var(--pl-s4);
+  border-radius: var(--pl-r-md);
+  background: var(--pl-bg-1);
+  border: 1px solid var(--pl-border);
+}
+:where(html[data-view="player"]) .ks-shelf-title {
+  margin: 0 0 var(--pl-s3);
+  font-family: var(--font-sc);
+  font-size: 20px;
+  color: var(--pl-gold);
+  font-weight: 400;
+}
+:where(html[data-view="player"]) .ks-items {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--pl-s2);
+}
+:where(html[data-view="player"]) .ks-item {
+  border-radius: var(--pl-r-sm);
+  background: var(--parchment);
+  color: var(--ink);
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.35);
+}
+:where(html[data-view="player"]) .ks-item-btn {
+  all: unset;
+  box-sizing: border-box;
+  width: 100%;
+  min-height: var(--pl-control);
+  display: flex;
+  align-items: center;
+  gap: var(--pl-s3);
+  padding: var(--pl-s2) var(--pl-s3);
+  cursor: pointer;
+  font-family: var(--font-body);
+  font-size: 18px;
+}
+:where(html[data-view="player"]) .ks-item-btn:focus-visible {
+  outline: 2px solid var(--pl-gold);
+  outline-offset: 2px;
+}
+:where(html[data-view="player"]) .ks-item-mark {
+  flex-shrink: 0;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--wax);
+  box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.15);
+}
+:where(html[data-view="player"]) .ks-item-body {
+  padding: 0 var(--pl-s3) var(--pl-s3) calc(var(--pl-s3) * 2 + 10px);
+}
+:where(html[data-view="player"]) .ks-item-line {
+  margin: 0;
+  font-family: var(--font-body);
+  font-style: italic;
+  font-size: 16px;
+  line-height: 1.35;
+}
+:where(html[data-view="player"]) .ks-item-meta {
+  margin: var(--pl-s1) 0 0;
+  font-family: var(--pl-font-ui);
+  font-size: 12px;
+  color: var(--ink-soft);
+}
+:where(html[data-view="player"]) .ks-empty {
+  margin: 0;
+  color: var(--pl-text-2);
+  font-size: 14px;
+}
+:where(html[data-view="player"]) .ks-party {
+  margin-top: var(--pl-s3);
+}
+:where(html[data-view="player"]) .ks-party summary {
+  cursor: pointer;
+  color: var(--pl-text-2);
+  font-size: 14px;
+  padding: var(--pl-s2) 0;
+}
+:where(html[data-view="player"]) .ks-count {
+  margin-left: 4px;
+  color: var(--pl-text-3);
+}

@@ -17,6 +17,7 @@ import { inviteDmCommands } from "./inviteSchema";
 import { sheetDmCommands, sheetPlayerCommands } from "./sheet";
 import { buildCommands } from "./sheetBuild";
 import { featureDmCommands, featurePlayerCommands } from "./features";
+import { keepsakeDmCommands } from "./keepsakes";
 import { offscriptDmCommands } from "./offscriptSchema";
 import { roomDmCommands, roomInfoSchema } from "./rooms";
 import { CLIP_URL_RE, CLIP_VIDEO_MAX, INTRO_STEPS_MAX, SLIDE_TEXT_MAX, SLIDES_MAX, WELCOME_MAX } from "./arrival";
@@ -682,6 +683,9 @@ export const dmCommand = z.discriminatedUnion("type", [
 
   // Feature switches.
   ...featureDmCommands,
+
+  // Keepsakes.
+  ...keepsakeDmCommands,
 
   // Rooms at the inn.
   ...roomDmCommands,

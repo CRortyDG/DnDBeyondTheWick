@@ -417,6 +417,7 @@ export function freshStart(g: GameState): GameState {
   s.jobs = (s.jobs ?? []).map(({ takenBy, takenAt, doneAt, paidCp, ...j }) => ({ ...j, status: "open" as const }));
   // The Chronicle starts again on an empty Chapter 1, and nobody has met anyone yet.
   s.notes = [];
+  delete s.keepsakes;
   for (const sc of s.scenes) delete sc.known;
   // Every entry back to where it starts, every fact locked again; what the DM wrote stays.
   delete s.discovery;

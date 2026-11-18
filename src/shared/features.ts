@@ -30,6 +30,7 @@ export const FEATURE_IDS = [
   "board",
   "companions",
   "invites",
+  "keepsakes",
   "storyboard",
   "tables",
   "offscript",
@@ -85,6 +86,7 @@ export const FEATURES: FeatureDef[] = [
   // Story
   { id: "chronicle", name: "Chronicle", blurb: "The shared story notes: the phone's Story tab.", group: "story", shows: ["dm", "phone"], playerHide: true, from: "minimal" },
   { id: "arrival", name: "Arrival intro", blurb: "The intro link players open before the first session, and seat claiming.", group: "story", shows: ["dm", "tv", "phone"], from: "standard" },
+  { id: "keepsakes", name: "Keepsakes", blurb: "Small mementos you give characters for real moments at the table, each with a line about what happened.", group: "story", shows: ["dm", "phone"], from: "standard" },
   { id: "invites", name: "Session invites", blurb: "One link for a session; the first players to claim it get a seat.", group: "story", shows: ["dm"], from: "everything" },
   // DM-only tools: they only tidy your sidebar.
   { id: "storyboard", name: "Storyboard", blurb: "Threads, beats and planned dates.", group: "dm", shows: ["dm"], from: "everything" },
@@ -276,6 +278,7 @@ const DM_NEEDS: Record<string, FeatureId> = {
   "fight.start": "combat",
   "vote.open": "leads",
   "room.assign": "rooms",
+  "keepsake.give": "keepsakes",
 };
 
 /** Throws (through fail) when a command needs a feature that is off for this actor. */

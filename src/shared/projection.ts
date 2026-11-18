@@ -3,6 +3,7 @@
 
 import { keyRack, myRoom, type KeyRackView, type MyRoom } from "./rooms";
 import { latestLastTime, type LastTimeCard } from "./lastTime";
+import { publicKeepsakes, type PublicKeepsake } from "./keepsakes";
 import { decodeBits, fogged, publicFog, type PublicFog } from "./fog";
 import { publicGrid, publicTokens, type PublicGrid, type PublicToken } from "./tokens";
 import { leadsView, type LeadsView } from "./leads";
@@ -441,6 +442,8 @@ export interface PlayerView extends Common {
   chronicle: ChronicleView;
   /** "Last time on…": the newest recap card the DM sent after a session ended. Missing: none sent. */
   lastTime?: LastTimeCard;
+  /** Keepsakes: mine and my party's, newest first. Empty while Keepsakes is off. */
+  keepsakes: PublicKeepsake[];
   /** The bounty board: pinned jobs. Empty while it's locked. */
   jobs: MyJob[];
   /** The party hasn't found the notice board yet: no Jobs tab. */
@@ -831,6 +834,7 @@ export function projectPlayer(table: GameState, version: number, playerId: strin
       .reverse()
       .map((l) => ({ id: l.id, at: l.at, amountCp: l.amountCp, note: l.note })),
     chronicle: projectChronicle(game, { dm: false, playerId: p.id }),
+    keepsakes: featureOn(game, "keepsakes") ? publicKeepsakes(table, p.id) : [],
     // The lensed game holds only this character's parties' sessions.
     ...(latestLastTime(game) ? { lastTime: latestLastTime(game)! } : {}),
     // The lensed game holds this character's own stage, so no playerId here.

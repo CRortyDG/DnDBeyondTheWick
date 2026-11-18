@@ -23,6 +23,7 @@ import { usePhone, useTablet } from "./tablet";
 import { FullScreenButton } from "./TabletBits";
 import "../ui/fight.css";
 import { sheetNumbers } from "@/shared/sheet";
+import { GiveKeepsake, useKeepsakesOn } from "./Keepsakes";
 
 type DmPlayer = Player & { hasKey: boolean };
 
@@ -991,6 +992,7 @@ function EndStep({ f, players, onDone }: { f: Fight; players: DmPlayer[]; onDone
   const [busy, setBusy] = useState(false);
   const rounds = f.round;
   const downed = f.downed.map((id) => f.order.find((c) => c.id === id)?.name).filter(Boolean);
+  const keepsakesOn = useKeepsakesOn();
 
   const finish = async (skip: boolean) => {
     setBusy(true);
@@ -1015,6 +1017,14 @@ function EndStep({ f, players, onDone }: { f: Fight; players: DmPlayer[]; onDone
           ‹ Back to the fight
         </button>
       </section>
+
+      {keepsakesOn ? (
+        <section className="box fx-keepsake" aria-label="Keepsake">
+          <h3>A moment worth keeping?</h3>
+          <p className="note">If something in this fight stood out, give a keepsake now. Otherwise the End session step suggests a few.</p>
+          <GiveKeepsake sessionId={f.sessionId ?? undefined} />
+        </section>
+      ) : null}
 
       <section className="box fx-loot" aria-label="Loot">
         <h3>Loot</h3>

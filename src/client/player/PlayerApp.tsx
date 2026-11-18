@@ -24,6 +24,7 @@ import { NAV_ICONS, PlayerNav, type Screen } from "./PlayerNav";
 import { DecisionBanners, MyRequests, RequestSheet, SendGold } from "./Requests";
 import { CharacterTab } from "./CharacterTab";
 import { LastTime } from "./LastTime";
+import { KeepsakeShelf, KeepsakeToast } from "./Keepsakes";
 import { MyRoomCard } from "./MyRoom";
 import { FEATURE, FEATURES, type FeatureId } from "@/shared/features";
 import { HERE_ASK_COOLDOWN_MS } from "@/shared/attendance";
@@ -500,10 +501,16 @@ function PlayerScreen({ view, online, send, ident, setIdent }: { view: PlayerVie
       <BannerToast banner={view.banner} className="phone-banner" />
       <BannerToast banner={newTab} className="phone-banner new-tab-banner" />
       <BannerToast banner={view.levelUp ? { id: `level-${view.levelUp.n}`, text: `You're level ${view.levelUp.level}!`, at: 0 } : null} className="phone-banner level-banner" />
+      <KeepsakeToast view={view} />
       {view.world?.news ? <BannerToast banner={{ id: `news-${view.world.news.n}`, text: view.world.news.text, at: 0 }} className="phone-banner world-news" /> : null}
       {screen === "fight" && f ? <FightCard view={view} send={send} /> : null}
       {screen === "map" && hasMaps ? <Maps view={view} send={send} /> : null}
-      {screen === "chronicle" ? <Chronicle view={view.chronicle} gameName={view.game.name} send={send} /> : null}
+      {screen === "chronicle" ? (
+        <>
+          {!sheetsOn ? <KeepsakeShelf view={view} /> : null}
+          <Chronicle view={view.chronicle} gameName={view.game.name} send={send} />
+        </>
+      ) : null}
       {screen === "jobs" ? <Jobs view={view} send={send} availableAt={availableAt} /> : null}
       {screen === "discovery" ? <Discovery view={view} send={send} seen={seen} /> : null}
       {screen === "sheet" ? <CharacterTab view={view} send={send} onLink={() => setYouOpen(true)} /> : null}
@@ -609,6 +616,7 @@ function PlayerScreen({ view, online, send, ident, setIdent }: { view: PlayerVie
       <BannerToast banner={view.banner} className="phone-banner" />
       <BannerToast banner={newTab} className="phone-banner new-tab-banner" />
       <BannerToast banner={view.levelUp ? { id: `level-${view.levelUp.n}`, text: `You're level ${view.levelUp.level}!`, at: 0 } : null} className="phone-banner level-banner" />
+      <KeepsakeToast view={view} />
       {view.world?.news ? <BannerToast banner={{ id: `news-${view.world.news.n}`, text: view.world.news.text, at: 0 }} className="phone-banner world-news" /> : null}
       <PlayerNav {...navProps} />
       {/* On your turn the fight screen's End button owns that corner. */}
@@ -619,7 +627,12 @@ function PlayerScreen({ view, online, send, ident, setIdent }: { view: PlayerVie
       ) : null}
       {screen === "fight" && f ? <FightCard view={view} send={send} /> : null}
       {screen === "map" && hasMaps ? <Maps view={view} send={send} /> : null}
-      {screen === "chronicle" ? <Chronicle view={view.chronicle} gameName={view.game.name} send={send} /> : null}
+      {screen === "chronicle" ? (
+        <>
+          {!sheetsOn ? <KeepsakeShelf view={view} /> : null}
+          <Chronicle view={view.chronicle} gameName={view.game.name} send={send} />
+        </>
+      ) : null}
       {screen === "jobs" ? <Jobs view={view} send={send} availableAt={availableAt} /> : null}
       {screen === "discovery" ? <Discovery view={view} send={send} seen={seen} /> : null}
       {screen === "sheet" ? <CharacterTab view={view} send={send} onLink={() => setYouOpen(true)} /> : null}

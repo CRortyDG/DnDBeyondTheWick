@@ -8,6 +8,7 @@ import { STARTERS } from "@/shared/starters";
 import { CharacterSheetView } from "../ui/CharacterSheet";
 import { LevelUpCard, SheetBuilder } from "../ui/SheetBuilder";
 import { MyHp } from "./FightCard";
+import { KeepsakeShelf } from "./Keepsakes";
 
 /**
  * The Character tab: the sheet. Gold and shops have their own tab. A player who
@@ -100,6 +101,7 @@ export function CharacterTab({
       ) : (
         <StartSheet view={view} send={send} onLink={onLink} onBuild={() => setBuilding(true)} />
       )}
+      <KeepsakeShelf view={view} />
     </>
   );
 }

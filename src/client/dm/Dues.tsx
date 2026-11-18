@@ -11,6 +11,7 @@ import { useDm } from "./context";
 import { downloadBackup } from "./backup";
 import { useAutosave } from "./useAutosave";
 import { useLastTime } from "./LastTimeEditor";
+import { TonightsKeepsakes, useKeepsakesOn } from "./Keepsakes";
 
 export function useDues(session: Session | undefined): Due[] {
   const { view } = useDm();
@@ -138,6 +139,7 @@ export function EndSessionDialog({ session, onClose }: { session: Session; onClo
   const due = useDues(session);
   const recap = useAutosave(session.recap ?? "", (text) => run({ type: "run.recap", sessionId: session.id, text }));
   const lastTime = useLastTime(session);
+  const keepsakesOn = useKeepsakesOn();
   const waiting = s.requests.filter((r) => r.status === "pending").length;
   const fight = s.fight;
   const [saved, setSaved] = useState(false);
@@ -187,6 +189,12 @@ export function EndSessionDialog({ session, onClose }: { session: Session; onClo
           <h3>Players&rsquo; recap card</h3>
           {lastTime.body}
         </section>
+        {keepsakesOn ? (
+          <section className="wrapup-step">
+            <h3>Tonight&rsquo;s keepsakes</h3>
+            <TonightsKeepsakes session={session} />
+          </section>
+        ) : null}
         <section className="wrapup-step">
           <h3>Backup</h3>
           <p className="note">Everything saves online by itself. A copy on this computer is still worth having.</p>

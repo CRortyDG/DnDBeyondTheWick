@@ -14,6 +14,7 @@ import { InspireToggle } from "./InspireToggle";
 import { PageHead } from "./PageHead";
 import { LevelUpButton } from "./LevelUp";
 import { Drawer } from "./Drawer";
+import { PlayerKeepsakes } from "./Keepsakes";
 import { MenuItem, RowMenu } from "./RowMenu";
 import { PlusIcon } from "./navIcons";
 import { CharacterSheetView } from "../ui/CharacterSheet";
@@ -332,6 +333,7 @@ function PlayerDrawer({ p, onClose }: { p: DmPlayer; onClose: () => void }) {
         </section>
       ) : null}
       <PlayerFeatures p={p} />
+      <PlayerKeepsakes playerId={p.id} />
       {featureOn(view.state, "sheets") ? (
       <section className="dm-sheet" aria-label="Character sheet">
         <h3>Character sheet</h3>

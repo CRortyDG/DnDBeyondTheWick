@@ -781,6 +781,29 @@ export interface Session {
   partyId?: string;
   /** The "Last time on…" card for players' devices: the DM's draft, and what was sent. */
   playerRecap?: PlayerRecap;
+  /** DM-ONLY: keepsake suggestions the DM passed on for this session (see keepsakes.ts). */
+  keepsakeSkips?: string[];
+}
+
+/**
+ * A keepsake: a small in-world object a character carried away from a moment at
+ * the table, with one line about it. The DM gives them; several characters can
+ * share one (a party keepsake).
+ */
+export interface Keepsake {
+  id: string;
+  playerIds: string[];
+  /** "Ogre's tooth, cracked". */
+  name: string;
+  /** "Felled the marsh ogre with one swing." */
+  line: string;
+  /** The chapter it came from. null: given between sessions. */
+  sessionId: string | null;
+  at: number;
+  /** DM-ONLY: the suggestion it came from ("save20:<fight>:<player>"), so it isn't suggested again. */
+  source?: string;
+  /** The Chronicle line it added. */
+  noteId?: string;
 }
 
 /** Players only ever get `sent`, and only once the session has ended. The draft is DM-only. */
@@ -1310,6 +1333,8 @@ export interface GameState {
   sound?: SoundState;
   /** The Arrival intro's settings. Missing on games made before it. */
   arrival?: ArrivalSettings;
+  /** Keepsakes the DM gave, oldest first. Read with keepsakesOf(). */
+  keepsakes?: Keepsake[];
   /** The Chronicle's notes, oldest first. Missing on games made before it; read with notesOf(). */
   notes?: Note[];
   /** Discovery entries (people, places, ...), in the DM's order. Missing on games made before it; read with entriesOf(). */
@@ -1714,6 +1739,14 @@ export interface Fight {
   downed: string[];
   /** Set when the fight ends: won (every foe down), fallen (every player at 0 HP), or ended (stopped with both sides standing). */
   outcome?: FightOutcome;
+  /** DM-ONLY: moments worth a keepsake (a natural 20 death save, three saves made). Copied to the summary. */
+  marks?: FightMark[];
+}
+
+/** A moment in a fight that might be worth a keepsake. downed: went to 0 HP. */
+export interface FightMark {
+  kind: "save20" | "stable" | "downed";
+  playerId: string;
 }
 
 export type FightOutcome = "won" | "fallen" | "ended";
@@ -1737,6 +1770,10 @@ export interface FightSummary {
   foes?: FoeSetup[];
   /** The map it was fought on, if it ended on one. Run again puts it back on the TV. */
   mapSceneId?: string;
+  /** How it ended. Missing on fights kept before keepsakes. */
+  outcome?: FightOutcome;
+  /** Moments worth a keepsake (see keepsakes.ts). */
+  marks?: FightMark[];
 }
 
 /** DM-ONLY: one foe of a past fight, enough to set the fight up again fresh. */
