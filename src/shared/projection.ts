@@ -6,7 +6,7 @@ import { decodeBits, fogged, publicFog, type PublicFog } from "./fog";
 import { publicGrid, publicTokens, type PublicGrid, type PublicToken } from "./tokens";
 import { leadsView, type LeadsView } from "./leads";
 import type { CharacterSheet } from "./sheet";
-import { effectiveOff, featureOn, FEATURES, hiddenOf, playerOff, type FeatureId } from "./features";
+import { effectiveOff, featureOn, FEATURES, hiddenOf, playerOff, waitsToUnlock, type FeatureId } from "./features";
 import { areaCounts, type AreaCount } from "./discovery";
 import { townOf } from "./presets";
 import { creditLines, discountPct, firstChargeCp, priceOf, raisedCp, stakeTotals } from "./progress";
@@ -442,6 +442,8 @@ export interface PlayerView extends Common {
   jobs: MyJob[];
   /** The party hasn't found the notice board yet: no Jobs tab. */
   jobsLocked?: true;
+  /** "Unlock as they go": no shop is open to me and no gold has come my way yet, so no Gold tab. */
+  goldLocked?: true;
   /** Discovery: rumored, found and known entries only; revealed facts only. */
   entries: PublicEntry[];
   /** My room at the inn: its key, perk, roommate and rent. Never its story. */
@@ -838,6 +840,8 @@ export function projectPlayer(table: GameState, version: number, playerId: strin
     leads: leadsView(game, Date.now(), p.id),
     areas: areaCounts(game),
   };
+  // Gold waits until a shop is open to me. Once I've asked a shop for anything it stays, even if the shop shuts.
+  if (waitsToUnlock(game, "gold") && !view.shops.length && !view.myRequests.some((r) => r.kind === "buy" || r.kind === "contribute") && !view.myOrders.length && !view.me.heldCp) view.goldLocked = true;
   // A switched-off feature's things never reach the phone.
   if (myOff.length) {
     if (myOff.includes("maps")) {

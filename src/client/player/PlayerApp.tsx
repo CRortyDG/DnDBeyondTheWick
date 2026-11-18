@@ -144,8 +144,8 @@ function PlayerScreen({ view, online, send, ident, setIdent }: { view: PlayerVie
   const hasMaps = !!view.map || view.maps.length > 0;
   // Feature switches: off for the table, off for me, or a tab I hid myself.
   const offHere = new Set<FeatureId>([...(view.me.off ?? []), ...(view.me.hidden ?? [])]);
-  // Jobs also wait until the party has found the notice board.
-  const has = (id: FeatureId) => !offHere.has(id) && !(id === "jobs" && view.jobsLocked);
+  // Jobs also wait until the party has found the notice board; Gold (if the DM chose) until a shop opens.
+  const has = (id: FeatureId) => !offHere.has(id) && !(id === "jobs" && view.jobsLocked) && !(id === "gold" && view.goldLocked);
   // The Character tab (the sheet) and the Gold tab are separate; the sheet only when it's on for me.
   const sheetsOn = !view.me.sheetOff && has("sheets");
   const open: Screen[] = [
@@ -157,6 +157,7 @@ function PlayerScreen({ view, online, send, ident, setIdent }: { view: PlayerVie
     ...(has("gold") ? (["purse"] as const) : []),
     ...(has("jobs") ? (["jobs"] as const) : []),
   ];
+  const newTab = useNewTab(open);
   const fallback: Screen = view.session && open.includes("chronicle") ? "chronicle" : (open.find((x) => x !== "fight") ?? "purse");
   const screen = open.includes(screenPick) ? screenPick : fallback;
   const noTabs = !open.length;
@@ -426,6 +427,7 @@ function PlayerScreen({ view, online, send, ident, setIdent }: { view: PlayerVie
               <LockIcon size={18} /> Lock my name
             </button>
           )}
+          {view.myRoom && !has("gold") ? <MyRoomCard room={view.myRoom} /> : null}
           {has("deviceSound") ? <DeviceSound /> : null}
           <YourTabs view={view} send={send} />
           {msg && youOpen ? (
@@ -494,6 +496,7 @@ function PlayerScreen({ view, online, send, ident, setIdent }: { view: PlayerVie
         </button>
       ) : null}
       <BannerToast banner={view.banner} className="phone-banner" />
+      <BannerToast banner={newTab} className="phone-banner new-tab-banner" />
       <BannerToast banner={view.levelUp ? { id: `level-${view.levelUp.n}`, text: `You're level ${view.levelUp.level}!`, at: 0 } : null} className="phone-banner level-banner" />
       {view.world?.news ? <BannerToast banner={{ id: `news-${view.world.news.n}`, text: view.world.news.text, at: 0 }} className="phone-banner world-news" /> : null}
       {screen === "fight" && f ? <FightCard view={view} send={send} /> : null}
@@ -601,6 +604,7 @@ function PlayerScreen({ view, online, send, ident, setIdent }: { view: PlayerVie
         </button>
       ) : null}
       <BannerToast banner={view.banner} className="phone-banner" />
+      <BannerToast banner={newTab} className="phone-banner new-tab-banner" />
       <BannerToast banner={view.levelUp ? { id: `level-${view.levelUp.n}`, text: `You're level ${view.levelUp.level}!`, at: 0 } : null} className="phone-banner level-banner" />
       {view.world?.news ? <BannerToast banner={{ id: `news-${view.world.news.n}`, text: view.world.news.text, at: 0 }} className="phone-banner world-news" /> : null}
       <PlayerNav {...navProps} />
@@ -918,7 +922,7 @@ function YourTabs({ view, send }: { view: PlayerView; send: (c: object) => Promi
   const off = new Set(view.me.off ?? []);
   const hidden = view.me.hidden ?? [];
   // Jobs before the party finds the notice board: nothing to hide yet.
-  const mayHide = FEATURES.filter((f) => f.playerHide && !off.has(f.id) && !(f.id === "jobs" && view.jobsLocked));
+  const mayHide = FEATURES.filter((f) => f.playerHide && !off.has(f.id) && !(f.id === "jobs" && view.jobsLocked) && !(f.id === "gold" && view.goldLocked));
   const [err, setErr] = useState<string | null>(null);
   if (!mayHide.length) return null;
   const set = async (id: FeatureId, show: boolean) => {
@@ -951,4 +955,29 @@ function YourTabs({ view, send }: { view: PlayerView; send: (c: object) => Promi
       {err ? <p className="player-msg" role="alert">{err}</p> : null}
     </section>
   );
+}
+
+const NEW_TAB_LINE: Partial<Record<Screen, string>> = {
+  purse: "New tab: Gold. A shop has opened to you.",
+  jobs: "New tab: Jobs. You found the notice board.",
+  discovery: "New tab: Discover. Everything you find goes here.",
+  map: "New tab: Map. You can open it on your phone now.",
+  chronicle: "New tab: Story.",
+};
+
+/** A tab that wasn't there a moment ago: say so, once. Not on first load, and not for the fight screen. */
+function useNewTab(open: Screen[]): { id: string; text: string; at: number } | null {
+  const prev = useRef<Set<Screen> | null>(null);
+  const [banner, setBanner] = useState<{ id: string; text: string; at: number } | null>(null);
+  const key = open.join(",");
+  useEffect(() => {
+    const now = new Set(open);
+    const before = prev.current;
+    prev.current = now;
+    if (!before) return;
+    const added = open.find((x) => !before.has(x) && NEW_TAB_LINE[x]);
+    if (added) setBanner({ id: `tab-${added}-${Date.now()}`, text: NEW_TAB_LINE[added]!, at: Date.now() });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key]);
+  return banner;
 }
