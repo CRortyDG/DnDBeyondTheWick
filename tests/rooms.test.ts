@@ -276,3 +276,48 @@ describe("the Worldbuilder", () => {
     expect(snug.secrets).toBe("The safe room.");
   });
 });
+
+describe("the register", () => {
+  const stay = (pid: string) => g.rentals.filter((r) => r.roomId && r.playerId === pid);
+
+  it("a past stay's room and dates can be fixed", () => {
+    assign("p1", "The Hearth Room");
+    assign("p1", null);
+    const r = stay("p1")[0];
+    dm({ type: "room.stay.edit", rentalId: r.id, patch: { roomId: roomId("The Leaky One"), startedAt: 500, endedAt: 700 } });
+    expect(stay("p1")[0]).toMatchObject({ roomId: roomId("The Leaky One"), itemName: "The Leaky One", startedAt: 500, endedAt: 700 });
+    expect(fails(DM, { type: "room.stay.edit", rentalId: r.id, patch: { endedAt: 400 } })).toMatch(/before they arrived/);
+  });
+
+  it("a current stay's room is changed on the rack, not in the register", () => {
+    assign("p1", "The Hearth Room");
+    const r = stay("p1")[0];
+    expect(fails(DM, { type: "room.stay.edit", rentalId: r.id, patch: { roomId: roomId("The Leaky One") } })).toMatch(/key rack/);
+    expect(fails(DM, { type: "room.stay.edit", rentalId: r.id, patch: { endedAt: now + 5 } })).toMatch(/Check them out/);
+  });
+
+  it("a line can be deleted; deleting a current stay frees the bed and keeps what was paid", () => {
+    assign("p1", "The Hearth Room");
+    assign("p1", null);
+    dm({ type: "room.stay.delete", rentalId: stay("p1")[0].id });
+    expect(stay("p1")).toHaveLength(0);
+    pay("p2", 10);
+    assign("p2", "The Hearth Room", { free: false });
+    const before = bal("p2");
+    dm({ type: "room.stay.delete", rentalId: stay("p2")[0].id });
+    expect(stay("p2")).toHaveLength(0);
+    expect(bal("p2")).toBe(before);
+    expect(keyRack(g).hooks[0].taken).toHaveLength(0);
+  });
+
+  it("hand-written lines can be edited and deleted", () => {
+    dm({ type: "rooms.settings", patch: { register: ["Last Nightal · no name · The Good Room", "Old line"] } });
+    dm({ type: "rooms.settings", patch: { register: ["Last Nightal · broken ring · The Good Room"] } });
+    expect(g.rooms?.register).toEqual(["Last Nightal · broken ring · The Good Room"]);
+  });
+
+  it("stays a player sends don't go through", () => {
+    assign("p1", "The Hearth Room");
+    expect(() => as({ role: "player", playerId: "p1" } as Actor, { type: "room.stay.delete", rentalId: stay("p1")[0].id } as Command)).toThrow();
+  });
+});
