@@ -10,6 +10,9 @@ import type { TvView } from "@/shared/projection";
 import { duckFor, STINGER_CUES, stingerBed, tableMix } from "../sound/tableMix";
 import { SpeakerIcon } from "../ui/icons";
 import { setAutoCues, tableEngine, useSoundPref, writeSoundPref } from "../ui/tvSound";
+import { LAYER_MAKERS } from "../sound/layers";
+import { SFX_MAKERS } from "../sound/sfx";
+import { checkFreshBuild } from "./useFreshBuild";
 
 export function TableSound({ view }: { view: TvView }) {
   const pref = useSoundPref();
@@ -86,6 +89,12 @@ export function TableSound({ view }: { view: TvView }) {
 
   const mix = tableMix({ sound: snd, kind, ambientId: amb?.id, seats, fighting, stinger });
   const mixKey = JSON.stringify(mix);
+  // A sound this TV has never heard of means the site was updated after this tab opened
+  // (new sounds were added): pick up the new build now instead of playing silence.
+  const unknown = Object.keys(mix).some((id) => !LAYER_MAKERS[id]) || (!!snd.cue && !SFX_MAKERS[snd.cue.id]);
+  useEffect(() => {
+    if (unknown) void checkFreshBuild();
+  }, [unknown, mixKey, snd.cue?.n]);
   useEffect(() => {
     // The Table and the stinger glide; everything else follows the DM's fade.
     engine?.setMix(mix, kind === "table" ? 4 : kind === "stinger" ? 2 : snd.fade);
