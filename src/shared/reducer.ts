@@ -17,6 +17,7 @@ import { BOARD_SLOTS, jobPoints, jobsOf, jobTitle, pinnedCount, pointsOf, rankFo
 import { LOG_MAX, PLAYER_ROLL_GAP_MS, rollD20, rollPool, type RollTo } from "./dice";
 import { leadsOf, leadVisible, tally, voteClosed } from "./leads";
 import { jobsLocked, NOTICE_BOARD_ENTRY } from "./discovery";
+import { pickableNoteIds } from "./lastTime";
 import { findRef, sessionRecap, slugInput, stageRank, blankEntry, ENTRIES_MAX, LEADS_MAX, entriesForScene, entriesOf, entryFromScene, entryScene, entryTags, factSlug, FACTS_MAX, isFound, shopEntry, slugify, syncShopEntries, uniqueSlug } from "./discovery";
 import { DM_AUTHOR } from "./types";
 import { originOf } from "./presets";
@@ -1306,6 +1307,12 @@ function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
     return b;
   };
   const session = (id: string): Session => s.sessions.find((x) => x.id === id) ?? fail("That session doesn't exist.");
+  /** Copy the draft to what players get. */
+  const sendLastTime = (sess: Session) => {
+    const pr = sess.playerRecap!;
+    pr.sent = { text: pr.text, noteIds: pickableNoteIds(s, sess.id, pr.noteIds), at: ctx.now, n: ++s.seq };
+    delete pr.onEnd;
+  };
   const curSession = (): Session => s.sessions.find((x) => x.id === s.currentSessionId) ?? fail("No session is running.");
   const curRun = () => {
     const sess = curSession();
@@ -2950,6 +2957,8 @@ function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
         s.recapCard = { n: ++s.seq, at: ctx.now, text: recap };
       }
       cur.endedAt = ctx.now;
+      // The players' "Last time on…" card, if the DM reviewed it and asked for it to go out now.
+      if (cur.playerRecap?.onEnd && cur.playerRecap.text.trim()) sendLastTime(cur);
       s.currentSessionId = null;
       clearHereAsks();
       // Companions who came along for the night go home.
@@ -3927,6 +3936,27 @@ function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
         delete sess.recap;
         if (s.live.recapSessionId === sess.id) delete s.live.recapSessionId;
       }
+      break;
+    }
+    case "lastTime.save": {
+      const sess = session(cmd.sessionId);
+      const prev = sess.playerRecap;
+      sess.playerRecap = { text: cmd.text, noteIds: pickableNoteIds(s, sess.id, cmd.noteIds), ...(cmd.onEnd ? { onEnd: true } : {}), ...(prev?.sent ? { sent: prev.sent } : {}) };
+      break;
+    }
+    case "lastTime.send": {
+      const sess = session(cmd.sessionId);
+      if (sess.endedAt === null) fail("Players get it once the session has ended. Tick \u201cSend when I end the session\u201d instead.");
+      const prev = sess.playerRecap;
+      const text = cmd.text ?? prev?.text ?? "";
+      if (!text.trim()) fail("Write a few lines first.");
+      sess.playerRecap = { text, noteIds: pickableNoteIds(s, sess.id, cmd.noteIds ?? prev?.noteIds ?? []), ...(prev?.sent ? { sent: prev.sent } : {}) };
+      sendLastTime(sess);
+      break;
+    }
+    case "lastTime.unsend": {
+      const sess = session(cmd.sessionId);
+      if (sess.playerRecap) delete sess.playerRecap.sent;
       break;
     }
     case "run.attend": {

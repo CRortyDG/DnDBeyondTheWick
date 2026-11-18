@@ -2664,3 +2664,54 @@ html[data-view="player"] {
     align-items: stretch;
   }
 }
+
+/* "Last time on…" strip and card */
+:where(html[data-view="player"]) .pl-lasttime {
+  display: flex;
+  align-items: center;
+  gap: var(--pl-s3);
+  width: 100%;
+  margin: var(--pl-s2) 0;
+  padding: 12px 14px;
+  border-radius: var(--pl-r-md);
+  border: 1px solid var(--pl-gold-line);
+  background: var(--pl-gold-soft);
+  color: var(--pl-text);
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+  min-height: var(--pl-control);
+}
+:where(html[data-view="player"]) .pl-lasttime-k {
+  font-family: var(--font-poster);
+  font-size: 19px;
+  line-height: 1.1;
+  color: var(--pl-gold);
+  white-space: nowrap;
+}
+:where(html[data-view="player"]) .pl-lasttime-v {
+  flex: 1;
+  min-width: 0;
+  font-size: 14px;
+  color: var(--pl-text-2);
+}
+:where(html[data-view="player"]) .pl-lasttime-go {
+  font-weight: 600;
+  color: var(--pl-gold);
+}
+:where(html[data-view="player"]) .lt-card {
+  border-left-color: var(--pl-gold);
+  background: var(--pl-bg-2);
+  color: var(--pl-text);
+}
+:where(html[data-view="player"]) .lt-kicker {
+  color: var(--pl-gold);
+}
+:where(html[data-view="player"]) .lt-notes li {
+  border-left-color: var(--pl-gold-line);
+}
+:where(html[data-view="player"]) .pl-lasttime-sheet .lt-card {
+  margin-bottom: var(--pl-s4);
+  max-height: 60vh;
+  overflow-y: auto;
+}

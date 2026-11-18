@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { practiceDmCommands } from "./practice";
+import { LAST_TIME_NOTES_MAX, LAST_TIME_TEXT_MAX } from "./lastTime";
 import { companionDmCommands, companionPlayerCommands } from "./companions";
 import { CATEGORY_IDS, KIND_IDS } from "./progress";
 import { RENOWN_MAX, RENOWN_POINTS_MAX } from "./renown";
@@ -573,6 +574,12 @@ export const dmCommand = z.discriminatedUnion("type", [
   z.object({ type: z.literal("run.fire"), beatId: id, index: z.number().int().min(0).max(9) }),
   z.object({ type: z.literal("run.note"), beatId: id, text: text(4000) }),
   z.object({ type: z.literal("run.recap"), sessionId: id, text: text(8000) }),
+  /** The players' "Last time on…" card: save the draft (and whether it goes out when the session ends). */
+  z.object({ type: z.literal("lastTime.save"), sessionId: id, text: text(LAST_TIME_TEXT_MAX), noteIds: z.array(id).max(LAST_TIME_NOTES_MAX), onEnd: z.boolean() }),
+  /** Send it now (the session must have ended). With text/noteIds, saves them first. */
+  z.object({ type: z.literal("lastTime.send"), sessionId: id, text: text(LAST_TIME_TEXT_MAX).optional(), noteIds: z.array(id).max(LAST_TIME_NOTES_MAX).optional() }),
+  /** Take it back off players' devices. The draft stays. */
+  z.object({ type: z.literal("lastTime.unsend"), sessionId: id }),
   z.object({ type: z.literal("run.attend"), playerId: id, here: z.boolean() }),
   /** Keep a player who asked to be marked here as away for now. */
   z.object({ type: z.literal("run.hereDismiss"), playerId: id }),
