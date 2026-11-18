@@ -513,7 +513,7 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
       <PlayIcon size={12} /> Resume
     </button>
   ) : !session ? (
-    <button className="btn primary" type="button" onClick={() => (readiness(s).length || tonightsInvite(s, Date.now()) ? setReady(true) : void run({ type: "session.start" }, "Session started. The TV is back on the notice board."))}>
+    <button className="btn primary" type="button" onClick={() => (readiness(s).length || tonightsInvite(s, Date.now()) ? setReady(true) : void run({ type: "session.start" }, "Session started."))}>
       Start session {nextSessionNumber(s)}
     </button>
   ) : chosenEp ? (
@@ -627,7 +627,7 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
                 </select>
               )}
               {session ? null : (
-                <button className="btn primary" type="button" onClick={() => (readiness(s).length || tonightsInvite(s, Date.now()) ? setReady(true) : void run({ type: "session.start" }, "Session started. The TV is back on the notice board."))}>
+                <button className="btn primary" type="button" onClick={() => (readiness(s).length || tonightsInvite(s, Date.now()) ? setReady(true) : void run({ type: "session.start" }, "Session started."))}>
                   Start session {nextSessionNumber(s)}
                 </button>
               )}
@@ -722,7 +722,7 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
               </select>
             )}
             {session ? null : (
-              <button className="btn primary" type="button" onClick={() => (readiness(s).length || tonightsInvite(s, Date.now()) ? setReady(true) : void run({ type: "session.start" }, "Session started. The TV is back on the notice board."))}>
+              <button className="btn primary" type="button" onClick={() => (readiness(s).length || tonightsInvite(s, Date.now()) ? setReady(true) : void run({ type: "session.start" }, "Session started."))}>
                 Start session {nextSessionNumber(s)}
               </button>
             )}

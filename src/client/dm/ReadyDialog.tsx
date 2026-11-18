@@ -19,7 +19,7 @@ export function ReadyDialog({ onClose, onGo }: { onClose: () => void; onGo: (pag
   const [useInvite, setUseInvite] = useState(true);
   const start = async () => {
     const withInvite = inv && useInvite;
-    if (await run({ type: "session.start", ...(withInvite ? { inviteId: inv.id } : {}) }, withInvite ? `Session started with the ${seated(inv).length} people from ${inv.title}.` : "Session started. The TV is back on the notice board.")) onClose();
+    if (await run({ type: "session.start", ...(withInvite ? { inviteId: inv.id } : {}) }, withInvite ? `Session started with the ${seated(inv).length} people from ${inv.title}.` : "Session started.")) onClose();
   };
   return (
     <div className="inbox-backdrop" onClick={onClose}>

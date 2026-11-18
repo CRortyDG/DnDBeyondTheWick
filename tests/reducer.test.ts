@@ -143,9 +143,11 @@ describe("scenes", () => {
     const { state } = run(seedGame("t"), [{ type: "scene.step", dir: -1 }]);
     expect(state.live.sceneId).toBe("s-black");
   });
-  it("starting or ending a session goes back to the notice board", () => {
+  it("starting a session leaves the TV alone; ending one goes back to the notice board", () => {
     const { state } = run(seedGame("t"), [{ type: "scene.show", sceneId: "s-symbol" }, { type: "session.start" }]);
-    expect(state.live.sceneId).toBe("s-board");
+    expect(state.live.sceneId).toBe("s-symbol");
+    const ended = run(state, [{ type: "session.end" }]).state;
+    expect(ended.live.sceneId).toBe("s-board");
   });
   it("giving a scene a taken hotkey puts it on that key of the quick bar instead", () => {
     const { state } = run(seedGame("t"), [{ type: "scene.update", sceneId: "s-black", patch: { hotkey: 1 } }]);
