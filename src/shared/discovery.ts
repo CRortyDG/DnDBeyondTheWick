@@ -9,6 +9,8 @@
 // secrets never leave. Notes about an entry are ordinary Chronicle notes tagged
 // with its name, so they come along with the Chronicle and cost nothing extra.
 
+import { attitudeSettings, BAND_IDS, BANDS, bandInfo, publicAttitude, relationOf, type PublicAttitude } from "./attitude";
+import { featureOn } from "./features";
 import type { Art, Entry, EntryFact, EntryKind, GameState, Relation, Scene, Stage } from "./types";
 
 /** Same as the Chronicle's tagKey (kept here so the two modules don't import each other). */
@@ -60,14 +62,10 @@ export function stageLabel(kind: EntryKind, stage: Stage): string {
   return kindInfo(kind).found;
 }
 
-export const RELATIONS: { id: Relation; label: string }[] = [
-  { id: "stranger", label: "Stranger" },
-  { id: "friendly", label: "Friendly" },
-  { id: "ally", label: "Ally" },
-  { id: "hostile", label: "Hostile" },
-];
-export const RELATION_IDS = RELATIONS.map((r) => r.id) as [Relation, ...Relation[]];
-export const relationLabel = (r: Relation | undefined) => RELATIONS.find((x) => x.id === (r ?? "stranger"))!.label;
+/** The attitude bands, lowest first (see attitude.ts). */
+export const RELATIONS: { id: Relation; label: string }[] = BANDS.map((b) => ({ id: b.id, label: b.label }));
+export const RELATION_IDS = BAND_IDS;
+export const relationLabel = (r: Relation | undefined) => bandInfo(r).label;
 
 export function entriesOf(g: Pick<GameState, "entries">): Entry[] {
   return g.entries ?? [];
@@ -221,6 +219,8 @@ export interface PublicEntry {
   art?: Art;
   /** People, found: how they feel about the party (or about this player). */
   relation?: Relation;
+  /** People, found: the dial and the reasons, when the DM shows them. */
+  attitude?: PublicAttitude;
   /** Revealed facts only, in the DM's order. */
   facts: PublicFact[];
   /** When it was found, and the chapter (session number) it was in. */
@@ -279,7 +279,11 @@ export function publicEntry(g: GameState, e: Entry, playerId?: string): PublicEn
   };
   const art = entryArt(g, e);
   if (art) out.art = art;
-  if (e.kind === "person") out.relation = (playerId && e.relationBy?.[playerId]) || e.relation || "stranger";
+  if (e.kind === "person" && featureOn(g, "attitudes") && attitudeSettings(g).show !== "none") {
+    out.relation = relationOf(e, playerId);
+    const att = publicAttitude(g, e, playerId);
+    if (att) out.attitude = att;
+  }
   const room = e.room && e.room.type !== "staff" ? { hook: e.room.hook, type: e.room.type, key: e.room.key, perk: e.room.perk, ...(e.room.tag ? { tag: e.room.tag } : {}) } : undefined;
   if (room) out.room = room;
   return out;

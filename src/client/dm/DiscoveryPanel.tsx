@@ -8,10 +8,12 @@
 
 import { featureOn } from "@/shared/features";
 import { RoomFields } from "./Rooms";
+import { AttitudeTracker } from "./AttitudeTracker";
+import { bandInfo, relationOf, partyScore, signed } from "@/shared/attitude";
 import { ask } from "./ask";
 import { PlaceSceneFields } from "./OffScript";
 import { useRef, useState } from "react";
-import { entriesOf, entryTags, FACT_MAX, kindInfo, KINDS, RELATIONS, stageLabel, STAGES, SUMMARY_MAX, isFound } from "@/shared/discovery";
+import { entriesOf, entryTags, FACT_MAX, kindInfo, KINDS, stageLabel, STAGES, SUMMARY_MAX, isFound } from "@/shared/discovery";
 import type { Entry, EntryKind, Relation, Stage } from "@/shared/types";
 import { DownIcon, UpIcon } from "../ui/icons";
 import { Portrait } from "../ui/Portrait";
@@ -27,6 +29,7 @@ import { MenuItem, RowMenu } from "./RowMenu";
 import { uploadImage } from "./upload";
 import { makeSilhouette } from "./silhouette";
 import { ShowControls } from "./QuickBar";
+import { FightItBar, FightItMenuItem } from "./FightIt";
 import { entryRef } from "@/shared/assets";
 import { penName } from "@/shared/chronicle";
 import { presentIds, STAGE_NAMES, stageFor, whoKnows } from "@/shared/world";
@@ -190,6 +193,11 @@ function EntryRow({ entry: e, tv, first, last, open, onToggle }: { entry: Entry;
             </span>
           ) : null}
           {notes ? <span className="tag">{notes === 1 ? "1 note" : `${notes} notes`}</span> : null}
+          {e.kind === "person" && (e.attitude !== undefined || e.relation) ? (
+            <span className={`tag relation relation-${relationOf(e)}`} title="How they feel about the party">
+              {bandInfo(relationOf(e)).label} {signed(partyScore(e))}
+            </span>
+          ) : null}
           {ahead ? <span className="tag" title="Someone at the table knows more than the rest: open it to tell the table">{ahead} knows more</span> : null}
         </span>
         <label className="stage-pick">
@@ -207,6 +215,7 @@ function EntryRow({ entry: e, tv, first, last, open, onToggle }: { entry: Entry;
           <MenuItem disabled={e.stage === "hidden"} title="Play its card on the TV (New face, Rumor, a new fact)" onClick={() => run({ type: "entry.show", entryId: e.id }, "On the TV.")}>
             Announce on the TV
           </MenuItem>
+          {e.kind === "monster" ? <FightItMenuItem entry={e} /> : null}
           <MenuItem onClick={onToggle}>{open ? "Close the editor" : "Edit"}</MenuItem>
           <MenuItem disabled={first} onClick={() => run({ type: "entry.move", entryId: e.id, dir: -1 })}>
             Move up
@@ -396,6 +405,7 @@ function EntryEditor({ entry: e, tv }: { entry: Entry; tv: boolean }) {
           </label>
         ) : null}
       </div>
+      {e.kind === "monster" ? <FightItBar entry={e} /> : null}
       <div className="entry-links">
         {e.links.map((id) => {
           const o = others.find((x) => x.id === id);
@@ -421,36 +431,7 @@ function EntryEditor({ entry: e, tv }: { entry: Entry; tv: boolean }) {
         <span className="note">Players see a tie only when they can see both ends.</span>
       </div>
 
-      {e.kind === "person" ? (
-        <>
-          <h4>How they feel about the party</h4>
-          <div className="inline">
-            <label>
-              The party
-              <select className="fld" value={e.relation ?? "stranger"} onChange={(ev) => void patch({ relation: ev.target.value as Relation })}>
-                {RELATIONS.map((r) => (
-                  <option key={r.id} value={r.id}>
-                    {r.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-            {players.map((p) => (
-              <label key={p.id}>
-                {p.character?.trim() || p.name}
-                <select className="fld" value={e.relationBy?.[p.id] ?? ""} onChange={(ev) => void run({ type: "entry.relationFor", entryId: e.id, playerId: p.id, relation: (ev.target.value || null) as Relation | null })}>
-                  <option value="">Same as the party</option>
-                  {RELATIONS.map((r) => (
-                    <option key={r.id} value={r.id}>
-                      {r.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            ))}
-          </div>
-        </>
-      ) : null}
+      {e.kind === "person" ? <AttitudeTracker entry={e} players={players} /> : null}
 
       <h4>Key facts</h4>
       <p className="note">Locked facts are only on your screen. Revealing one makes the entry Known: it shows on phones right away, and on the TV too if you pick that.</p>

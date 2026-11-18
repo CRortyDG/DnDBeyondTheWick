@@ -4,7 +4,8 @@
 // screen serves players (their own notes) and the DM (every note, plus stars,
 // hiding and the note-taker).
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { LastTimeBody } from "./LastTimeCard";
 import { chapterHeading, chronicleMarkdown, NOTE_MAX, TAG_MAX, TAGS_PER_NOTE, tagKey, type ChronicleChapter, type ChronicleNote, type ChronicleView } from "@/shared/chronicle";
 
 type Send = (cmd: object) => Promise<string | null>;
@@ -23,7 +24,7 @@ const day = (ms: number) => new Date(ms).toLocaleDateString(undefined, { weekday
 const time = (ms: number) => new Date(ms).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
 const sameDay = (a: number, b: number) => new Date(a).toDateString() === new Date(b).toDateString();
 
-export function Chronicle({ view, gameName, send }: { view: ChronicleView; gameName: string; send: Send }) {
+export function Chronicle({ view, gameName, send, chapterExtra }: { view: ChronicleView; gameName: string; send: Send; /** DM: more under a chapter's recap (the players' recap card). */ chapterExtra?: (c: ChronicleChapter) => ReactNode }) {
   const [order, setOrder] = useState<"newest" | "oldest">("newest");
   useEffect(() => setOrder(loadOrder()), []);
   const [q, setQ] = useState("");
@@ -153,6 +154,8 @@ export function Chronicle({ view, gameName, send }: { view: ChronicleView; gameN
           send={send}
           onTag={pickTag}
           onCopy={() => void copy(c.id)}
+          extra={chapterExtra?.(c)}
+          gameName={gameName}
         />
       ))}
     </div>
@@ -330,7 +333,11 @@ function Chapter({
   send,
   onTag,
   onCopy,
+  extra,
+  gameName,
 }: {
+  extra?: ReactNode;
+  gameName: string;
   chapter: ChronicleChapter;
   notes: ChronicleNote[];
   total: number;
@@ -379,6 +386,12 @@ function Chapter({
                 ))}
             </blockquote>
           ) : null}
+          {c.card ? (
+            <div className="chron-lasttime">
+              <LastTimeBody card={c.card} gameName={gameName} />
+            </div>
+          ) : null}
+          {extra}
           {notes.length ? (
             <ol className="chron-notes">
               {notes.map((n) => (

@@ -9,12 +9,15 @@ import { Leftovers, MentionText, RunStoryBlocks } from "./EpisodeBuilder";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { previousRecap } from "@/shared/reducer";
 import { beatFirstLine } from "@/shared/runsheet";
+import { findRef } from "@/shared/discovery";
+import { signed } from "@/shared/attitude";
 import type { Beat, BeatAction, Episode, Session, SessionRun } from "@/shared/types";
 import { beatAssets, quickOf, resolveRef, type AssetGame } from "@/shared/assets";
 import { Finder, quickKey, typing } from "./QuickBar";
 import { BankPanel } from "./BankPanel";
 import { Inbox, isInboxOpen } from "./Inbox";
 import { Dues } from "./Dues";
+import { useLastTime } from "./LastTimeEditor";
 import { useDm } from "./context";
 import { useAutosave } from "./useAutosave";
 import { LevelUpButton, LevelUpDialog } from "./LevelUp";
@@ -37,6 +40,10 @@ export function actionLabel(a: BeatAction, g: AssetGame): string {
   if (a.type === "fight") return `Fight: ${a.monsters.map((m) => (m.count > 1 ? `${m.name} ×${m.count}` : m.name)).join(", ")} · TV → Roll initiative!`;
   if (a.type === "reveal") return a.stage === "rumored" ? `Rumor: ${a.ref}` : `Reveal: ${a.ref}${a.stage === "known" ? " (known)" : ""}`;
   if (a.type === "fact") return `Reveal fact: ${a.ref}`;
+  if (a.type === "mood") {
+    const who = findRef(g, a.ref)?.entry.name ?? a.ref;
+    return `Attitude button → ${who} ${signed(a.delta)}${a.reason ? ` · ${a.reason}` : ""}`;
+  }
   if (a.type === "show") {
     const hit = resolveRef(g, a.ref);
     if (!hit) return `TV → ${a.ref} (not found)`;
@@ -47,7 +54,7 @@ export function actionLabel(a: BeatAction, g: AssetGame): string {
   return sc.kind === "portrait" ? `TV → ${sc.label}’s portrait` : `TV → ${sc.label}`;
 }
 
-const tapAction = (a: BeatAction) => (a.type === "sound" || a.type === "sfx") && !!a.tap;
+const tapAction = (a: BeatAction) => ((a.type === "sound" || a.type === "sfx") && !!a.tap) || a.type === "mood";
 
 export function RunGame({ onExit, onFight }: { onExit: () => void; onFight?: () => void }) {
   const { view, run } = useDm();
@@ -388,7 +395,7 @@ function BeatCard({ beat, onBeat, episodeId }: { beat: Beat; onBeat: string[]; e
             <li key={i}>
               <span>{actionLabel(a, g)}</span>
               <button className={`btn small${tapAction(a) ? " primary" : ""}`} type="button" onClick={() => run({ type: "run.fire", beatId: beat.id, index: i })}>
-                {tapAction(a) ? "▶ Play" : "↻ Again"}
+                {a.type === "mood" ? "Apply" : tapAction(a) ? "▶ Play" : "↻ Again"}
               </button>
             </li>
           ))}
@@ -560,6 +567,7 @@ function StartStep({ session }: { session: Session }) {
 function EndStep({ session, episode, onBank, onEnded }: { session: Session; episode: Episode; onBank: () => void; onEnded: () => void }) {
   const { run } = useDm();
   const recap = useAutosave(session.recap ?? "", (text) => run({ type: "run.recap", sessionId: session.id, text }));
+  const lastTime = useLastTime(session);
   const { view } = useDm();
   const tableNotes = view.chronicle.notes.filter((n) => n.chapterId === session.id).sort((a, b) => a.at - b.at);
   const notes = episode.beats.map((b, i) => ({ b, i, text: session.run?.notes[b.id] })).filter((x) => x.text?.trim());
@@ -586,6 +594,10 @@ function EndStep({ session, episode, onBank, onEnded }: { session: Session; epis
           <span className="note">Saved with this session. Next time it&rsquo;s your &ldquo;Previously on&hellip;&rdquo; card. {recap.state === "saved" ? "Saved." : recap.state === "saving" ? "Saving…" : ""}</span>
           <textarea className="fld run-recap" rows={8} value={recap.text} onChange={(e) => recap.onChange(e.target.value)} onBlur={() => void recap.flush()} />
         </label>
+      </section>
+      <section className="run-section">
+        <h2>Players&rsquo; recap card</h2>
+        {lastTime.body}
       </section>
       <section className="run-section">
         <h2>The table&rsquo;s notes</h2>
@@ -628,6 +640,7 @@ function EndStep({ session, episode, onBank, onEnded }: { session: Session; epis
         type="button"
         onClick={async () => {
           await recap.flush();
+          await lastTime.flush();
           if (await run({ type: "session.end" }, `${session.title} ended.`)) onEnded();
         }}
       >

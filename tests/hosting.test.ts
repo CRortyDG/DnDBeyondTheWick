@@ -1,6 +1,6 @@
 // Hosting costs: Cloudflare usage priced at Workers Paid rates.
 import { describe, expect, it } from "vitest";
-import { addUsage, billable, costLines, freeDayFit, projectMonthly, ZERO_USAGE, type UsageCounts } from "@/shared/hosting";
+import { addUsage, billable, busiest, costLines, freeDayFit, freeDayLines, nextUtcMidnight, nextUtcMonth, projectMonthly, ZERO_USAGE, type UsageCounts } from "@/shared/hosting";
 
 // About one 4-hour night for a table of 7 (CAPACITY_REPORT.md).
 const NIGHT: UsageCounts = { ...ZERO_USAGE, workerRequests: 412, roomRequests: 380, socketMessages: 140, pings: 4032, events: 424, rowsRead: 11_073, rowsWritten: 312, uploads: 4, uploadBytes: 3_276_800 };
@@ -36,5 +36,29 @@ describe("hosting costs", () => {
     expect(fit.limit).toBe("Worker requests");
     expect(fit.campaigns).toBe(Math.floor(100_000 / 412));
     expect(freeDayFit(ZERO_USAGE, 0).campaigns).toBe(Infinity);
+  });
+});
+
+describe("hosting costs: daily limits start over each day", () => {
+  it("checks one day against the free tier's daily limits, not a month's total", () => {
+    const lines = Object.fromEntries(freeDayLines(NIGHT, 2 * MB).map((l) => [l.id, l]));
+    expect(lines.worker.used).toBeCloseTo(412 / 100_000, 10);
+    expect(lines.written.used).toBeCloseTo(312 / 100_000, 10);
+    expect(lines.sqlite.used).toBeCloseTo(2 / (5 * 1024), 10);
+    // A month of nights is still compared day by day: the busiest one.
+    const days = [
+      { day: "2026-11-01", counts: NIGHT },
+      { day: "2026-11-08", counts: addUsage(NIGHT, NIGHT) },
+      { day: "2026-11-15", counts: NIGHT },
+    ];
+    expect(busiest(days)!.day).toBe("2026-11-08");
+    expect(busiest([])).toBeNull();
+  });
+
+  it("knows when the day and the month start over (UTC)", () => {
+    const t = Date.UTC(2026, 10, 30, 23, 59);
+    expect(new Date(nextUtcMidnight(t)).toISOString()).toBe("2026-12-01T00:00:00.000Z");
+    expect(new Date(nextUtcMonth(t)).toISOString()).toBe("2026-12-01T00:00:00.000Z");
+    expect(new Date(nextUtcMidnight(Date.UTC(2026, 10, 18, 0, 0))).toISOString()).toBe("2026-11-19T00:00:00.000Z");
   });
 });

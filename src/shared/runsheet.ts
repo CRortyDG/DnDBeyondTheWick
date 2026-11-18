@@ -12,6 +12,7 @@
 //   reveal:  <kind>/<name> [rumored|found|known]   (Discovery: moves it forward, never back; found by default)
 //   rumor:   <kind>/<name>   (the same as "reveal: <kind>/<name> rumored")
 //   fact:    <kind>/<name>/<fact>   (reveals that fact)
+//   mood:    person/<name> +2 <why>   (a button on the beat that moves their attitude dial; never on its own)
 //   sound:   <mix or layer> | off   (crossfades the TV's soundboard: "sound: busy tavern", "sound: night crickets", "sound: layer/rain")
 //   sfx:     <one-shot>   (plays it on the TV: "sfx: war horn")
 //            add "(tap)" to either for a button on the beat instead of playing on landing: "sfx: roar (tap)"
@@ -20,6 +21,7 @@
 import { fightLineMarkdown, parseFightLine } from "./combat";
 import type { Beat, BeatAction, BeatCheck, Episode, GameState, Scene, Stage, StoryBlock } from "./types";
 import { FACT_REF_RE, REF_RE } from "./discovery";
+import { ATTITUDE_REASON_MAX } from "./attitude";
 import { actionRef, listAssets, resolveRef, SHOW_REF_RE, type AssetGame } from "./assets";
 import { findMix, findSfx } from "./sound";
 
@@ -220,6 +222,12 @@ export function parseEpisode(markdown: string, resolve: SceneResolver, fallbackT
       const ref = v.trim().toLowerCase();
       if (FACT_REF_RE.test(ref)) cur.actions.push({ type: "fact", ref });
       else warnings.push(`${where}: “${line}” needs a kind, a name and a fact, like “fact: person/mags/owes-the-baker”.`);
+    } else if ((v = prefixed(line, "mood")) !== null) {
+      const m = /^\s*(\S+)\s+([+\-−–]\s*\d{1,2})\s*(.*)$/.exec(v);
+      const ref = m?.[1].toLowerCase() ?? "";
+      const delta = m ? Number(m[2].replace(/[−–]/, "-").replace(/\s+/g, "")) : 0;
+      if (!m || !REF_RE.test(ref) || !ref.startsWith("person/") || !delta || Math.abs(delta) > 20) warnings.push(`${where}: “${line}” needs a person and a number, like “mood: person/mags +2 Saved her cat”.`);
+      else cur.actions.push({ type: "mood", ref, delta, reason: m[3].trim().slice(0, ATTITUDE_REASON_MAX) });
     } else if ((v = prefixed(line, "sound")) !== null) {
       const t = tapped(v);
       const mix = findMix(t.name);
@@ -291,6 +299,7 @@ export function actionMarkdown(a: BeatAction, g: AssetGame): string | null {
   if (a.type === "fight") return fightLineMarkdown(a.monsters);
   if (a.type === "reveal") return a.stage === "rumored" ? `rumor: ${a.ref}` : a.stage === "found" ? `reveal: ${a.ref}` : `reveal: ${a.ref} ${a.stage}`;
   if (a.type === "fact") return `fact: ${a.ref}`;
+  if (a.type === "mood") return `mood: ${a.ref} ${a.delta > 0 ? "+" : ""}${a.delta}${a.reason ? ` ${a.reason}` : ""}`;
   const ref = actionRef(g, a);
   return ref ? `show: ${ref}` : null;
 }

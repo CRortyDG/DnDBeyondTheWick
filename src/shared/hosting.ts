@@ -65,8 +65,8 @@ export interface UsageReport {
   todayCounts: UsageCounts;
   /** The busiest day this month, for the free-tier check. */
   busiestDay: { day: string; counts: UsageCounts } | null;
-  /** Every month counted so far, oldest first. */
-  months: { month: string; counts: UsageCounts }[];
+  /** Every month counted so far, oldest first, each with its busiest day (for the free-tier check). */
+  months: { month: string; counts: UsageCounts; busiestDay?: { day: string; counts: UsageCounts } | null }[];
   /** Held right now: the campaign's SQLite database and its images in R2. */
   storageBytes: number;
   imageBytes: number;
@@ -77,6 +77,24 @@ export interface UsageReport {
 
 export const utcDay = (t: number) => new Date(t).toISOString().slice(0, 10);
 export const utcMonth = (t: number) => new Date(t).toISOString().slice(0, 7);
+
+/** When the free tier's daily limits start over: the next midnight UTC after `t`. */
+export const nextUtcMidnight = (t: number) => {
+  const d = new Date(t);
+  return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() + 1);
+};
+
+/** When the paid plan's monthly allowance starts over: the 1st of next month, UTC. */
+export const nextUtcMonth = (t: number) => {
+  const d = new Date(t);
+  return Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 1);
+};
+
+/** The busiest of some days, by requests (what runs out first on the free tier). */
+export function busiest(days: { day: string; counts: UsageCounts }[]): { day: string; counts: UsageCounts } | null {
+  const load = (u: UsageCounts) => u.workerRequests + u.roomRequests;
+  return days.reduce<{ day: string; counts: UsageCounts } | null>((best, d) => (!best || load(d.counts) > load(best.counts) ? d : best), null);
+}
 
 // ---------------------------------------------------------------- prices
 
@@ -192,6 +210,34 @@ export function projectMonthly(u: UsageCounts, storageBytes: number, imageBytes:
     .filter((l) => l.cost > 0)
     .sort((a, b) => b.cost - a.cost);
   return { total: PAID.base + lines.reduce((s, l) => s + l.cost, 0), lines };
+}
+
+export interface FreeLine {
+  id: string;
+  label: string;
+  /** Plain-words amount used ("12,300 requests"). */
+  amount: string;
+  /** Plain-words free allowance ("100,000 a day"). */
+  limit: string;
+  /** Fraction of the free allowance this campaign used (the allowance is shared by the whole site). */
+  used: number;
+}
+
+/**
+ * One UTC day against Workers Free's daily limits. These start over at midnight
+ * UTC, so they're compared with one day's counts, never a month's running
+ * total. Saved game data is the one total, against 5 GB.
+ */
+export function freeDayLines(day: UsageCounts, storageBytes: number): FreeLine[] {
+  const b = billable(day);
+  return [
+    { id: "worker", label: "Worker requests", amount: `${n0(b.workerRequests)} requests`, limit: `${n0(FREE_DAILY.workerRequests)} a day`, used: b.workerRequests / FREE_DAILY.workerRequests },
+    { id: "do", label: "Room requests", amount: `${n0(b.doRequests)} billed`, limit: `${n0(FREE_DAILY.doRequests)} a day`, used: b.doRequests / FREE_DAILY.doRequests },
+    { id: "duration", label: "Room awake time", amount: `~${b.doGbSeconds.toFixed(1)} GB-s`, limit: `${n0(FREE_DAILY.doGbSeconds)} GB-s a day`, used: b.doGbSeconds / FREE_DAILY.doGbSeconds },
+    { id: "read", label: "Rows read", amount: `${n0(b.rowsRead)} rows`, limit: `${n0(FREE_DAILY.rowsRead)} a day`, used: b.rowsRead / FREE_DAILY.rowsRead },
+    { id: "written", label: "Rows written", amount: `${n0(b.rowsWritten)} rows`, limit: `${n0(FREE_DAILY.rowsWritten)} a day`, used: b.rowsWritten / FREE_DAILY.rowsWritten },
+    { id: "sqlite", label: "Saved game data", amount: mb(storageBytes), limit: `${FREE_SQLITE_GB} GB in all`, used: storageBytes / (FREE_SQLITE_GB * GB) },
+  ];
 }
 
 /**

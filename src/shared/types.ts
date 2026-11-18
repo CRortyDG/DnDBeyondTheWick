@@ -781,6 +781,19 @@ export interface Session {
   partyId?: string;
   /** Shared world: the campaign's night count when it started (every group's sessions in one line). Rent, lessons and special orders count these. Missing: worked out from start times (nightOf). */
   night?: number;
+  /** The "Last time on…" card for players' devices: the DM's draft, and what was sent. */
+  playerRecap?: PlayerRecap;
+}
+
+/** Players only ever get `sent`, and only once the session has ended. The draft is DM-only. */
+export interface PlayerRecap {
+  text: string;
+  /** Chronicle notes from that chapter to show under it (only while they stay visible). */
+  noteIds: string[];
+  /** Send it by itself when the session ends. */
+  onEnd?: boolean;
+  /** What players got. n changes on every send, so their devices pop it up again. */
+  sent?: { text: string; noteIds: string[]; at: number; n: number };
 }
 
 // ---------- the Chronicle (the table's shared story notes) ----------
@@ -822,8 +835,38 @@ export type EntryKind = "person" | "place" | "shop" | "monster" | "mystery" | "f
  */
 export type Stage = "hidden" | "rumored" | "found" | "known";
 
-/** How a person feels about the party. */
-export type Relation = "stranger" | "friendly" | "ally" | "hostile";
+/** How a person feels about the party: a band on the attitude dial (see attitude.ts). */
+export type Relation = "hostile" | "wary" | "stranger" | "friendly" | "ally";
+
+/** DM-ONLY: one move on a person's attitude dial, and why. */
+export interface AttitudeShift {
+  id: string;
+  at: number;
+  /** How far the dial actually moved (after the ends of the dial). */
+  delta: number;
+  /** "Paid off her debt". Players may see it (see AttitudeSettings.show) unless secret. */
+  reason: string;
+  /** Only these characters' standing moved. Missing: the whole party's. */
+  playerIds?: string[];
+  sessionId?: string | null;
+  /** dm: the DM's +/-; set: the DM picked a band; job: a job done for them; beat: a run sheet button. */
+  source: "dm" | "set" | "job" | "beat";
+  /** The band before and after (the party's, or the first character's). */
+  from: Relation;
+  to: Relation;
+  /** Players never see the reason. */
+  secret?: true;
+}
+
+/** How the attitude tracker works in this campaign. Missing: the defaults in attitude.ts. */
+export interface AttitudeSettings {
+  /** What phones show: nothing, the band ("Friendly"), the dial too, or the dial and the reasons. */
+  show: "none" | "band" | "dial" | "reasons";
+  /** A move that changes someone's band banners on the TV (the DM can still pick per move). */
+  tv: boolean;
+  /** Points a job done for someone moves their dial (0: off). */
+  jobs: number;
+}
 
 export interface EntryFact {
   id: string;
@@ -874,10 +917,16 @@ export interface Entry {
   links: string[];
   /** Key facts, in the DM's order. */
   facts: EntryFact[];
-  /** People: how they feel about the party. Missing: stranger. */
+  /** People: how they feel about the party, as a band. Kept in step with attitude. Missing: stranger. */
   relation?: Relation;
-  /** People: how they feel about one player, where it differs. */
+  /** People: how they feel about one player, where it differs. Kept in step with attitudeBy. */
   relationBy?: Record<string, Relation>;
+  /** People: the party's place on the attitude dial, -10 to 10. Missing: the middle of relation's band. */
+  attitude?: number;
+  /** People: each character's own standing, on top of the party's (+2: likes them a little more). */
+  attitudeBy?: Record<string, number>;
+  /** People, DM-ONLY: every move on the dial, oldest first (capped). */
+  attitudeLog?: AttitudeShift[];
   /** Shared world: how far each character has got with it. Missing: hidden. stage is the table's (everyone present). */
   knownBy?: Record<string, Stage>;
   /** When its stage last changed. */
@@ -1074,7 +1123,9 @@ export type BeatAction =
   /** "fact: person/mags/owes-the-baker": reveal that fact, on the TV. */
   | { type: "fact"; ref: string }
   /** "show: person/mags", "show: map/candlefair/3", "show: prop/the-symbol": put that on the TV (see assets.ts). */
-  | { type: "show"; ref: string };
+  | { type: "show"; ref: string }
+  /** "mood: person/mags +2 Saved her cat": a button on the beat that moves their attitude dial (never on its own). */
+  | { type: "mood"; ref: string; delta: number; reason: string };
 
 /** Some monsters from one template: "Goblin x2". */
 export interface FightGroup {
@@ -1230,6 +1281,8 @@ export interface GameState {
   jobs?: Job[];
   /** The Discover entry (usually a place, "Notice board") the party must find before jobs show on phones and the TV. Missing: jobs always show. */
   jobsGate?: string;
+  /** How the NPC attitude tracker works. Missing: the defaults. */
+  attitudes?: AttitudeSettings;
   /** Plain notes on the notice board. Missing on games made before free placement; read with noticesOf(). */
   notices?: Notice[];
   /** The Renown plaque on the board's frame. Missing: shown. */

@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { practiceDmCommands } from "./practice";
+import { LAST_TIME_NOTES_MAX, LAST_TIME_TEXT_MAX } from "./lastTime";
 import { companionDmCommands, companionPlayerCommands } from "./companions";
 import { CATEGORY_IDS, KIND_IDS } from "./progress";
 import { RENOWN_MAX, RENOWN_POINTS_MAX } from "./renown";
@@ -7,6 +8,7 @@ import { FONT_IDS, LIST_MAX, NOTE_W_MAX, NOTE_W_MIN, PAPER_IDS, PIN_IDS, TITLE_S
 import { DIE_SIDES, diceCount, MAX_DICE, MAX_OF_ONE, MAX_PLUS } from "./dice";
 import { fightDmCommands, fightPlayerCommands, monsterBody } from "./combatSchema";
 import { IMPORT_MAX } from "./bulkImport";
+import { ATTITUDE_REASON_MAX } from "./attitude";
 import { SHOW_REF_RE } from "./assets";
 import { isLayerId, isSfxId, LAYER_IDS, mixById, SFX_IDS } from "./sound";
 import { HANDOUT_BODY_MAX, HANDOUT_SIGN_MAX, HANDOUT_TITLE_MAX } from "./handout";
@@ -275,6 +277,9 @@ const itemPatch = z.object(itemFields).partial();
 const soundVol = z.number().min(0).max(1);
 const soundFade = z.number().min(0).max(20);
 
+/** One move on a person's attitude dial. */
+const attitudeDelta = z.number().int().min(-20).max(20).refine((n) => n !== 0, "Move it at least one step.");
+
 // Run sheets (DM-only).
 const showRef = z.string().max(120).regex(SHOW_REF_RE);
 const beatAction = z.discriminatedUnion("type", [
@@ -288,6 +293,7 @@ const beatAction = z.discriminatedUnion("type", [
   z.object({ type: z.literal("reveal"), ref: z.string().regex(REF_RE), stage }),
   z.object({ type: z.literal("fact"), ref: z.string().regex(FACT_REF_RE) }),
   z.object({ type: z.literal("show"), ref: showRef }),
+  z.object({ type: z.literal("mood"), ref: z.string().regex(REF_RE), delta: attitudeDelta, reason: text(ATTITUDE_REASON_MAX) }),
 ]);
 export const beatBody = z.object({
   title: text(160).min(1),
@@ -545,6 +551,13 @@ export const dmCommand = z.discriminatedUnion("type", [
   z.object({ type: z.literal("live.leads"), on: z.boolean() }),
   /** Show how much is left to find per area, as empty slots. */
   z.object({ type: z.literal("discovery.totals"), on: z.boolean() }),
+  /** Move a person's attitude dial. playerIds: only these characters (missing: the whole party). tv: banner it if their band changes. */
+  z.object({ type: z.literal("entry.attitude"), entryId: id, delta: attitudeDelta, reason: text(ATTITUDE_REASON_MAX), playerIds: z.array(id).min(1).max(20).optional(), secret: z.boolean().optional(), tv: z.boolean().optional() }),
+  /** Take a move back (the dial goes back by what it moved), or just hide its reason from players. */
+  z.object({ type: z.literal("entry.attitudeUndo"), entryId: id, shiftId: id }),
+  z.object({ type: z.literal("entry.attitudeSecret"), entryId: id, shiftId: id, secret: z.boolean() }),
+  /** How the tracker works in this campaign. */
+  z.object({ type: z.literal("attitudes.set"), patch: z.object({ show: z.enum(["none", "band", "dial", "reasons"]), tv: z.boolean(), jobs: z.number().int().min(0).max(5) }).partial() }),
 
   z.object({ type: z.literal("episode.add"), title: text(160), beats: z.array(beatBody).max(200).optional() }),
   z.object({ type: z.literal("episode.update"), episodeId: id, title: text(160).min(1) }),
@@ -563,6 +576,12 @@ export const dmCommand = z.discriminatedUnion("type", [
   z.object({ type: z.literal("run.fire"), beatId: id, index: z.number().int().min(0).max(9) }),
   z.object({ type: z.literal("run.note"), beatId: id, text: text(4000) }),
   z.object({ type: z.literal("run.recap"), sessionId: id, text: text(8000) }),
+  /** The players' "Last time on…" card: save the draft (and whether it goes out when the session ends). */
+  z.object({ type: z.literal("lastTime.save"), sessionId: id, text: text(LAST_TIME_TEXT_MAX), noteIds: z.array(id).max(LAST_TIME_NOTES_MAX), onEnd: z.boolean() }),
+  /** Send it now (the session must have ended). With text/noteIds, saves them first. */
+  z.object({ type: z.literal("lastTime.send"), sessionId: id, text: text(LAST_TIME_TEXT_MAX).optional(), noteIds: z.array(id).max(LAST_TIME_NOTES_MAX).optional() }),
+  /** Take it back off players' devices. The draft stays. */
+  z.object({ type: z.literal("lastTime.unsend"), sessionId: id }),
   z.object({ type: z.literal("run.attend"), playerId: id, here: z.boolean() }),
   /** Keep a player who asked to be marked here as away for now. */
   z.object({ type: z.literal("run.hereDismiss"), playerId: id }),

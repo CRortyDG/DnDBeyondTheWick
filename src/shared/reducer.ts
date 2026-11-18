@@ -17,6 +17,7 @@ import { BOARD_SLOTS, jobPoints, jobsOf, jobTitle, pinnedCount, pointsOf, rankFo
 import { LOG_MAX, PLAYER_ROLL_GAP_MS, rollD20, rollPool, type RollTo } from "./dice";
 import { leadsOf, leadVisible, tally, voteClosed } from "./leads";
 import { jobsLocked, NOTICE_BOARD_ENTRY } from "./discovery";
+import { pickableNoteIds } from "./lastTime";
 import { findRef, sessionRecap, slugInput, stageRank, blankEntry, ENTRIES_MAX, LEADS_MAX, entriesForScene, entriesOf, entryFromScene, entryScene, entryTags, factSlug, FACTS_MAX, isFound, shopEntry, slugify, syncShopEntries, uniqueSlug } from "./discovery";
 import { DM_AUTHOR } from "./types";
 import { originOf } from "./presets";
@@ -26,7 +27,9 @@ import { addPartyTokens, freeSpot, snapToGrid, syncFightTokens, tokensOf, TOKENS
 import { levelLine } from "./levels";
 import { applyPractice, isPracticeCommand, trackPractice } from "./practice";
 import { applyCompanion, attachCompanion, companionsWith, companionTemplatesOf, endSessionCompanions, isCompanionCommand, rentalEnded } from "./companions";
-import { applyFeatures, checkFeature, isFeatureCommand } from "./features";
+import { applyFeatures, checkFeature, featureOn, isFeatureCommand } from "./features";
+import { ATTITUDE_LOG_MAX, attitudeSettings, bandInfo, bandLine, clampScore, jobPerson, offsetOf, partyScore, relationOf, scoreFor, syncBands } from "./attitude";
+import type { AttitudeShift, Relation } from "./types";
 import { applyRooms, cleanRoom, isRoomCommand, roomsOf } from "./rooms";
 import { applyFight, isFightCommand, startFightFromBeat, type FightHelpers } from "./combatReducer";
 import type { Notice, NotePlace } from "./types";
@@ -1312,6 +1315,12 @@ function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
     return b;
   };
   const session = (id: string): Session => s.sessions.find((x) => x.id === id) ?? fail("That session doesn't exist.");
+  /** Copy the draft to what players get. */
+  const sendLastTime = (sess: Session) => {
+    const pr = sess.playerRecap!;
+    pr.sent = { text: pr.text, noteIds: pickableNoteIds(s, sess.id, pr.noteIds), at: ctx.now, n: ++s.seq };
+    delete pr.onEnd;
+  };
   const curSession = (): Session => s.sessions.find((x) => x.id === s.currentSessionId) ?? fail("No session is running.");
   const curRun = () => {
     const sess = curSession();
@@ -1392,14 +1401,19 @@ function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
     } else if (a.type === "fact") {
       const hit = findRef(s, a.ref);
       if (hit?.fact && hit.fact.revealedAt === undefined) revealFact(hit.entry, hit.fact, true);
+    } else if (a.type === "mood") {
+      // Only ever from the DM's button on the beat: whether it happens depends on the table.
+      const hit = findRef(s, a.ref);
+      if (!hit || hit.entry.kind !== "person") fail(`There's nobody called ${a.ref} in Discover any more.`);
+      moveAttitude(hit.entry, a.delta, a.reason, { source: "beat", tv: attitudeSettings(s).tv, playerIds: s.world ? presentIds(s) : undefined });
     }
   };
   const land = (run: SessionRun, ep: Episode, i: number, skip: number[] = []) => {
     run.stage = "beat";
     run.beat = i;
     ep.beats[i].actions.forEach((a, k) => {
-      // Tap sounds wait for the DM's button on the beat.
-      if ((a.type === "sound" || a.type === "sfx") && a.tap) return;
+      // Tap sounds and attitude moves wait for the DM's button on the beat.
+      if (((a.type === "sound" || a.type === "sfx") && a.tap) || a.type === "mood") return;
       if (!skip.includes(k)) fireAction(a);
     });
   };
@@ -1425,6 +1439,54 @@ function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
 
   // ---------- Discovery ----------
   const entry = (id: string): Entry => entriesOf(s).find((x) => x.id === id) ?? fail("That isn't in the compendium any more.");
+  /**
+   * Move a person's attitude dial (the party's, or only these characters'),
+   * log why, keep the bands in step, banner a band change on the TV when asked
+   * (found people only), and open whatever their goodwill unlocks.
+   */
+  const moveAttitude = (e: Entry, delta: number, reason: string, o: { source: AttitudeShift["source"]; playerIds?: string[]; secret?: boolean; tv?: boolean }): number => {
+    if (e.kind !== "person") fail("Only people have feelings about the party.");
+    syncBands(e);
+    const before = gateSnapshot();
+    const ids = o.playerIds?.length ? [...new Set(o.playerIds)].map((id) => player(id).id) : undefined;
+    const who = ids?.[0] ?? null;
+    const from = relationOf(e, who);
+    const was = scoreFor(e, who);
+    if (!ids) e.attitude = clampScore(partyScore(e) + delta);
+    else {
+      const by = { ...(e.attitudeBy ?? {}) };
+      for (const id of ids) by[id] = clampScore(scoreFor(e, id) + delta) - partyScore(e);
+      e.attitudeBy = by;
+    }
+    syncBands(e);
+    const moved = scoreFor(e, who) - was;
+    const to = relationOf(e, who);
+    const x: AttitudeShift = { id: nextId("at"), at: ctx.now, delta: moved, reason: cleanLine(reason), sessionId: s.currentSessionId, source: o.source, from, to };
+    if (ids) x.playerIds = ids;
+    if (o.secret) x.secret = true;
+    e.attitudeLog = [...(e.attitudeLog ?? []), x].slice(-ATTITUDE_LOG_MAX);
+    if (o.tv && to !== from && isFound(e.stage) && featureOn(s, "attitudes")) {
+      const names = ids?.map((id) => penName(player(id))).join(" and ");
+      announce(bandLine(e.name, to, moved > 0, names));
+    }
+    announceOpened(before);
+    return moved;
+  };
+  /** The DM picked a band: put the dial at the band's middle (nothing moves if they're already in it). For one character, the party's band clears their own standing. */
+  const setBand = (e: Entry, r: Relation, playerId: string | null) => {
+    syncBands(e);
+    const label = bandInfo(r).label;
+    if (!playerId) {
+      if (relationOf(e) !== r) moveAttitude(e, bandInfo(r).base - partyScore(e), `Set to ${label}`, { source: "set" });
+      return;
+    }
+    if (r === relationOf(e)) {
+      const off = offsetOf(e, playerId);
+      if (off) moveAttitude(e, -off, "Same as the party", { source: "set", playerIds: [playerId] });
+      return;
+    }
+    if (relationOf(e, playerId) !== r) moveAttitude(e, bandInfo(r).base - scoreFor(e, playerId), `Set to ${label}`, { source: "set", playerIds: [playerId] });
+  };
   const factOf = (e: Entry, id: string): EntryFact => e.facts.find((f) => f.id === id) ?? fail("That fact isn't there any more.");
   const playMoment = (e: Entry, from?: Stage, factId?: string) => {
     s.discovery = { entryId: e.id, n: ++s.seq, at: ctx.now, ...(from ? { from } : {}), ...(factId ? { factId } : {}) };
@@ -1510,7 +1572,9 @@ function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
     if (pin.discovered && !isFound(e.stage)) setStage(e, "found", false);
     else syncOut(e, e.stage);
   };
-  /** Monsters the party fought: a rumor under the TV name, or encountered once revealed. create: make entries for new ones (at the end of a fight). */
+  /** Monsters the party fought: a rumor under the TV name, or encountered once revealed.
+   * create: at the end of a fight, making entries for new ones. A won fight with the
+   * name revealed makes the monster Known (never lowers a stage). */
   const noteMonsters = (create: boolean) => {
     const f = s.fight;
     if (!f) return;
@@ -1529,7 +1593,8 @@ function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
         e = blankEntry(list, nextId("e"), "monster", t.name, { nickname: t.displayName.trim(), templateId: tid });
         list.push(e);
       }
-      if (revealed) setStage(e, isFound(e.stage) ? e.stage : "found", false);
+      if (revealed && create && f.outcome === "won") setStage(e, "known", false);
+      else if (revealed) setStage(e, isFound(e.stage) ? e.stage : "found", false);
       else if (create && e.stage === "hidden") setStage(e, "rumored", false);
     }
   };
@@ -2592,6 +2657,10 @@ function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
       const pts = cmd.renown ?? jobPoints(j);
       chronicle(`Job done: ${jobTitle(j)}.${how}${pts ? ` +${pts} Renown.` : ""}`);
       if (pts) addRenown(pts, { source: "job", reason: "", label: jobTitle(j), jobId: j.id });
+      // Whoever the job was for thinks better of whoever did it.
+      const att = attitudeSettings(s);
+      const forWhom = att.jobs && featureOn(s, "attitudes") ? jobPerson(s, j) : undefined;
+      if (forWhom) moveAttitude(forWhom, att.jobs, `Did the job: ${jobTitle(j)}`, { source: "job", tv: att.tv, playerIds: s.world ? presentIds(s) : undefined });
       break;
     }
     case "job.expire": {
@@ -2902,6 +2971,8 @@ function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
         s.recapCard = { n: ++s.seq, at: ctx.now, text: recap };
       }
       cur.endedAt = ctx.now;
+      // The players' "Last time on…" card, if the DM reviewed it and asked for it to go out now.
+      if (cur.playerRecap?.onEnd && cur.playerRecap.text.trim()) sendLastTime(cur);
       s.currentSessionId = null;
       clearHereAsks();
       // Companions who came along for the night go home.
@@ -3202,11 +3273,14 @@ function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
         e.links = [...new Set(p.links)].filter((id) => id !== e.id && ids.has(id));
       }
       if (p.relation !== undefined) {
-        const before = gateSnapshot();
-        if (p.relation && p.relation !== "stranger") e.relation = p.relation;
-        else delete e.relation;
-        // Their goodwill may open a storefront or put something on sale.
-        announceOpened(before);
+        if (e.kind === "person") setBand(e, p.relation ?? "stranger", null);
+        else {
+          const before = gateSnapshot();
+          if (p.relation && p.relation !== "stranger") e.relation = p.relation;
+          else delete e.relation;
+          // Their goodwill may open a storefront or put something on sale.
+          announceOpened(before);
+        }
       }
       if (p.start !== undefined) {
         if (p.start === "hidden") delete e.start;
@@ -3273,10 +3347,41 @@ function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
       const e = entry(cmd.entryId);
       if (e.kind !== "person") fail("Only people have feelings about the party.");
       player(cmd.playerId);
-      const by = (e.relationBy ??= {});
-      if (cmd.relation && cmd.relation !== (e.relation ?? "stranger")) by[cmd.playerId] = cmd.relation;
-      else delete by[cmd.playerId];
-      if (!Object.keys(by).length) delete e.relationBy;
+      setBand(e, cmd.relation ?? relationOf(e), cmd.playerId);
+      break;
+    }
+    case "entry.attitude": {
+      const e = entry(cmd.entryId);
+      moveAttitude(e, cmd.delta, cmd.reason, { source: "dm", playerIds: cmd.playerIds, secret: cmd.secret, tv: cmd.tv });
+      break;
+    }
+    case "entry.attitudeUndo": {
+      const e = entry(cmd.entryId);
+      const x = (e.attitudeLog ?? []).find((y) => y.id === cmd.shiftId) ?? fail("That change isn't in their history any more.");
+      syncBands(e);
+      const before = gateSnapshot();
+      if (!x.playerIds?.length) e.attitude = clampScore(partyScore(e) - x.delta);
+      else {
+        const by = { ...(e.attitudeBy ?? {}) };
+        for (const id of x.playerIds) by[id] = clampScore(scoreFor(e, id) - x.delta) - partyScore(e);
+        e.attitudeBy = by;
+      }
+      syncBands(e);
+      e.attitudeLog = (e.attitudeLog ?? []).filter((y) => y.id !== x.id);
+      if (!e.attitudeLog.length) delete e.attitudeLog;
+      announceOpened(before);
+      break;
+    }
+    case "entry.attitudeSecret": {
+      const e = entry(cmd.entryId);
+      const x = (e.attitudeLog ?? []).find((y) => y.id === cmd.shiftId) ?? fail("That change isn't in their history any more.");
+      if (cmd.secret) x.secret = true;
+      else delete x.secret;
+      break;
+    }
+    case "attitudes.set": {
+      const next = { ...attitudeSettings(s), ...cmd.patch };
+      s.attitudes = next;
       break;
     }
     case "entry.remove": {
@@ -3864,6 +3969,27 @@ function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
         delete sess.recap;
         if (s.live.recapSessionId === sess.id) delete s.live.recapSessionId;
       }
+      break;
+    }
+    case "lastTime.save": {
+      const sess = session(cmd.sessionId);
+      const prev = sess.playerRecap;
+      sess.playerRecap = { text: cmd.text, noteIds: pickableNoteIds(s, sess.id, cmd.noteIds), ...(cmd.onEnd ? { onEnd: true } : {}), ...(prev?.sent ? { sent: prev.sent } : {}) };
+      break;
+    }
+    case "lastTime.send": {
+      const sess = session(cmd.sessionId);
+      if (sess.endedAt === null) fail("Players get it once the session has ended. Tick \u201cSend when I end the session\u201d instead.");
+      const prev = sess.playerRecap;
+      const text = cmd.text ?? prev?.text ?? "";
+      if (!text.trim()) fail("Write a few lines first.");
+      sess.playerRecap = { text, noteIds: pickableNoteIds(s, sess.id, cmd.noteIds ?? prev?.noteIds ?? []), ...(prev?.sent ? { sent: prev.sent } : {}) };
+      sendLastTime(sess);
+      break;
+    }
+    case "lastTime.unsend": {
+      const sess = session(cmd.sessionId);
+      if (sess.playerRecap) delete sess.playerRecap.sent;
       break;
     }
     case "run.attend": {

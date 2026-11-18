@@ -439,14 +439,14 @@ const COLLECTIONS: Collection[] = [
     set: (g, v) => (g.entries = v as never),
     name: (x) => String(x.name ?? ""),
     content: (x) => ({
-      ...omit(x, ["stage", "knownBy", "relation", "relationBy", "stagedAt", "foundAt", "foundIn"]),
+      ...omit(x, ["stage", "knownBy", "relation", "relationBy", "attitude", "attitudeBy", "attitudeLog", "stagedAt", "foundAt", "foundIn"]),
       facts: ((x.facts ?? []) as Obj[]).map((f) => omit(f, ["revealedAt", "learnedIn", "knownBy"])),
     }),
     combine: (p, l) => {
       const liveFacts = new Map(((l.facts ?? []) as Obj[]).map((f) => [f.id, f]));
       return {
-        ...omit(p, ["stage", "knownBy", "relation", "relationBy", "stagedAt", "foundAt", "foundIn"]),
-        ...pick(l, ["stage", "knownBy", "relation", "relationBy", "stagedAt", "foundAt", "foundIn"]),
+        ...omit(p, ["stage", "knownBy", "relation", "relationBy", "attitude", "attitudeBy", "attitudeLog", "stagedAt", "foundAt", "foundIn"]),
+        ...pick(l, ["stage", "knownBy", "relation", "relationBy", "attitude", "attitudeBy", "attitudeLog", "stagedAt", "foundAt", "foundIn"]),
         facts: ((p.facts ?? []) as Obj[]).map((f) => {
           const lf = liveFacts.get(f.id);
           return {
@@ -457,7 +457,7 @@ const COLLECTIONS: Collection[] = [
       };
     },
     fresh: (x) => ({
-      ...omit(x, ["knownBy", "relation", "relationBy", "stagedAt", "foundAt", "foundIn"]),
+      ...omit(x, ["knownBy", "relation", "relationBy", "attitude", "attitudeBy", "attitudeLog", "stagedAt", "foundAt", "foundIn"]),
       stage: x.start ?? "hidden",
       facts: ((x.facts ?? []) as Obj[]).map((f) => omit(f, ["revealedAt", "learnedIn", "knownBy"])),
     }),
