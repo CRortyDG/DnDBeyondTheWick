@@ -58,3 +58,10 @@ ones to watch.
 Opening the console asks each campaign once (in batches of 40). Rooms that are
 asleep wake briefly; asking doesn't count as use, so it never holds off the
 six-month cleanup of idle campaigns.
+
+## Troubleshooting
+
+`/admin` showing the homepage means the deploy running on Cloudflare predates
+the console (the page file isn't there, so the site falls back to the home
+page). Check Workers & Pages → candlefair → Deployments: the top row should be
+a build of the latest main commit, not only an "Add secret" row.
