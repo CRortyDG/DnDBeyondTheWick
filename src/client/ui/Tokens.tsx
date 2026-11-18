@@ -7,6 +7,8 @@ import type { CSSProperties, HTMLAttributes } from "react";
 import type { PublicGrid } from "@/shared/tokens";
 import type { Art, TokenColor } from "@/shared/types";
 import { artSrc } from "./SceneView";
+import type { Look } from "@/shared/look";
+import { PixelLook } from "./PixelLook";
 
 export interface TokenLook {
   label: string;
@@ -15,6 +17,8 @@ export interface TokenLook {
   /** Width as a fraction of the image's width. */
   w: number;
   art?: Art;
+  /** A player's pixel-art look: drawn inside the ring. */
+  look?: Look;
   down?: boolean;
   current?: boolean;
 }
@@ -39,7 +43,7 @@ export function Token({
       aria-label={t.name || t.label}
       {...rest}
     >
-      <span className="tok-disc">{src ? <img src={src} alt="" draggable={false} /> : <span className="tok-label">{t.label}</span>}</span>
+      <span className="tok-disc">{src ? <img src={src} alt="" draggable={false} /> : t.look ? <PixelLook look={t.look} face /> : <span className="tok-label">{t.label}</span>}</span>
       {t.down ? <span className="tok-x" aria-hidden="true" /> : null}
       {showName && t.name ? (
         <span className="tok-name" title={t.name}>

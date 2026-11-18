@@ -28,6 +28,8 @@ import type { BuilderOp } from "./builderOps";
 import { AREAS_MAX, PERSON_NOTE_MAX, DM_TEXT_MAX, FACT_REF_RE, LEAD_MAX, REF_RE, FACT_MAX, HINT_MAX, LINKS_MAX, NAME_MAX, RELATION_IDS, STAGE_IDS, SUMMARY_MAX, TITLE_MAX } from "./discovery";
 
 const id = z.string().min(1).max(64);
+/** A pixel-art look: small whole numbers by part (cleaned again by cleanLook). */
+const lookInput = z.record(z.string().max(16), z.number().int().min(0).max(99)).refine((o) => Object.keys(o).length <= 40, "Too many parts.");
 /** How many of which dice: d4 to d100, at most 20 of one and 30 in all. */
 const diceAsk = z
   .array(z.object({ sides: z.literal(DIE_SIDES), count: z.number().int().min(1).max(MAX_OF_ONE) }))
@@ -313,7 +315,7 @@ export const dmCommand = z.discriminatedUnion("type", [
   z.object({ type: z.literal("show"), ref: showRef }),
   z.object({ type: z.literal("quick.set"), key: z.number().int().min(0).max(9), ref: showRef.nullable() }),
   z.object({ type: z.literal("recent.clear") }),
-  z.object({ type: z.literal("entry.picture"), entryId: id, art: artSchema, alt: text(300).optional() }),
+  z.object({ type: z.literal("entry.picture"), entryId: id, art: artSchema, alt: text(300).optional(), look: lookInput.optional() }),
   z.object({ type: z.literal("episode.acceptSuggestions"), episodeId: id }),
   z.object({ type: z.literal("beat.dismiss"), episodeId: id, beatId: id, ref: showRef }),
   // The episode builder: story beats in run sheets, and the prep checklist.
@@ -447,6 +449,7 @@ export const dmCommand = z.discriminatedUnion("type", [
   z.object({ type: z.literal("player.add"), name: text(32) }),
   z.object({ type: z.literal("player.update"), playerId: id, patch: z.object({ name: text(32), dndbUrl: text(300), away: z.boolean(), dropIn: z.boolean(), handle: text(40), character: text(40) }).partial() }),
   z.object({ type: z.literal("player.archive"), playerId: id, archived: z.boolean() }),
+  z.object({ type: z.literal("player.look"), playerId: id, look: lookInput.nullable() }),
   /** Set one character's level quietly (no moment), or clear it. */
   z.object({ type: z.literal("player.level"), playerId: id, level: z.number().int().min(1).max(20).nullable() }),
   /** Level up the party: each character's new level, then the TV moment, the Chronicle line and the phones. */
@@ -691,6 +694,7 @@ export const dmCommand = z.discriminatedUnion("type", [
 export const playerCommand = z.discriminatedUnion("type", [
   z.object({ type: z.literal("me.update"), patch: z.object({ name: text(32), dndbUrl: text(300), initBonus: z.number().int().min(-10).max(20) }).partial() }),
   z.object({ type: z.literal("me.lock"), key: z.string().min(4).max(128) }),
+  z.object({ type: z.literal("me.look"), look: lookInput.nullable() }),
   /** Marked away but at the table: ask the DM to mark me here (cancel: never mind). Only the DM marks anyone present. */
   z.object({ type: z.literal("me.askHere"), cancel: z.boolean().optional() }),
   /** expectedUnitCp: the price the phone showed; refused if it has changed since. */

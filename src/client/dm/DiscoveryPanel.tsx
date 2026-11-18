@@ -6,6 +6,10 @@
 // name and picture, and each fact once you reveal it. Your notes and secrets
 // never leave this screen.
 
+import type { Look } from "@/shared/look";
+import { drawLook } from "@/shared/lookArt";
+import { LookEditor } from "../ui/LookEditor";
+import { pixUrl } from "../ui/PixelLook";
 import { featureOn } from "@/shared/features";
 import { RoomFields } from "./Rooms";
 import { AttitudeTracker } from "./AttitudeTracker";
@@ -249,6 +253,17 @@ function EntryEditor({ entry: e, tv }: { entry: Entry; tv: boolean }) {
   const sc = e.sceneId ? s.scenes.find((x) => x.id === e.sceneId) : undefined;
   const portraitSrc = artSrc(sc?.art, gated);
   const picFile = useRef<HTMLInputElement>(null);
+  const [styling, setStyling] = useState(false);
+  /** Save a character-maker look as this entry's picture: drawn big and crisp, uploaded like any image. */
+  const savePixelPortrait = async (look: Look): Promise<string | null> => {
+    try {
+      const blob = await (await fetch(pixUrl(drawLook(look), 12))).blob();
+      const url = await uploadImage(ident, new File([blob], `${e.slug || "portrait"}.png`, { type: "image/png" }));
+      return (await run({ type: "entry.picture", entryId: e.id, art: { url }, alt: e.name, look }, "Picture saved.")) ? null : "Couldn't save the picture.";
+    } catch (err) {
+      return err instanceof Error ? err.message : "That didn't work.";
+    }
+  };
   const setPicture = async (f: File | undefined) => {
     if (!f) return;
     setBusy(true);
@@ -318,6 +333,10 @@ function EntryEditor({ entry: e, tv }: { entry: Entry; tv: boolean }) {
             Remove picture
           </button>
         ) : null}
+        <button className="btn small" type="button" disabled={busy} onClick={() => setStyling(true)}>
+          {e.pixelLook ? "Edit pixel portrait" : "Make a pixel portrait"}
+        </button>
+        {styling ? <LookEditor initial={e.pixelLook} name={e.name} title={`${e.name || "Portrait"}: pixel portrait`} onSave={savePixelPortrait} onClose={() => setStyling(false)} /> : null}
         <input ref={picFile} type="file" accept="image/*" hidden onChange={(ev) => void setPicture(ev.target.files?.[0])} />
         <span className="silhouette-preview">
           <Portrait name={e.name} kind={e.kind} silhouette={e.silhouette} rumored className="person-face" />

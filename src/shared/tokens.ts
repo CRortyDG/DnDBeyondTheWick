@@ -2,6 +2,7 @@
 // adds. Positions are fractions of the map image (like pins), so a token lands
 // on the same spot on the TV, the DM's screen and a phone.
 
+import type { Look } from "./look";
 import { penName } from "./chronicle";
 import { tvName } from "./combat";
 import { cellAt, decodeBits, fogged } from "./fog";
@@ -109,6 +110,8 @@ export interface PublicToken {
   w: number;
   playerId?: string;
   art?: Art;
+  /** Player tokens: their pixel-art look, drawn inside the ring. */
+  look?: Look;
   down?: boolean;
   current?: boolean;
   locked?: boolean;
@@ -130,7 +133,11 @@ export function publicTokens(game: GameState, m: MapData): PublicToken[] {
     const face = tokenFace(game, t);
     if (face.hidden) continue;
     const pt: PublicToken = { id: t.id, kind: t.kind, label: face.label, name: face.name, color: t.color, x: t.x, y: t.y, w: round4(tokenWidth(m.grid, t.size)) };
-    if (t.playerId) pt.playerId = t.playerId;
+    if (t.playerId) {
+      pt.playerId = t.playerId;
+      const look = game.players.find((p) => p.id === t.playerId)?.look;
+      if (look && !t.art?.url) pt.look = { ...look };
+    }
     if (t.art?.url) pt.art = { url: t.art.url };
     if (face.down) pt.down = true;
     if (face.current) pt.current = true;
