@@ -11,7 +11,7 @@ import type { PresetStore } from "@/server/presets";
 import type { BuilderRow, BuilderStore } from "@/server/builderStore";
 import type { CampaignStory, CampaignSummary, RoomFacts } from "@/shared/admin";
 import { storyFor, summarise } from "@/server/adminStory";
-import { addUsage, USAGE_FIELDS, utcDay, ZERO_USAGE, type UsageCounts, type UsageReport } from "@/shared/hosting";
+import { addUsage, busiest, USAGE_FIELDS, utcDay, ZERO_USAGE, type UsageCounts, type UsageReport } from "@/shared/hosting";
 
 /** A campaign idle this long is deleted, with its images. */
 const IDLE_DELETE_MS = 180 * 24 * 60 * 60 * 1000;
@@ -74,6 +74,8 @@ export class GameRoom extends DurableObject<Env> implements Store {
   private meter: UsageCounts = { ...ZERO_USAGE };
   private cursors: SqlStorageCursor<Record<string, SqlStorageValue>>[] = [];
   private lastFlush = 0;
+  /** The UTC day the unsaved counts belong to, so a night that runs past midnight UTC splits between the two days. */
+  private meterDay = "";
   private prunedOn = "";
 
   constructor(ctx: DurableObjectState, env: Env) {
@@ -499,6 +501,15 @@ export class GameRoom extends DurableObject<Env> implements Store {
   // USAGE_FLUSH_MS. A room that was never created (a guessed code) saves nothing.
 
   private count(u: Partial<UsageCounts>) {
+    const today = utcDay(Date.now());
+    if (this.meterDay !== today) {
+      // Past midnight UTC: what was counted before it belongs to yesterday.
+      const old = this.meter;
+      const oldDay = this.meterDay;
+      this.meter = { ...ZERO_USAGE };
+      this.meterDay = today;
+      if (oldDay && this.hasSchema) this.saveUsage(oldDay, old);
+    }
     this.meter = addUsage(this.meter, u);
   }
 
@@ -527,7 +538,12 @@ export class GameRoom extends DurableObject<Env> implements Store {
     if (USAGE_FIELDS.every((k) => m[k] === 0)) return;
     this.meter = { ...ZERO_USAGE };
     this.lastFlush = Date.now();
-    const day = utcDay(this.lastFlush);
+    this.saveUsage(this.meterDay || utcDay(this.lastFlush), m);
+  }
+
+  /** Add one day's counts to its saved row. */
+  private saveUsage(day: string, m: UsageCounts) {
+    if (USAGE_FIELDS.every((k) => m[k] === 0)) return;
     try {
       this.sql.exec(`CREATE TABLE IF NOT EXISTS usage (day TEXT PRIMARY KEY, ${USAGE_FIELDS.map((k) => `${k} INTEGER NOT NULL DEFAULT 0`).join(", ")})`);
       this.sql.exec(
@@ -539,7 +555,7 @@ export class GameRoom extends DurableObject<Env> implements Store {
       // Two years of days is plenty.
       if (this.prunedOn !== day) {
         this.prunedOn = day;
-        this.sql.exec("DELETE FROM usage WHERE day < ?", utcDay(this.lastFlush - 730 * 24 * 60 * 60 * 1000));
+        this.sql.exec("DELETE FROM usage WHERE day < ?", utcDay(Date.now() - 730 * 24 * 60 * 60 * 1000));
       }
     } catch (e) {
       // Counting must never break the game.
@@ -559,7 +575,7 @@ export class GameRoom extends DurableObject<Env> implements Store {
     const days = rows.map((r) => ({ day: String(r.day), counts: counts(r) }));
     const byMonth = new Map<string, UsageCounts>();
     for (const d of days) byMonth.set(d.day.slice(0, 7), addUsage(byMonth.get(d.day.slice(0, 7)) ?? ZERO_USAGE, d.counts));
-    const busy = days.filter((d) => d.day.startsWith(month)).sort((a, b) => b.counts.workerRequests + b.counts.roomRequests - (a.counts.workerRequests + a.counts.roomRequests))[0] ?? null;
+    const busy = busiest(days.filter((d) => d.day.startsWith(month)));
     const up = this.hasSchema && this.sql.exec("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'uploads'").toArray().length
       ? this.sql.exec<{ bytes: number; files: number }>("SELECT bytes, files FROM uploads WHERE id = 1").toArray()[0]
       : undefined;
@@ -570,7 +586,7 @@ export class GameRoom extends DurableObject<Env> implements Store {
       today,
       todayCounts: days.find((d) => d.day === today)?.counts ?? { ...ZERO_USAGE },
       busiestDay: busy,
-      months: [...byMonth].map(([m, c]) => ({ month: m, counts: c })),
+      months: [...byMonth].map(([m, c]) => ({ month: m, counts: c, busiestDay: busiest(days.filter((d) => d.day.startsWith(m))) })),
       storageBytes: this.sql.databaseSize,
       imageBytes: up?.bytes ?? 0,
       imageFiles: up?.files ?? 0,
