@@ -207,7 +207,7 @@ describe("game night", () => {
     expect((await phone("GET", inv.code, key(3))).body.invite.status).toBe("started");
   });
 
-  it("in a shared world, an open call becomes a party of its own on the night", async () => {
+  it("in a shared world, open calls are played by one standing Open table party", async () => {
     await execute(store, G, DM, { type: "party.add", name: "Second table" });
     const inv = await makeInvite({ seats: 2, title: "Friday pick-up" });
     await claim(inv.code, 1, "Priya");
@@ -219,8 +219,17 @@ describe("game night", () => {
     await execute(store, G, DM, { type: "session.start", inviteId: inv.id });
     const s = await state();
     const party = s.parties!.find((x) => x.id === s.partyId)!;
-    expect(party.name).toBe("Friday pick-up");
+    expect(party).toMatchObject({ name: "Open table", openTable: true });
     expect(party.memberIds.map((id) => s.players.find((p) => p.id === id)!.name).sort()).toEqual(["Dana", "Priya"]);
+    // The next open call is played by the same party, not a new one.
+    await execute(store, G, DM, { type: "session.end" });
+    const count = s.parties!.length;
+    const inv2 = await makeInvite({ seats: 2, title: "Saturday pick-up" });
+    await claim(inv2.code, 3, "Sam");
+    await execute(store, G, DM, { type: "session.start", inviteId: inv2.id });
+    const s2 = await state();
+    expect(s2.parties!.length).toBe(count);
+    expect(s2.partyId).toBe(party.id);
   });
 
   it("a party invite only takes that party's characters", async () => {

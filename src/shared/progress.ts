@@ -1,7 +1,7 @@
 // The shop as progression: categories, discounts, credit, shares, and what's
 // due at session end. Pure helpers shared by the reducer, projection and UI.
 
-import type { Effect, GameState, Item, ItemCategory, ItemKind, Rental, Stake, Training } from "./types";
+import type { Effect, GameState, Item, ItemCategory, ItemKind, Rental, Session, Stake, Training } from "./types";
 
 export const CATEGORIES: { id: ItemCategory; label: string }[] = [
   { id: "gear", label: "Gear" },
@@ -170,10 +170,57 @@ export interface Due {
  * training not yet paid through it. Charging moves them past it, so the
  * same session can never charge twice.
  */
-export function duesFor(s: Pick<GameState, "rentals" | "trainings">, number: number): Due[] {
-  const rent = s.rentals.filter((r: Rental) => r.active && !r.hire && r.paidThrough < number).map((r): Due => ({ id: r.id, kind: "rent", playerId: r.playerId, itemName: r.itemName, cp: r.monthlyCp }));
+// ---------- the rent clock ----------
+// One table counts sessions by their number. A shared world numbers sessions per
+// party, so rent, lessons and special orders count "nights" instead: every
+// group's sessions in one line, in the order they were played.
+
+type Clocked = Pick<GameState, "sessions"> & Partial<Pick<GameState, "world" | "currentSessionId" | "partyId">>;
+
+/** A shared-world session's night: stored when it started, else its place by start time. */
+export function nightOf(g: Pick<GameState, "sessions">, sess: Session): number {
+  if (sess.night !== undefined) return sess.night;
+  return g.sessions.filter((x) => x.startedAt < sess.startedAt || (x.startedAt === sess.startedAt && x.id <= sess.id)).length;
+}
+
+/** The night the next shared-world session gets. */
+export function nextNight(g: Pick<GameState, "sessions">): number {
+  return g.sessions.reduce((m, x) => Math.max(m, nightOf(g, x)), 0) + 1;
+}
+
+/** Where a session sits on the rent clock. */
+export function clockOf(g: Clocked, sess: Session): number {
+  return g.world ? nightOf(g, sess) : sess.number;
+}
+
+/** The session the rent clock is on now: the running one, else the next one to start. */
+export function clockNow(g: Clocked): number {
+  const cur = g.sessions.find((x) => x.id === g.currentSessionId);
+  if (cur) return clockOf(g, cur);
+  if (g.world) return nextNight(g);
+  const mine = g.sessions;
+  return mine.reduce((m, x) => Math.max(m, x.number), 0) + 1;
+}
+
+/** The last session that ended (in a shared world: the last one this character was at). 0: none. */
+export function lastEndedClock(g: Clocked, playerId?: string): number {
+  let n = 0;
+  for (const x of g.sessions) {
+    if (x.endedAt == null) continue;
+    if (g.world && playerId && !x.attendeeIds.includes(playerId)) continue;
+    n = Math.max(n, clockOf(g, x));
+  }
+  return n;
+}
+
+/** Rent and lessons due at this session's end. In a shared world, only for the characters at it. */
+export function duesFor(s: Pick<GameState, "rentals" | "trainings"> & Clocked, sess: Session): Due[] {
+  const number = clockOf(s, sess);
+  const here = s.world ? new Set(sess.attendeeIds) : null;
+  const at = (pid: string) => !here || here.has(pid);
+  const rent = s.rentals.filter((r: Rental) => r.active && !r.hire && r.paidThrough < number && at(r.playerId)).map((r): Due => ({ id: r.id, kind: "rent", playerId: r.playerId, itemName: r.itemName, cp: r.monthlyCp }));
   const lessons = s.trainings
-    .filter((t: Training) => !t.done && !t.cancelled && t.paidThrough < number)
+    .filter((t: Training) => !t.done && !t.cancelled && t.paidThrough < number && at(t.playerId))
     .map((t): Due => ({ id: t.id, kind: "lesson", playerId: t.playerId, itemName: t.itemName, cp: installmentCp(t.totalCp, t.of, t.paid), step: `${t.paid + 1} of ${t.of}` }));
   return [...rent, ...lessons];
 }

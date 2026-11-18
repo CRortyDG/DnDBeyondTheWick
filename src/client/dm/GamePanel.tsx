@@ -237,6 +237,19 @@ function SessionsBox() {
                 {running ? " \u00b7 running now" : x.endedAt ? ` \u2013 ${when(x.endedAt)}` : ""} &middot; {counts.get(x.id) ?? 0} ledger lines
                 {x.attendeeIds.length ? ` \u00b7 ${x.attendeeIds.map((id) => names.get(id) ?? "someone who left").join(", ")}` : ""}
               </p>
+              <details className="session-attend">
+                <summary>Who was there</summary>
+                <div className="inline wrap">
+                  {s.players
+                    .filter((p) => !p.archived || x.attendeeIds.includes(p.id))
+                    .map((p) => (
+                      <label key={p.id} className="check">
+                        <input type="checkbox" checked={x.attendeeIds.includes(p.id)} onChange={(e) => void run({ type: "session.attend", sessionId: x.id, playerId: p.id, here: e.target.checked })} />{" "}
+                        {p.character?.trim() || p.name}
+                      </label>
+                    ))}
+                </div>
+              </details>
               <div className="inline">
                 {running ? (
                   <button className="btn small" type="button" onClick={() => setEnding(true)}>

@@ -5,7 +5,7 @@
 
 import { useState } from "react";
 import { formatCp } from "@/shared/money";
-import { creditCp, duesFor, type Due } from "@/shared/progress";
+import { clockOf, creditCp, duesFor, type Due } from "@/shared/progress";
 import type { Session } from "@/shared/types";
 import { useDm } from "./context";
 import { downloadBackup } from "./backup";
@@ -13,7 +13,7 @@ import { useAutosave } from "./useAutosave";
 
 export function useDues(session: Session | undefined): Due[] {
   const { view } = useDm();
-  return session ? duesFor(view.state, session.number) : [];
+  return session ? duesFor(view.state, session) : [];
 }
 
 export function Dues({ session, onCharged }: { session: Session; onCharged?: () => void }) {
@@ -32,7 +32,7 @@ function Hirelings({ session }: { session: Session }) {
   const list = (s.companions ?? []).flatMap((c) => {
     if (c.status !== "with" || !c.hire) return [];
     const r = s.rentals.find((x) => x.id === c.hire!.rentalId && x.active);
-    return r && r.paidThrough <= session.number ? [{ c, r }] : [];
+    return r && r.paidThrough <= clockOf(s, session) ? [{ c, r }] : [];
   });
   if (!list.length) return null;
   const name = (id: string) => s.players.find((p) => p.id === id)?.name ?? "someone who left";

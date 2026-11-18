@@ -42,7 +42,8 @@ const approveLast = (extra: Partial<Extract<Command, { type: "request.approve" }
 const start = () => dm({ type: "session.start" });
 const end = () => dm({ type: "session.end" });
 const curNumber = () => g.sessions.find((s) => s.id === g.currentSessionId)!.number;
-const chargeAllDue = () => dm({ type: "dues.charge", ids: duesFor(g, curNumber()).map((d) => d.id) });
+const curSession = () => g.sessions.find((s) => s.id === g.currentSessionId)!;
+const chargeAllDue = () => dm({ type: "dues.charge", ids: duesFor(g, curSession()).map((d) => d.id) });
 
 beforeEach(() => {
   g = seedGame("t");
@@ -95,10 +96,10 @@ describe("rent", () => {
     approveLast();
     expect(bal("p1")).toBe(17 * GP); // first month
     // Bought this session: already paid through it.
-    expect(duesFor(g, curNumber())).toEqual([]);
+    expect(duesFor(g, curSession())).toEqual([]);
     end();
     start(); // session 2
-    expect(duesFor(g, curNumber())).toMatchObject([{ kind: "rent", playerId: "p1", cp: 3 * GP }]);
+    expect(duesFor(g, curSession())).toMatchObject([{ kind: "rent", playerId: "p1", cp: 3 * GP }]);
     chargeAllDue();
     expect(bal("p1")).toBe(14 * GP);
     const ids = g.rentals.map((r) => r.id);
@@ -116,7 +117,7 @@ describe("rent", () => {
     as(P(1), { type: "me.cancelRental", rentalId: g.rentals[0].id });
     end();
     start();
-    expect(duesFor(g, curNumber())).toEqual([]);
+    expect(duesFor(g, curSession())).toEqual([]);
     expect(projectPlayer(g, 1, "p1", []).mine.rentals).toEqual([]);
   });
 
@@ -172,7 +173,7 @@ describe("training", () => {
     expect(g.tasks.at(-1)!.text).toMatch(/Record a new proficiency: Player 1 finished Learn a language or tool: Elvish/);
     end();
     start();
-    expect(duesFor(g, curNumber())).toEqual([]);
+    expect(duesFor(g, curSession())).toEqual([]);
     expect(projectPlayer(g, 1, "p1", []).mine.trainings).toMatchObject([{ paid: 5, of: 5, done: true }]);
   });
 });

@@ -10,8 +10,9 @@ export function seatsOf(g: Pick<GameState, "maxPlayers">): number {
 }
 
 /** Players who hold a seat: everyone except those who left the table. */
-export function seatedCount(g: Pick<GameState, "players">): number {
-  return g.players.filter((p) => !p.archived).length;
+/** Seats taken. A shared world's roster can be any size: only the characters at the table tonight take a seat. */
+export function seatedCount(g: Pick<GameState, "players"> & Partial<Pick<GameState, "world">>): number {
+  return g.players.filter((p) => !p.archived && (!g.world || !p.away)).length;
 }
 
 // Spoiler-free starter catalog, organised by what things do. Every shop starts hidden.
