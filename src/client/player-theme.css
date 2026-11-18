@@ -2715,3 +2715,140 @@ html[data-view="player"] {
   max-height: 60vh;
   overflow-y: auto;
 }
+
+/* Secret whispers from the DM: a sealed strip, then a sheet of notes. */
+:where(html[data-view="player"]) .pl-whisper {
+  display: flex;
+  align-items: center;
+  gap: var(--pl-s3);
+  width: 100%;
+  margin: var(--pl-s2) 0;
+  padding: 10px 14px;
+  border-radius: var(--pl-r-md);
+  border: 1px solid var(--pl-border-strong);
+  background: var(--pl-bg-2);
+  color: var(--pl-text);
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+  min-height: var(--pl-control);
+}
+:where(html[data-view="player"]) .pl-whisper.sealed {
+  border-color: rgba(166, 58, 44, 0.7);
+  background: linear-gradient(90deg, rgba(166, 58, 44, 0.22), rgba(166, 58, 44, 0.08));
+  animation: pl-whisper-in 0.5s ease both;
+}
+:where(html[data-view="player"]) .pl-whisper-seal {
+  flex: none;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 38% 35%, #c9573f, var(--pl-wax) 60%, #6e2219);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.5), inset 0 0 0 3px rgba(0, 0, 0, 0.12);
+  animation: pl-whisper-pulse 2.4s ease-in-out infinite;
+}
+:where(html[data-view="player"]) .pl-whisper-k {
+  font-family: var(--font-poster);
+  font-size: 18px;
+  line-height: 1.1;
+  color: var(--pl-gold);
+  flex: 1;
+  min-width: 0;
+}
+:where(html[data-view="player"]) .pl-whisper:not(.sealed) .pl-whisper-k {
+  flex: none;
+  font-size: 16px;
+}
+:where(html[data-view="player"]) .pl-whisper-v {
+  flex: 1;
+  min-width: 0;
+  font-size: 14px;
+  color: var(--pl-text-2);
+}
+:where(html[data-view="player"]) .pl-whisper-go {
+  font-weight: 600;
+  color: var(--pl-gold);
+  white-space: nowrap;
+}
+:where(html[data-view="player"]) .pl-whisper-lede {
+  margin: 0 0 var(--pl-s3);
+}
+:where(html[data-view="player"]) .pl-whisper-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--pl-s3);
+  max-height: 64vh;
+  overflow-y: auto;
+}
+:where(html[data-view="player"]) .pl-whisper-note {
+  padding: 12px 14px;
+  border-radius: var(--pl-r-md);
+  background: var(--pl-bg-2);
+  border-left: 3px solid var(--pl-border-strong);
+  display: grid;
+  gap: 6px;
+}
+:where(html[data-view="player"]) .pl-whisper-note.fresh {
+  border-left-color: var(--pl-wax);
+}
+:where(html[data-view="player"]) .pl-whisper-when {
+  font-size: 12px;
+  color: var(--pl-text-2);
+}
+:where(html[data-view="player"]) .pl-whisper-text {
+  margin: 0;
+  font-size: 17px;
+  line-height: 1.45;
+  font-style: italic;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+:where(html[data-view="player"]) .pl-whisper-answer {
+  justify-self: start;
+  font-size: 14px;
+}
+:where(html[data-view="player"]) .pl-whisper-form {
+  display: grid;
+  gap: var(--pl-s2);
+}
+:where(html[data-view="player"]) .pl-whisper-form textarea {
+  width: 100%;
+  font-size: 16px;
+}
+:where(html[data-view="player"]) .pl-whisper-acts {
+  display: inline-flex;
+  gap: var(--pl-s3);
+  justify-content: flex-end;
+  margin-left: var(--pl-s2);
+}
+:where(html[data-view="player"]) .pl-whisper-form .pl-whisper-acts {
+  display: flex;
+}
+:where(html[data-view="player"]) .pl-whisper-reply {
+  font-size: 14px;
+  color: var(--pl-text-2);
+  overflow-wrap: anywhere;
+}
+:where(html[data-view="player"]) .pl-whisper-reply-k {
+  color: var(--pl-gold);
+  font-weight: 600;
+}
+@keyframes pl-whisper-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+}
+@keyframes pl-whisper-pulse {
+  50% {
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.5), 0 0 0 6px rgba(166, 58, 44, 0.18);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  :where(html[data-view="player"]) .pl-whisper.sealed,
+  :where(html[data-view="player"]) .pl-whisper-seal {
+    animation: none;
+  }
+}

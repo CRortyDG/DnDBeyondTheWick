@@ -1,0 +1,134 @@
+/* Secret whispers: floats like the dice tray (it reuses .dt-panel and .dt-head). */
+
+.wh-panel {
+  width: min(420px, calc(100vw - 32px));
+}
+.wh-panel .spacer {
+  flex: 1;
+}
+.wh-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-left: 2px;
+  border-radius: 50%;
+  background: var(--dm-gold, #e3b65c);
+  box-shadow: 0 0 0 3px var(--dm-gold-soft, rgba(227, 182, 92, 0.14));
+}
+.wh-lede {
+  margin: -4px 0 0;
+}
+.wh-to {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.wh-to .chip-check {
+  font-size: 13.5px;
+  padding: 6px 12px;
+}
+.wh-to .wh-away {
+  opacity: 0.75;
+}
+.wh-away-k {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--dm-text-3, #8a7b6c);
+}
+.wh-all {
+  font-size: 13px;
+  margin-left: 4px;
+}
+.wh-text {
+  width: 100%;
+  min-height: 76px;
+  resize: vertical;
+  font-size: 15px;
+  line-height: 1.4;
+}
+.wh-send-row,
+.wh-row-head,
+.wh-row-foot {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.wh-send-row .note {
+  margin: 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.wh-log h3 {
+  margin: 4px 0 6px;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--dm-text-3, #8a7b6c);
+}
+.wh-log ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+.wh-row {
+  padding: 10px 12px;
+  border-radius: var(--dm-r-md, 10px);
+  background: var(--dm-bg-2, #211a15);
+  border: 1px solid var(--dm-border, #30271f);
+  display: grid;
+  gap: 4px;
+}
+.wh-row-to {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--dm-text-2, #b5a794);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.wh-row-at {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--dm-text-3, #8a7b6c);
+  white-space: nowrap;
+}
+.wh-row-text {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.4;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.wh-reply {
+  margin: 2px 0 0;
+  padding: 6px 10px;
+  border-left: 2px solid var(--dm-gold-line, rgba(227, 182, 92, 0.55));
+  background: var(--dm-gold-soft, rgba(227, 182, 92, 0.14));
+  border-radius: 0 6px 6px 0;
+  font-size: 13.5px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.wh-reply-who {
+  font-weight: 600;
+  color: var(--dm-gold, #e3b65c);
+}
+.wh-row-foot {
+  font-size: 12.5px;
+}
+.wh-read {
+  color: var(--dm-text-3, #8a7b6c);
+}
+.wh-read.all {
+  color: var(--dm-ok, #86c38a);
+}
+.wh-row-foot .linkish {
+  font-size: 12.5px;
+}

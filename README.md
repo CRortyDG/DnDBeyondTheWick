@@ -49,6 +49,15 @@ For first-time players, the seat page has **Pick a starting point**: six kinds o
 - **Sound** is off by default, with a toggle that's remembered per device. The waves, creaking, wind, door and hearth are made in the browser, so there are no files to download. To use recordings instead, put them in `public/arrival/sounds/` and list them in `SOUND_FILES` in the content file.
 - **Spoiler safety:** the Arrival page is its own part of the site with its own small bundle; it loads none of the main app's code or styles. `/api/arrival` sends only the seat names and the player's own progress.
 
+## Secret whispers
+
+A private note from the DM to one player, or a few: "You notice the baker's hands are shaking." **Whisper** (or `W`) is in the DM bar, in run-game mode and on the fight screen; a player's ⋯ menu on the Players page opens it picked for them. Tick who hears it, type, press Enter.
+
+- **Only they get it.** The TV never does, and other phones don't either. Sent to several, each phone gets its own copy without the other names (write "you both…" if you want them to know).
+- **Sealed until read.** The phone shows *A whisper from the DM · Tap to read* (and buzzes, or chimes when that player has device sounds on), so a neighbour glancing over sees nothing. The DM's list says who has read it.
+- **Answer quietly.** A player can send one short line back (and change or take it back). A dot on the Whisper button means an answer is waiting.
+- **Take back** removes it from every phone it went to. A phone keeps its last 30; older ones are under *Your character → Whispers from the DM*. Code: `src/shared/whispers.ts`. It's a feature switch ("Secret whispers") on the Features page.
+
 ## Sound and the soundboard
 
 Sound plays from the TV. Every sound is made in the TV's browser with Web Audio (oscillators, filtered noise, plucked strings), so there are no audio files to download, host or license, and nothing is streamed from the server. The music is composed as it plays from a few rules (a key, a chord pattern, a rhythm), so it doesn't loop exactly. Code: `src/client/sound/` (engine, layers, one-shots), the catalog in `src/shared/sound.ts`.

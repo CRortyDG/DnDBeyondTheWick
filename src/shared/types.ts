@@ -4,6 +4,7 @@
 import type { DiceGroup, RollEntry } from "./dice";
 
 import type { HandoutSheet } from "./handout";
+import type { Whisper } from "./whispers";
 
 export type SceneKind = "notice" | "portrait" | "handout" | "image" | "black" | "map" | "table" | "stinger" | "video" | "intro" | "keys";
 
@@ -1310,6 +1311,10 @@ export interface GameState {
   tvRolls?: TvDiceRoll[];
   /** DM-ONLY: every roll, the DM's and the players', newest last (capped). Players see only their own. */
   rolls?: RollEntry[];
+  /** DM-ONLY: secret whispers to players, oldest first (capped). Each phone gets only its own (see whispers.ts). */
+  whispers?: Whisper[];
+  /** DM-ONLY: when the DM last read the players' answers to whispers. */
+  whispersReadAt?: number;
   /** The soundboard: what the TV plays (see sound.ts). Missing: nothing chosen, auto cues on. */
   sound?: SoundState;
   /** The Arrival intro's settings. Missing on games made before it. */

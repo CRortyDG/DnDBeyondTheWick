@@ -25,6 +25,7 @@ import { useTablet } from "./tablet";
 import { FullScreenButton } from "./TabletBits";
 import { DiceButton } from "./DiceTray";
 import { SoundButton } from "./Soundboard";
+import { WhisperButton } from "./Whispers";
 import { ambientById } from "@/shared/ambient";
 import { mixLabel, sfxById } from "@/shared/sound";
 import { ClueLeftovers, OffScriptPanel, QuickCapture, TurnNotesInto, useOffScriptKeys, type OffTab } from "./OffScript";
@@ -199,6 +200,7 @@ export function RunGame({ onExit, onFight }: { onExit: () => void; onFight?: () 
             <span className="key">B</span> Bank
           </button>
         )}
+        <WhisperButton small />
         <SoundButton small />
         <DiceButton small />
         {tablet ? (

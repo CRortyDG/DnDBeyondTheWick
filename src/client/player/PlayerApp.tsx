@@ -24,6 +24,7 @@ import { NAV_ICONS, PlayerNav, type Screen } from "./PlayerNav";
 import { DecisionBanners, MyRequests, RequestSheet, SendGold } from "./Requests";
 import { CharacterTab, LookCard } from "./CharacterTab";
 import { LastTime } from "./LastTime";
+import { WhisperHistoryButton, Whispers } from "./Whispers";
 import { MyRoomCard } from "./MyRoom";
 import { FEATURE, FEATURES, type FeatureId } from "@/shared/features";
 import { HERE_ASK_COOLDOWN_MS } from "@/shared/attendance";
@@ -430,6 +431,7 @@ function PlayerScreen({ view, online, send, ident, setIdent }: { view: PlayerVie
             </button>
           )}
           {view.myRoom && !has("gold") ? <MyRoomCard room={view.myRoom} /> : null}
+          <WhisperHistoryButton view={view} send={send} />
           {has("deviceSound") ? <DeviceSound /> : null}
           <YourTabs view={view} send={send} />
           {msg && youOpen ? (
@@ -489,6 +491,7 @@ function PlayerScreen({ view, online, send, ident, setIdent }: { view: PlayerVie
       {me.away ? <AwayStrip view={view} send={send} /> : null}
       <DecisionBanners view={view} />
       <LastTime view={view} />
+      <Whispers view={view} send={send} />
       {screen !== "fight" ? <CompanionStrip view={view} send={send} /> : null}
       {f && screen !== "fight" ? (
         <button type="button" className={`pl-fight-strip${myTurn ? " turn" : upNext ? " next" : ""}`} onClick={() => setScreen("fight")}>
@@ -598,6 +601,7 @@ function PlayerScreen({ view, online, send, ident, setIdent }: { view: PlayerVie
       {me.away ? <AwayStrip view={view} send={send} /> : null}
       <DecisionBanners view={view} />
       <LastTime view={view} />
+      <Whispers view={view} send={send} />
       {screen !== "fight" ? <CompanionStrip view={view} send={send} /> : null}
       {f && screen !== "fight" ? (
         <button type="button" className={`pl-fight-strip${myTurn ? " turn" : upNext ? " next" : ""}`} onClick={() => setScreen("fight")}>

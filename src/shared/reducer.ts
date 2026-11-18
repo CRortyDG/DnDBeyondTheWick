@@ -32,6 +32,7 @@ import { applyFeatures, checkFeature, featureOn, isFeatureCommand } from "./feat
 import { ATTITUDE_LOG_MAX, attitudeSettings, bandInfo, bandLine, clampScore, jobPerson, offsetOf, partyScore, relationOf, scoreFor, syncBands } from "./attitude";
 import type { AttitudeShift, Relation } from "./types";
 import { applyRooms, cleanRoom, isRoomCommand, roomsOf } from "./rooms";
+import { applyWhisper, isWhisperCommand } from "./whispers";
 import { applyFight, isFightCommand, startFightFromBeat, type FightHelpers } from "./combatReducer";
 import type { Notice, NotePlace } from "./types";
 import { beatSuggestions, entryRef, freeQuickKey, liveRef, QUICK_KEYS, quickOf, RECENT_MAX, refForScene, renameRefs, resolveRef, sceneSlug, uniqueSceneSlug } from "./assets";
@@ -1848,6 +1849,11 @@ function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
 
   if (isFeatureCommand(cmd)) {
     applyFeatures(s, cmd, { actor: ctx.actor as { role: string; playerId?: string }, fail });
+    return out;
+  }
+
+  if (isWhisperCommand(cmd)) {
+    applyWhisper(s, cmd, { now: ctx.now, actor: ctx.actor as { role: string; playerId?: string }, nextId, fail });
     return out;
   }
 
