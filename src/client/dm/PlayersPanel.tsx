@@ -201,7 +201,7 @@ export function PlayersPanel() {
 }
 
 function PlayerRow({ p, onEdit, selected }: { p: DmPlayer; onEdit: () => void; selected: boolean }) {
-  const { view, run, toast } = useDm();
+  const { view, run, toast, toggleWhisper } = useDm();
   const link = absoluteHref(view.state.id, p.handle);
   const copy = () =>
     void navigator.clipboard?.writeText(link).then(
@@ -238,6 +238,7 @@ function PlayerRow({ p, onEdit, selected }: { p: DmPlayer; onEdit: () => void; s
         </button>
         <RowMenu label={p.name}>
           <MenuItem onClick={onEdit}>Edit</MenuItem>
+          {p.archived || !featureOn(view.state, "whispers") ? null : <MenuItem onClick={() => toggleWhisper([p.id])}>Whisper…</MenuItem>}
           <MenuItem onClick={() => run({ type: "player.update", playerId: p.id, patch: { away: !p.away } })}>{p.away ? "Back tonight" : "Away tonight"}</MenuItem>
           <MenuItem onClick={() => run({ type: "player.update", playerId: p.id, patch: { dropIn: !p.dropIn } })}>{p.dropIn ? "Not a drop-in" : "Mark as drop-in"}</MenuItem>
           {p.dndbUrl ? <MenuItem onClick={() => window.open(p.dndbUrl!, "_blank", "noopener,noreferrer")}>Open D&amp;D Beyond</MenuItem> : null}

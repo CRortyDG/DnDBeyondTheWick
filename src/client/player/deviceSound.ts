@@ -2,7 +2,7 @@
 
 // Small, quiet sounds on a player's own device, for things that are theirs
 // alone: healing, taking a hit, spending a hit die, gold coming or going, a
-// level up, "it's your turn", the DM answering a request or giving you
+// level up, "it's your turn", a whisper from the DM, the DM answering a request or giving you
 // something, and a secret roll. The TV keeps the big shared sounds (fights,
 // dice on the TV, music), so a table of devices never doubles them.
 //
@@ -85,6 +85,8 @@ export interface Snapshot {
   lastRoll: number;
   lastRollSecret: boolean;
   lastRollDice: number;
+  /** Whispers from the DM not opened yet. */
+  whispers?: number;
 }
 
 export function snapshot(v: PlayerView): Snapshot {
@@ -107,6 +109,7 @@ export function snapshot(v: PlayerView): Snapshot {
     lastRoll: roll?.n ?? 0,
     lastRollSecret: roll?.to === "secret",
     lastRollDice: roll ? roll.groups.reduce((s, g) => s + g.rolls.length, 0) : 0,
+    whispers: (v.whispers ?? []).filter((w) => !w.seen).length,
   };
 }
 
@@ -124,6 +127,8 @@ export interface Cue {
 export function cuesFor(a: Snapshot, b: Snapshot): Cue[] {
   const out: Cue[] = [];
   if (b.levelUp > a.levelUp) out.push({ id: "level-up", vol: 0.5 });
+  // A whisper from the DM: a soft chime only you hear.
+  if ((b.whispers ?? 0) > (a.whispers ?? 0)) out.push({ id: "chime-fact", vol: 0.35 });
   if (b.myTurn && b.myTurn !== a.myTurn) out.push({ id: "your-turn", vol: 0.8 });
   // HP: a max change alone (a level up, a new sheet) is not a heal.
   const lost = a.hp + a.temp - (b.hp + b.temp);

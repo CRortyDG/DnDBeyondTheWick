@@ -31,6 +31,10 @@ export interface DmCtx {
   /** The soundboard, which floats like the dice tray. */
   soundOpen: boolean;
   toggleSound: () => void;
+  /** Secret whispers, which float like the dice tray. toggleWhisper(ids) opens it picked for those players. */
+  whisperOpen: boolean;
+  whisperFor: string[] | null;
+  toggleWhisper: (playerIds?: string[]) => void;
 }
 
 export const DmContext = createContext<DmCtx | null>(null);

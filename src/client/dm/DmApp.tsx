@@ -53,6 +53,7 @@ import { CompanionsPanel } from "./CompanionsPanel";
 import { FightOverlay } from "../ui/FightOverlay";
 import { DiceButton, DiceTray, PlayerRollCards, TvDiceBar } from "./DiceTray";
 import { SoundButton, Soundboard } from "./Soundboard";
+import { WhisperButton, WhisperPanel } from "./Whispers";
 import { Finder, QuickBar, quickKey, typing } from "./QuickBar";
 import { quickOf } from "@/shared/assets";
 import { WorldPanel } from "./WorldPanel";
@@ -322,16 +323,25 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
   const closeTable = useCallback(() => setTableMap(null), []);
   const [diceOpen, setDiceOpen] = useState(false);
   const [soundOpen, setSoundOpen] = useState(false);
-  const toggleDice = useCallback(() => (setDiceOpen((v) => !v), setSoundOpen(false)), []);
+  const [whisperOpen, setWhisperOpen] = useState(false);
+  const [whisperFor, setWhisperFor] = useState<string[] | null>(null);
+  const toggleDice = useCallback(() => (setDiceOpen((v) => !v), setSoundOpen(false), setWhisperOpen(false)), []);
   // Rolls from before this page opened count as seen, so a reload doesn't pop old cards.
   const [diceSeen, setDiceSeen] = useState(() => s.rolls?.at(-1)?.n ?? 0);
   const seeDice = useCallback((n: number) => setDiceSeen((x) => Math.max(x, n)), []);
   const [diceGone, setDiceGone] = useState<number[]>([]);
   const dismissRoll = useCallback((n: number) => setDiceGone((g) => [...g.slice(-50), n]), []);
-  const toggleSound = useCallback(() => (setSoundOpen((v) => !v), setDiceOpen(false)), []);
+  const toggleSound = useCallback(() => (setSoundOpen((v) => !v), setDiceOpen(false), setWhisperOpen(false)), []);
+  // With players: open picked for them (or keep open, re-picked). Without: open or close.
+  const toggleWhisper = useCallback((ids?: string[]) => {
+    setWhisperFor(ids?.length ? ids : null);
+    setWhisperOpen((v) => (ids?.length ? true : !v));
+    setDiceOpen(false);
+    setSoundOpen(false);
+  }, []);
   const ctx: DmCtx = useMemo(
-    () => ({ view, ident, run, toast, gated, call, openMap: setEditingMap, openTable: setTableMap, diceOpen, toggleDice, diceSeen, seeDice, diceGone, dismissRoll, soundOpen, toggleSound }),
-    [view, ident, run, toast, gated, call, diceOpen, toggleDice, diceSeen, seeDice, diceGone, dismissRoll, soundOpen, toggleSound],
+    () => ({ view, ident, run, toast, gated, call, openMap: setEditingMap, openTable: setTableMap, diceOpen, toggleDice, diceSeen, seeDice, diceGone, dismissRoll, soundOpen, toggleSound, whisperOpen, whisperFor, toggleWhisper }),
+    [view, ident, run, toast, gated, call, diceOpen, toggleDice, diceSeen, seeDice, diceGone, dismissRoll, soundOpen, toggleSound, whisperOpen, whisperFor, toggleWhisper],
   );
 
   /** S: open the shop on the TV (at a shop the party can see), or close it. */
@@ -551,6 +561,7 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
               {online ? "Live" : "Reconnecting"}
             </span>
             <span className="spacer" />
+            {has("whispers") ? <WhisperButton iconOnly /> : null}
             {has("sound") ? <SoundButton /> : null}
             <DiceButton />
             {primary}
@@ -671,6 +682,7 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
                 <SwordIcon />
               </button>
             )}
+            {has("whispers") ? <WhisperButton iconOnly /> : null}
             {has("sound") ? <SoundButton /> : null}
             <DiceButton />
             <button className={`btn icon-only${railOpen ? " on" : ""}`} type="button" onClick={toggleRail} aria-pressed={railOpen} title={railOpen ? "Hide the TV panel" : "Show the TV panel"} aria-label="TV panel">
@@ -901,7 +913,7 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
               <details className="dm-keys">
                 <summary>Keyboard shortcuts</summary>
                 <p className="note hint">
-                  0&ndash;9 the quick bar &middot; / find anything &middot; &larr; &rarr; step through the bar (or flip shops while the shop is open) &middot; S shop &middot; P purse &middot; B bank &middot; T The Table &middot; I requests &middot; L map legend &middot; Esc closes the shop or zooms the map out
+                  0&ndash;9 the quick bar &middot; / find anything &middot; W whisper to a player &middot; &larr; &rarr; step through the bar (or flip shops while the shop is open) &middot; S shop &middot; P purse &middot; B bank &middot; T The Table &middot; I requests &middot; L map legend &middot; Esc closes the shop or zooms the map out
                 </p>
               </details>
             </aside>
@@ -933,6 +945,7 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
       {tableMap ? <TableMap sceneId={tableMap} onClose={closeTable} /> : null}
       <DiceTray />
       <Soundboard />
+      {has("whispers") ? <WhisperPanel /> : null}
       <PlayerRollCards />
       <TvDiceBar />
       <TabletOffer />

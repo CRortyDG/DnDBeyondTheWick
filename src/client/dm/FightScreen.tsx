@@ -19,6 +19,7 @@ import type { Combatant, Fight, FightReminder, MonsterTemplate, Player } from "@
 import { useDm } from "./context";
 import { DiceButton } from "./DiceTray";
 import { SoundButton } from "./Soundboard";
+import { WhisperButton } from "./Whispers";
 import { usePhone, useTablet } from "./tablet";
 import { FullScreenButton } from "./TabletBits";
 import "../ui/fight.css";
@@ -194,6 +195,7 @@ function FightConsole({ f, onExit, run, toast }: { f: Fight; onExit: () => void;
         <span className="spacer" />
         <FullScreenButton small />
         <FightMapButton />
+        <WhisperButton small />
         <SoundButton small />
         <DiceButton small />
         <span className="run-tv" title="What the TV shows">

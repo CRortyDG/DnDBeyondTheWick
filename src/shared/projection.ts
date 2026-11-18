@@ -3,6 +3,7 @@
 
 import { keyRack, myRoom, type KeyRackView, type MyRoom } from "./rooms";
 import { latestLastTime, type LastTimeCard } from "./lastTime";
+import { myWhispers, type MyWhisper } from "./whispers";
 import { decodeBits, fogged, publicFog, type PublicFog } from "./fog";
 import { publicGrid, publicTokens, type PublicGrid, type PublicToken } from "./tokens";
 import { leadsView, type LeadsView } from "./leads";
@@ -441,6 +442,8 @@ export interface PlayerView extends Common {
   chronicle: ChronicleView;
   /** "Last time on…": the newest recap card the DM sent after a session ended. Missing: none sent. */
   lastTime?: LastTimeCard;
+  /** Secret whispers the DM sent me (and only me, or me and a few others: their names aren't sent), newest first. */
+  whispers?: MyWhisper[];
   /** The bounty board: pinned jobs. Empty while it's locked. */
   jobs: MyJob[];
   /** The party hasn't found the notice board yet: no Jobs tab. */
@@ -833,6 +836,7 @@ export function projectPlayer(table: GameState, version: number, playerId: strin
     chronicle: projectChronicle(game, { dm: false, playerId: p.id }),
     // The lensed game holds only this character's parties' sessions.
     ...(latestLastTime(game) ? { lastTime: latestLastTime(game)! } : {}),
+    ...(myWhispers(table, p.id).length ? { whispers: myWhispers(table, p.id) } : {}),
     // The lensed game holds this character's own stage, so no playerId here.
     ...(jobsLocked(game) ? { jobsLocked: true as const } : {}),
     jobs: (jobsLocked(game) ? [] : pinnedJobs(game)).map((j) => {
@@ -855,6 +859,7 @@ export function projectPlayer(table: GameState, version: number, playerId: strin
     }
     if (myOff.includes("discover")) view.entries = [];
     if (myOff.includes("chronicle")) delete view.lastTime;
+    if (myOff.includes("whispers")) delete view.whispers;
     if (myOff.includes("jobs")) view.jobs = [];
     if (myOff.includes("levels")) delete view.levelUp;
     if (myOff.includes("companions")) {
