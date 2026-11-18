@@ -12,6 +12,13 @@
   </head>
   <body>
     <div id="root"></div>
+    <script>
+      // If the console's script never runs (a stale cached file, an old browser), say so instead of a blank page.
+      setTimeout(function () {
+        var r = document.getElementById("root");
+        if (r && !r.childElementCount) r.innerHTML = '<p style="font:16px system-ui;color:#c9cdd3;padding:24px">The admin page didn\'t load. Try a hard refresh (Ctrl+Shift+R or Cmd+Shift+R).</p>';
+      }, 4000);
+    </script>
     <script type="module" src="/src/client/admin/main.tsx"></script>
   </body>
 </html>
