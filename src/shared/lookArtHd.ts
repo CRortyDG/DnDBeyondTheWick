@@ -4,7 +4,8 @@
 // wrap, and the face (eyes, brows, mouth) is drawn fresh at the bigger size.
 
 import type { Look } from "./look";
-import { type Ctx, layers, LOOK_H, LOOK_W, mix, MOUTH, OUT, Pix, tone, WHITE } from "./lookArt";
+import { type Ctx, layers, LOOK_H, LOOK_W, mix, MOUTH, OUT, Pix, splitLayers, tone, WHITE } from "./lookArt";
+import { bodyHd, handsHd, hframe, OUTFITS_HD } from "./lookBodyHd";
 
 export const HD_W = LOOK_W * 2;
 export const HD_H = LOOK_H * 2;
@@ -249,8 +250,18 @@ function face(p: Pix, c: Ctx) {
 
 /** The look at double size with the richer finish. */
 export function drawLookHd(look: Look): Pix {
-  const { bg, ch, pet, c } = layers(look, true);
-  const big = scale2x(ch);
+  const { bg, back, front, pet, c } = splitLayers(look);
+  // Wings, tail and the back of a cloak or long hair are smoothed up from the
+  // base size; the body and clothes are drawn natively at double size; hair,
+  // hats and gear go over the top, then the hands close over any grips.
+  const big = scale2x(back);
+  const h = hframe(c.f);
+  bodyHd(big, h, c.skin);
+  (OUTFITS_HD[c.v("outfit")] ?? OUTFITS_HD[0])(big, h, c);
+  big.over(scale2x(front));
+  const off = c.v("offhand");
+  if (c.v("hand")) handsHd(big, h, c.skin, "r");
+  if (off && off !== 1 && off !== 2 && off !== 4 && off !== 5) handsHd(big, h, c.skin, "l");
   seams(big);
   shadeRegions(big);
   bevel(big);

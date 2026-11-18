@@ -1325,6 +1325,38 @@ export function drawLook(look: Look): Pix {
   return bg;
 }
 
+/**
+ * For the detailed version, which draws the body and outfit itself: what goes
+ * behind the body (wings, tail, cloak, long hair) and what goes in front
+ * (ears, marks, beard, hair, horns, hat, cloak clasp, things in hand), at the base size.
+ */
+export function splitLayers(look: Look): { bg: Pix; back: Pix; front: Pix; pet: Pix; c: Ctx } {
+  const bg = new Pix();
+  const back = new Pix();
+  const front = new Pix();
+  const c = ctxOf(look, back);
+  call(BACKDROPS, c.v("background"), bg, c);
+  platform(bg, c.v("platform"));
+  wings(c);
+  tail(c);
+  cloakBack(c);
+  hairBack(c);
+  c.p = front;
+  const hairMap = rm(c.hair);
+  call(EARS, c.v("ears"), c);
+  call(MARKS, c.v("mark"), c);
+  call(BEARDS, c.v("beard"), c, hairMap);
+  tusks(c);
+  call(HAIRS, c.v("hair"), c, hairMap);
+  earsTop(c);
+  call(HORNS, c.v("horns"), c);
+  call(HATS, c.v("hat"), c, rm(c.hat));
+  cloakFront(c);
+  offHand(c);
+  mainHand(c);
+  return { bg, back, front, pet: pet(c), c };
+}
+
 /** The three layers at the base size, before outlines. hdFace leaves the eyes and mouth out (drawn later at double size). */
 export function layers(look: Look, hdFace: boolean): { bg: Pix; ch: Pix; pet: Pix; c: Ctx } {
   const bg = new Pix();
