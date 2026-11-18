@@ -131,3 +131,17 @@ describe("where it shows", () => {
     expect(g.entries!.find((x) => x.id === e.id)!.pixelLook).toBeUndefined();
   });
 });
+
+describe("the detailed (double size) version", () => {
+  it("draws every option at 96×112, fully covered with a backdrop, and a 44px face", async () => {
+    const { drawLookHd, drawLookHdFace, HD_W, HD_H } = await import("@/shared/lookArtHd");
+    for (const l of LAYERS)
+      for (let i = 0; i < l.options.length; i++) {
+        const p = drawLookHd({ [l.key]: i, background: l.key === "background" ? i : 1 });
+        expect([p.w, p.h]).toEqual([HD_W, HD_H]);
+        if (l.key !== "background" || i > 0) expect(p.d.every(Boolean)).toBe(true);
+      }
+    const f = drawLookHdFace({ background: 1 });
+    expect([f.w, f.h]).toEqual([44, 44]);
+  });
+});

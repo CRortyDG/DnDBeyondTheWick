@@ -147,21 +147,21 @@ export function mix(a: string, b: string, t: number): string {
   return hex(x[0] + (y[0] - x[0]) * t, x[1] + (y[1] - x[1]) * t, x[2] + (y[2] - x[2]) * t);
 }
 
-interface Ramp {
+export interface Ramp {
   hi: string;
   base: string;
   lo: string;
   deep: string;
 }
-function ramp(h: string): Ramp {
+export function ramp(h: string): Ramp {
   return { hi: tone(h, 0.1), base: h, lo: tone(h, -0.12), deep: tone(h, -0.24) };
 }
 /** h/l/d/x letters for a ramp, with an optional prefix map. */
 const rm = (r: Ramp, b = "h", l = "l", d = "d", x = "x"): Record<string, string> => ({ [b]: r.base, [l]: r.hi, [d]: r.lo, [x]: r.deep });
 
-const OUT = "#1c1424";
-const WHITE = "#f4f1ea";
-const MOUTH = "#6e2a2e";
+export const OUT = "#1c1424";
+export const WHITE = "#f4f1ea";
+export const MOUTH = "#6e2a2e";
 const GOLD = ramp("#d9a63a");
 const WOOD = ramp("#8a5a33");
 const BONE = ramp("#e3d7bd");
@@ -170,7 +170,7 @@ const FLAME = { a: "#fff1a8", b: "#ffc23d", c: "#f07a2a", d: "#c8432b" };
 
 // ---- the body ------------------------------------------------------------------
 
-interface Frame {
+export interface Frame {
   cx: number;
   hx: number;
   hy: number;
@@ -197,7 +197,7 @@ const BUILDS: [number, number, number][] = [
   [9, 9, 7],
 ];
 
-function frameOf(b: number): Frame {
+export function frameOf(b: number): Frame {
   const [th, lh, half] = BUILDS[b] ?? BUILDS[0];
   const cx = 24;
   const feet = 50;
@@ -311,7 +311,7 @@ function skirt(p: Pix, f: Frame, r: Ramp, to = f.feet - 1, flare = 4) {
 
 // ---- outfits --------------------------------------------------------------------
 
-interface Ctx {
+export interface Ctx {
   p: Pix;
   f: Frame;
   skin: Ramp;
@@ -984,7 +984,6 @@ function pet(c: Ctx): Pix {
   p.stamp(4, c.f.feet - rows.length + 1, rows, map);
   // Wings on the dragonling.
   if (k === 6) p.stamp(5, c.f.feet - rows.length - 2, ["d.....", "dd.d..", ".ddd.."], { d: c.pet.lo });
-  p.outline(OUT);
   return p;
 }
 
@@ -1318,6 +1317,16 @@ const call = <T extends unknown[]>(list: ((...a: T) => void)[], i: number, ...a:
 
 /** The whole picture: backdrop, stand, character (outlined), pet. */
 export function drawLook(look: Look): Pix {
+  const { bg, ch, pet: pp } = layers(look, false);
+  ch.outline(OUT);
+  pp.outline(OUT);
+  bg.over(ch);
+  bg.over(pp);
+  return bg;
+}
+
+/** The three layers at the base size, before outlines. hdFace leaves the eyes and mouth out (drawn later at double size). */
+export function layers(look: Look, hdFace: boolean): { bg: Pix; ch: Pix; pet: Pix; c: Ctx } {
   const bg = new Pix();
   const ch = new Pix();
   const c = ctxOf(look, ch);
@@ -1332,10 +1341,10 @@ export function drawLook(look: Look): Pix {
   body(ch, c.f, c.skin);
   call(OUTFITS, c.v("outfit"), c);
   call(EARS, c.v("ears"), c);
-  call(EYES, c.v("eyes"), c);
+  if (!hdFace) call(EYES, c.v("eyes"), c);
   call(MARKS, c.v("mark"), c);
   call(BEARDS, c.v("beard"), c, hairMap);
-  call(MOUTHS, c.v("mouth"), c);
+  if (!hdFace) call(MOUTHS, c.v("mouth"), c);
   tusks(c);
   // A hood or helm hides most hair; draw the hair first so they cover it.
   call(HAIRS, c.v("hair"), c, hairMap);
@@ -1348,11 +1357,7 @@ export function drawLook(look: Look): Pix {
   // Hands close over the grips.
   if (c.v("hand")) hands(ch, c.f, c.skin, "r");
   if (c.v("offhand") && c.v("offhand") !== 1 && c.v("offhand") !== 2 && c.v("offhand") !== 4 && c.v("offhand") !== 5) hands(ch, c.f, c.skin, "l");
-  ch.outline(OUT);
-
-  bg.over(ch);
-  bg.over(pet(c));
-  return bg;
+  return { bg, ch, pet: pet(c), c };
 }
 
 /** The head and shoulders, square, for tokens and lists. */

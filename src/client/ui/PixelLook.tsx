@@ -2,7 +2,8 @@
 
 import type { Look } from "@/shared/look";
 import { lookKey } from "@/shared/look";
-import { drawLook, drawLookFace, type Pix, toRgba } from "@/shared/lookArt";
+import { type Pix, toRgba } from "@/shared/lookArt";
+import { drawLookHd, drawLookHdFace } from "@/shared/lookArtHd";
 import "./look.css";
 
 const cache = new Map<string, string>();
@@ -32,7 +33,7 @@ export function lookUrl(look: Look, face = false): string {
   const key = (face ? "f" : "w") + lookKey(look);
   let url = cache.get(key);
   if (url === undefined) {
-    url = pixUrl(face ? drawLookFace(look) : drawLook(look));
+    url = pixUrl(face ? drawLookHdFace(look) : drawLookHd(look));
     if (cache.size > 300) cache.clear();
     cache.set(key, url);
   }

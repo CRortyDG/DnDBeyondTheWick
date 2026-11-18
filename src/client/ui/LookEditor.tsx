@@ -17,7 +17,7 @@ import {
   randomLook,
   SWATCHES,
 } from "@/shared/look";
-import { drawLook } from "@/shared/lookArt";
+import { drawLookHd } from "@/shared/lookArtHd";
 import { lookUrl, pixUrl } from "./PixelLook";
 
 /**
@@ -65,7 +65,7 @@ export function LookEditor({
   };
   const download = () => {
     const a = document.createElement("a");
-    a.href = pixUrl(drawLook(look), 8);
+    a.href = pixUrl(drawLookHd(look), 4);
     a.download = `${(name || "character").replace(/[^\w-]+/g, "-").toLowerCase()}.png`;
     a.click();
   };

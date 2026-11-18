@@ -7,7 +7,7 @@
 // never leave this screen.
 
 import type { Look } from "@/shared/look";
-import { drawLook } from "@/shared/lookArt";
+import { drawLookHd } from "@/shared/lookArtHd";
 import { LookEditor } from "../ui/LookEditor";
 import { pixUrl } from "../ui/PixelLook";
 import { featureOn } from "@/shared/features";
@@ -257,7 +257,7 @@ function EntryEditor({ entry: e, tv }: { entry: Entry; tv: boolean }) {
   /** Save a character-maker look as this entry's picture: drawn big and crisp, uploaded like any image. */
   const savePixelPortrait = async (look: Look): Promise<string | null> => {
     try {
-      const blob = await (await fetch(pixUrl(drawLook(look), 12))).blob();
+      const blob = await (await fetch(pixUrl(drawLookHd(look), 6))).blob();
       const url = await uploadImage(ident, new File([blob], `${e.slug || "portrait"}.png`, { type: "image/png" }));
       return (await run({ type: "entry.picture", entryId: e.id, art: { url }, alt: e.name, look }, "Picture saved.")) ? null : "Couldn't save the picture.";
     } catch (err) {
