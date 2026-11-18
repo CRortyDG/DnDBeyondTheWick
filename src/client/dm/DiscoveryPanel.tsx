@@ -27,6 +27,7 @@ import { MenuItem, RowMenu } from "./RowMenu";
 import { uploadImage } from "./upload";
 import { makeSilhouette } from "./silhouette";
 import { ShowControls } from "./QuickBar";
+import { FightItBar, FightItMenuItem } from "./FightIt";
 import { entryRef } from "@/shared/assets";
 import { penName } from "@/shared/chronicle";
 import { presentIds, STAGE_NAMES, stageFor, whoKnows } from "@/shared/world";
@@ -207,6 +208,7 @@ function EntryRow({ entry: e, tv, first, last, open, onToggle }: { entry: Entry;
           <MenuItem disabled={e.stage === "hidden"} title="Play its card on the TV (New face, Rumor, a new fact)" onClick={() => run({ type: "entry.show", entryId: e.id }, "On the TV.")}>
             Announce on the TV
           </MenuItem>
+          {e.kind === "monster" ? <FightItMenuItem entry={e} /> : null}
           <MenuItem onClick={onToggle}>{open ? "Close the editor" : "Edit"}</MenuItem>
           <MenuItem disabled={first} onClick={() => run({ type: "entry.move", entryId: e.id, dir: -1 })}>
             Move up
@@ -396,6 +398,7 @@ function EntryEditor({ entry: e, tv }: { entry: Entry; tv: boolean }) {
           </label>
         ) : null}
       </div>
+      {e.kind === "monster" ? <FightItBar entry={e} /> : null}
       <div className="entry-links">
         {e.links.map((id) => {
           const o = others.find((x) => x.id === id);
