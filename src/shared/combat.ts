@@ -5,6 +5,7 @@
 // combatants, templates and DM notes stay on the server. The TV and phones
 // only ever get fightView(), built field by field below.
 
+import type { Look } from "./look";
 import { parseDice, rollDice } from "./progress";
 import { penName } from "./chronicle";
 import type { Art, Combatant, ConditionTick, Fight, FightCondition, FightGroup, FightMoment, FightOutcome, FightReminder, FightReminderKind, FightStep, GameState, MonsterTemplate, Player, PlayerHp } from "./types";
@@ -473,6 +474,8 @@ export interface PublicCombatant {
   /** While rolling initiative: has an initiative yet. */
   ready: boolean;
   art?: Art;
+  /** Players: their pixel-art look. */
+  look?: Look;
 }
 
 export interface FightView {
@@ -552,6 +555,7 @@ function publicCombatant(game: GameState, c: Combatant, art: (sceneId: string) =
   } else {
     const p = game.players.find((x) => x.id === c.playerId);
     if (p) out.playerId = p.id;
+    if (p?.look) out.look = { ...p.look };
     const hp = p?.hp;
     if (hp && hp.max > 0 && hp.tv !== false) out.hp = { cur: hp.cur, max: hp.max, temp: hp.temp };
     out.down = !!hp && hp.max > 0 && hp.cur <= 0;

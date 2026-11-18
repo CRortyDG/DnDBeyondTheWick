@@ -12,6 +12,7 @@ import { creditCp, duesFor, firstChargeCp, installmentCp, keepsStake, liveEffect
 import { chapterAt, shopVisibleTo } from "./projection";
 import { CHARACTER_MAX, CLIP_GIF_MAX, CLIP_VIDEO_MAX, INTRO_SCENE_ID, STINGER_SCENE_ID, TABLE_SCENE_ID, WHY_MAX } from "./arrival";
 import { starterById } from "./starters";
+import { cleanCharLook } from "./look";
 import { chapterSessionId, cleanTags, cleanText, defaultChapterId, NEXT_CHAPTER, NOTES_MAX, penName } from "./chronicle";
 import { BOARD_SLOTS, jobPoints, jobsOf, jobTitle, pinnedCount, pointsOf, rankForPoints, rankName, ranksOf, RENOWN_POINTS, RENOWN_POINTS_MAX, renownMet, renownNeeded, renownOf, shopOpenNow, thresholdsOf, tierOf, trustMet, trustText } from "./renown";
 import { LOG_MAX, PLAYER_ROLL_GAP_MS, rollD20, rollPool, type RollTo } from "./dice";
@@ -2732,6 +2733,9 @@ function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
     case "player.archive":
       player(cmd.playerId).archived = cmd.archived;
       break;
+    case "player.look":
+      setLook(player(cmd.playerId), cmd.look);
+      break;
     case "player.remove": {
       const p = player(cmd.playerId);
       if (p.balanceCp !== 0) fail(`${p.name} still has ${formatCp(p.balanceCp)}. Archive them instead, or zero their purse first.`);
@@ -3314,6 +3318,10 @@ function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
       const sc = ensurePicture(e);
       sc.art = cmd.art;
       if (cmd.alt !== undefined) sc.alt = cmd.alt.trim();
+      // Made in the character maker: keep the recipe so it can be edited again.
+      const look = cmd.look && cmd.art.url ? cleanCharLook(cmd.look) : null;
+      if (look) e.pixelLook = look;
+      else delete e.pixelLook;
       break;
     }
     case "entry.relationFor": {
@@ -4549,6 +4557,9 @@ function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
       out.info = `Healed ${heal}. You're at ${p.hp.cur} of ${p.hp.max} HP.`;
       break;
     }
+    case "me.look":
+      setLook(player(ctx.actor.role === "player" ? ctx.actor.playerId : ""), cmd.look);
+      break;
     case "me.update": {
       const p = player(ctx.actor.role === "player" ? ctx.actor.playerId : "");
       if (cmd.patch.name !== undefined) {
@@ -5077,4 +5088,11 @@ export const TV_ROLL_FRESH_MS = 60_000;
 function showOnTv(s: GameState, roll: TvDiceRoll) {
   s.diceRoll = roll;
   s.tvRolls = [...(s.tvRolls ?? []).filter((r) => roll.at - r.at < TV_ROLL_FRESH_MS), roll].slice(-TV_ROLLS_MAX);
+}
+
+/** A pixel-art look, cleaned; null (or nothing valid) removes it. */
+function setLook(p: Player, look: Record<string, number> | null) {
+  const clean = look ? cleanCharLook(look) : null;
+  if (clean) p.look = clean;
+  else delete p.look;
 }

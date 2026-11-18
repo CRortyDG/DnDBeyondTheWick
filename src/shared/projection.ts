@@ -1,6 +1,7 @@
 // Spoiler safety lives here. Each role gets a view built field-by-field from
 // an explicit allow-list, so a new DM-only field can't leak by accident.
 
+import type { Look } from "./look";
 import { keyRack, myRoom, type KeyRackView, type MyRoom } from "./rooms";
 import { latestLastTime, type LastTimeCard } from "./lastTime";
 import { decodeBits, fogged, publicFog, type PublicFog } from "./fog";
@@ -102,6 +103,8 @@ export interface PublicPlayer {
   inspired: boolean;
   /** Keeps a sheet in the app, so items can be handed to them. */
   sheet?: true;
+  /** Their pixel-art look, if they made one. */
+  look?: Look;
 }
 
 /** A shop as the party sees it. */
@@ -391,6 +394,8 @@ export interface PlayerView extends Common {
     name: string;
     /** Their character's name, once they've picked one. Shown instead of `name` on the phone. */
     character?: string;
+    /** My pixel-art look. */
+    look?: Look;
     balanceCp: number;
     dndbUrl?: string;
     locked: boolean;
@@ -632,7 +637,7 @@ function common(game: GameState, version: number, viewer: Viewer): Common {
   return {
     version,
     game: { id: game.id, name: game.name, town: townOf(game) },
-    purse: game.players.filter((p) => !p.archived && !p.away).map((p) => ({ id: p.id, name: penName(p), balanceCp: p.balanceCp, inspired: !!p.inspired, ...(p.sheet && !p.sheetOff ? { sheet: true as const } : {}) })),
+    purse: game.players.filter((p) => !p.archived && !p.away).map((p) => ({ id: p.id, name: penName(p), balanceCp: p.balanceCp, inspired: !!p.inspired, ...(p.sheet && !p.sheetOff ? { sheet: true as const } : {}), ...(p.look ? { look: { ...p.look } } : {}) })),
     shops: shops.map((x) => ({ id: x.id, name: x.name, subtitle: x.subtitle, closed: !!x.closed, ...(renownMet(game, x.renown) ? {} : { needs: rankName(x.renown ?? 0, game) }), ...(trustText(game, x.trust) ? { goodwill: trustText(game, x.trust)! } : {}) })),
     items: game.items.filter((it) => open.has(it.shopId)).map((it) => publicItem(game, it)).filter((x): x is PublicItem => x !== null),
     session: cur ? { number: cur.number, title: cur.title } : null,
@@ -777,6 +782,7 @@ export function projectPlayer(table: GameState, version: number, playerId: strin
       handle: p.handle,
       name: p.name,
       ...(p.character?.trim() ? { character: p.character.trim() } : {}),
+      ...(p.look ? { look: { ...p.look } } : {}),
       balanceCp: p.balanceCp,
       ...(p.dndbUrl ? { dndbUrl: p.dndbUrl } : {}),
       locked: !!p.keyHash,
