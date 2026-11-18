@@ -5,6 +5,7 @@
 // who bought or rents what,
 // combat, sessions, the Chronicle, builder keys or the audit log.
 
+import { partyScore, relationOf } from "./attitude";
 import { entriesOf } from "./discovery";
 import { storyOf } from "./story";
 import { monstersOf } from "./combat";
@@ -156,7 +157,8 @@ function entryFull(g: GameState, e: Entry) {
     if (sh) out.items = g.items.filter((x) => x.shopId === sh.id).map(itemBrief);
   }
   if (e.kind === "person") {
-    out.relation = e.relation ?? "stranger";
+    out.relation = relationOf(e);
+    out.attitude = partyScore(e);
     out.wants = e.wants ?? "";
     out.knows = e.knows ?? "";
     out.voice = e.voice ?? "";

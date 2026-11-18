@@ -18,6 +18,7 @@ import {
 import { PersonNotes, notesAbout } from "../ui/PersonNotes";
 import { Portrait } from "../ui/Portrait";
 import { Leads } from "./Leads";
+import { AttitudeDial } from "../ui/AttitudeDial";
 
 type Send = (c: object) => Promise<string | null>;
 
@@ -336,6 +337,21 @@ function EntryPage({
         </div>
       </div>
       {e.summary ? <p className="person-blurb">{e.summary}</p> : null}
+      {e.attitude ? (
+        <div className="person-attitude" aria-label="How they feel about you">
+          <AttitudeDial score={e.attitude.score} />
+          {e.attitude.reasons?.length ? (
+            <ul className="att-reasons">
+              {e.attitude.reasons.map((r, i) => (
+                <li key={i} className={r.up ? "up" : "down"}>
+                  <span aria-hidden>{r.up ? "▲" : "▼"}</span>
+                  <span className="sr-only">{r.up ? "Warmer:" : "Cooler:"}</span> {r.text}
+                </li>
+              ))}
+            </ul>
+          ) : null}
+        </div>
+      ) : null}
       {e.ties.length ? (
         <div className="entry-links" aria-label="Tied to">
           {e.ties.map((l) => {

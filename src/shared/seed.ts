@@ -420,7 +420,7 @@ export function freshStart(g: GameState): GameState {
   for (const sc of s.scenes) delete sc.known;
   // Every entry back to where it starts, every fact locked again; what the DM wrote stays.
   delete s.discovery;
-  s.entries = (s.entries ?? []).map(({ foundAt, foundIn, stagedAt, relationBy, ...e }) => ({
+  s.entries = (s.entries ?? []).map(({ foundAt, foundIn, stagedAt, relationBy, attitudeBy, attitudeLog, ...e }) => ({
     ...e,
     stage: e.start ?? "hidden",
     facts: e.facts.map(({ revealedAt, learnedIn, ...f }) => f),

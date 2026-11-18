@@ -5182,6 +5182,249 @@ input.fld.inline-input {
 .person-page .relation-hostile {
   color: var(--down);
 }
+.relation-wary {
+  color: #c98a3a;
+}
+
+/* ---------- NPC attitude dial (DM drawer and phone) ---------- */
+.att-dial {
+  --att-hostile: #b44a3c;
+  --att-wary: #c98a3a;
+  --att-stranger: #7d7264;
+  --att-friendly: #6f9f5f;
+  --att-ally: #4fae6a;
+  margin: 6px 0 2px;
+}
+.att-track {
+  position: relative;
+  display: flex;
+  height: 12px;
+  border-radius: 999px;
+  overflow: visible;
+}
+.att-seg {
+  height: 100%;
+  opacity: 0.35;
+  box-sizing: border-box;
+}
+.att-seg + .att-seg {
+  border-left: 2px solid rgba(0, 0, 0, 0.35);
+}
+.att-seg:first-child {
+  border-radius: 999px 0 0 999px;
+}
+.att-seg:nth-last-child(1 of .att-seg) {
+  border-radius: 0 999px 999px 0;
+}
+.att-seg.on {
+  opacity: 0.95;
+}
+.att-hostile {
+  background: var(--att-hostile);
+}
+.att-wary {
+  background: var(--att-wary);
+}
+.att-stranger {
+  background: var(--att-stranger);
+}
+.att-friendly {
+  background: var(--att-friendly);
+}
+.att-ally {
+  background: var(--att-ally);
+}
+.att-pip {
+  position: absolute;
+  top: 50%;
+  width: 18px;
+  height: 18px;
+  margin: -9px 0 0 -9px;
+  border-radius: 50%;
+  background: #f4ead6;
+  border: 3px solid #1b1510;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+  transition: left 0.4s ease;
+}
+.att-pip.other {
+  width: 16px;
+  height: 16px;
+  margin: -8px 0 0 -8px;
+  top: -10px;
+  border-width: 1px;
+  background: #2b231c;
+  color: #ede4d3;
+  border-color: #b5a794;
+  display: grid;
+  place-items: center;
+  font-size: 9px;
+  font-weight: 700;
+}
+.att-dial.with-others {
+  margin-top: 22px;
+}
+.att-labels {
+  display: flex;
+  text-align: center;
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 6px;
+}
+.att-labels .on {
+  color: inherit;
+  font-weight: 700;
+}
+.att-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+}
+.att-score {
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+}
+.att-move {
+  margin-top: 12px;
+  display: grid;
+  gap: 8px;
+}
+.att-move-row {
+  flex-wrap: wrap;
+}
+.att-reason {
+  flex: 1 1 200px;
+  min-width: 0;
+}
+.att-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.att-chip {
+  font: inherit;
+  font-size: 12px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--line, #4a3c30);
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+.att-chip.on {
+  color: inherit;
+  border-color: currentColor;
+}
+.att-buttons {
+  flex-wrap: wrap;
+  align-items: center;
+}
+.att-buttons .btn {
+  min-width: 48px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+}
+.att-buttons .att-up {
+  color: var(--up);
+}
+.att-buttons .att-down {
+  color: var(--down);
+}
+.att-chars,
+.att-settings {
+  margin-top: 12px;
+}
+.att-chars summary,
+.att-settings summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+.att-char-list {
+  list-style: none;
+  padding: 0;
+  margin: 8px 0 0;
+  display: grid;
+  gap: 6px;
+}
+.att-char-list li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.att-char-name {
+  font-weight: 600;
+}
+.att-set {
+  margin-top: 12px;
+}
+.att-h5 {
+  margin: 14px 0 6px;
+  font-size: 13px;
+}
+.att-log {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 6px;
+}
+.att-log li {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+}
+.att-delta {
+  min-width: 2.4em;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.att-log li.up .att-delta {
+  color: var(--up);
+}
+.att-log li.down .att-delta {
+  color: var(--down);
+}
+.att-why {
+  flex: 1;
+  min-width: 0;
+}
+.att-log-actions {
+  display: flex;
+  gap: 10px;
+  white-space: nowrap;
+}
+.att-settings-body {
+  display: grid;
+  gap: 10px;
+  margin-top: 8px;
+}
+.att-settings-body label:not(.check) {
+  display: grid;
+  gap: 4px;
+}
+.person-attitude {
+  margin: 12px 0;
+}
+.att-reasons {
+  list-style: none;
+  padding: 0;
+  margin: 10px 0 0;
+  display: grid;
+  gap: 4px;
+  font-size: 14px;
+}
+.att-reasons li span[aria-hidden] {
+  display: inline-block;
+  width: 1.2em;
+  font-size: 11px;
+}
+.att-reasons li.up span[aria-hidden] {
+  color: var(--up);
+}
+.att-reasons li.down span[aria-hidden] {
+  color: var(--down);
+}
 .entry-links {
   display: flex;
   flex-wrap: wrap;

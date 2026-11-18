@@ -143,7 +143,7 @@ export function renownMet(g: Pick<GameState, "renown">, need: number | undefined
   return !need || need <= renownOf(g);
 }
 
-const TRUST: Record<Relation, number> = { hostile: -1, stranger: 0, friendly: 1, ally: 2 };
+const TRUST: Record<Relation, number> = { hostile: -2, wary: -1, stranger: 0, friendly: 1, ally: 2 };
 
 /** Does that person feel this well about the party? No requirement, or a deleted entry, is always met. */
 export function trustMet(g: Pick<GameState, "entries">, need: TrustNeed | null | undefined): boolean {

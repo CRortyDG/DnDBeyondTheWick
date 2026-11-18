@@ -459,7 +459,7 @@ export function needsWarning(g: Pick<GameState, "entries">, t: CompanionTemplate
   if (!t.needs || !t.entryId) return null;
   const e = (g.entries ?? []).find((x) => x.id === t.entryId);
   if (!e) return null;
-  const rank = { hostile: -1, stranger: 0, friendly: 1, ally: 2 } as const;
+  const rank = { hostile: -2, wary: -1, stranger: 0, friendly: 1, ally: 2 } as const;
   const have = rank[e.relation ?? "stranger"];
   if (have >= rank[t.needs]) return null;
   return `${e.name} only joins once ${t.needs === "ally" ? "an ally" : "friendly"}. Right now: ${e.relation ?? "stranger"}.`;
