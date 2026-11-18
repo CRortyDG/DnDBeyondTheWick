@@ -28,6 +28,41 @@ export function pixUrl(p: Pix, scale = 1): string {
   return c.toDataURL("image/png");
 }
 
+/**
+ * Save a picture to the device. Phones (and an iPhone home-screen app, where a
+ * plain download link does nothing) get the share sheet with "Save Image";
+ * everything else gets an ordinary file download. Runs synchronously inside
+ * the tap so Safari still counts it as the user's own action.
+ */
+export function savePicture(p: Pix, scale: number, filename: string): Promise<void> {
+  const url = pixUrl(p, scale);
+  const bin = atob(url.slice(url.indexOf(",") + 1));
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  const file = new File([bytes], filename, { type: "image/png" });
+  const touch = typeof matchMedia === "function" && matchMedia("(pointer: coarse)").matches;
+  if (touch && typeof navigator.canShare === "function" && navigator.canShare({ files: [file] })) {
+    return navigator.share({ files: [file] }).catch((e: unknown) => {
+      if ((e as Error)?.name !== "AbortError") download(file);
+    });
+  }
+  download(file);
+  return Promise.resolve();
+}
+
+function download(file: File) {
+  const href = URL.createObjectURL(file);
+  const a = document.createElement("a");
+  a.href = href;
+  a.download = file.name;
+  a.rel = "noopener";
+  a.style.display = "none";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(href), 60_000);
+}
+
 /** The look's picture (whole, or just the head and shoulders), cached. */
 export function lookUrl(look: Look, face = false): string {
   const key = (face ? "f" : "w") + lookKey(look);

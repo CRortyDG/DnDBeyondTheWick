@@ -739,14 +739,30 @@ const HORNS: ((c: Ctx) => void)[] = [
 
 const HATS: ((c: Ctx, m: Record<string, C>) => void)[] = [
   () => {},
-  // Wizard hat
+  // Wizard hat: tall, with a floppy tip, stars and a moon
   (c, m) =>
     headStamp(
       c,
-      ["...........hh...", "..........hhd...", ".........hhd....", "........hhhd....", ".......hlhhd....", ".......hlhhd....", "......hlhhhd....", "......hlhhs.d...", ".....hlhhhhhd...", ".....hlhhhhhd...", "....ggggggggggd.", ".hhhhhhhhhhhhhhd", "hhhhhhhhhhhhhhhhd", ".dddddddddddddd."],
-      { ...m, g: c.trim.base, s: GOLD.hi },
-      11,
-      2,
+      [
+        ".........hhhhd....",
+        "........hhlhhhhd..",
+        "........hlhd..hhd.",
+        ".......hlhhd...hd.",
+        ".......hlhhd....S.",
+        "......hlhshd......",
+        "......hlhhhhd.....",
+        ".....hlhhhhhd.....",
+        ".....hlshhhMhd....",
+        "....hlhhhhhMhd....",
+        "....hlhhhhhhhhd...",
+        "...gggggggggggggd.",
+        ".hhhhhhhhhhhhhhhhd",
+        "hlhhhhhhhhhhhhhhhd",
+        ".ddhhhhhhhhhhhhdd.",
+      ],
+      { ...m, g: c.trim.base, s: GOLD.hi, S: GOLD.hi, M: "#f2e6a8" },
+      12,
+      3,
     ),
   // Hood
   (c, m) =>
@@ -941,7 +957,11 @@ function offHand(c: Ctx) {
   const items: Record<number, [string[], Record<string, C>]> = {
     1: [["..mmmm..", ".mhhhhm.", "mhhlhhdm", "mhlgGhdm", "mhhGGhdm", "mhhhhddm", ".mddddm.", "..mmmm.."], { m: metal.lo, h: trim.base, l: trim.hi, d: trim.lo, g: metal.hi, G: metal.base }],
     2: [["mmmmmm", "mhhhhm", "mhgghd", "mggggd", "mhgghd", "mhhhhd", ".mhhd.", ".mhd..", "..md.."], { m: metal.hi, h: trim.base, d: trim.lo, g: GOLD.hi }],
-    3: [["hhhhh", "hwwwh", "hwgwh", "hwwwh", "hhhhd"], { h: trim.lo, w: "#efe6cc", g: GOLD.base, d: trim.deep }],
+    // A thick tome: spine on the left, gold corners, a glowing rune, a clasp, page edges.
+    3: [
+      ["DGllllllG.", "Dlccccccdp", "glcccgccdP", "DlccgGgcdp", "DlcgGsGgxx", "DlccgGgcxx", "Dlcccgccdp", "glccccccdP", "DGddddddGp", "DBBBBBBBBP"],
+      { D: trim.deep, l: trim.hi, c: trim.base, d: trim.lo, g: GOLD.base, G: GOLD.hi, s: "#7fe0ff", x: metal.hi, B: trim.deep, p: "#efe6cc", P: "#b8a986" },
+    ],
     4: [[".ll.", "lwpp", "pppd", ".dd.", "....", ".o.."], { l: "#d8b8f8", w: WHITE, p: "#9a6ad8", d: "#6a3aa8", o: null }],
     5: [[".m.", "m.m", "mmm", "yyy", "yYy", "yyy", "mmm"], { m: metal.lo, y: "#ffd25a", Y: "#fff6c0" }],
     6: [[".b.", ".w.", "rrr", "rRr", "rrr"], { b: WOOD.base, w: "#cfe6ec", r: "#d23a4a", R: "#ff8a8a" }],
@@ -949,7 +969,7 @@ function offHand(c: Ctx) {
   };
   const [rows, map] = items[k];
   const w = rows[0].length;
-  const at: Record<number, [number, number]> = { 1: [4, 4], 2: [3, 3], 3: [2, 2], 4: [1, 6], 5: [1, -1], 6: [1, 2], 7: [1, -1] };
+  const at: Record<number, [number, number]> = { 1: [4, 4], 2: [3, 3], 3: [1, 4], 4: [1, 6], 5: [1, -1], 6: [1, 2], 7: [1, -1] };
   const [ax, ay] = at[k];
   void w;
   p.stamp(x - ax, y - ay, rows, map);
@@ -1352,7 +1372,8 @@ export function splitLayers(look: Look): { bg: Pix; back: Pix; front: Pix; pet: 
   call(HORNS, c.v("horns"), c);
   call(HATS, c.v("hat"), c, rm(c.hat));
   cloakFront(c);
-  offHand(c);
+  // The detailed renderer draws the spellbook itself, at full size.
+  if (c.v("offhand") !== 3) offHand(c);
   mainHand(c);
   return { bg, back, front, pet: pet(c), c };
 }

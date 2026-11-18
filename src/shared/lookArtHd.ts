@@ -5,7 +5,7 @@
 
 import type { Look } from "./look";
 import { type Ctx, layers, LOOK_H, LOOK_W, mix, MOUTH, OUT, Pix, splitLayers, tone, WHITE } from "./lookArt";
-import { bodyHd, handsHd, hframe, OUTFITS_HD } from "./lookBodyHd";
+import { bodyHd, bookHd, handsHd, hframe, OUTFITS_HD } from "./lookBodyHd";
 
 export const HD_W = LOOK_W * 2;
 export const HD_H = LOOK_H * 2;
@@ -259,6 +259,7 @@ export function drawLookHd(look: Look): Pix {
   bodyHd(big, h, c.skin);
   (OUTFITS_HD[c.v("outfit")] ?? OUTFITS_HD[0])(big, h, c);
   big.over(scale2x(front));
+  if (c.v("offhand") === 3) bookHd(big, h, c);
   const off = c.v("offhand");
   if (c.v("hand")) handsHd(big, h, c.skin, "r");
   if (off && off !== 1 && off !== 2 && off !== 4 && off !== 5) handsHd(big, h, c.skin, "l");
