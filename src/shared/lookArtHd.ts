@@ -6,6 +6,7 @@
 import type { Look } from "./look";
 import { type Ctx, layers, LOOK_H, LOOK_W, mix, MOUTH, OUT, Pix, splitLayers, tone, WHITE } from "./lookArt";
 import { bodyHd, bookHd, handsHd, hframe, OUTFITS_HD } from "./lookBodyHd";
+import { beardHd, marksHd, stubbleHd, whiskersHd } from "./lookFaceHd";
 
 export const HD_W = LOOK_W * 2;
 export const HD_H = LOOK_H * 2;
@@ -202,7 +203,14 @@ const MOUTHS_HD: { rows: Rows; top: number }[] = [
   { rows: ["mmmmmmmm", "mwMMMMwm", ".w....w."], top: 18 },
 ];
 
-function face(p: Pix, c: Ctx) {
+/** Eyes, brows, nose and mouth; nothing is drawn where hidden says a beard, hair or a hat covers the face. */
+function face(out: Pix, c: Ctx, hidden: (x: number, y: number) => boolean) {
+  const p = new Pix(out.w, out.h);
+  drawFace(p, c);
+  for (let y = c.f.hy * 2; y < c.f.hy * 2 + 24; y++) for (let x = c.f.hx * 2 - 2; x < c.f.hx * 2 + 26; x++) if (!hidden(x, y)) out.set(x, y, p.get(x, y) ?? undefined);
+}
+
+function drawFace(p: Pix, c: Ctx) {
   const X = c.f.hx * 2;
   const Y = c.f.hy * 2;
   const eyesK = c.v("eyes");
@@ -250,15 +258,23 @@ function face(p: Pix, c: Ctx) {
 
 /** The look at double size with the richer finish. */
 export function drawLookHd(look: Look): Pix {
-  const { bg, back, front, pet, c } = splitLayers(look);
+  const { bg, back, front, cover, gear, pet, c } = splitLayers(look);
   // Wings, tail and the back of a cloak or long hair are smoothed up from the
-  // base size; the body and clothes are drawn natively at double size; hair,
-  // hats and gear go over the top, then the hands close over any grips.
+  // base size; the body, clothes and beard are drawn natively at double size;
+  // hair, hats and gear go over the top, then the hands close over any grips.
   const big = scale2x(back);
   const h = hframe(c.f);
   bodyHd(big, h, c.skin);
   (OUTFITS_HD[c.v("outfit")] ?? OUTFITS_HD[0])(big, h, c);
   big.over(scale2x(front));
+  const beard = new Pix(HD_W, HD_H);
+  beardHd(beard, h, c);
+  big.over(beard);
+  const top = scale2x(cover);
+  big.over(top);
+  big.over(scale2x(gear));
+  // The face shows only where no beard, hair or hat lies over it.
+  const hidden = (x: number, y: number) => !!(beard.get(x, y) || top.get(x, y));
   if (c.v("offhand") === 3) bookHd(big, h, c);
   const off = c.v("offhand");
   if (c.v("hand")) handsHd(big, h, c.skin, "r");
@@ -267,8 +283,11 @@ export function drawLookHd(look: Look): Pix {
   shadeRegions(big);
   bevel(big);
   rim(big);
-  face(big, c);
+  stubbleHd(big, h, c, hidden);
+  marksHd(big, h, c, hidden);
+  face(big, c, hidden);
   softOutline(big);
+  whiskersHd(big, h, c, hidden);
   const pp = scale2x(pet);
   shadeRegions(pp, { minSize: 8 });
   rim(pp);

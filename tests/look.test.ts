@@ -2,7 +2,7 @@
 import { describe, expect, it } from "vitest";
 import { dmCommand, playerCommand, type Command } from "@/shared/commands";
 import { cleanCharLook, LAYERS, LOOK_COLORS, LOOK_PARTS, lookCount, randomizeGroup, randomLook, type Look } from "@/shared/look";
-import { drawLook, drawLookFace, LOOK_H, LOOK_W } from "@/shared/lookArt";
+import { drawLook, drawLookFace, frameOf, LOOK_H, LOOK_W, MOUTH } from "@/shared/lookArt";
 import { projectPlayer, projectTv } from "@/shared/projection";
 import { apply, type Ctx } from "@/shared/reducer";
 import { seedGame } from "@/shared/seed";
@@ -143,5 +143,42 @@ describe("the detailed (double size) version", () => {
       }
     const f = drawLookHdFace({ background: 1 });
     expect([f.w, f.h]).toEqual([44, 44]);
+  });
+
+  it("every beard leaves the whole mouth showing, on every build", async () => {
+    const { drawLookHd } = await import("@/shared/lookArtHd");
+    const mouthPixels = (look: Look) => {
+      const f = frameOf(look.body ?? 0);
+      const p = drawLookHd({ hair: 0, background: 0, ...look });
+      let n = 0;
+      for (let y = f.hy * 2 + 18; y <= f.hy * 2 + 21; y++) for (let x = f.hx * 2 + 8; x <= f.hx * 2 + 15; x++) if (p.get(x, y) === MOUTH) n++;
+      return n;
+    };
+    for (let body = 0; body < lookCount("body"); body++)
+      for (let mouth = 0; mouth < lookCount("mouth"); mouth++) {
+        const bare = mouthPixels({ body, mouth });
+        expect(bare).toBeGreaterThan(0);
+        for (let beard = 1; beard < lookCount("beard"); beard++) expect(mouthPixels({ body, mouth, beard })).toBe(bare);
+      }
+  });
+
+  it("eyes and mouths stay under hair and hats instead of showing through", async () => {
+    const { drawLookHd } = await import("@/shared/lookArtHd");
+    // A helm's brow line crosses where wide eyes' brows would be: no eye-white or outline may land on the helm.
+    const f = frameOf(0);
+    const helm = drawLookHd({ hat: 3, eyes: 2, background: 0 });
+    const plain = drawLookHd({ hat: 3, eyes: 6, background: 0 });
+    for (let x = f.hx * 2; x < f.hx * 2 + 24; x++) for (let y = f.hy * 2; y < f.hy * 2 + 10; y++) expect(helm.get(x, y)).toBe(plain.get(x, y));
+  });
+});
+
+describe("hair under hats", () => {
+  it("a hood, helm or hat tucks the hair in: nothing pokes out above the brim", () => {
+    const f = frameOf(0);
+    // One row short of the brim: the outline of hair showing below it sits there.
+    const above = (look: Look, rows: number) => drawLook({ background: 0, ...look }).crop(0, 0, LOOK_W, f.hy + rows - 1).d.join();
+    // Every style except the ponytail, whose tail hangs out the back on purpose.
+    for (const [hat, rows] of [[1, 3], [2, 10], [3, 5], [4, 5], [9, 2], [11, 3], [13, 3]] as const)
+      for (let hair = 1; hair < lookCount("hair"); hair++) if (hair !== 5) expect(above({ hat, hair }, rows), `hat ${hat} hair ${hair}`).toBe(above({ hat, hair: 0 }, rows));
   });
 });

@@ -528,6 +528,40 @@ const OUTFITS: ((c: Ctx) => void)[] = [
       p.hl(x0 - (side === "l" ? 1 : 0), x1 + (side === "r" ? 1 : 0), y, "#3f3448");
     }
   },
+  // Samurai armour
+  ({ p, f, main, trim, metal }) => {
+    const cloth = ramp("#2c2a3c");
+    legsWear(p, f, cloth);
+    // Shin guards and sandals.
+    for (const side of ["l", "r"] as const) {
+      const sp = legSpans(f, side);
+      fill(p, sp.slice(-4, -1), metal, side === "r" ? "right" : "cyl");
+      const [y, x0, x1] = sp[sp.length - 1];
+      p.hl(x0, x1, y, "#3a2a22");
+    }
+    // A cuirass of laced plates.
+    fill(p, torsoSpans(f), main);
+    for (const [y, x0, x1] of torsoSpans(f, 2, f.th - 1)) if ((y - f.ty) % 3 === 0) for (let x = x0 + 1; x < x1; x++) p.set(x, y, x % 2 ? trim.base : main.deep);
+    p.set(f.cx - 1, f.ty + 1, GOLD.hi);
+    p.set(f.cx, f.ty + 1, GOLD.base);
+    sleeves(p, f, cloth);
+    fill(p, armSpans(f, "l", armLen(f) - 3, armLen(f)), metal);
+    fill(p, armSpans(f, "r", armLen(f) - 3, armLen(f)), metal, "right");
+    // Broad shoulder guards.
+    for (let i = 0; i < 5; i++) {
+      p.hl(f.lax - 1, f.lax + 2, f.ty + i, i % 2 ? trim.base : main.base);
+      p.hl(f.rax, f.rax + 3, f.ty + i, i % 2 ? trim.lo : main.lo);
+    }
+    // Sash, then a skirt of hanging plates.
+    p.hl(f.tx, f.tx + f.tw - 1, f.ty + f.th - 1, trim.base);
+    p.set(f.cx - 1, f.ty + f.th - 1, trim.hi);
+    const drop = Math.max(3, Math.round((f.feet - f.ly) * 0.4));
+    for (let i = 0; i < drop; i++)
+      for (let x = f.lx - 1; x <= f.lx + f.lw; x++) {
+        const gap = (x - f.lx + 1) % 3 === 2 && i > 0;
+        p.set(x, f.ly + i, gap ? cloth.deep : i % 2 ? trim.base : x > f.cx ? main.lo : main.base);
+      }
+  },
 ];
 
 // ---- head: ears, face, hair, beard, horns, hats ------------------------------------
@@ -597,6 +631,9 @@ const MOUTHS: ((c: Ctx) => void)[] = [
   (c) => headStamp(c, ["mmmm", "w..w"], { m: MOUTH, w: WHITE }, -9, -4),
 ];
 
+/** Marks the detailed renderer draws itself: freckles, war paint, whiskers. */
+export const HD_MARKS: readonly number[] = [1, 4, 6];
+
 /** Marks under the beard (most), and tusks over it. */
 const MARKS: ((c: Ctx) => void)[] = [
   () => {},
@@ -621,8 +658,10 @@ function hairBack(c: Ctx) {
   const h = c.v("hair");
   const map = rm(c.hair);
   const { p, f } = c;
+  // Under a covering hat the long hair starts below the brim.
+  const tuck = HAT_TUCKS[c.v("hat")] ?? 0;
   const long = (to: number) => {
-    for (let y = f.hy + 2; y <= f.hy + to; y++) {
+    for (let y = f.hy + Math.max(2, tuck); y <= f.hy + to; y++) {
       const inset = y >= f.hy + to - 1 ? 1 : 0;
       for (let x = f.hx - 1 + inset; x <= f.hx + 12 - inset; x++) p.set(x, y, x >= f.hx + 11 ? map.d : x <= f.hx ? map.l : map.h);
     }
@@ -706,24 +745,27 @@ const HAIRS: ((c: Ctx, m: Record<string, C>) => void)[] = [
   },
 ];
 
+/** Sideburns, a moustache, and an opening the size of the mouth (two rows), then the chin. */
+const BEARD_TOP = ["h..........d", "h.hhhhhhhh.d", "hhhd....hhhd", "hhhd....hhhd", "hhhhhhhhhhhd"];
+
 const BEARDS: ((c: Ctx, m: Record<string, C>) => void)[] = [
   () => {},
   (c, m) => headStamp(c, ["d.d.d.d.d.d.", ".d.d.d.d.d..", "..d.d.d.d..."], { d: mix(c.skin.lo, m.d as string, 0.5) }, -8, 0),
   (c, m) => headStamp(c, ["...hhhhhh...", "..hd....dh..", "..d......d.."], m, -8, 0),
-  (c, m) => headStamp(c, ["...hh..hh...", "....hhhh....", ".....hh.....", ".....hd....."], m, -9, 0),
-  (c, m) => headStamp(c, ["h..........d", "h.hhhhhhhh.d", "hhhd....hhhd", "hhhhhhhhhhhd", ".hhhhhhhhhd.", "..hhhhhhdd..", "...hhhhd...."], m, -6, 0),
-  (c, m) =>
-    headStamp(c, ["h..........d", "h.hhhhhhhh.d", "hhhd....hhhd", "hhhhhhhhhhhd", ".hhhhhhhhhd.", "..hhhhhhhd..", "..hhhhhhhd..", "...hhhhhd...", "...hhhhd....", "....hhd.....", "....hd......"], m, -6, 0),
+  (c, m) => headStamp(c, ["...hhhhhh...", "..h......d..", "..h......d..", "...hhhhhd...", "....hhhd....", ".....hd....."], m, -8, 0),
+  (c, m) => headStamp(c, [...BEARD_TOP, ".hhhhhhhhhd.", "..hhhhhhdd..", "...hhhhd...."], m, -7, 0),
+  (c, m) => headStamp(c, [...BEARD_TOP, ".hhhhhhhhhd.", "..hhhhhhhd..", "..hhhhhhhd..", "...hhhhhd...", "...hhhhd....", "....hhd.....", "....hd......"], m, -7, 0),
   (c, m) => {
-    headStamp(c, ["h..........d", "h.hhhhhhhh.d", "hhhd....hhhd", "hhhhhhhhhhhd", ".hhhhhhhhhd.", "..hhhhhhdd.."], m, -6, 0);
-    headStamp(c, ["hd..hd", "dh..dh", "hd..hd", "gg..gg"], { ...m, g: GOLD.base }, -12, -3);
+    headStamp(c, [...BEARD_TOP, ".hhhhhhhhhd.", "..hhhhhhdd.."], m, -7, 0);
+    // Two plaits: knots that step side to side, a gold ring, a tuft.
+    headStamp(c, [".hd...hd.", "hd...hd..", ".hd...hd.", "hd...hd..", ".hd...hd.", ".gg...gg.", ".hd...hd."], { ...m, g: GOLD.base }, -13, -2);
   },
   (c, m) =>
     headStamp(
       c,
-      ["h..........d", "h.hhhhhhhh.d", "hhhd....hhhd", "hhhhhhhhhhhd", "hhhhhhhhhhhd", ".hhhhhhhhhd.", ".hhhhhhhhhd.", "..hhhhhhhd..", "..hhhhhhhd..", "..hhhhhhd...", "...hhhhhd...", "...hhhhd....", "....hhhd....", "....hhd.....", ".....hd.....", ".....d......"],
+      [...BEARD_TOP, "hhhhhhhhhhhd", ".hhhhhhhhhd.", ".hhhhhhhhhd.", "..hhhhhhhd..", "..hhhhhhhd..", "..hhhhhhd...", "...hhhhhd...", "...hhhhd....", "....hhhd....", "....hhd.....", ".....hd.....", ".....d......"],
       m,
-      -6,
+      -7,
       0,
     ),
 ];
@@ -734,7 +776,7 @@ const HORNS: ((c: Ctx) => void)[] = [
   (c) => sides(c, ["..lhh", ".lhdhd", "lhd.hd", "hd..hd", "hd.hd.", ".hhd..", "..d..."], rm(ramp("#b89a6a")), 1, 3),
   (c) => sides(c, ["l...", "hl..", ".hl.", ".hhl", "..hd"], rm(HORN), 4, 1),
   (c) => sides(c, ["h.h..", "h.h.h", ".hhh.", "..hh.", "..h..", "...h.", "...hd"], rm(ramp("#8a6a48")), 6, 2),
-  (c) => headStamp(c, ["l", "lh", "hl", "lh", "hd", "hl"], rm(ramp("#f2e2b8")), 6, -6),
+  (c) => headStamp(c, ["l", "lh", "hl", "lh", "hd", "hl"], rm(ramp("#f2e2b8")), 6, -5),
 ];
 
 const HATS: ((c: Ctx, m: Record<string, C>) => void)[] = [
@@ -798,7 +840,7 @@ const HATS: ((c: Ctx, m: Record<string, C>) => void)[] = [
   (c, m) =>
     headStamp(c, [".....hhhhhh.....", "...hhhlhhhhhh...", "..hhlhhhhhhhhh..", "ghhhhhhhhhhhhhhg", ".gghhhhhhhhhhgg.", "...gggggggggg..."], { ...m, g: GOLD.base }, 4, 2),
   // Flower crown
-  (c) => headStamp(c, [".p.w.y.p.w.y.", "gpgwgygpgwgyg"], { p: "#e86a9a", w: WHITE, y: "#f2c84a", g: "#4f9a45" }, 1, 0),
+  (c) => headStamp(c, [".p.w.y.p.w.y", "gpgwgygpgwgy"], { p: "#e86a9a", w: WHITE, y: "#f2c84a", g: "#4f9a45" }, 1, 0),
   // Witch hat
   (c, m) =>
     headStamp(
@@ -810,7 +852,51 @@ const HATS: ((c: Ctx, m: Record<string, C>) => void)[] = [
     ),
   // Headband
   (c, m) => headStamp(c, ["lhhhhhhhhhhhd.", "............dh", "..............d"], m, -3, 1),
+  // Kabuto: a bowl with a gold crest, a brim, and plated neck guards flaring at the sides
+  (c, m) =>
+    headStamp(
+      c,
+      [
+        "....g..........g....",
+        "....gg........gg....",
+        ".....gg......gg.....",
+        "......ggGGGGgg......",
+        ".......hhhhhh.......",
+        ".....hhllhhhhhh.....",
+        "....hlhhhhhhhhhd....",
+        "....hlhhhhhhhhhd....",
+        "...tttttttttttttT...",
+        "..hhhd........hhdd..",
+        ".tttd..........tTTd.",
+        "hhhd............hhdd",
+        "ttd..............tTd",
+      ],
+      { ...m, g: GOLD.hi, G: GOLD.base, t: c.trim.base, T: c.trim.lo },
+      6,
+      4,
+    ),
 ];
+
+/** Hats that cover the crown: hair above this row (counted from the top of the head) is tucked away under them. */
+const HAT_TUCKS: Record<number, number> = { 1: 3, 2: 12, 3: 8, 4: 5, 7: 3, 8: 2, 9: 2, 11: 3, 13: 3 };
+
+/** Hair (tucked under a covering hat), ears that sit on top, horns and the hat: everything that can hide part of the face. */
+function headTop(c: Ctx) {
+  const tuck = HAT_TUCKS[c.v("hat")];
+  const hairMap = rm(c.hair);
+  if (tuck === undefined) call(HAIRS, c.v("hair"), c, hairMap);
+  else {
+    const into = c.p;
+    const hair = new Pix(into.w, into.h);
+    c.p = hair;
+    call(HAIRS, c.v("hair"), c, hairMap);
+    c.p = into;
+    for (let y = c.f.hy + tuck; y < hair.h; y++) for (let x = 0; x < hair.w; x++) into.set(x, y, hair.get(x, y) ?? undefined);
+  }
+  earsTop(c);
+  call(HORNS, c.v("horns"), c);
+  call(HATS, c.v("hat"), c, rm(c.hat));
+}
 
 // ---- cloaks, wings, tails ------------------------------------------------------------
 
@@ -881,8 +967,10 @@ function wings(c: Ctx) {
     ],
   };
   const [rows, map] = sprites[k];
-  p.stamp(f.tx - 11, top, rows, map);
-  p.stamp(f.tx + f.tw - 1, top, rows, shadeRight(map), true);
+  // Fairy wings are narrow: tuck them in so they meet the shoulders.
+  const out = k === 3 ? 7 : 11;
+  p.stamp(f.tx - out, top, rows, map);
+  p.stamp(f.tx + f.tw + out - 12, top, rows, shadeRight(map), true);
 }
 
 function tail(c: Ctx) {
@@ -1347,13 +1435,16 @@ export function drawLook(look: Look): Pix {
 
 /**
  * For the detailed version, which draws the body and outfit itself: what goes
- * behind the body (wings, tail, cloak, long hair) and what goes in front
- * (ears, marks, beard, hair, horns, hat, cloak clasp, things in hand), at the base size.
+ * behind the body (wings, tail, cloak, long hair) and what goes in front, at
+ * the base size: on the skin (ears, marks), over the face (tusks, hair, horns,
+ * hat) and the gear (cloak clasp, things in hand).
  */
-export function splitLayers(look: Look): { bg: Pix; back: Pix; front: Pix; pet: Pix; c: Ctx } {
+export function splitLayers(look: Look): { bg: Pix; back: Pix; front: Pix; cover: Pix; gear: Pix; pet: Pix; c: Ctx } {
   const bg = new Pix();
   const back = new Pix();
   const front = new Pix();
+  const cover = new Pix();
+  const gear = new Pix();
   const c = ctxOf(look, back);
   call(BACKDROPS, c.v("background"), bg, c);
   platform(bg, c.v("platform"));
@@ -1361,21 +1452,21 @@ export function splitLayers(look: Look): { bg: Pix; back: Pix; front: Pix; pet: 
   tail(c);
   cloakBack(c);
   hairBack(c);
+  // On the skin: ears and marks. The detailed renderer draws beards, freckles,
+  // war paint and whiskers itself, at full size.
   c.p = front;
-  const hairMap = rm(c.hair);
   call(EARS, c.v("ears"), c);
-  call(MARKS, c.v("mark"), c);
-  call(BEARDS, c.v("beard"), c, hairMap);
+  if (!HD_MARKS.includes(c.v("mark"))) call(MARKS, c.v("mark"), c);
+  // Over the face: tusks, hair, horns, hats. Eyes and mouths never show through these.
+  c.p = cover;
   tusks(c);
-  call(HAIRS, c.v("hair"), c, hairMap);
-  earsTop(c);
-  call(HORNS, c.v("horns"), c);
-  call(HATS, c.v("hat"), c, rm(c.hat));
+  headTop(c);
+  c.p = gear;
   cloakFront(c);
   // The detailed renderer draws the spellbook itself, at full size.
   if (c.v("offhand") !== 3) offHand(c);
   mainHand(c);
-  return { bg, back, front, pet: pet(c), c };
+  return { bg, back, front, cover, gear, pet: pet(c), c };
 }
 
 /** The three layers at the base size, before outlines. hdFace leaves the eyes and mouth out (drawn later at double size). */
@@ -1399,11 +1490,7 @@ export function layers(look: Look, hdFace: boolean): { bg: Pix; ch: Pix; pet: Pi
   call(BEARDS, c.v("beard"), c, hairMap);
   if (!hdFace) call(MOUTHS, c.v("mouth"), c);
   tusks(c);
-  // A hood or helm hides most hair; draw the hair first so they cover it.
-  call(HAIRS, c.v("hair"), c, hairMap);
-  earsTop(c);
-  call(HORNS, c.v("horns"), c);
-  call(HATS, c.v("hat"), c, rm(c.hat));
+  headTop(c);
   cloakFront(c);
   offHand(c);
   mainHand(c);
