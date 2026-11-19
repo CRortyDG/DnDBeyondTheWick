@@ -24,6 +24,7 @@ import { NAV_ICONS, PlayerNav, type Screen } from "./PlayerNav";
 import { DecisionBanners, MyRequests, RequestSheet, SendGold } from "./Requests";
 import { CharacterTab, LookCard } from "./CharacterTab";
 import { LastTime } from "./LastTime";
+import { NextGame } from "./NextGame";
 import { WhisperHistoryButton, Whispers } from "./Whispers";
 import { MyRoomCard } from "./MyRoom";
 import { FEATURE, FEATURES, type FeatureId } from "@/shared/features";
@@ -490,6 +491,7 @@ function PlayerScreen({ view, online, send, ident, setIdent }: { view: PlayerVie
       {view.world ? <WorldStrip world={view.world} /> : null}
       {me.away ? <AwayStrip view={view} send={send} /> : null}
       <DecisionBanners view={view} />
+      <NextGame view={view} />
       <LastTime view={view} />
       <Whispers view={view} send={send} />
       {screen !== "fight" ? <CompanionStrip view={view} send={send} /> : null}
@@ -600,6 +602,7 @@ function PlayerScreen({ view, online, send, ident, setIdent }: { view: PlayerVie
       {view.world ? <WorldStrip world={view.world} /> : null}
       {me.away ? <AwayStrip view={view} send={send} /> : null}
       <DecisionBanners view={view} />
+      <NextGame view={view} />
       <LastTime view={view} />
       <Whispers view={view} send={send} />
       {screen !== "fight" ? <CompanionStrip view={view} send={send} /> : null}

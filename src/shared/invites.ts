@@ -243,6 +243,79 @@ export function projectInvite(g: GameState, version: number, inv: Invite, opts: 
 }
 
 // ---------------------------------------------------------------------------
+// The player's own page: "Next game: Saturday at 7:00 PM, you're in".
+
+export interface NextGame {
+  code: string;
+  title: string;
+  date: string;
+  time: string;
+  endTime?: string;
+  startsAt: number;
+  endsAt?: number;
+  place: string;
+  /** Seat holders only. */
+  address?: string;
+  blurb: string;
+  /** in: my seat · wait: on the waitlist · ask: waiting for the DM's OK · open: seats left I could grab · full: only the waitlist left. */
+  mine: "in" | "wait" | "ask" | "open" | "full";
+  /** Place in line, from 1 (wait and ask). */
+  line?: number;
+  /** Open seats left (open). */
+  left?: number;
+  /** The invite page, where they claim or give the seat back. */
+  href: string;
+}
+
+/**
+ * The next game night for this player: the soonest invite not yet played,
+ * cancelled or over that they're on, or could still claim a seat on (an open
+ * call, or their own party's). Someone the DM took off, or who gave their
+ * seat back, isn't nudged about that one again.
+ *
+ * The street address goes only to a seat holder whose name is locked: an
+ * unlocked name's page is open to anyone who types it (like the invite page,
+ * which only trusts a locked sign-in).
+ */
+export function nextGameFor(g: GameState, playerId: string, now = Date.now()): NextGame | null {
+  const p = g.players.find((x) => x.id === playerId);
+  if (!p || p.archived) return null;
+  let best: NextGame | null = null;
+  for (const inv of invitesOf(g)) {
+    if (inviteOver(inv, now) || (best && best.startsAt <= inv.startsAt)) continue;
+    const e = inv.entries.find((x) => x.playerId === p.id && x.state !== "out") ?? inv.entries.find((x) => x.playerId === p.id);
+    let mine: NextGame["mine"];
+    if (e && (e.state === "in" || e.state === "wait" || e.state === "ask")) mine = e.state;
+    else if (e) continue;
+    else {
+      if (claimsClosed(inv, now)) continue;
+      if (inv.partyId && !partiesOf(g).find((x) => x.id === inv.partyId)?.memberIds.includes(p.id)) continue;
+      if (openSeats(inv) > 0) mine = "open";
+      else if (inv.waitlist) mine = "full";
+      else continue;
+    }
+    const line = e?.state === "wait" ? waiting(inv).findIndex((x) => x.id === e.id) + 1 : e?.state === "ask" ? asking(inv).findIndex((x) => x.id === e.id) + 1 : 0;
+    best = {
+      code: inv.code,
+      title: inv.title,
+      date: inv.date,
+      time: inv.time,
+      ...(inv.endTime ? { endTime: inv.endTime } : {}),
+      startsAt: inv.startsAt,
+      ...(inv.endsAt ? { endsAt: inv.endsAt } : {}),
+      place: inv.place,
+      ...(mine === "in" && inv.address && p.keyHash ? { address: inv.address } : {}),
+      blurb: inv.blurb,
+      mine,
+      ...(line > 0 ? { line } : {}),
+      ...(mine === "open" ? { left: openSeats(inv) } : {}),
+      href: invitePath(g.id, inv.code),
+    };
+  }
+  return best;
+}
+
+// ---------------------------------------------------------------------------
 // Calendar: a file the phone's calendar opens, with its own reminder the day before.
 
 function icsTime(ms: number): string {
@@ -253,7 +326,9 @@ function icsText(s: string): string {
   return s.replace(/\\/g, "\\\\").replace(/;/g, "\\;").replace(/,/g, "\\,").replace(/\r?\n/g, "\\n");
 }
 
-export function calendarFile(v: InviteView["invite"], url: string, where: string, now = Date.now()): string {
+type CalendarEvent = Pick<InviteView["invite"], "code" | "title" | "startsAt" | "endsAt" | "blurb">;
+
+export function calendarFile(v: CalendarEvent, url: string, where: string, now = Date.now()): string {
   const end = v.endsAt ?? v.startsAt + 4 * 3600_000;
   return [
     "BEGIN:VCALENDAR",
@@ -282,7 +357,7 @@ export function calendarFile(v: InviteView["invite"], url: string, where: string
 }
 
 /** Add to Google Calendar, no sign-in needed on our side. */
-export function googleCalendarLink(v: InviteView["invite"], url: string, where: string): string {
+export function googleCalendarLink(v: CalendarEvent, url: string, where: string): string {
   const end = v.endsAt ?? v.startsAt + 4 * 3600_000;
   const q = new URLSearchParams({
     action: "TEMPLATE",

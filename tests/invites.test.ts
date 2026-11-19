@@ -260,9 +260,19 @@ describe("what goes where", () => {
     expect(JSON.stringify(projectDm(s, 1, []))).not.toContain(hash);
     expect(JSON.stringify(projectTv(s, 1))).not.toContain(inv.code);
     const p = s.players.find((x) => x.name === "Priya")!;
-    const pv = JSON.stringify(projectPlayer(s, 1, p.id, []));
-    expect(pv).not.toContain(inv.code);
-    expect(pv).not.toContain("Larch");
+    // Their own page shows their seat (next game), and the address since their name is locked by the seat key.
+    expect(projectPlayer(s, 1, p.id, []).nextGame).toMatchObject({ code: inv.code, address: "14 Larch St" });
+    // Someone on the waitlist, or anyone else at the table, never gets the address.
+    for (const x of s.players.filter((y) => y.id !== p.id && !y.archived)) expect(JSON.stringify(projectPlayer(s, 1, x.id, []))).not.toContain("Larch");
+  });
+
+  it("a held seat on an unlocked name shows on their page, but not the address", async () => {
+    const p = (await state()).players.find((x) => !x.archived && !x.keyHash)!;
+    const inv = await makeInvite();
+    await execute(store, G, DM, { type: "invite.hold", inviteId: inv.id, playerId: p.id, held: true });
+    const n = projectPlayer(await state(), 1, p.id, []).nextGame;
+    expect(n).toMatchObject({ mine: "in" });
+    expect(n?.address).toBeUndefined();
   });
 
   it("the calendar file has the start, the place and a reminder the day before", async () => {
@@ -295,5 +305,59 @@ describe("the DM's tools", () => {
     const s = await state();
     expect(s.invites).toHaveLength(0);
     expect(s.players.find((p) => p.name === "Priya")!.archived).toBe(true);
+  });
+});
+
+describe("next game on the player's own page", () => {
+  const view = async (playerId: string) => projectPlayer(await state(), 1, playerId, []).nextGame;
+
+  it("a seat holder sees when, where (with the address) and that they're in", async () => {
+    const inv = await makeInvite({ seats: 1 });
+    await claim(inv.code, 1, "Priya");
+    await claim(inv.code, 2, "Dana");
+    const s = await state();
+    const priya = s.players.find((p) => p.name === "Priya")!.id;
+    expect(await view(priya)).toMatchObject({ code: inv.code, title: "One-shot", date: "2030-01-05", time: "18:30", mine: "in", address: "14 Larch St", href: `/i/${inv.code}` });
+  });
+
+  it("a regular sees an open call with seats left, without the address; a waitlist place once in line", async () => {
+    const p = (await state()).players.find((x) => !x.archived)!;
+    const inv = await makeInvite({ seats: 2 });
+    await claim(inv.code, 1, "Priya");
+    const n = await view(p.id);
+    expect(n).toMatchObject({ mine: "open", left: 1 });
+    expect(n?.address).toBeUndefined();
+    await claim(inv.code, 2, "Dana");
+    expect(await view(p.id)).toMatchObject({ mine: "full" });
+  });
+
+  it("the soonest one wins; played, cancelled, given-back and taken-off ones drop out", async () => {
+    const p = (await state()).players.find((x) => !x.archived)!;
+    const later = await makeInvite({ title: "Later", startsAt: Date.now() + 200 * HOUR });
+    const soon = await makeInvite({ title: "Soon", startsAt: Date.now() + 24 * HOUR });
+    expect((await view(p.id))?.title).toBe("Soon");
+    await execute(store, G, DM, { type: "invite.status", inviteId: soon.id, status: "cancelled" });
+    expect((await view(p.id))?.title).toBe("Later");
+    // Taken off: not nudged about it again.
+    await execute(store, G, DM, { type: "invite.hold", inviteId: later.id, playerId: p.id, held: true });
+    const e = (await state()).invites!.find((x) => x.id === later.id)!.entries.find((x) => x.playerId === p.id)!;
+    expect((await view(p.id))?.mine).toBe("in");
+    await execute(store, G, DM, { type: "invite.entry", inviteId: later.id, entryId: e.id, action: "remove" });
+    expect(await view(p.id)).toBeUndefined();
+  });
+
+  it("a party invite shows only to that party's characters", async () => {
+    const r = await execute(store, G, DM, { type: "party.add", name: "Second table" });
+    const party = r.state.parties!.find((x) => x.name === "Second table")!;
+    await makeInvite({ partyId: party.id });
+    const s = await state();
+    const outside = s.players.find((p) => !p.archived && !party.memberIds.includes(p.id));
+    if (outside) expect(projectPlayer(s, 1, outside.id, []).nextGame).toBeUndefined();
+  });
+
+  it("past games are gone", async () => {
+    const p = (await state()).players.find((x) => !x.archived)!;
+    await makeInvite({ startsAt: Date.now() - 8 * HOUR });
+    expect(await view(p.id)).toBeUndefined();
   });
 });
