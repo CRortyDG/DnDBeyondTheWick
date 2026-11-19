@@ -88,10 +88,18 @@ export function lookSvg(look: Look, style: VectorStyle, face = false): string {
     grads.set(id, c);
     return `url(#${id})`;
   };
+  /**
+   * Outline widths are in picture units (the picture is drawn 2× its viewBox),
+   * divided by the scale of the group being drawn (sk), so every part gets the
+   * same outline. Not vector-effect="non-scaling-stroke": Safari applies that
+   * at the size the picture is shown, so a small thumbnail came out with
+   * outlines so thick the whole figure turned black.
+   */
+  let sk = 1;
   /** A filled shape, outlined the style's way. w scales the outline. */
   const S = (d: string, c: string, extra = "", w = 1) => {
-    const stroke = st.ow ? `stroke="${st.line}" stroke-width="${f1(st.ow * w)}"` : `stroke="${dk(c, 0.35)}" stroke-width="0.6" stroke-opacity="0.6"`;
-    return `<path d="${d}" fill="${fill(c)}" ${stroke} stroke-linejoin="round" vector-effect="non-scaling-stroke" ${extra}/>`;
+    const stroke = st.ow ? `stroke="${st.line}" stroke-width="${f1(st.ow * w * 0.5 * sk)}"` : `stroke="${dk(c, 0.35)}" stroke-width="${f1(0.3 * sk)}" stroke-opacity="0.6"`;
+    return `<path d="${d}" fill="${fill(c)}" ${stroke} stroke-linejoin="round" ${extra}/>`;
   };
   const ell = (cx: number, cy: number, rx: number, ry: number) => `M ${f1(cx - rx)} ${f1(cy)} a ${f1(rx)} ${f1(ry)} 0 1 0 ${f1(2 * rx)} 0 a ${f1(rx)} ${f1(ry)} 0 1 0 ${f1(-2 * rx)} 0 Z`;
   const E = (cx: number, cy: number, rx: number, ry: number, c: string, extra = "", w = 1) => S(ell(cx, cy, rx, ry), c, extra, w);
@@ -126,15 +134,20 @@ export function lookSvg(look: Look, style: VectorStyle, face = false): string {
   const RH: [number, number] = [-SWb - 5, 64];
   const LH: [number, number] = [SWb + 5, 64];
 
+  const bodyK = 1 / Math.sqrt(sx * sy);
+  const headK = 1 / headS;
   const bg = backdrop();
   const plat = platform();
   const shadow = `<ellipse cx="100" cy="205" rx="34" ry="6" fill="#1a0f24" opacity="${st.flat ? 0.28 : 0.4}" ${st.flat ? "" : `filter="url(#blur)"`}/>`;
 
   // ---- back layer ----
+  sk = bodyK;
   let backB = wings() + cloakBack() + tail();
+  sk = headK;
   let backH = hairBack() + hoodBack();
 
   // ---- body ----
+  sk = bodyK;
   const out = v("outfit");
   let body = legs(out);
   body += S(`M -5 -8 L 5 -8 L 6 8 L -6 8 Z`, dk(skin, 0.12));
@@ -142,6 +155,7 @@ export function lookSvg(look: Look, style: VectorStyle, face = false): string {
   body += cloakFront();
 
   // ---- head ----
+  sk = headK;
   let head = earsBehind();
   const faceD = cel ? `M -19 -2 Q -19 -22 0 -22 Q 19 -22 19 -2 Q 19 18 0 20 Q -19 18 -19 -2 Z` : `M -17 -4 Q -17 -22 0 -22 Q 17 -22 17 -4 Q 17 10 9 17 Q 4 21 0 21 Q -4 21 -9 17 Q -17 10 -17 -4 Z`;
   head += S(faceD, skin);
@@ -159,9 +173,11 @@ export function lookSvg(look: Look, style: VectorStyle, face = false): string {
   head += hat();
 
   // ---- hands and gear ----
+  sk = bodyK;
   const front = handItem() + E(RH[0], RH[1], 5.5, 5.5, skin) + offhand();
 
   // A face (tokens, purse, lists) is just the character: no pet, stand or backdrop.
+  sk = 1;
   const petG = face ? "" : pet();
 
   // ---- defs ----
