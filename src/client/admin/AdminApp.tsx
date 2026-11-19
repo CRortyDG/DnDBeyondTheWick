@@ -116,7 +116,8 @@ export function AdminApp() {
       for (let i = 0; i < codes.length; i += ADMIN_BATCH) {
         setLoading(`Asking each campaign… ${Math.min(codes.length, i + ADMIN_BATCH)} of ${codes.length}`);
         const part = await call<{ summaries: Summary[] }>(key, "/api/admin/summaries", { codes: codes.slice(i, i + ADMIN_BATCH) });
-        for (const s of part.summaries) got.set(s.code, s);
+        // A room that didn't answer keeps no summary (its row says so) rather than half a one.
+        for (const s of part.summaries) if (!s.error && Array.isArray(s.activeDays)) got.set(s.code, s);
         setRows((prev) => prev?.map((r) => (got.has(r.code) ? { ...r, summary: got.get(r.code) } : r)) ?? prev);
       }
       setLoading("");
@@ -242,7 +243,7 @@ export function AdminApp() {
 
       <ul className="ad-list">
         {shown.map((r) => (
-          <CampaignRow key={r.code} row={r} kind={kinds.get(r.code)!} onOpen={() => setOpen(r.code)} onLabel={label} />
+          <CampaignRow key={r.code} row={r} kind={kinds.get(r.code)!} loaded={!loading} onOpen={() => setOpen(r.code)} onLabel={label} />
         ))}
       </ul>
 
@@ -327,14 +328,14 @@ function Pill({ kind, tagged }: { kind: Kind; tagged: boolean }) {
   );
 }
 
-function CampaignRow({ row, kind, onOpen, onLabel }: { row: Row; kind: ReturnType<typeof kindOf>; onOpen: () => void; onLabel: (code: string, tag: AdminTag | null) => void }) {
+function CampaignRow({ row, kind, loaded, onOpen, onLabel }: { row: Row; kind: ReturnType<typeof kindOf>; loaded: boolean; onOpen: () => void; onLabel: (code: string, tag: AdminTag | null) => void }) {
   const s = row.summary;
   return (
     <li className="ad-row">
       <button className="ad-row-main" onClick={onOpen} disabled={!s?.exists}>
         <span className="ad-row-head">
           <Pill kind={kind.kind} tagged={kind.tagged} />
-          <span className="ad-row-name">{s ? s.name || (s.exists ? "Untitled" : "Nothing saved") : "…"}</span>
+          <span className="ad-row-name">{s ? s.name || (s.exists ? "Untitled" : "Nothing saved") : loaded ? "Didn't answer" : "…"}</span>
           {s && s.openScreens > 0 && <span className="ad-live">{s.openScreens} open now</span>}
         </span>
         <span className="ad-row-meta">
