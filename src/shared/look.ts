@@ -58,10 +58,31 @@ export const LOOK_STYLES = [
 ] as const;
 export type LookStyleId = (typeof LOOK_STYLES)[number]["id"];
 
+/**
+ * How fine the pixel style is drawn, named after console generations: the
+ * same recipe from a chunky few-colour sprite up to a fine, smooth one.
+ */
+export const LOOK_DETAILS = [
+  { id: "8", label: "8-bit", hint: "Chunky, a handful of flat colours" },
+  { id: "16", label: "16-bit", hint: "Chunky, with shading" },
+  { id: "32", label: "32-bit", hint: "Detailed" },
+  { id: "64", label: "64-bit", hint: "Fine and smooth" },
+] as const;
+/** What a look without a detail level gets (and what every look had before there were levels). */
+export const LOOK_DETAIL_DEFAULT = 2;
+
 export type Look = Partial<Record<LookPartKey | LookColorKey, number>> & {
   /** Index into LOOK_STYLES; missing = pixel. */
   style?: number;
+  /** Index into LOOK_DETAILS, for the pixel style; missing = 32-bit. */
+  detail?: number;
 };
+
+/** The pixel detail level a look is drawn at (an index into LOOK_DETAILS). */
+export function lookDetailOf(look: Look): number {
+  const d = look.detail;
+  return typeof d === "number" && Number.isInteger(d) && d >= 0 && d < LOOK_DETAILS.length ? d : LOOK_DETAIL_DEFAULT;
+}
 
 /** The style a look is drawn in. forced (the DM's table-wide choice) wins when set. */
 export function lookStyleOf(look: Look, forced?: number | null): LookStyleId {
@@ -253,7 +274,7 @@ export const LOOSE_COLORS: { key: LookColorKey; group: LookGroup }[] = [{ key: "
 const layerOf = (k: LookPartKey) => LAYERS.find((l) => l.key === k)!;
 
 /** The default for anything unset. */
-export const LOOK_DEFAULTS: Required<Omit<Look, "style">> = {
+export const LOOK_DEFAULTS: Required<Omit<Look, "style" | "detail">> = {
   body: 0,
   ears: 0,
   eyes: 0,
@@ -299,6 +320,8 @@ export function cleanCharLook(raw: unknown): Look | null {
   }
   const style = cleanLookStyle((raw as Record<string, unknown>).style);
   if (style) out.style = style;
+  const detail = lookDetailOf({ detail: (raw as Record<string, unknown>).detail as number });
+  if (detail !== LOOK_DETAIL_DEFAULT) out.detail = detail;
   return Object.keys(out).length ? out : null;
 }
 
@@ -352,5 +375,5 @@ export function randomizeGroup(look: Look, group: LookGroup, rand: () => number 
 
 /** Same look, same string: a cache key. */
 export function lookKey(look: Look): string {
-  return [...LOOK_PARTS, ...LOOK_COLORS].map((k) => lookValue(look, k)).join(".") + (look.style ? `s${look.style}` : "");
+  return [...LOOK_PARTS, ...LOOK_COLORS].map((k) => lookValue(look, k)).join(".") + (look.style ? `s${look.style}` : "") + (look.detail !== undefined ? `d${lookDetailOf(look)}` : "");
 }

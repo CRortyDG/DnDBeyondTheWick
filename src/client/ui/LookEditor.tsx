@@ -6,7 +6,10 @@ import {
   COLOR_LABELS,
   LAYERS,
   LOOK_GROUPS,
+  LOOK_DETAILS,
+  LOOK_DETAIL_DEFAULT,
   LOOK_STYLES,
+  lookDetailOf,
   LOOSE_COLORS,
   type Look,
   type LookColorKey,
@@ -20,7 +23,7 @@ import {
   randomLook,
   SWATCHES,
 } from "@/shared/look";
-import { forcedLookStyle, lookPng, lookUrl, savePicture } from "./PixelLook";
+import { forcedLookStyle, isSmooth, lookPng, lookUrl, savePicture } from "./PixelLook";
 
 /**
  * The character maker: a big pixel-art preview, a tab per part of the body,
@@ -89,6 +92,7 @@ export function LookEditor({
     if (png) void savePicture(png, `${(name || "character").replace(/[^\w-]+/g, "-").toLowerCase()}.png`);
   };
   const style = look.style ?? 0;
+  const detail = lookDetailOf(look);
   const forced = tableStyle ? forcedLookStyle() : null;
 
   const layers = LAYERS.filter((l) => l.group === tab);
@@ -108,7 +112,7 @@ export function LookEditor({
       </header>
       <div className="look-ed-body">
         <div className="look-ed-stage">
-          <img className={`pixel-look look-ed-preview${lookStyleOf(look) !== "pixel" ? " drawn" : ""}`} src={lookUrl(look, false, true)} alt="Your character" />
+          <img className={`pixel-look look-ed-preview${isSmooth(look, true) ? " drawn" : ""}`} src={lookUrl(look, false, true)} alt="Your character" />
           <div className="look-ed-styles" role="radiogroup" aria-label="Art style">
             {LOOK_STYLES.map((st, i) => (
               <button key={st.id} type="button" role="radio" aria-checked={style === i} className={style === i ? "on" : ""} title={st.hint} onClick={() => change({ ...look, style: i || undefined })}>
@@ -116,9 +120,29 @@ export function LookEditor({
               </button>
             ))}
           </div>
+          {lookStyleOf(look) === "pixel" ? (
+            <div className="look-ed-styles look-ed-detail" role="radiogroup" aria-label="Pixel detail">
+              {LOOK_DETAILS.map((d, i) => (
+                <button
+                  key={d.id}
+                  type="button"
+                  role="radio"
+                  aria-checked={detail === i}
+                  className={detail === i ? "on" : ""}
+                  title={d.hint}
+                  onClick={() => {
+                    const { detail: _old, ...rest } = look;
+                    change(i === LOOK_DETAIL_DEFAULT ? rest : { ...rest, detail: i });
+                  }}
+                >
+                  {d.label}
+                </button>
+              ))}
+            </div>
+          ) : null}
           {forced !== null && forced !== style ? <p className="look-ed-note">Your DM shows everyone at the table in {LOOK_STYLES[forced]?.label ?? "one"} style for now. Your pick is kept for when that's off.</p> : null}
           <div className="look-ed-dice">
-            <button type="button" className="look-ed-btn" onClick={() => change({ ...randomLook(), ...(look.style ? { style: look.style } : {}) })}>
+            <button type="button" className="look-ed-btn" onClick={() => change({ ...randomLook(), ...(look.style ? { style: look.style } : {}), ...(look.detail !== undefined ? { detail: look.detail } : {}) })}>
               🎲 Surprise me
             </button>
             <button type="button" className="look-ed-btn" onClick={() => change(randomizeGroup(look, tab))}>

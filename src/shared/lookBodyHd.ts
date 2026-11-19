@@ -628,6 +628,47 @@ export const OUTFITS_HD: Outfit[] = [
 ];
 
 
+/**
+ * The back of a cape, long cloak or hooded cloak, drawn at full size behind
+ * the body: rounded over the shoulders, flaring in a curve, hanging in folds
+ * with a scalloped hem, and a darker lining where it shows between the legs.
+ */
+export function cloakBackHd(p: Pix, h: HFrame, c: Ctx) {
+  const k = c.v("cloak");
+  if (k !== 1 && k !== 2 && k !== 5) return;
+  const r = c.cloak;
+  const legs = h.feet - h.ly;
+  const long = k !== 1;
+  const top = h.ty - 1;
+  const rows = h.ly - top + (long ? legs - 1 : Math.round(legs * 0.55));
+  const flare = long ? 9 : 6;
+  const lining = mix(r.deep, OUT, 0.35);
+  const folds = long ? 7 : 6;
+  for (let i = 0; i <= rows; i++) {
+    const t = i / rows;
+    // Tucked in at the collar, swelling out over the shoulders, then an easy curve to the hem.
+    const out = i < 2 ? i - 3 : Math.round(flare * t * t * 0.6 + flare * t * 0.4) + 1;
+    const x0 = h.lax - out;
+    const x1 = h.rax + 5 + out;
+    for (let x = x0; x <= x1; x++) {
+      const u = (x - x0) / (x1 - x0);
+      const f = Math.min(folds - 1, Math.floor(u * folds));
+      const within = u * folds - f;
+      // The hem dips in the middle of each fold and lifts at the creases.
+      const lift = within < 0.2 || within > 0.8 ? 2 : within < 0.35 || within > 0.65 ? 1 : 0;
+      if (i > rows - lift) continue;
+      let col = f % 2 ? r.lo : r.base;
+      if (within < 0.16) col = f === 0 ? r.hi : r.deep;
+      else if (within < 0.34 && f % 2 === 0) col = r.hi;
+      if (u > 0.82) col = col === r.deep ? lining : r.deep;
+      // Behind the body the inside of the cloak shows.
+      if (x > h.lax + 5 && x < h.rax && i > h.ty + h.th - top) col = (x + i) % 5 === 0 ? r.deep : lining;
+      if (i >= rows - 1 - lift && col !== lining) col = r.deep;
+      p.set(x, top + i, col);
+    }
+  }
+}
+
 /** A thick spellbook held against the hip, drawn at full size. */
 export function bookHd(p: Pix, h: HFrame, c: Ctx) {
   const W = 17;

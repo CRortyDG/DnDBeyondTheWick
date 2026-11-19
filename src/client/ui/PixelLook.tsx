@@ -1,9 +1,9 @@
 "use client";
 
 import type { Look } from "@/shared/look";
-import { lookKey, lookStyleOf } from "@/shared/look";
+import { lookDetailOf, lookKey, lookStyleOf } from "@/shared/look";
 import { type Pix, toRgba } from "@/shared/lookArt";
-import { drawLookHd, drawLookHdFace } from "@/shared/lookArtHd";
+import { DETAIL_SCALE, drawLookDetail, drawLookDetailFace } from "@/shared/lookDetail";
 import { lookSvg, VEC_H, VEC_W } from "@/shared/lookVector";
 import "./look.css";
 
@@ -81,7 +81,7 @@ export function lookUrl(look: Look, face = false, own = false): string {
   const key = (face ? "f" : "w") + style + lookKey(look);
   let url = cache.get(key);
   if (url === undefined) {
-    url = style === "pixel" ? pixUrl(face ? drawLookHdFace(look) : drawLookHd(look)) : "data:image/svg+xml;charset=utf-8," + encodeURIComponent(lookSvg(look, style, face));
+    url = style === "pixel" ? pixUrl(face ? drawLookDetailFace(look) : drawLookDetail(look)) : "data:image/svg+xml;charset=utf-8," + encodeURIComponent(lookSvg(look, style, face));
     if (cache.size > 300) cache.clear();
     cache.set(key, url);
   }
@@ -94,9 +94,10 @@ export function lookUrl(look: Look, face = false, own = false): string {
  */
 export async function lookPng(look: Look, pixelScale: number, own = true): Promise<string> {
   const style = lookStyleOf(look, own ? null : forcedStyle);
-  const full = drawLookHd(look);
-  if (style === "pixel") return pixUrl(full, pixelScale);
-  const w = full.w * pixelScale;
+  // The same size picture at every detail level: pixelScale is for the 96-wide detailed look.
+  const k = DETAIL_SCALE[lookDetailOf(look)] ?? 2;
+  if (style === "pixel") return pixUrl(drawLookDetail(look), Math.max(1, Math.round((pixelScale * 2) / k)));
+  const w = 96 * pixelScale;
   const h = Math.round((w * VEC_H) / VEC_W);
   const img = new Image();
   img.decoding = "async";
@@ -111,8 +112,13 @@ export async function lookPng(look: Look, pixelScale: number, own = true): Promi
   return c.toDataURL("image/png");
 }
 
+/** Smooth pictures (the drawn styles, and pixel art at its finest level) are scaled softly, the rest crisply. */
+export function isSmooth(look: Look, own = false): boolean {
+  return lookStyleOf(look, own ? null : forcedStyle) !== "pixel" || lookDetailOf(look) === 3;
+}
+
 /** A picture of a character, in its art style. face: head and shoulders, square. */
 export function PixelLook({ look, face = false, className = "", alt = "", own = false }: { look: Look; face?: boolean; className?: string; alt?: string; own?: boolean }) {
-  const drawn = lookStyleOf(look, own ? null : forcedStyle) !== "pixel";
+  const drawn = isSmooth(look, own);
   return <img className={`pixel-look${drawn ? " drawn" : ""}${face ? " face" : ""}${className ? " " + className : ""}`} src={lookUrl(look, face, own)} alt={alt} draggable={false} />;
 }

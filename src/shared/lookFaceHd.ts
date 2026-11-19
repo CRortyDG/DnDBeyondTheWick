@@ -177,6 +177,28 @@ export function marksHd(p: Pix, h: HFrame, c: Ctx, hidden: (x: number, y: number
   }
 }
 
+/**
+ * A scar: one clean cut from the brow, across the eye and down the cheek,
+ * with a pale healed edge and three stitch marks. The eye is drawn over it.
+ */
+export function scarHd(p: Pix, h: HFrame, c: Ctx, hidden: (x: number, y: number) => boolean) {
+  if (c.v("mark") !== 3) return;
+  const cut = mix(c.skin.deep, "#9a2f3a", 0.55);
+  const healed = mix(c.skin.hi, "#f2b8b0", 0.5);
+  const put = (x: number, row: number, col: string) => {
+    if (!hidden(h.hx + x, h.hy + row)) p.set(h.hx + x, h.hy + row, col);
+  };
+  const at = (row: number) => 19 - Math.round((row - 6) * 0.32);
+  for (let row = 6; row <= 19; row++) {
+    put(at(row), row, cut);
+    if (row > 6 && row < 19) put(at(row) - 1, row, healed);
+  }
+  for (const row of [8, 16, 18]) {
+    put(at(row) + 1, row, cut);
+    put(at(row) - 2, row, cut);
+  }
+}
+
 /** Whiskers: thin lines from the cheeks out past the face, drawn last so they stay one pixel wide. */
 export function whiskersHd(p: Pix, h: HFrame, c: Ctx, hidden: (x: number, y: number) => boolean) {
   if (c.v("mark") !== 6) return;
