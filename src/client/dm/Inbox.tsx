@@ -7,7 +7,7 @@ import { bothNames } from "@/shared/arrival";
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { formatCp, parseAmount } from "@/shared/money";
-import { availableCp, pendingRequests } from "@/shared/requests";
+import { availableCp, halfPrice, pendingRequests } from "@/shared/requests";
 import { firstChargeCp, raisedCp } from "@/shared/progress";
 import type { FlyerText, TradeRequest } from "@/shared/types";
 import { useDm } from "./context";
@@ -175,6 +175,7 @@ function describe(r: TradeRequest): string {
   if (r.kind === "give") return `send ${formatCp(r.totalCp)} to ${r.toPlayerName}`;
   if (r.kind === "contribute") return `${formatCp(r.chargedCp ?? r.totalCp)} toward ${r.itemName}`;
   if (r.kind === "job") return `the job “${r.jobTitle ?? "a job"}” for the party`;
+  if (r.kind === "sell") return `sold ${r.qty > 1 ? `${r.qty} × ` : ""}${r.itemName}`;
   if (r.flyer) return `flyer “${r.flyer.title}”`;
   return `${r.qty > 1 ? `${r.qty} × ` : ""}${r.itemName}`;
 }
@@ -215,6 +216,7 @@ function RequestRow({ r }: { r: TradeRequest }) {
     toast(`Declined: ${r.playerName}, ${describe(r)}.`);
   };
 
+  const sale = r.kind === "sell" ? saleFacts(s, r) : null;
   const newTotal = parseAmount(price);
   const nowCp = item ? firstChargeCp(s, item) : 0;
   const priceChanged = item && r.kind === "buy" && nowCp !== r.unitCp;
@@ -243,6 +245,20 @@ function RequestRow({ r }: { r: TradeRequest }) {
               </span>
             ) : null}
           </>
+        ) : sale ? (
+          <>
+            Sell {r.qty > 1 ? `${r.qty} × ` : ""}
+            <b>{r.itemName}</b>
+            {sale.shop ? <span className="note"> to {sale.shop.name}</span> : null}
+            {r.totalCp ? (
+              <>
+                {" "}
+                for <b className="purse-amt">{formatCp(r.totalCp)}</b>
+              </>
+            ) : (
+              <span className="note">: they left the price to you</span>
+            )}
+          </>
         ) : (
           <>
             {r.qty > 1 ? `${r.qty} × ` : ""}
@@ -262,6 +278,13 @@ function RequestRow({ r }: { r: TradeRequest }) {
         )}
         {item && item.stock !== null ? ` · ${item.stock} in stock` : ""}
       </div>
+      {sale ? (
+        <div className="note">
+          {sale.have >= r.qty ? `${sale.have} on their sheet` : sale.have ? `Only ${sale.have} left on their sheet` : "It's not on their sheet any more"}
+          {sale.list ? ` · new it's ${formatCp(sale.list.cp * r.qty)} ${sale.list.where}, half is ${formatCp(halfPrice(sale.list.cp) * r.qty)}` : ""}
+          {sale.shelf ? ` · goes back on the shelf (${sale.shelf.stock} → ${sale.shelf.stock + r.qty})` : ""}
+        </div>
+      ) : null}
       {priceChanged ? <div className="inbox-warn">The price is now {formatCp(nowCp)} each. Approving charges what they saw, unless you set a price.</div> : null}
       {r.question ? (
         <div className="inbox-note">
@@ -338,7 +361,7 @@ function RequestRow({ r }: { r: TradeRequest }) {
           }}
         >
           <label className="grow">
-            New total (was {formatCp(r.totalCp)})
+            {sale ? (r.totalCp ? `The shop pays (they asked ${formatCp(r.totalCp)})` : "The shop pays") : <>New total (was {formatCp(r.totalCp)})</>}
             <input className="fld amt" autoFocus inputMode="decimal" value={price} onChange={(e) => setPrice(e.target.value)} placeholder="8" />
           </label>
           <button type="submit" className="btn primary" disabled={newTotal === null}>
@@ -350,13 +373,19 @@ function RequestRow({ r }: { r: TradeRequest }) {
         </form>
       ) : (
         <div className="inline">
+          {sale && !r.totalCp ? (
+            <button type="button" className="btn primary" onClick={() => (setPrice(sale.list ? formatCp(halfPrice(sale.list.cp) * r.qty) : ""), setMode("price"))}>
+              Name a price
+            </button>
+          ) : (
           <button type="button" className="btn primary" onClick={() => void approve()}>
-            {r.kind === "job" ? "Give the party the job" : r.flyer ? "Pin it up" : service ? (answer.trim() ? "Answer and charge" : "Done, charge it") : "Approve"}
+            {sale ? `Pay ${formatCp(r.totalCp)}` : r.kind === "job" ? "Give the party the job" : r.flyer ? "Pin it up" : service ? (answer.trim() ? "Answer and charge" : "Done, charge it") : "Approve"}
           </button>
+          )}
           <button type="button" className="btn" onClick={() => setMode("decline")}>
             Decline
           </button>
-          {r.kind === "buy" && !r.flyer ? (
+          {(r.kind === "buy" && !r.flyer) || (sale && r.totalCp) ? (
             <button type="button" className="btn" onClick={() => setMode("price")}>
               Different price
             </button>
@@ -365,6 +394,20 @@ function RequestRow({ r }: { r: TradeRequest }) {
       )}
     </li>
   );
+}
+
+/** A sale up close: what's left on the sheet, what it costs new, and whether it goes back on a shelf. */
+function saleFacts(s: ReturnType<typeof useDm>["view"]["state"], r: TradeRequest) {
+  const p = s.players.find((x) => x.id === r.playerId);
+  const line = p?.sheet?.items?.find((x) => x.id === r.sheetItemId);
+  const shop = s.shops.find((x) => x.id === r.shopId);
+  const name = (line?.name ?? r.itemName ?? "").trim().toLowerCase();
+  const priced = s.items.filter((x) => x.priceCp > 0);
+  const here = priced.find((x) => x.shopId === r.shopId && (x.id === line?.from || x.name.trim().toLowerCase() === name));
+  const anywhere = here ?? priced.find((x) => x.id === line?.from) ?? priced.find((x) => x.name.trim().toLowerCase() === name);
+  const list = anywhere ? { cp: anywhere.priceCp, where: anywhere === here ? "here" : `at ${s.shops.find((x) => x.id === anywhere.shopId)?.name ?? "another shop"}` } : null;
+  const shelf = line?.from ? s.items.find((x) => x.id === line.from && x.shopId === r.shopId && x.stock !== null) : undefined;
+  return { have: line?.qty ?? 0, shop, list, shelf: shelf && shelf.stock !== null ? { stock: shelf.stock } : null };
 }
 
 /** Your to-do list: record a proficiency, a project funded. */
@@ -496,7 +539,7 @@ function ShopHistory() {
                 <span className="inline nowrap">
                   <span className={`req-status st-${r.status}`}>
                     {STATUS_WORD[r.status]}
-                    {r.chargedCp !== undefined && r.kind === "buy" ? ` · ${formatCp(r.chargedCp)}` : ""}
+                    {r.chargedCp !== undefined && (r.kind === "buy" || r.kind === "sell") ? ` · ${r.kind === "sell" ? "paid " : ""}${formatCp(r.chargedCp)}` : ""}
                   </span>
                   <RowMenu label={`${who}: ${describe(r)}`}>
                     {r.status === "declined" ? <MenuItem onClick={() => setOpen({ id: r.id, mode: "reopen" })}>Reopen to approve</MenuItem> : null}

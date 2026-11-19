@@ -510,7 +510,7 @@ function PlayerScreen({ view, online, send, ident, setIdent }: { view: PlayerVie
       {screen === "chronicle" ? <Chronicle view={view.chronicle} gameName={view.game.name} send={send} /> : null}
       {screen === "jobs" ? <Jobs view={view} send={send} availableAt={availableAt} /> : null}
       {screen === "discovery" ? <Discovery view={view} send={send} seen={seen} /> : null}
-      {screen === "sheet" ? <CharacterTab view={view} send={send} onLink={() => setYouOpen(true)} /> : null}
+      {screen === "sheet" ? <CharacterTab view={view} send={send} onLink={() => setYouOpen(true)} canSell={has("shops")} /> : null}
       {screen === "purse" ? goldPage : null}
       {noTabs ? <NoTabs dice={has("dice")} onDice={() => setDiceOpen(true)} /> : null}
 
@@ -627,7 +627,7 @@ function PlayerScreen({ view, online, send, ident, setIdent }: { view: PlayerVie
       {screen === "chronicle" ? <Chronicle view={view.chronicle} gameName={view.game.name} send={send} /> : null}
       {screen === "jobs" ? <Jobs view={view} send={send} availableAt={availableAt} /> : null}
       {screen === "discovery" ? <Discovery view={view} send={send} seen={seen} /> : null}
-      {screen === "sheet" ? <CharacterTab view={view} send={send} onLink={() => setYouOpen(true)} /> : null}
+      {screen === "sheet" ? <CharacterTab view={view} send={send} onLink={() => setYouOpen(true)} canSell={has("shops")} /> : null}
       {screen === "purse" ? goldPage : null}
       {noTabs ? <NoTabs dice={has("dice")} onDice={() => setDiceOpen(true)} /> : null}
 

@@ -253,7 +253,7 @@ export interface PublicRenown {
 /** One of my phone requests, as I see it. */
 export interface MyRequest {
   id: string;
-  kind: "buy" | "give" | "contribute" | "job";
+  kind: "buy" | "give" | "contribute" | "job" | "sell";
   at: number;
   status: RequestStatus;
   totalCp: number;
@@ -269,6 +269,9 @@ export interface MyRequest {
   answer?: string;
   flyerTitle?: string;
   jobTitle?: string;
+  /** A sale: the shop it's offered to, and the sheet line it holds. */
+  shopName?: string;
+  sheetItemId?: string;
 }
 
 /** What I have going: rentals, lessons, shares, titles, honours. */
@@ -833,6 +836,11 @@ export function projectPlayer(table: GameState, version: number, playerId: strin
         if (r.answer) out.answer = r.answer;
         if (r.flyer) out.flyerTitle = r.flyer.title;
         if (r.jobTitle) out.jobTitle = r.jobTitle;
+        if (r.kind === "sell") {
+          const sh = game.shops.find((x) => x.id === r.shopId);
+          if (sh) out.shopName = sh.name;
+          if (r.sheetItemId) out.sheetItemId = r.sheetItemId;
+        }
         return out;
       }),
     mine: myThings(game, p.id),

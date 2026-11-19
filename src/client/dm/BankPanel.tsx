@@ -23,6 +23,7 @@ const KIND_LABEL: Record<string, string> = {
   income: "Income",
   bounty: "Bounty",
   loot: "Loot",
+  sale: "Sold",
 };
 
 export function BankPanel() {
