@@ -24,7 +24,11 @@ import { NAV_ICONS, PlayerNav, type Screen } from "./PlayerNav";
 import { DecisionBanners, MyRequests, RequestSheet, SendGold } from "./Requests";
 import { CharacterTab, LookCard } from "./CharacterTab";
 import { LastTime } from "./LastTime";
+import { NextGame } from "./NextGame";
 import { WhisperHistoryButton, Whispers } from "./Whispers";
+import { TurnFlash, TurnSoundNudge } from "./TurnCue";
+import { PartyButton } from "./Party";
+import { useWakeLock } from "../ui/wakeLock";
 import { MyRoomCard } from "./MyRoom";
 import { FEATURE, FEATURES, type FeatureId } from "@/shared/features";
 import { HERE_ASK_COOLDOWN_MS } from "@/shared/attendance";
@@ -176,6 +180,11 @@ function PlayerScreen({ view, online, send, ident, setIdent }: { view: PlayerVie
     if (myTurn) setScreenPick("fight");
   }, [myTurn, f?.round]);
   usePlayerSounds(view, has("deviceSound"));
+  // A phone on the table shouldn't go dark mid-fight.
+  const inFight = !!f && f.status !== "over";
+  useWakeLock(inFight);
+  const turnKey = myTurn && f ? `${f.id}:${f.round}:${f.currentId}` : null;
+  const turnWho = myTurn && f && f.currentId !== view.myFight?.combatantId ? view.myCompanions.find((c) => c.combatantId === f.currentId)?.name : undefined;
   const seen = useDiscoverySeen(view);
   const [mode, setMode] = useState<ShopMode>("category");
   const [category, setCategory] = useState<ItemCategory | undefined>(undefined);
@@ -221,7 +230,7 @@ function PlayerScreen({ view, online, send, ident, setIdent }: { view: PlayerVie
     <>
           {me.balanceCp < 0 && view.mine.credit.length ? (
             <p className="note owe-note" role="status">
-              You owe {formatCp(-me.balanceCp)} on your tab at {view.mine.credit.map((c) => c.shopName).join(" and ")}. Pay it off before Mags remembers.
+              You owe {formatCp(-me.balanceCp)} on your tab at {view.mine.credit.map((c) => c.shopName).join(" and ")}. Pay it off before anyone comes asking.
             </p>
           ) : null}
           {msg ? (
@@ -342,6 +351,7 @@ function PlayerScreen({ view, online, send, ident, setIdent }: { view: PlayerVie
 
   const sheets = (
     <>
+      <TurnFlash turnKey={turnKey} who={turnWho} />
       {locking ? <LockSheet onLock={lockWith} onClose={() => setLocking(false)} /> : null}
       {diceOpen ? (
         <Sheet title="Dice" onClose={() => setDiceOpen(false)} className="pl-dice-sheet">
@@ -417,7 +427,15 @@ function PlayerScreen({ view, online, send, ident, setIdent }: { view: PlayerVie
           ) : null}
           {!sheetsOn ? <LookCard view={view} send={send} /> : null}
           <CharacterLink current={me.dndbUrl} onSave={async (url) => setMsg((await send({ type: "me.update", patch: { dndbUrl: url } })) ?? "Saved.")} />
-          <p className="note gold-note">Your gold lives here, not on D&amp;D Beyond: keep D&amp;D Beyond&rsquo;s coins at 0. Anything you buy, add to your D&amp;D Beyond inventory yourself.</p>
+          <p className="note gold-note">
+            {sheetsOn && me.sheet ? (
+              <>Your gold lives here, and anything you buy goes straight onto your sheet&rsquo;s inventory.{me.dndbUrl ? <> If you also use D&amp;D Beyond, keep its coins at 0.</> : null}</>
+            ) : sheetsOn ? (
+              <>Your gold lives here. Start your sheet on the Character tab and anything you buy goes straight into its inventory.</>
+            ) : (
+              <>Your gold lives here, not on D&amp;D Beyond: keep D&amp;D Beyond&rsquo;s coins at 0. Anything you buy, add to your D&amp;D Beyond inventory yourself.</>
+            )}
+          </p>
           {me.locked ? (
             <>
               <p className="pl-locked">
@@ -431,7 +449,8 @@ function PlayerScreen({ view, online, send, ident, setIdent }: { view: PlayerVie
             </button>
           )}
           {view.myRoom && !has("gold") ? <MyRoomCard room={view.myRoom} /> : null}
-          <WhisperHistoryButton view={view} send={send} />
+          <PartyButton view={view} />
+          {has("whispers") ? <WhisperHistoryButton view={view} send={send} /> : null}
           {has("deviceSound") ? <DeviceSound /> : null}
           <YourTabs view={view} send={send} />
           {msg && youOpen ? (
@@ -479,6 +498,7 @@ function PlayerScreen({ view, online, send, ident, setIdent }: { view: PlayerVie
             <button type="button" className="pl-side-link" onClick={() => setYouOpen(true)}>
               Your character
             </button>
+            <PartyButton view={view} className="pl-side-link" />
           </div>
         </aside>
         <main className="player-root pl-main">
@@ -490,6 +510,7 @@ function PlayerScreen({ view, online, send, ident, setIdent }: { view: PlayerVie
       {view.world ? <WorldStrip world={view.world} /> : null}
       {me.away ? <AwayStrip view={view} send={send} /> : null}
       <DecisionBanners view={view} />
+      <NextGame view={view} />
       <LastTime view={view} />
       <Whispers view={view} send={send} />
       {screen !== "fight" ? <CompanionStrip view={view} send={send} /> : null}
@@ -505,6 +526,7 @@ function PlayerScreen({ view, online, send, ident, setIdent }: { view: PlayerVie
       <BannerToast banner={newTab} className="phone-banner new-tab-banner" />
       <BannerToast banner={view.levelUp ? { id: `level-${view.levelUp.n}`, text: `You're level ${view.levelUp.level}!`, at: 0 } : null} className="phone-banner level-banner" />
       {view.world?.news ? <BannerToast banner={{ id: `news-${view.world.news.n}`, text: view.world.news.text, at: 0 }} className="phone-banner world-news" /> : null}
+      {screen === "fight" && inFight && view.myFight && has("deviceSound") ? <TurnSoundNudge /> : null}
       {screen === "fight" && f ? <FightCard view={view} send={send} /> : null}
       {screen === "map" && hasMaps ? <Maps view={view} send={send} /> : null}
       {screen === "chronicle" ? <Chronicle view={view.chronicle} gameName={view.game.name} send={send} /> : null}
@@ -600,6 +622,7 @@ function PlayerScreen({ view, online, send, ident, setIdent }: { view: PlayerVie
       {view.world ? <WorldStrip world={view.world} /> : null}
       {me.away ? <AwayStrip view={view} send={send} /> : null}
       <DecisionBanners view={view} />
+      <NextGame view={view} />
       <LastTime view={view} />
       <Whispers view={view} send={send} />
       {screen !== "fight" ? <CompanionStrip view={view} send={send} /> : null}
@@ -622,6 +645,7 @@ function PlayerScreen({ view, online, send, ident, setIdent }: { view: PlayerVie
           {NAV_ICONS.d20}
         </button>
       ) : null}
+      {screen === "fight" && inFight && view.myFight && has("deviceSound") ? <TurnSoundNudge /> : null}
       {screen === "fight" && f ? <FightCard view={view} send={send} /> : null}
       {screen === "map" && hasMaps ? <Maps view={view} send={send} /> : null}
       {screen === "chronicle" ? <Chronicle view={view.chronicle} gameName={view.game.name} send={send} /> : null}

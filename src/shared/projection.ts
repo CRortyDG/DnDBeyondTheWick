@@ -2,9 +2,11 @@
 // an explicit allow-list, so a new DM-only field can't leak by accident.
 
 import type { Look } from "./look";
+import { starterById } from "./starters";
 import { keyRack, myRoom, type KeyRackView, type MyRoom } from "./rooms";
 import { latestLastTime, type LastTimeCard } from "./lastTime";
 import { myWhispers, type MyWhisper } from "./whispers";
+import { nextGameFor, type NextGame } from "./invites";
 import { decodeBits, fogged, publicFog, type PublicFog } from "./fog";
 import { publicGrid, publicTokens, type PublicGrid, type PublicToken } from "./tokens";
 import { leadsView, type LeadsView } from "./leads";
@@ -132,6 +134,23 @@ export interface PublicPlayer {
   sheet?: true;
   /** Their pixel-art look, if they made one. */
   look?: Look;
+}
+
+/** One character on the party page. Only what anyone at the table could see: no gold, HP or sheet details. */
+export interface PartyMember {
+  id: string;
+  /** The character's name (or the player's, if they haven't named one). */
+  name: string;
+  /** Who plays them, when it differs from the name. */
+  player?: string;
+  cls?: string;
+  subclass?: string;
+  species?: string;
+  level?: number;
+  look?: Look;
+  /** Marked away for tonight's session. */
+  away?: true;
+  you?: true;
 }
 
 /** A shop as the party sees it. */
@@ -472,12 +491,16 @@ export interface PlayerView extends Common {
   mine: MyThings;
   /** Everyone I could send gold to (names only). */
   table: { id: string; name: string }[];
+  /** The party page: everyone at the table (me first), with what the table already knows about each character. */
+  party: PartyMember[];
   /** The campaign's D&D Beyond game link, if the DM set one. */
   vttUrl?: string;
   /** The table's story notes. Hidden notes are left out entirely. */
   chronicle: ChronicleView;
   /** "Last time on…": the newest recap card the DM sent after a session ended. Missing: none sent. */
   lastTime?: LastTimeCard;
+  /** The next game night I'm on, or could still grab a seat for (from the DM's invites). Missing: none coming up. */
+  nextGame?: NextGame;
   /** Secret whispers the DM sent me (and only me, or me and a few others: their names aren't sent), newest first. */
   whispers?: MyWhisper[];
   /** The bounty board: pinned jobs. Empty while it's locked. */
@@ -655,6 +678,30 @@ function publicItem(game: GameState, it: Item): PublicItem | null {
     if (held > 0) out.held = held;
   }
   return out;
+}
+
+/** The party page: me first, then everyone else still at the table. Class and species only from a sheet the DM hasn't switched off. */
+function partyOf(game: GameState, meId: string): PartyMember[] {
+  const people = game.players.filter((x) => !x.archived);
+  people.sort((a, b) => (a.id === meId ? -1 : b.id === meId ? 1 : 0));
+  return people.map((x) => {
+    const sheet = x.sheet && !x.sheetOff ? x.sheet : undefined;
+    const name = penName(x);
+    const out: PartyMember = { id: x.id, name };
+    if (x.name && x.name !== name) out.player = x.name;
+    // No sheet in the app: the starting point they picked at the door, if any.
+    const start = sheet ? null : starterById(x.arrival?.pick);
+    const cls = sheet?.cls?.trim() || start?.dnd.cls;
+    const species = sheet?.species?.trim() || start?.dnd.species;
+    if (cls) out.cls = cls;
+    if (sheet?.subclass?.trim()) out.subclass = sheet.subclass.trim();
+    if (species) out.species = species;
+    if (x.level) out.level = x.level;
+    if (x.look) out.look = { ...x.look };
+    if (game.currentSessionId && x.away) out.away = true;
+    if (x.id === meId) out.you = true;
+    return out;
+  });
 }
 
 function common(game: GameState, version: number, viewer: Viewer): Common {
@@ -867,6 +914,7 @@ export function projectPlayer(table: GameState, version: number, playerId: strin
       }),
     mine: myThings(game, p.id),
     table: game.players.filter((x) => !x.archived && x.id !== p.id).map((x) => ({ id: x.id, name: penName(x) })),
+    party: partyOf(game, p.id),
     myLedger: ledger
       .filter((l) => l.playerId === p.id)
       .slice(-100)
@@ -875,6 +923,8 @@ export function projectPlayer(table: GameState, version: number, playerId: strin
     chronicle: projectChronicle(game, { dm: false, playerId: p.id }),
     // The lensed game holds only this character's parties' sessions.
     ...(latestLastTime(game) ? { lastTime: latestLastTime(game)! } : {}),
+    // Invites live on the whole table (not the lens): the party check is inside.
+    ...(nextGameFor(table, p.id) ? { nextGame: nextGameFor(table, p.id)! } : {}),
     ...(myWhispers(table, p.id).length ? { whispers: myWhispers(table, p.id) } : {}),
     // The lensed game holds this character's own stage, so no playerId here.
     ...(jobsLocked(game) ? { jobsLocked: true as const } : {}),

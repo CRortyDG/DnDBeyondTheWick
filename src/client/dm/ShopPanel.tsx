@@ -112,7 +112,9 @@ export function ShopPanel() {
                         ? `${p.name} rents ${it.name}. Rent is due at the end of each session.`
                         : it.kind === "training"
                           ? `${p.name} started ${it.name}. One lesson is charged at the end of each session.`
-                          : `${p.name} bought ${it.name}. Remind them to add it on D&D Beyond.`;
+                          : p.sheet && !p.sheetOff
+                            ? `${p.name} bought ${it.name}.`
+                            : `${p.name} bought ${it.name}. Remind them to add it to their character sheet.`;
                     let question: string | undefined;
                     if (it.prompt) {
                       question = (await askText(it.prompt, { yes: "Buy" }))?.trim();

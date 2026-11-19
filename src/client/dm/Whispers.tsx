@@ -27,7 +27,7 @@ export function WhisperButton({ small, iconOnly }: { small?: boolean; iconOnly?:
       aria-expanded={whisperOpen}
       onClick={() => toggleWhisper()}
       title="Whisper: a secret note to one player's device (W)"
-      aria-label={unread ? `Whisper: ${unread} ${unread === 1 ? "answer" : "answers"} waiting` : "Whisper"}
+      aria-label={unread ? `Whisper: ${unread} ${unread === 1 ? "message" : "messages"} waiting` : "Whisper"}
     >
       <WhisperIcon />
       {iconOnly ? null : " Whisper"}
@@ -82,6 +82,19 @@ export function WhisperPanel() {
   useEffect(() => {
     if (open) box.current?.focus();
   }, [open]);
+
+  // A player writing first is easy to miss behind a dot: say so once.
+  const notes = whispersOf(s).filter((w) => w.from);
+  const newest = notes[notes.length - 1];
+  const lastSeen = useRef<string | null | undefined>(undefined);
+  useEffect(() => {
+    const id = newest?.id ?? null;
+    if (lastSeen.current !== undefined && id && id !== lastSeen.current && !open && newest.at > (s.whispersReadAt ?? 0)) {
+      const p = s.players.find((x) => x.id === newest.from);
+      toast(`${p ? penName(p) : "A player"} wrote to you privately. Press W to read it.`);
+    }
+    lastSeen.current = id;
+  }, [newest, open, s.players, s.whispersReadAt, toast]);
 
   // Looking at the panel reads the answers.
   const unread = unreadReplies(s).length;
@@ -140,7 +153,7 @@ export function WhisperPanel() {
             ×
           </button>
         </div>
-        <p className="note hint wh-lede">Only the players you pick see it, on their own device. Never the TV.</p>
+        <p className="note hint wh-lede">Only the players you pick see it, on their own device. Never the TV. Players can write to you here too.</p>
 
         {people.length ? (
           <div className="wh-to" role="group" aria-label="Whisper to">
@@ -196,7 +209,7 @@ export function WhisperPanel() {
             <h3>Recent</h3>
             <ul>
               {recent.map((w) => (
-                <WhisperRow key={w.id} w={w} name={name} now={now} onTakeBack={() => void run({ type: "whisper.remove", whisperId: w.id }, "Taken back. It's gone from their device.")} onAgain={() => (setTo(w.to), box.current?.focus())} />
+                <WhisperRow key={w.id} w={w} name={name} now={now} onTakeBack={() => void run({ type: "whisper.remove", whisperId: w.id }, w.from ? "Removed." : "Taken back. It's gone from their device.")} onAgain={() => (setTo(w.to), box.current?.focus())} />
               ))}
             </ul>
           </section>
@@ -208,6 +221,27 @@ export function WhisperPanel() {
 
 function WhisperRow({ w, name, now, onTakeBack, onAgain }: { w: Whisper; name: (pid: string) => string; now: number; onTakeBack: () => void; onAgain: () => void }) {
   const read = w.to.filter((pid) => w.seen?.[pid]);
+  // A note a player wrote first: answer it with a whisper back to them.
+  if (w.from) {
+    return (
+      <li className="wh-row wh-row-from">
+        <div className="wh-row-head">
+          <span className="wh-row-to">From {name(w.from)}</span>
+          <span className="wh-row-at">{ago(w.at, now)}</span>
+        </div>
+        <p className="wh-row-text">{w.text}</p>
+        <div className="wh-row-foot">
+          <span className="spacer" />
+          <button type="button" className="linkish" onClick={onAgain} title={`Whisper back to ${name(w.from)}`}>
+            Answer
+          </button>
+          <button type="button" className="linkish" onClick={onTakeBack} title="Remove it from the list and their device">
+            Remove
+          </button>
+        </div>
+      </li>
+    );
+  }
   return (
     <li className="wh-row">
       <div className="wh-row-head">

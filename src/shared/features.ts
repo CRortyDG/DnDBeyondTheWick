@@ -73,7 +73,7 @@ export const FEATURES: FeatureDef[] = [
   { id: "levels", name: "Level ups", blurb: "A moment on the TV and each phone when the party levels up.", group: "table", shows: ["tv", "phone"], from: "standard" },
   { id: "sound", name: "Sound", blurb: "Music, ambience and effects from the TV, and the soundboard.", group: "table", shows: ["dm", "tv"], from: "standard" },
   { id: "deviceSound", name: "Sounds on players' devices", blurb: "Small, quiet sounds on each player's own device for their own things: a heal, a hit, gold, their turn. Each player turns it on for themselves.", group: "table", shows: ["phone"], needs: "sound", from: "standard" },
-  { id: "whispers", name: "Secret whispers", blurb: "Private notes from you to one player or a few, on their device only. They can answer quietly.", group: "table", shows: ["dm", "phone"], from: "minimal" },
+  { id: "whispers", name: "Secret whispers", blurb: "Private notes from you to one player or a few, on their device only. They can answer quietly, or write to you first.", group: "table", shows: ["dm", "phone"], from: "minimal" },
   { id: "companions", name: "Companions and hirelings", blurb: "NPCs who travel and fight with the party.", group: "table", shows: ["dm", "tv", "phone"], from: "everything" },
   // World
   { id: "maps", name: "Map on phones", blurb: "The Map tab: the map on the TV on each phone, with their own token.", group: "world", shows: ["phone"], playerHide: true, from: "standard" },
@@ -269,6 +269,7 @@ const PLAYER_NEEDS: Record<string, FeatureId> = {
   "me.levelUp": "sheets",
   "me.whisperSeen": "whispers",
   "me.whisperReply": "whispers",
+  "me.whisperStart": "whispers",
   "me.companionHp": "companions",
   "me.companionAbility": "companions",
   "me.companionInit": "companions",

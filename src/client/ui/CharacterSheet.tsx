@@ -1,5 +1,6 @@
 "use client";
 
+import { conditionRule } from "@/shared/conditionRules";
 import { useEffect, useState, type ReactNode } from "react";
 import {
   ABILITIES,
@@ -412,10 +413,19 @@ function Conditions({ sheet, send }: { sheet: CharacterSheet; send: (p: SheetPat
           {open ? "Close" : on.length || ex ? "Conditions" : "+ Condition"}
         </button>
       </div>
+      {on.length ? (
+        <ul className="cs-cond-rules" aria-label="What your conditions do">
+          {on.map((c) => (
+            <li key={c}>
+              <b>{cap(c)}:</b> {conditionRule(c)}
+            </li>
+          ))}
+        </ul>
+      ) : null}
       {open ? (
         <div className="cs-conds-pick">
           {CONDITIONS.map((c) => (
-            <button key={c} type="button" className={`cs-chip${on.includes(c) ? " on" : ""}`} aria-pressed={on.includes(c)} onClick={() => toggle(c)}>
+            <button key={c} type="button" className={`cs-chip${on.includes(c) ? " on" : ""}`} aria-pressed={on.includes(c)} title={conditionRule(c)} onClick={() => toggle(c)}>
               {cap(c)}
             </button>
           ))}

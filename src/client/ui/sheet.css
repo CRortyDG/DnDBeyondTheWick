@@ -1126,3 +1126,18 @@ button.cs-ab {
 .cb h2 {
   font-size: 20px;
 }
+
+/* What each active condition does, in a line. */
+.cs-cond-rules {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 4px;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--cs-text-2);
+}
+.cs-cond-rules b {
+  color: var(--cs-text);
+}

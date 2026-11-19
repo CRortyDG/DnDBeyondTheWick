@@ -132,3 +132,10 @@
 .wh-row-foot .linkish {
   font-size: 12.5px;
 }
+/* A note a player wrote first. */
+.wh-row-from {
+  border-color: var(--dm-gold-line, rgba(227, 182, 92, 0.45));
+}
+.wh-row-from .wh-row-to {
+  color: var(--dm-gold, #e3b65c);
+}

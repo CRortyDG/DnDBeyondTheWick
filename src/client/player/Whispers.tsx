@@ -2,11 +2,12 @@
 
 // Secret whispers from the DM. A new one arrives sealed, so a neighbour glancing
 // at the phone sees only that something came, not what it says. Tapping opens it
-// (and tells the DM it was read). A player can answer quietly with one line.
+// (and tells the DM it was read). A player can answer quietly with one line, or
+// write to the DM first: a private note only the DM sees.
 
 import { useEffect, useRef, useState } from "react";
 import type { PlayerView } from "@/shared/projection";
-import { WHISPER_REPLY_MAX, type MyWhisper } from "@/shared/whispers";
+import { PLAYER_NOTE_MAX, WHISPER_REPLY_MAX, type MyWhisper } from "@/shared/whispers";
 import { Sheet } from "./Sheet";
 
 type Send = (c: object) => Promise<string | null>;
@@ -22,7 +23,7 @@ function when(t: number): string {
 export function Whispers({ view, send }: { view: PlayerView; send: Send }) {
   const list = view.whispers ?? [];
   const unread = list.filter((w) => !w.seen);
-  const tonight = list.filter((w) => w.tonight);
+  const tonight = list.filter((w) => w.tonight && !w.mine);
   const [open, setOpen] = useState(false);
 
   // A little buzz when a new one lands (phones that allow it). Not for ones already here on load.
@@ -60,22 +61,80 @@ export function Whispers({ view, send }: { view: PlayerView; send: Send }) {
   );
 }
 
-/** For "Your character": every whisper this phone still has, any time. */
+/** For "Your character": write to the DM, and every whisper this phone still has, any time. */
 export function WhisperHistoryButton({ view, send }: { view: PlayerView; send: Send }) {
   const list = view.whispers ?? [];
   const [open, setOpen] = useState(false);
-  if (!list.length) return null;
   return (
     <>
       <button type="button" className="btn big" onClick={() => setOpen(true)}>
-        Whispers from the DM ({list.length})
+        {list.length ? `Whispers with the DM (${list.length})` : "Message the DM privately"}
       </button>
-      {open ? <WhisperSheet list={list} send={send} onClose={() => setOpen(false)} /> : null}
+      {open ? <WhisperSheet list={list} send={send} onClose={() => setOpen(false)} writeFirst={!list.length} /> : null}
     </>
   );
 }
 
-function WhisperSheet({ list, send, onClose }: { list: MyWhisper[]; send: Send; onClose: () => void }) {
+/** A private note to the DM, started by me. */
+function WriteToDm({ send, startOpen }: { send: Send; startOpen?: boolean }) {
+  const [writing, setWriting] = useState(!!startOpen);
+  const [text, setText] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const go = async () => {
+    const words = text.trim();
+    if (!words || busy) return;
+    setBusy(true);
+    const e = await send({ type: "me.whisperStart", text: words });
+    setBusy(false);
+    if (e) setMsg({ ok: false, text: e });
+    else {
+      setText("");
+      setWriting(false);
+      setMsg({ ok: true, text: "Sent. Only the DM sees it." });
+    }
+  };
+  if (!writing) {
+    return (
+      <div className="pl-whisper-start">
+        <button type="button" className="btn" onClick={() => (setWriting(true), setMsg(null))}>
+          Write to the DM
+        </button>
+        {msg ? (
+          <p className={msg.ok ? "note" : "player-msg"} role={msg.ok ? "status" : "alert"}>
+            {msg.text}
+          </p>
+        ) : null}
+      </div>
+    );
+  }
+  return (
+    <form
+      className="pl-whisper-form pl-whisper-start"
+      onSubmit={(e) => {
+        e.preventDefault();
+        void go();
+      }}
+    >
+      <textarea className="fld" rows={3} maxLength={PLAYER_NOTE_MAX} value={text} autoFocus placeholder="Can I pocket the ring without anyone seeing?" aria-label="Your private note to the DM" onChange={(e) => setText(e.target.value)} />
+      <div className="pl-whisper-acts">
+        <button type="button" className="btn" onClick={() => (setWriting(false), setText(""), setMsg(null))}>
+          Cancel
+        </button>
+        <button type="submit" className="btn primary" disabled={busy || !text.trim()}>
+          Send to the DM
+        </button>
+      </div>
+      {msg && !msg.ok ? (
+        <p className="player-msg" role="alert">
+          {msg.text}
+        </p>
+      ) : null}
+    </form>
+  );
+}
+
+function WhisperSheet({ list, send, onClose, writeFirst }: { list: MyWhisper[]; send: Send; onClose: () => void; writeFirst?: boolean }) {
   // Opening marks everything here as read, once.
   const marked = useRef(new Set<string>());
   useEffect(() => {
@@ -87,7 +146,8 @@ function WhisperSheet({ list, send, onClose }: { list: MyWhisper[]; send: Send; 
   }, [list, send]);
   return (
     <Sheet title="Whispers" onClose={onClose} className="pl-whisper-sheet">
-      <p className="note pl-whisper-lede">Only you can see these. Keep them to yourself, or don&rsquo;t.</p>
+      <p className="note pl-whisper-lede">Only you and the DM can see these. Keep them to yourself, or don&rsquo;t.</p>
+      <WriteToDm send={send} startOpen={writeFirst} />
       <ul className="pl-whisper-list">
         {list.map((w) => (
           <WhisperNote key={w.id} w={w} send={send} />
@@ -98,6 +158,18 @@ function WhisperSheet({ list, send, onClose }: { list: MyWhisper[]; send: Send; 
 }
 
 function WhisperNote({ w, send }: { w: MyWhisper; send: Send }) {
+  if (w.mine) {
+    return (
+      <li className="pl-whisper-note mine">
+        <div className="pl-whisper-when">You wrote, {when(w.at)}</div>
+        <p className="pl-whisper-text">{w.text}</p>
+      </li>
+    );
+  }
+  return <DmWhisper w={w} send={send} />;
+}
+
+function DmWhisper({ w, send }: { w: MyWhisper; send: Send }) {
   const [writing, setWriting] = useState(false);
   const [text, setText] = useState(w.reply ?? "");
   const [busy, setBusy] = useState(false);

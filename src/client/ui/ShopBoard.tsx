@@ -48,7 +48,7 @@ export function ShopBoard<T extends CardItem>({
   onMode,
   category,
   onCategory,
-  town = "Candlefair",
+  town = "",
 }: {
   shops: ShopLike[];
   items: T[];
