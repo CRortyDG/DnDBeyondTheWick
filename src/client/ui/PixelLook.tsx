@@ -112,13 +112,8 @@ export async function lookPng(look: Look, pixelScale: number, own = true): Promi
   return c.toDataURL("image/png");
 }
 
-/** Smooth pictures (the drawn styles, and pixel art at its finest level) are scaled softly, the rest crisply. */
-export function isSmooth(look: Look, own = false): boolean {
-  return lookStyleOf(look, own ? null : forcedStyle) !== "pixel" || lookDetailOf(look) === 3;
-}
-
 /** A picture of a character, in its art style. face: head and shoulders, square. */
 export function PixelLook({ look, face = false, className = "", alt = "", own = false }: { look: Look; face?: boolean; className?: string; alt?: string; own?: boolean }) {
-  const drawn = isSmooth(look, own);
+  const drawn = lookStyleOf(look, own ? null : forcedStyle) !== "pixel";
   return <img className={`pixel-look${drawn ? " drawn" : ""}${face ? " face" : ""}${className ? " " + className : ""}`} src={lookUrl(look, face, own)} alt={alt} draggable={false} />;
 }

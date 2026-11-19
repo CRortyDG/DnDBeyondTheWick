@@ -60,13 +60,13 @@ export type LookStyleId = (typeof LOOK_STYLES)[number]["id"];
 
 /**
  * How fine the pixel style is drawn, named after console generations: the
- * same recipe from a chunky few-colour sprite up to a fine, smooth one.
+ * same recipe from a chunky few-colour sprite up to the detailed one. (A
+ * 64-bit level was tried and removed: looks saved with it draw at 32-bit.)
  */
 export const LOOK_DETAILS = [
   { id: "8", label: "8-bit", hint: "Chunky, a handful of flat colours" },
   { id: "16", label: "16-bit", hint: "Chunky, with shading" },
   { id: "32", label: "32-bit", hint: "Detailed" },
-  { id: "64", label: "64-bit", hint: "Fine and smooth" },
 ] as const;
 /** What a look without a detail level gets (and what every look had before there were levels). */
 export const LOOK_DETAIL_DEFAULT = 2;

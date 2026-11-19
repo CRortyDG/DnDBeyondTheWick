@@ -1,16 +1,15 @@
-// The pixel style at four detail levels, named after console generations.
+// The pixel style at three detail levels, named after console generations.
 // The recipe is the same at every level; only how finely it is drawn changes:
 //   8-bit   48×56, flat colours snapped to a small console palette, black outline
 //   16-bit  48×56, shaded
 //   32-bit  96×112, the detailed look (the default)
-//   64-bit  192×224, fine steps of shading and softened edges
 
 import { type Look, lookDetailOf } from "./look";
 import { drawLook, frameOf, LOOK_DEFAULTS_BODY, Pix } from "./lookArt";
-import { drawLookHd, scale2x } from "./lookArtHd";
+import { drawLookHd } from "./lookArtHd";
 
 /** How many times the base 48×56 grid each level is. */
-export const DETAIL_SCALE = [1, 1, 2, 4] as const;
+export const DETAIL_SCALE = [1, 1, 2] as const;
 
 /** The 8-bit console palette every colour is snapped to. */
 const PALETTE_8 = (
@@ -26,7 +25,6 @@ const rgb = (h: string): [number, number, number] => {
   const n = parseInt(h.slice(1), 16);
   return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
 };
-const hex = (r: number, g: number, b: number) => "#" + ((1 << 24) | (Math.round(r) << 16) | (Math.round(g) << 8) | Math.round(b)).toString(16).slice(1);
 
 const snapped = new Map<string, string>();
 function snap(c: string): string {
@@ -60,45 +58,10 @@ function to8bit(p: Pix): Pix {
   return o;
 }
 
-/** 64-bit: double the detailed look again, then soften every edge a little (a filtered, hi-res finish). */
-function to64bit(look: Look): Pix {
-  const big = scale2x(drawLookHd(look, true));
-  const src = big.d.map((c) => (c ? rgb(c) : null));
-  const o = new Pix(big.w, big.h);
-  const { w, h } = big;
-  for (let y = 0; y < h; y++)
-    for (let x = 0; x < w; x++) {
-      const c = src[y * w + x];
-      if (!c) continue;
-      let r = c[0] * 4;
-      let g = c[1] * 4;
-      let b = c[2] * 4;
-      let n = 4;
-      for (const [dx, dy] of [
-        [1, 0],
-        [-1, 0],
-        [0, 1],
-        [0, -1],
-      ]) {
-        const xx = x + dx;
-        const yy = y + dy;
-        const q = xx < 0 || yy < 0 || xx >= w || yy >= h ? null : src[yy * w + xx];
-        if (!q) continue;
-        r += q[0];
-        g += q[1];
-        b += q[2];
-        n++;
-      }
-      o.d[y * w + x] = hex(r / n, g / n, b / n);
-    }
-  return o;
-}
-
 /** The whole picture at the look's detail level (or the one given). */
 export function drawLookDetail(look: Look, detail = lookDetailOf(look)): Pix {
   if (detail === 0) return to8bit(drawLook(look));
   if (detail === 1) return drawLook(look);
-  if (detail === 3) return to64bit(look);
   return drawLookHd(look);
 }
 
