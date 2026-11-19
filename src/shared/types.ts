@@ -698,12 +698,12 @@ export type RequestStatus = "pending" | "approved" | "declined" | "cancelled";
  */
 export interface TradeRequest {
   id: string;
-  kind: "buy" | "give" | "contribute" | "job";
+  kind: "buy" | "give" | "contribute" | "job" | "sell";
   playerId: string;
   playerName: string;
   at: number;
   status: RequestStatus;
-  /** What it holds while pending: price × quantity, or the gold being sent. */
+  /** What it holds while pending: price × quantity, or the gold being sent. A sale holds no gold: it's the player's asking price (0: "you name it"). */
   totalCp: number;
   /** The player's note to the DM ("for the bard"). */
   note: string;
@@ -739,6 +739,9 @@ export interface TradeRequest {
   // job: "Take this job"
   jobId?: string;
   jobTitle?: string;
+  // sell: an item from the player's sheet, to shopId (itemName and qty above)
+  /** The inventory line on the player's sheet. Pending sales hold that many of it. */
+  sheetItemId?: string;
 }
 
 /** A special order: paid for, on its way. */
@@ -1515,7 +1518,7 @@ export interface RenownChange {
   playerIds?: string[];
 }
 
-export type LedgerKind = "grant" | "charge" | "purchase" | "payAll" | "transfer" | "rent" | "contribution" | "income" | "bounty" | "loot";
+export type LedgerKind = "grant" | "charge" | "purchase" | "payAll" | "transfer" | "rent" | "contribution" | "income" | "bounty" | "loot" | "sale";
 
 export interface LedgerEntry {
   id: string;

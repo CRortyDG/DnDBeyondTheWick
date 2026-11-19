@@ -711,6 +711,8 @@ export const playerCommand = z.discriminatedUnion("type", [
   z.object({ type: z.literal("me.cancelRental"), rentalId: id }),
   z.object({ type: z.literal("me.requestGive"), toPlayerId: id, amountCp: cp.min(1), note: text(120) }),
   z.object({ type: z.literal("me.cancelRequest"), requestId: id }),
+  /** Offer something from my sheet's inventory to a shop. askCp: what I'd like for it (0: the DM names a price). */
+  z.object({ type: z.literal("me.requestSell"), sheetItemId: z.string().min(1).max(24), shopId: id, qty: z.number().int().min(1).max(999), askCp: cp.max(10_000_000), note: text(120) }),
   /** "Take this job": asks the DM. */
   z.object({ type: z.literal("me.takeJob"), jobId: id, note: text(120) }),
   // The Chronicle: players write notes and edit, move or delete their own.

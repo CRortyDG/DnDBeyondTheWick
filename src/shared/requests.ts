@@ -5,7 +5,17 @@ import type { GameState, Item, Shop, TradeRequest } from "./types";
 
 /** Gold held by this player's pending requests (purchases and gold they're sending). */
 export function heldCp(s: Pick<GameState, "requests">, playerId: string): number {
-  return s.requests.reduce((a, r) => (r.status === "pending" && r.playerId === playerId ? a + r.totalCp + (r.rewardCp ?? 0) : a), 0);
+  return s.requests.reduce((a, r) => (r.status === "pending" && r.playerId === playerId && r.kind !== "sell" ? a + r.totalCp + (r.rewardCp ?? 0) : a), 0);
+}
+
+/** Units of one sheet line that pending sales are holding. */
+export function heldForSale(s: Pick<GameState, "requests">, playerId: string, sheetItemId: string, exceptRequestId?: string): number {
+  return s.requests.reduce((a, r) => (r.status === "pending" && r.kind === "sell" && r.playerId === playerId && r.sheetItemId === sheetItemId && r.id !== exceptRequestId ? a + r.qty : a), 0);
+}
+
+/** The usual offer for something you sell: half what it costs (the 5e rule of thumb). */
+export function halfPrice(cp: number): number {
+  return Math.floor(cp / 2);
 }
 
 /** Units of this item held by pending requests. */

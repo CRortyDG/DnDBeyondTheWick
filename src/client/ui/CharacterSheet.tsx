@@ -34,7 +34,7 @@ import {
   type SheetRoll,
 } from "@/shared/sheet";
 import type { SheetAct } from "@/shared/sheetMagic";
-import { gearAc } from "@/shared/sheetGear";
+import { gearAc, type SheetItem } from "@/shared/sheetGear";
 import { AttackEditor, AttackList } from "./SheetAttacks";
 import { FeaturesBlock } from "./SheetFeatures";
 import { InventoryBlock } from "./SheetInventory";
@@ -70,6 +70,8 @@ export function CharacterSheetView({
   onHitDie,
   giveTo,
   onGive,
+  onSell,
+  offered,
 }: {
   sheet: CharacterSheet;
   level: number | undefined;
@@ -93,6 +95,10 @@ export function CharacterSheetView({
   /** The phone: hand an item to one of these players. */
   giveTo?: { id: string; name: string }[];
   onGive?: (itemId: string, toPlayerId: string, qty: number) => Promise<string | null>;
+  /** The phone: offer an inventory item to a shop. */
+  onSell?: (it: SheetItem) => void;
+  /** Sheet line → what's offered for sale and where. */
+  offered?: Record<string, string>;
 }) {
   const [editing, setEditing] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -210,7 +216,7 @@ export function CharacterSheetView({
 
       <SpellsBlock sheet={sheet} level={level} editing={editing} fixed={fixed} send={send} act={act} onRoll={roll} />
 
-      <InventoryBlock sheet={sheet} editing={editing} send={send} act={act} giveTo={giveTo} onGive={give} />
+      <InventoryBlock sheet={sheet} editing={editing} send={send} act={act} giveTo={giveTo} onGive={give} onSell={onSell} offered={offered} />
 
       <h3 className="cs-h">Abilities</h3>
       <div className="cs-abilities">

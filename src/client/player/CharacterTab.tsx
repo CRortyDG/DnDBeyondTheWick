@@ -10,6 +10,8 @@ import { LevelUpCard, SheetBuilder } from "../ui/SheetBuilder";
 import { MyHp } from "./FightCard";
 import { LookEditor } from "../ui/LookEditor";
 import { PixelLook } from "../ui/PixelLook";
+import type { SheetItem } from "@/shared/sheetGear";
+import { offeredLines, SellSheet, sellShops } from "./Sell";
 
 /**
  * The Character tab: the sheet. Gold and shops have their own tab. A player who
@@ -19,17 +21,23 @@ export function CharacterTab({
   view,
   send,
   onLink,
+  canSell = false,
 }: {
   view: PlayerView;
   send: (c: object) => Promise<string | null>;
   /** Open "Your character" (the D&D Beyond link). */
   onLink: () => void;
+  /** Shops are on for me: inventory items can be offered to a shop. */
+  canSell?: boolean;
 }) {
   const me = view.me;
   const [adv, setAdv] = useState<"" | "adv" | "dis">("");
   const [tv, setTv] = useState(true);
   const [rollErr, setRollErr] = useState<string | null>(null);
   const [building, setBuilding] = useState(false);
+  const [selling, setSelling] = useState<SheetItem | null>(null);
+  const [sellMsg, setSellMsg] = useState<string | null>(null);
+  const sell = canSell && sellShops(view).length > 0;
   const roll = async (r: SheetRoll) => {
     const err = await send({
       type: "me.sheetRoll",
@@ -48,6 +56,11 @@ export function CharacterTab({
       {me.sheet ? (
         <section className="pl-sheet" aria-label="Character sheet">
           <LevelUpCard sheet={me.sheet} level={me.level} send={send} />
+          {sellMsg ? (
+            <p className="player-msg pl-msg" role="status">
+              {sellMsg}
+            </p>
+          ) : null}
           <CharacterSheetView
             sheet={me.sheet}
             level={me.level}
@@ -58,6 +71,8 @@ export function CharacterTab({
             onHitDie={() => send({ type: "me.hitDie", tv })}
             giveTo={view.purse.filter((x) => x.sheet && x.id !== me.id).map((x) => ({ id: x.id, name: x.name }))}
             onGive={(itemId, toPlayerId, qty) => send({ type: "me.giveItem", itemId, toPlayerId, qty })}
+            onSell={sell ? setSelling : undefined}
+            offered={offeredLines(view)}
             onRoll={roll}
             rollBar={
               <>
@@ -89,6 +104,18 @@ export function CharacterTab({
             }
             hp={<MyHp hp={me.hp} hasSheet go={async (c) => !(await send(c))} />}
           />
+          {selling ? (
+            <SellSheet
+              view={view}
+              item={me.sheet.items?.find((x) => x.id === selling.id) ?? selling}
+              send={send}
+              onClose={() => setSelling(null)}
+              onDone={(m) => {
+                setSelling(null);
+                setSellMsg(m);
+              }}
+            />
+          ) : null}
           {me.dndbUrl ? (
             <a className="btn" href={me.dndbUrl} target="_blank" rel="noopener noreferrer">
               Open D&amp;D Beyond too

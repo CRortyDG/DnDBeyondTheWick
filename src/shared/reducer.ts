@@ -6,7 +6,7 @@ import type { Command } from "./commands";
 import { displayNameFrom, isReservedHandle, normaliseHandle } from "./handles";
 import { canAfford, formatCp } from "./money";
 import { beatBody } from "./commands";
-import { availableCp, availableStock, boughtPhrase, heldStock, isSecretShop } from "./requests";
+import { availableCp, availableStock, boughtPhrase, heldForSale, heldStock, isSecretShop } from "./requests";
 import { candlefairMap, emptyProgress, SEED_ITEMS, SEED_SHOPS, STINGER_SCENE, swordCoastMap } from "./seed";
 import { clockNow, clockOf, creditCp, duesFor, firstChargeCp, nextNight, nightOf, installmentCp, keepsStake, liveEffects, priceOf, raisedCp, rollDice, sharesOf, splitByShare } from "./progress";
 import { chapterAt, shopVisibleTo } from "./projection";
@@ -868,6 +868,36 @@ function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
           o.reason = "The party already took it.";
         }
       }
+      r.status = "approved";
+      r.decidedAt = ctx.now;
+      return;
+    }
+    if (r.kind === "sell") {
+      const pay = totalCp ?? r.totalCp;
+      if (pay <= 0) fail(`${r.playerName} left the price to you. Tap Different price and set what the shop pays.`);
+      const shop = s.shops.find((x) => x.id === r.shopId);
+      const line = p.sheet && !p.sheetOff ? p.sheet.items?.find((x) => x.id === r.sheetItemId) : undefined;
+      const have = line?.qty ?? 0;
+      if (!override) {
+        if (p.archived) fail(`${p.name} has left the table.`, "recheck");
+        if (have < r.qty) fail(have ? `${p.name} only has ${have} ${r.itemName} now, not ${r.qty}.` : `${r.itemName} isn't on ${p.name}'s sheet any more.`, "recheck");
+      }
+      // Off the sheet. With "Approve anyway", whatever's left of it goes.
+      const sold = Math.min(r.qty, have);
+      if (line && sold) {
+        if (sold >= line.qty) {
+          p.sheet!.items = p.sheet!.items!.filter((x) => x !== line);
+          if (!p.sheet!.items.length) delete p.sheet!.items;
+        } else line.qty -= sold;
+        p.sheet!.updatedAt = ctx.now;
+      }
+      // Bought here and counted in stock: it goes back on the shelf.
+      const shelf = line?.from ? s.items.find((x) => x.id === line.from && x.shopId === r.shopId) : undefined;
+      if (shelf && shelf.stock !== null && sold) shelf.stock += sold;
+      const what = r.qty > 1 ? `${r.qty} × ${r.itemName}` : r.itemName;
+      const haggled = r.totalCp && pay !== r.totalCp ? ` (asked ${formatCp(r.totalCp)})` : "";
+      move(p, pay, `Sold ${what}${shop ? ` to ${shop.name}` : ""}${haggled}`, "sale", { requestId: r.id, ...(shelf ? { itemId: shelf.id } : {}) });
+      r.chargedCp = pay;
       r.status = "approved";
       r.decidedAt = ctx.now;
       return;
@@ -4242,8 +4272,12 @@ function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
       const p = player(r.playerId);
       if (p.archived) fail(`${p.name} has left the table. Bring them back first.`);
       // It holds the gold again, so it can't promise more than they have free.
-      const hold = r.totalCp + (r.rewardCp ?? 0);
+      const hold = r.kind === "sell" ? 0 : r.totalCp + (r.rewardCp ?? 0);
       const free = availableCp(s, p.id);
+      if (r.kind === "sell") {
+        const line = p.sheet && !p.sheetOff ? p.sheet.items?.find((x) => x.id === r.sheetItemId) : undefined;
+        if (!line || line.qty - heldForSale(s, p.id, line.id) < r.qty) fail(`${r.itemName} isn't on ${p.name}'s sheet any more (or not ${r.qty} of it). Ask them to offer it again.`);
+      }
       if (hold > free) fail(`${p.name} only has ${formatCp(Math.max(0, free))} free now, not ${formatCp(hold)}. Give them the gold first, or ask them to request it again.`);
       r.status = "pending";
       r.reopenedAt = ctx.now;
@@ -4283,7 +4317,7 @@ function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
       let waiting = 0;
       for (const r of pending) {
         // Services (and flyers) need you to read and answer them.
-        if (r.kind === "job" || (r.kind === "buy" && s.items.find((x) => x.id === r.itemId)?.kind === "service")) {
+        if (r.kind === "job" || r.kind === "sell" || (r.kind === "buy" && s.items.find((x) => x.id === r.itemId)?.kind === "service")) {
           waiting++;
           continue;
         }
@@ -4295,7 +4329,7 @@ function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
           stuck.push(`${r.playerName}: ${e.message}`);
         }
       }
-      const answer = waiting ? ` ${waiting} ${waiting === 1 ? "needs" : "need"} your answer (services and jobs).` : "";
+      const answer = waiting ? ` ${waiting} ${waiting === 1 ? "needs" : "need"} your answer (services, jobs and sales).` : "";
       out.info = (stuck.length ? `Approved ${ok}. Still waiting on you: ${stuck.join(" ")}` : `Approved ${ok}.`) + answer;
       pruneRequests();
       break;
@@ -4432,6 +4466,35 @@ function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
         unitCp: cmd.amountCp,
         toPlayerId: to.id,
         toPlayerName: to.name,
+      });
+      break;
+    }
+    case "me.requestSell": {
+      const p = me();
+      if (!featureOn(s, "sheets") || !p.sheet || p.sheetOff) fail("Selling works from your character sheet, and you don't keep one here. Sell it at the table instead.");
+      const line = p.sheet.items?.find((x) => x.id === cmd.sheetItemId) ?? fail("That item isn't in your inventory any more.");
+      const unseen = "That shop isn't open to you.";
+      const where = s.shops.find((x) => x.id === cmd.shopId) ?? fail(unseen);
+      if (!shopVisibleTo(where, { tv: false, playerId: p.id })) fail(unseen);
+      if (!shopOpenNow(s, where)) fail(`${where.name} isn't open yet.`);
+      const free = line.qty - heldForSale(s, p.id, line.id);
+      if (free < cmd.qty) fail(free <= 0 ? `You've already offered your ${line.name} to a shop. Cancel that first.` : `You have ${free} ${line.name} you haven't offered yet.`);
+      if (s.requests.filter((r) => r.status === "pending" && r.playerId === p.id).length >= 20) fail("You have 20 requests waiting. Let the DM catch up.");
+      s.requests.push({
+        id: nextId("rq"),
+        kind: "sell",
+        playerId: p.id,
+        playerName: p.name,
+        at: ctx.now,
+        status: "pending",
+        totalCp: cmd.askCp,
+        note: cmd.note.trim(),
+        secret: isSecretShop(where),
+        itemName: line.name,
+        shopId: where.id,
+        qty: cmd.qty,
+        unitCp: cmd.qty ? Math.round(cmd.askCp / cmd.qty) : 0,
+        sheetItemId: line.id,
       });
       break;
     }

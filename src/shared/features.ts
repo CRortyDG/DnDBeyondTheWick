@@ -253,6 +253,7 @@ const PLAYER_NEEDS: Record<string, FeatureId> = {
   "me.diceRoll": "dice",
   "me.requestBuy": "shops",
   "me.contribute": "shops",
+  "me.requestSell": "shops",
   "me.requestGive": "gold",
   "me.takeJob": "jobs",
   "me.vote": "leads",

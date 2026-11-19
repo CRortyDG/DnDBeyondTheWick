@@ -27,7 +27,7 @@ export interface SrdGear {
 let gearCache: SrdGear[] | null = null;
 let gearLoading: Promise<SrdGear[]> | null = null;
 /** The SRD equipment and magic items with their text: loaded the first time someone needs it. */
-function useSrdGear(want = true): SrdGear[] | null {
+export function useSrdGear(want = true): SrdGear[] | null {
   const [list, setList] = useState<SrdGear[] | null>(gearCache);
   useEffect(() => {
     if (!want || gearCache) return;
@@ -89,6 +89,8 @@ export function InventoryBlock({
   act,
   giveTo,
   onGive,
+  onSell,
+  offered,
 }: {
   sheet: CharacterSheet;
   editing: boolean;
@@ -97,6 +99,10 @@ export function InventoryBlock({
   /** Players who can receive (the phone). */
   giveTo?: { id: string; name: string }[];
   onGive?: (itemId: string, toPlayerId: string, qty: number) => Promise<boolean>;
+  /** The phone: offer this item to a shop. */
+  onSell?: (it: SheetItem) => void;
+  /** Sheet line → "2 offered to the Smithy", while the DM decides. */
+  offered?: Record<string, string>;
 }) {
   const [open, setOpen] = useState<string | null>(null);
   const [picking, setPicking] = useState(false);
@@ -112,7 +118,7 @@ export function InventoryBlock({
         <ItemCard it={it} onSave={(x) => save(list.map((y) => (y.id === it.id ? x : y)))} onRemove={() => save(list.filter((y) => y.id !== it.id))} />
       </li>
     ) : (
-      <ItemRow key={it.id} it={it} open={open === it.id} onOpen={() => setOpen(open === it.id ? null : it.id)} act={act} canAttune={att < ATTUNE_MAX} giveTo={giveTo} onGive={onGive} />
+      <ItemRow key={it.id} it={it} open={open === it.id} onOpen={() => setOpen(open === it.id ? null : it.id)} act={act} canAttune={att < ATTUNE_MAX} giveTo={giveTo} onGive={onGive} onSell={onSell} offered={offered?.[it.id]} />
     );
   return (
     <section className="cs-block cs-inv" aria-label="Inventory">
@@ -163,6 +169,8 @@ function ItemRow({
   canAttune,
   giveTo,
   onGive,
+  onSell,
+  offered,
 }: {
   it: SheetItem;
   open: boolean;
@@ -171,6 +179,8 @@ function ItemRow({
   canAttune: boolean;
   giveTo?: { id: string; name: string }[];
   onGive?: (itemId: string, toPlayerId: string, qty: number) => Promise<boolean>;
+  onSell?: (it: SheetItem) => void;
+  offered?: string;
 }) {
   const all = useSrdGear(open && !!it.srd);
   const o = it.srd ? all?.find((x) => x.i === it.srd) : undefined;
@@ -185,7 +195,7 @@ function ItemRow({
           {it.name}
           {it.qty > 1 ? <span className="cs-qty"> ×{it.qty}</span> : null}
         </span>
-        <span className="cs-spell-sum">{line}</span>
+        <span className="cs-spell-sum">{offered ? [line, offered].filter(Boolean).join(" · ") : line}</span>
       </button>
       {open ? (
         <div className="cs-spell-detail">
@@ -229,6 +239,13 @@ function ItemRow({
               {it.qty > 1 ? <input className="fld cs-give-n" inputMode="numeric" aria-label="How many" value={String(n)} onChange={(e) => setN(Math.min(it.qty, Math.max(1, Math.round(Number(e.target.value)) || 1)))} /> : null}
               <button type="button" className="btn small" disabled={!to} onClick={() => void onGive(it.id, to, Math.min(n, it.qty)).then((ok) => ok && setTo(""))}>
                 Give
+              </button>
+            </div>
+          ) : null}
+          {onSell ? (
+            <div className="cs-spell-acts">
+              <button type="button" className="btn small" onClick={() => onSell(it)}>
+                Sell to a shop&hellip;
               </button>
             </div>
           ) : null}

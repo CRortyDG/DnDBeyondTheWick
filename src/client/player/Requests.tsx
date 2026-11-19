@@ -188,6 +188,7 @@ function title(r: MyRequest) {
   if (r.kind === "give") return `Send ${formatCp(r.totalCp)} to ${r.toPlayerName}`;
   if (r.kind === "contribute") return `${formatCp(r.totalCp)} toward ${r.itemName}`;
   if (r.kind === "job") return `Take the job: ${r.jobTitle ?? "a job"}`;
+  if (r.kind === "sell") return `Sell ${r.qty > 1 ? `${r.qty} × ` : ""}${r.itemName}${r.shopName ? ` to ${r.shopName}` : ""}`;
   if (r.flyerTitle) return `Flyer: ${r.flyerTitle}`;
   return `${r.qty > 1 ? `${r.qty} × ` : ""}${r.itemName}`;
 }
@@ -206,8 +207,8 @@ export function MyRequests({ requests, send, onMsg }: { requests: MyRequest[]; s
               <div className="req-title">{title(r)}</div>
               <div className="req-meta">
                 <span className={`req-status st-${r.status}`}>{STATUS[r.status]}</span>
-                {r.kind !== "give" && r.kind !== "job" ? <span className="purse-amt">{formatCp(r.chargedCp ?? r.totalCp)}</span> : null}
-                {r.chargedCp !== undefined && r.chargedCp !== r.totalCp ? <span className="note">(asked {formatCp(r.totalCp)})</span> : null}
+                {r.kind === "sell" && !r.chargedCp && !r.totalCp ? <span className="note">price up to the DM</span> : r.kind !== "give" && r.kind !== "job" ? <span className="purse-amt">{r.kind === "sell" ? "+" : ""}{formatCp(r.chargedCp ?? r.totalCp)}</span> : null}
+                {r.chargedCp !== undefined && r.totalCp && r.chargedCp !== r.totalCp ? <span className="note">(asked {formatCp(r.totalCp)})</span> : null}
               </div>
               {r.question ? <div className="note">You asked: &ldquo;{r.question}&rdquo;</div> : null}
               {r.note ? <div className="note">&ldquo;{r.note}&rdquo;</div> : null}
@@ -220,7 +221,7 @@ export function MyRequests({ requests, send, onMsg }: { requests: MyRequest[]; s
                 className="btn"
                 onClick={async () => {
                   const e = await send({ type: "me.cancelRequest", requestId: r.id });
-                  onMsg(e ?? "Cancelled. Your gold is free again.");
+                  onMsg(e ?? (r.kind === "sell" ? "Cancelled. It's all yours again." : "Cancelled. Your gold is free again."));
                 }}
               >
                 Cancel
@@ -288,7 +289,7 @@ export function DecisionBanners({ view }: { view: PlayerView }) {
       {fresh.map((r) => (
         <div key={r.id} className={`decision decision-${r.status}`}>
           <strong>{r.status === "approved" ? "Approved" : "Declined"}:</strong> {title(r)}
-          {r.status === "approved" && r.kind === "buy" ? <> for {formatCp(r.chargedCp ?? r.totalCp)}</> : null}
+          {r.status === "approved" && (r.kind === "buy" || r.kind === "sell") ? <> for {formatCp(r.chargedCp ?? r.totalCp)}</> : null}
           {r.status === "declined" && r.reason ? <div className="decision-reason">{r.reason}</div> : null}
           {r.answer ? <div className="decision-reason">{r.answer}</div> : null}
         </div>
