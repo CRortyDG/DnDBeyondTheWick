@@ -47,7 +47,7 @@ export function artSrc(art: Art | undefined, gated?: Record<string, string>): st
 }
 
 /** One scene, filling its parent. */
-export function SceneView({ scene, gated, emptyHint, table, intro, board, keyRack, town = "Candlefair" }: { scene: RenderableScene; gated?: Record<string, string>; emptyHint?: string; table?: TableView; intro?: TvIntroView; board?: BoardView; keyRack?: KeyRackView; /** Shown on an empty image slot. */ town?: string }) {
+export function SceneView({ scene, gated, emptyHint, table, intro, board, keyRack, town = "" }: { scene: RenderableScene; gated?: Record<string, string>; emptyHint?: string; table?: TableView; intro?: TvIntroView; board?: BoardView; keyRack?: KeyRackView; /** Shown on an empty image slot. */ town?: string }) {
   const src = artSrc(scene.art, gated);
 
   if (scene.ambient && ambientById(scene.ambient.id)) return <AmbientScene id={scene.ambient.id as AmbientId} caption={scene.ambient.caption} />;

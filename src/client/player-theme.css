@@ -2852,3 +2852,203 @@ html[data-view="player"] {
     animation: none;
   }
 }
+
+/* ---- Your turn: a full-screen card for a moment, and the sound offer ---- */
+:where(html[data-view="player"]) .pl-turn-flash {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--pl-s3);
+  border: 0;
+  padding: var(--pl-s6);
+  background: radial-gradient(circle at 50% 45%, rgba(166, 58, 44, 0.96), rgba(40, 14, 10, 0.97) 75%);
+  color: var(--pl-text);
+  animation: pl-turn-in 0.35s ease-out both, pl-turn-beat 0.9s ease-in-out 0.35s 2;
+  cursor: pointer;
+}
+:where(html[data-view="player"]) .pl-turn-flash-k {
+  font-family: var(--font-poster);
+  font-size: clamp(48px, 16vw, 96px);
+  line-height: 1;
+  color: #ffd28a;
+  text-align: center;
+  text-shadow: 0 4px 24px rgba(0, 0, 0, 0.6);
+}
+:where(html[data-view="player"]) .pl-turn-flash-v {
+  font-size: 17px;
+  color: var(--pl-text-2);
+}
+@keyframes pl-turn-in {
+  from {
+    opacity: 0;
+    transform: scale(1.06);
+  }
+}
+@keyframes pl-turn-beat {
+  50% {
+    filter: brightness(1.25);
+  }
+}
+:where(html[data-view="player"]) .pl-turn-nudge {
+  margin: var(--pl-s3) 0;
+  padding: var(--pl-s3) var(--pl-s4);
+  border-radius: var(--pl-r-md);
+  border: 1px solid var(--pl-gold-line);
+  background: var(--pl-gold-soft);
+}
+:where(html[data-view="player"]) .pl-turn-nudge p {
+  margin: 0 0 var(--pl-s2);
+  color: var(--pl-text-2);
+  font-size: 14px;
+}
+:where(html[data-view="player"]) .pl-turn-nudge b {
+  color: var(--pl-text);
+}
+:where(html[data-view="player"]) .pl-turn-nudge-acts {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--pl-s2);
+}
+@media (prefers-reduced-motion: reduce) {
+  :where(html[data-view="player"]) .pl-turn-flash {
+    animation: none;
+  }
+}
+
+/* Condition chips you can tap for the rule. */
+:where(html[data-view="player"]) button.cond-chip {
+  font: inherit;
+  cursor: pointer;
+}
+:where(html[data-view="player"]) .cond-chip.on {
+  border-color: var(--pl-gold-line);
+  background: var(--pl-gold-soft);
+}
+:where(html[data-view="player"]) .cond-chip-i {
+  display: inline-grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  margin-left: 2px;
+  border-radius: 50%;
+  border: 1px solid currentColor;
+  font-size: 11px;
+  line-height: 1;
+  opacity: 0.7;
+}
+:where(html[data-view="player"]) .cond-rule {
+  margin: var(--pl-s2) 0 0;
+  padding: var(--pl-s2) var(--pl-s3);
+  border-radius: var(--pl-r-sm);
+  background: var(--pl-bg-2);
+  border: 1px solid var(--pl-border-strong);
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--pl-text-2);
+}
+:where(html[data-view="player"]) .cond-rule b {
+  color: var(--pl-text);
+}
+
+/* Writing to the DM first, and my own notes in the list. */
+:where(html[data-view="player"]) .pl-whisper-start {
+  margin: 0 0 var(--pl-s4);
+}
+:where(html[data-view="player"]) .pl-whisper-start .note,
+:where(html[data-view="player"]) .pl-whisper-start .player-msg {
+  margin: var(--pl-s2) 0 0;
+}
+:where(html[data-view="player"]) .pl-whisper-note.mine {
+  border-left-color: var(--pl-gold-line);
+  background: var(--pl-bg-1);
+}
+
+/* ---- The party page ---- */
+:where(html[data-view="player"]) .pl-party {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--pl-s2);
+}
+:where(html[data-view="player"]) .pl-party-row {
+  display: flex;
+  align-items: center;
+  gap: var(--pl-s3);
+  padding: 10px 12px;
+  border-radius: var(--pl-r-md);
+  background: var(--pl-bg-2);
+  border: 1px solid var(--pl-border);
+}
+:where(html[data-view="player"]) .pl-party-row.you {
+  border-color: var(--pl-gold-line);
+}
+:where(html[data-view="player"]) .pl-party-row.away {
+  opacity: 0.65;
+}
+:where(html[data-view="player"]) .pl-party-face {
+  flex: none;
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  overflow: hidden;
+  background: var(--pl-bg-3);
+  border: 2px solid var(--pl-border-strong);
+  display: grid;
+  place-items: center;
+}
+:where(html[data-view="player"]) .pl-party-face img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+:where(html[data-view="player"]) .pl-party-initial {
+  font-family: var(--font-poster);
+  font-size: 30px;
+  color: var(--pl-gold);
+}
+:where(html[data-view="player"]) .pl-party-text {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+:where(html[data-view="player"]) .pl-party-name {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-poster);
+  font-size: 20px;
+  line-height: 1.15;
+  color: var(--pl-text);
+}
+:where(html[data-view="player"]) .pl-party-tag {
+  font-family: var(--pl-font-ui);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: var(--pl-gold-soft);
+  color: var(--pl-gold);
+}
+:where(html[data-view="player"]) .pl-party-tag.away {
+  background: var(--pl-bg-3);
+  color: var(--pl-text-2);
+}
+:where(html[data-view="player"]) .pl-party-line {
+  font-size: 14px;
+  color: var(--pl-text-2);
+}
+:where(html[data-view="player"]) .pl-party-line.none {
+  color: var(--pl-text-3);
+  font-style: italic;
+}
+:where(html[data-view="player"]) .pl-party-player {
+  font-size: 12px;
+  color: var(--pl-text-3);
+}

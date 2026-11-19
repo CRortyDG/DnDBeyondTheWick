@@ -4,6 +4,7 @@
 // and for whoever runs one, its stat block (what the DM lets them see), its HP,
 // its abilities, its turn in a fight, and its death saves.
 
+import { ConditionChips } from "../ui/ConditionChips";
 import { useState } from "react";
 import type { PlayerView } from "@/shared/projection";
 import type { ControlledCompanion, PublicCompanion } from "@/shared/companions";
@@ -93,17 +94,7 @@ export function CompanionPanel({ c, go, active }: { c: ControlledCompanion; go: 
         </span>
       </div>
       {c.offers ? <p className="pl-comp-offers">{c.offers}</p> : null}
-      {c.conditions?.length ? (
-        <div className="fc-conds" aria-label={`${c.name}'s conditions`}>
-          {c.conditions.map((k, i) => (
-            <span key={i} className="beat-action-chip">
-              {k.name}
-              {k.level ? ` ${k.level}` : ""}
-              {k.rounds !== undefined ? ` · ${k.rounds} rd${k.rounds === 1 ? "" : "s"}` : ""}
-            </span>
-          ))}
-        </div>
-      ) : null}
+      {c.conditions?.length ? <ConditionChips list={c.conditions} label={`${c.name}'s conditions`} /> : null}
       {c.health === "dead" ? <p className="fc-big">{c.name} has died.</p> : null}
       {saving && c.deathSaves ? (
         <CompanionSaves c={c} saves={c.deathSaves} go={go} />

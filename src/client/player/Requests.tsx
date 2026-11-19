@@ -142,7 +142,7 @@ export function RequestSheet({ item, availableCp, send, onClose, onDone }: { ite
                   <input className="fld amt" inputMode="decimal" value={reward} onChange={(e) => setReward(e.target.value)} placeholder="20 or 5 gp 5 sp" />
                 </label>
                 {rewardCp ? <p className="note">The reward comes out of your purse when the flyer goes up. The DM pays it to whoever does the job, or gives it back.</p> : null}
-                <p className="note">Mags (the DM) reads it first, and may tidy it up.</p>
+                <p className="note">The DM reads it first, and may tidy it up.</p>
               </>
             ) : null}
             {!item.oneAtATime ? (
