@@ -24,7 +24,7 @@ import { jobsOf, jobTitle, progressOf, rankName, ranksOf, renownMet, renownNeede
 import { fightView, myFight, type FightView, type MyFight } from "./combat";
 import { controlledBy, publicCompanions, type ControlledCompanion, type PublicCompanion } from "./companions";
 import type { Art, Banner, Flyer, FlyerText, GameState, Job, JobStyle, Item, ItemCategory, ItemKind, LedgerEntry, LegendStyle, LiveState, NoteLook, NotePlace, Notice, Player, RequestStatus, Scene, Shop } from "./types";
-import { noticesOf } from "./board";
+import { isFlyerHandout, noticesOf } from "./board";
 import { hasWords, type HandoutSheet } from "./handout";
 import { characterName, sharedLevel } from "./levels";
 import { FADE_DEFAULT, VOLUME_DEFAULT } from "./sound";
@@ -112,7 +112,7 @@ export interface PhoneHandout {
 /** Handouts the party knows: shown on the TV before (or marked known by the DM), newest first. Words go out only once known. */
 function knownHandouts(game: GameState): PhoneHandout[] {
   return game.scenes
-    .filter((sc) => sc.kind === "handout" && sc.known && (hasWords(sc) || sc.art?.url || sc.art?.builtin))
+    .filter((sc) => sc.kind === "handout" && sc.known && !isFlyerHandout(sc) && (hasWords(sc) || sc.art?.url || sc.art?.builtin))
     .map((sc) => ({
       sceneId: sc.id,
       label: sc.sheet?.title.trim() || sc.label,

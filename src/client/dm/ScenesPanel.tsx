@@ -18,7 +18,7 @@ import { PageHead } from "./PageHead";
 import { PlusIcon } from "./navIcons";
 import { isProp, pictureOwner, refForScene, sceneSlug } from "@/shared/assets";
 import { DEFAULT_SHEET, emptyHandout, HANDOUT_BODY_MAX, HANDOUT_LONG, type HandoutSheet } from "@/shared/handout";
-import { FONT_IDS, FONT_LABELS, PAPERS } from "@/shared/board";
+import { FONT_IDS, FONT_LABELS, isFlyerHandout, PAPERS } from "@/shared/board";
 
 const KINDS: [SceneKind, string][] = [
   ["map", "Map with numbered locations"],
@@ -261,7 +261,9 @@ function SceneEditor({ scene }: { scene: Scene }) {
           </Check>
         ) : null}
 
-        {scene.kind === "handout" ? (
+        {scene.kind === "handout" && isFlyerHandout(scene) ? (
+          <p className="note">This is a job flyer up close, so players find it on their Jobs tab, not in Discover.</p>
+        ) : scene.kind === "handout" ? (
           <Check checked={!!scene.known} onChange={(v) => run({ type: "scene.known", sceneId: scene.id, known: v })}>
             Players keep it in Discover <span className="note">(ticks itself once shown on the TV; untick to take it off their phones)</span>
           </Check>

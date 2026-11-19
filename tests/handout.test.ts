@@ -113,4 +113,20 @@ describe("handouts in Discover", () => {
     g = withAssets(g)!;
     expect(g.scenes.find((x) => x.id === id)!.known).toBeUndefined();
   });
+
+  it("Artum's notice is a job flyer, so it never lands in Discover", () => {
+    let g = hydrate(seedGame("t"))!;
+    expect(g.scenes.some((x) => x.id === "s-notice")).toBe(true);
+    g = run(g, { type: "scene.show", sceneId: "s-notice" });
+    g = run(g, { type: "scene.show", sceneId: g.scenes[0].id });
+    expect(g.scenes.find((x) => x.id === "s-notice")!.known).toBeUndefined();
+    expect(phone(g).handouts.map((h) => h.sceneId)).not.toContain("s-notice");
+    // Campaigns where the older rule already kept it get it taken back off phones.
+    const sc = g.scenes.find((x) => x.id === "s-notice")!;
+    sc.known = true;
+    g.upgrades = (g.upgrades ?? []).filter((t) => t !== "flyer-handouts");
+    expect(phone(g).handouts.map((h) => h.sceneId)).not.toContain("s-notice");
+    g = withAssets(g)!;
+    expect(g.scenes.find((x) => x.id === "s-notice")!.known).toBeUndefined();
+  });
 });
