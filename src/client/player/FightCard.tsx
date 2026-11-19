@@ -5,6 +5,7 @@
 // your turn, keep your HP for the table, and tap death saves at 0 HP.
 // D&D Beyond stays the real character sheet.
 
+import { ConditionChips } from "../ui/ConditionChips";
 import { useEffect, useRef, useState } from "react";
 import type { PlayerView } from "@/shared/projection";
 import { HEALTH_LABEL } from "@/shared/combat";
@@ -97,17 +98,7 @@ export function FightCard({ view, send }: { view: PlayerView; send: Send }) {
             <div className="pl-fight-sub">{myTurn ? "Everyone’s waiting on you" : compTurn ? `You run ${compTurn.name}. Everyone’s waiting` : upNext ? `After ${current?.name ?? "this turn"}` : mine ? "Waiting for your turn" : "Watching the fight"}</div>
           </header>
           {mine?.concDc ? <p className="fc-conc">You took damage while concentrating: Constitution save, DC {mine.concDc}.</p> : null}
-          {me?.conditions.length ? (
-            <div className="fc-conds" aria-label="Your conditions">
-              {me.conditions.map((k, i) => (
-                <span key={i} className="beat-action-chip">
-                  {k.name}
-                  {k.level ? ` ${k.level}` : ""}
-                  {k.rounds !== undefined ? ` · ${k.rounds} rd${k.rounds === 1 ? "" : "s"}` : ""}
-                </span>
-              ))}
-            </div>
-          ) : null}
+          {me?.conditions.length ? <ConditionChips list={me.conditions} label="Your conditions" /> : null}
         </>
       )}
       {compTurn ? <CompanionPanel c={compTurn} go={go} active /> : null}
