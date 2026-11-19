@@ -158,6 +158,11 @@ describe("the detailed (double size) version", () => {
     expect(hat.w).toBe(hat.h);
   });
 
+  it("drawn styles keep outlines in picture units, so small thumbnails don't go black", async () => {
+    const { lookSvg } = await import("@/shared/lookVector");
+    for (const st of ["ink", "paint", "cel"] as const) expect(lookSvg({ outfit: 11, hat: 13 }, st)).not.toContain("non-scaling-stroke");
+  });
+
   it("drawn styles frame a face around what's on the head, without the backdrop", async () => {
     const { lookSvg } = await import("@/shared/lookVector");
     const vb = (svg: string) => svg.match(/viewBox="([^"]+)"/)![1].split(" ").map(Number);
