@@ -97,6 +97,33 @@ function knownMaps(game: GameState): PhoneMap[] {
   return game.scenes.filter((sc) => sc.kind === "map" && sc.map && sc.known && sc.id !== game.live.sceneId && !sc.reveal).map((sc) => phoneMapOf(game, sc));
 }
 
+/** A handout the party has seen on the TV: theirs to reread in Discover. */
+export interface PhoneHandout {
+  sceneId: string;
+  label: string;
+  art: Art;
+  alt?: string;
+  /** Its words on paper, if it has any. */
+  sheet?: HandoutSheet;
+  /** When it was first on the TV. */
+  shownAt?: number;
+}
+
+/** Handouts the party knows: shown on the TV before (or marked known by the DM), newest first. Words go out only once known. */
+function knownHandouts(game: GameState): PhoneHandout[] {
+  return game.scenes
+    .filter((sc) => sc.kind === "handout" && sc.known && (hasWords(sc) || sc.art?.url || sc.art?.builtin))
+    .map((sc) => ({
+      sceneId: sc.id,
+      label: sc.sheet?.title.trim() || sc.label,
+      art: artForPublic(game, sc, true),
+      ...(sc.alt ? { alt: sc.alt } : {}),
+      ...(sc.sheet && hasWords(sc) ? { sheet: { ...sc.sheet } } : {}),
+      ...(sc.shownAt !== undefined ? { shownAt: sc.shownAt } : {}),
+    }))
+    .sort((a, b) => (b.shownAt ?? 0) - (a.shownAt ?? 0));
+}
+
 export interface PublicPlayer {
   id: string;
   name: string;
@@ -448,6 +475,8 @@ export interface PlayerView extends Common {
   map?: PhoneMap;
   /** Other maps the party knows, to look at any time (same view as the TV would get). */
   maps: PhoneMap[];
+  /** Handouts the party has been shown (letters, notices, maps on paper), to reread in Discover. */
+  handouts: PhoneHandout[];
   /** Combat mode: the fight going on, as the room sees it, and my part in it. */
   fight: FightView | null;
   myFight: MyFight | null;
@@ -821,6 +850,7 @@ export function projectPlayer(table: GameState, version: number, playerId: strin
     ...(game.vttUrl ? { vttUrl: game.vttUrl } : {}),
     ...(phoneMap(game) ? { map: phoneMap(game) } : {}),
     maps: knownMaps(game),
+    handouts: knownHandouts(game),
     live: { ...liveShop(game, { tv: false, playerId }), purseVisible: game.live.purseVisible },
     myOrders: game.orders
       .filter((o) => o.playerId === p.id)
@@ -1055,6 +1085,8 @@ export function projectDm(game: GameState, version: number, ledger: LedgerEntry[
 export function gatedArtIsLive(game: GameState, builtin: string): boolean {
   const live = game.scenes.find((sc) => sc.id === game.live.sceneId);
   if (live?.art?.builtin === builtin) return true;
+  // A handout the party has been shown stays theirs to reread.
+  if (game.scenes.some((sc) => sc.kind === "handout" && sc.known && sc.art?.builtin === builtin)) return true;
   // Built-in portraits: once the party has found whoever they show.
   return PORTRAIT_ART.has(builtin) && portraitArtAllowed(game, builtin);
 }

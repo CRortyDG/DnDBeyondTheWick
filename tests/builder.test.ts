@@ -584,7 +584,7 @@ describe("hostile content", () => {
 
     const { version } = await store.read(GAME);
     const phone = projectPlayer(await state(), version, "p1", []);
-    const seen = { isNew: () => false, markSeen: () => {}, newCount: 0 };
+    const seen = { isNew: () => false, markSeen: () => {}, isNewHandout: () => false, markHandoutSeen: () => {}, newCount: 0 };
     const phoneHtml = renderToStaticMarkup(createElement(Discovery, { view: phone, send: async () => ({ ok: true }) as never, seen }));
     expect(phoneHtml).toContain("&lt;script&gt;");
     const tv = projectTv(await state(), version);

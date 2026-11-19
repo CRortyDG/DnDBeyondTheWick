@@ -62,7 +62,7 @@ export function lowestStage(e: Pick<Entry, "knownBy">, ids: string[]): Stage {
 
 const allIn = (list: string[] | undefined, ids: string[]) => ids.length > 0 && ids.every((id) => list?.includes(id));
 
-/** Portraits: someone linked is found for everyone here. Maps: everyone here has seen it. */
+/** Portraits: someone linked is found for everyone here. Maps and handouts: everyone here has seen it. */
 function sceneKnown(g: GameState, sc: Scene, ids: string[]): boolean {
   if (allIn(sc.knownBy, ids)) return true;
   if (sc.kind !== "portrait") return false;
@@ -91,7 +91,7 @@ export function materialize(g: GameState, ids: string[]): GameState {
       const place = placeOf.get(`${sc.id}/${p.id}`);
       p.discovered = place ? place.stage !== "hidden" : allIn(p.knownBy, ids);
     }
-    if (sc.kind === "portrait" || sc.kind === "map") {
+    if (sc.kind === "portrait" || sc.kind === "map" || sc.kind === "handout") {
       if (sceneKnown(g, sc, ids)) sc.known = true;
       else delete sc.known;
     }

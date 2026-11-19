@@ -261,6 +261,12 @@ function SceneEditor({ scene }: { scene: Scene }) {
           </Check>
         ) : null}
 
+        {scene.kind === "handout" ? (
+          <Check checked={!!scene.known} onChange={(v) => run({ type: "scene.known", sceneId: scene.id, known: v })}>
+            Players keep it in Discover <span className="note">(ticks itself once shown on the TV; untick to take it off their phones)</span>
+          </Check>
+        ) : null}
+
         {scene.kind === "handout" && scene.art?.builtin !== "artum-notice" ? <HandoutWords scene={scene} /> : null}
 
         {takesImage ? (

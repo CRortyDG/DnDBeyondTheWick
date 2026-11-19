@@ -99,6 +99,20 @@ describe("making parties", () => {
 });
 
 describe("what a character knows follows them", () => {
+  it("a handout shown to party B stays on Brin's phone, not on p2's", () => {
+    twoParties();
+    dm({ type: "scene.add", kind: "handout", label: "The letter" });
+    const id = g.scenes.at(-1)!.id;
+    dm({ type: "scene.update", sceneId: id, patch: { sheet: { title: "Sealed orders", body: "Burn this.", sign: "", paper: "parchment", font: "plain" } } });
+    dm({ type: "party.play", partyId: B });
+    dm({ type: "scene.show", sceneId: id });
+    dm({ type: "scene.show", sceneId: "s-map" });
+    dm({ type: "party.play", partyId: A });
+    expect(phone("p1").handouts.map((h) => h.label)).toContain("Sealed orders");
+    expect(phone("p2").handouts.map((h) => h.label)).not.toContain("Sealed orders");
+    expect(JSON.stringify(phone("p2"))).not.toContain("Burn this");
+  });
+
   it("someone met with party B stays known to Brin back in party A, and only to him", () => {
     twoParties();
     dm({ type: "party.play", partyId: B });
