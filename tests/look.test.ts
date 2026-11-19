@@ -145,6 +145,33 @@ describe("the detailed (double size) version", () => {
     expect([f.w, f.h]).toEqual([44, 44]);
   });
 
+  it("a face is just the character, framed tall enough for a hat", async () => {
+    const { drawLookHdFace } = await import("@/shared/lookArtHd");
+    // No backdrop, pet or stand: the corners are see-through, so a token ring's colour shows.
+    const f = drawLookHdFace({ background: 6, pet: 3, platform: 2 });
+    expect(f.get(0, 0)).toBeFalsy();
+    expect(f.get(f.w - 1, 0)).toBeFalsy();
+    // A wizard hat makes the square taller than a bare head, and its top row still has the hat in it.
+    const bare = drawLookHdFace({ hat: 0, hair: 1 });
+    const hat = drawLookHdFace({ hat: 1, hair: 1 });
+    expect(hat.h).toBeGreaterThan(bare.h);
+    expect(hat.w).toBe(hat.h);
+  });
+
+  it("drawn styles frame a face around what's on the head, without the backdrop", async () => {
+    const { lookSvg } = await import("@/shared/lookVector");
+    const vb = (svg: string) => svg.match(/viewBox="([^"]+)"/)![1].split(" ").map(Number);
+    for (const st of ["ink", "paint", "cel"] as const) {
+      const bare = vb(lookSvg({ hat: 0, hair: 1 }, st, true));
+      const wiz = vb(lookSvg({ hat: 1, hair: 1 }, st, true));
+      expect(wiz[1]).toBeLessThan(bare[1]);
+      expect(wiz[2]).toBe(wiz[3]);
+      // The ground shadow goes with the backdrop and stand: in the whole picture, not in a face.
+      expect(lookSvg({ background: 1 }, st, false)).toContain('cy="205"');
+      expect(lookSvg({ background: 1 }, st, true)).not.toContain('cy="205"');
+    }
+  });
+
   it("every beard leaves the whole mouth showing, on every build", async () => {
     const { drawLookHd } = await import("@/shared/lookArtHd");
     const mouthPixels = (look: Look) => {

@@ -14,6 +14,18 @@ export const VEC_H = (VEC_W * 7) / 6;
 
 const PAPER = "#f4ead6";
 
+// How high each part reaches above the head, in head units (the face's top is -22).
+const HAT_TOP = [0, -66, -32, -27, -42, -38, -21, -26, -42, -34, -23, -58, -18, -48];
+const HAIR_TOP = [0, -24, -32, -26, -24, -24, -35, -40, -24, -28, -24, -34, -33];
+const HORNS_TOP = [0, -32, -30, -40, -48, -48];
+const EARS_TOP = [0, 0, -16, -12, -34, -53, 0];
+
+/** The highest point of the head with everything on it, in head units. */
+export function headTop(look: Look): number {
+  const v = (k: LookPartKey) => look[k] ?? LOOK_DEFAULTS[k];
+  return Math.min(-24, HAT_TOP[v("hat")] ?? -30, HAIR_TOP[v("hair")] ?? -30, HORNS_TOP[v("horns")] ?? -30, EARS_TOP[v("ears")] ?? -30);
+}
+
 // ---- colour ------------------------------------------------------------------
 
 const clamp = (v: number) => Math.max(0, Math.min(255, Math.round(v)));
@@ -149,7 +161,8 @@ export function lookSvg(look: Look, style: VectorStyle, face = false): string {
   // ---- hands and gear ----
   const front = handItem() + E(RH[0], RH[1], 5.5, 5.5, skin) + offhand();
 
-  const petG = pet();
+  // A face (tokens, purse, lists) is just the character: no pet, stand or backdrop.
+  const petG = face ? "" : pet();
 
   // ---- defs ----
   let defs = "";
@@ -182,11 +195,15 @@ export function lookSvg(look: Look, style: VectorStyle, face = false): string {
 
   let vb = `0 0 ${VEC_W} ${f1(VEC_H)}`;
   if (face) {
-    const r = 30 * headS + (cel ? 3 : 7);
-    const cy = headY + 6 * headS;
-    vb = `${f1(100 - r)} ${f1(cy - r)} ${f1(2 * r)} ${f1(2 * r)}`;
+    // Head and shoulders, tall enough for what sits on the head (hat, horns,
+    // ears, a bun) so a token ring doesn't slice it off. Head units: face -22..21.
+    const pad = cel ? 3 : 7;
+    const top = headY + Math.max(-52, Math.min(-24, headTop(look) - 3)) * headS - pad;
+    const bottom = headY + 36 * headS + pad;
+    const side = bottom - top;
+    vb = `${f1(100 - side / 2)} ${f1(top)} ${f1(side)} ${f1(side)}`;
   }
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${vb}" width="${face ? 256 : VEC_W * 2}" height="${face ? 256 : f1(VEC_H * 2)}"><defs>${defs}</defs>${bg}${plat}${shadow}${figure}</svg>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${vb}" width="${face ? 256 : VEC_W * 2}" height="${face ? 256 : f1(VEC_H * 2)}"><defs>${defs}</defs>${face ? "" : bg + plat + shadow}${figure}</svg>`;
 
   // ============================================================================
   // parts

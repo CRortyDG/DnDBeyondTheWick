@@ -299,11 +299,20 @@ export function drawLookHd(look: Look): Pix {
   return out;
 }
 
-/** Head and shoulders, square, at double size. */
-export function drawLookHdFace(look: Look, size = 44): Pix {
-  const full = drawLookHd(look);
+/**
+ * Head and shoulders, square, at double size: just the character (no pet,
+ * stand or backdrop), framed tall enough for what sits on the head (hats,
+ * horns, ears, a bun) so a token ring doesn't slice it off.
+ */
+export function drawLookHdFace(look: Look): Pix {
+  const full = drawLookHd({ ...look, background: 0, pet: 0, platform: 0 });
   const { c } = layers(look, true);
-  const x = Math.max(0, Math.min(HD_W - size, c.f.cx * 2 - size / 2));
-  const y = Math.max(0, Math.min(HD_H - size, c.f.hy * 2 - 10));
-  return full.crop(x, y, size, size);
+  const cx = c.f.cx * 2;
+  const hy = c.f.hy * 2;
+  let reach = hy;
+  for (let y = 0; y < hy && reach === hy; y++) for (let x = cx - 14; x <= cx + 14; x++) if (full.get(x, y)) { reach = y; break; }
+  const top = Math.max(0, hy - 28, Math.min(hy - 10, reach - 2));
+  const size = hy + 34 - top;
+  const x = Math.max(0, Math.min(HD_W - size, cx - size / 2));
+  return full.crop(Math.round(x), top, size, size);
 }
