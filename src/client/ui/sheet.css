@@ -772,6 +772,19 @@ button.cs-ab {
   color: var(--cs-text);
   background: var(--cs-gold-soft);
 }
+/* The list is the scroller. .cs-list clips (overflow: hidden), which lets a
+   flex child shrink to whatever space is left, so without this the rows were
+   cut off with nothing to scroll and a swipe moved the page behind instead. */
+.cs-picker-in > * {
+  flex-shrink: 0;
+}
+.cs-picker-in > .cs-picker-list {
+  flex: 1 1 auto;
+  min-height: 160px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
 .cs-picker-list li {
   padding: 0 10px 0 0;
 }
