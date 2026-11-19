@@ -35,13 +35,16 @@ describe("/api/art", () => {
     expect(await r.text()).toContain("<svg");
   });
 
-  it("serves it to everyone once its scene is on the TV, and stops when the scene changes", async () => {
+  it("serves it to everyone once its handout is on the TV, keeps it for rereading, and stops when the DM takes it back", async () => {
     const { store, get } = await table();
     await execute(store, G, { role: "dm" }, { type: "scene.show", sceneId: "s-symbol" });
     const shown = await get(`/api/art/merchant-sigil?game=${G}`);
     expect(shown.status).toBe(200);
     expect(await shown.text()).toContain("<svg");
     await execute(store, G, { role: "dm" }, { type: "scene.show", sceneId: "s-board" });
+    // A shown handout stays in the party's Discover, picture and all.
+    expect((await get(`/api/art/merchant-sigil?game=${G}`)).status).toBe(200);
+    await execute(store, G, { role: "dm" }, { type: "scene.known", sceneId: "s-symbol", known: false });
     expect((await get(`/api/art/merchant-sigil?game=${G}`)).status).toBe(404);
   });
 

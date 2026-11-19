@@ -241,6 +241,7 @@ There's no list of scenes to keep up. Everything the TV can show lives where it 
 
 - **Quick bar:** keys `1`–`9` and `0` each hold one thing. Pin with the **Key** picker beside any Show button, from an empty slot, or with Shift+Enter in the finder. Arrows step through the bar in key order. Games made before this kept their old hotkeys on the same keys.
 - **Finder:** press `/`, type a few letters ("mags", "docks", "symbol"), Enter shows it.
+- **Handouts stay with the party:** once a handout has been on the TV, players can reread it any time under **Discover → Handouts** on their phones (words, picture and all). Untick **Players keep it in Discover** on the handout to take it back, or tick it to hand one out without showing it. In a shared world it stays with the characters who were there.
 - **Discovery's Announce** (was "Show on TV") plays the reveal card; **Show** puts the thing itself up.
 - Renaming a ref (an entry's or map's "Run sheet name") updates the quick bar and every run sheet that uses it. The quick bar, recents and suggestions are DM-only; none of it reaches the TV or phones. Code: `src/shared/assets.ts`.
 

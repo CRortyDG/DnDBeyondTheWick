@@ -19,6 +19,8 @@ import { PersonNotes, notesAbout } from "../ui/PersonNotes";
 import { Portrait } from "../ui/Portrait";
 import { Leads } from "./Leads";
 import { AttitudeDial } from "../ui/AttitudeDial";
+import type { PhoneHandout } from "@/shared/projection";
+import { HandoutList, HandoutPage, handoutMatches } from "./Handouts";
 
 type Send = (c: object) => Promise<string | null>;
 
@@ -54,6 +56,16 @@ export function useDiscoverySeen(view: PlayerView) {
   useEffect(() => setSeen(loadSeen(view.game.id) ?? {}), [view.game.id]);
   const isNew = (e: PublicEntry) =>
     seen !== null && (seen[e.id] ?? -1) < e.updatedAt;
+  // Handouts share the same store, under their own keys.
+  const hKey = (h: PhoneHandout) => `handout:${h.sceneId}`;
+  const isNewHandout = (h: PhoneHandout) =>
+    seen !== null && (seen[hKey(h)] ?? -1) < (h.shownAt ?? 0);
+  const markHandoutSeen = (h: PhoneHandout) => {
+    if (!isNewHandout(h)) return;
+    const next = { ...(seen ?? {}), [hKey(h)]: h.shownAt ?? 0 };
+    setSeen(next);
+    saveSeen(view.game.id, next);
+  };
   const markSeen = (list: PublicEntry[]) => {
     const fresh = list.filter(isNew);
     if (!fresh.length) return;
@@ -62,7 +74,15 @@ export function useDiscoverySeen(view: PlayerView) {
     setSeen(next);
     saveSeen(view.game.id, next);
   };
-  return { isNew, markSeen, newCount: view.entries.filter(isNew).length };
+  const handouts = view.handouts ?? [];
+  return {
+    isNew,
+    markSeen,
+    isNewHandout,
+    markHandoutSeen,
+    newCount:
+      view.entries.filter(isNew).length + handouts.filter(isNewHandout).length,
+  };
 }
 
 export function Discovery({
@@ -75,6 +95,12 @@ export function Discovery({
   seen: ReturnType<typeof useDiscoverySeen>;
 }) {
   const [openId, setOpenId] = useState<string | null>(null);
+  const [handoutId, setHandoutId] = useState<string | null>(null);
+  const handouts = view.handouts ?? [];
+  const handout = handouts.find((h) => h.sceneId === handoutId);
+  useEffect(() => {
+    if (handout) seen.markHandoutSeen(handout);
+  }, [handout, seen]);
   const [areaPick, setArea] = useState<string | null>(null);
   const [q, setQ] = useState("");
   const area = view.areas.some((a) => a.name === areaPick) ? areaPick : null;
@@ -93,6 +119,8 @@ export function Discovery({
     }
   }, [open, rumors, seen]);
 
+  if (handout)
+    return <HandoutPage h={handout} onBack={() => setHandoutId(null)} />;
   if (open)
     return (
       <EntryPage
@@ -115,7 +143,9 @@ export function Discovery({
   const inArea = (e: PublicEntry) => !area || e.areas.includes(area);
   // A search box once the list is long enough to scroll past: names, titles and what's known.
   const searchable =
-    view.entries.filter((e) => e.stage !== "rumored").length >= SEARCH_FROM;
+    view.entries.filter((e) => e.stage !== "rumored").length +
+      handouts.length >=
+    SEARCH_FROM;
   const needle = searchable ? q.trim().toLowerCase() : "";
   const matches = (e: PublicEntry) =>
     !needle ||
@@ -128,15 +158,28 @@ export function Discovery({
       list: view.entries.filter((e) => e.kind === k && inArea(e) && matches(e)),
     }))
     .filter((x) => x.list.length);
+  // Handouts belong to no area: they step aside while one is picked.
+  const shownHandouts = area
+    ? []
+    : handouts.filter((h) => handoutMatches(h, needle));
+  const handoutList = (
+    <HandoutList
+      list={shownHandouts}
+      isNew={seen.isNewHandout}
+      onOpen={setHandoutId}
+    />
+  );
 
   if (!view.entries.length) {
     return (
       <>
         <Leads leads={view.leads} send={send} />
+        {handoutList}
         <section className="box">
           <h2>Discoveries</h2>
           <p className="note">
-            Nothing yet. The people, places and secrets{" "}
+            {handouts.length ? "No people or places yet. " : "Nothing yet. "}
+            The people, places and secrets{" "}
             {view.game.town ? `of ${view.game.town} ` : ""}turn up here as you
             find them.
           </p>
@@ -172,7 +215,7 @@ export function Discovery({
         </div>
       ) : null}
       <Areas view={view} area={area} onArea={setArea} />
-      {!sections.length ? (
+      {!sections.length && !shownHandouts.length ? (
         <div className="pl-empty">
           <p>
             {needle
@@ -216,6 +259,7 @@ export function Discovery({
           </section>
         );
       })}
+      {handoutList}
     </>
   );
 }

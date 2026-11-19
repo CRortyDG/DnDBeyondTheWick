@@ -228,5 +228,16 @@ export function withAssets<T extends GameState | null>(g: T): T {
       });
     }
   }
+  // Handouts keep in Discover once shown. Ones shown before that rule become known once
+  // (in a shared world, to every character, as the world upgrade did with found entries).
+  if (!g.upgrades?.includes("handouts-known")) {
+    const ids = g.players.filter((p) => !p.archived).map((p) => p.id);
+    for (const sc of g.scenes) {
+      if (sc.kind !== "handout" || sc.shownAt === undefined || sc.known) continue;
+      sc.known = true;
+      if (g.world) sc.knownBy = [...ids];
+    }
+    g.upgrades = [...(g.upgrades ?? []), "handouts-known"];
+  }
   return g;
 }

@@ -1011,6 +1011,8 @@ function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
     if (shown?.kind === "portrait") meetPortrait(shown);
     // Once a map has been on the TV, players can open it on their phones.
     if (shown?.kind === "map") shown.known = true;
+    // Once a handout has been on the TV, players keep it in Discover to reread.
+    if (shown?.kind === "handout") shown.known = true;
     // Mark it shown, so from now on its uploaded picture may reach players/TV (but not before its first reveal).
     if (shown) shown.shownAt ??= ctx.now;
     s.live.sceneId = id;
@@ -3195,7 +3197,7 @@ function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
       break;
     case "scene.known": {
       const sc = scene(cmd.sceneId);
-      if (sc.kind !== "portrait" && sc.kind !== "map") fail("Only portraits and maps can be known.");
+      if (sc.kind !== "portrait" && sc.kind !== "map" && sc.kind !== "handout") fail("Only portraits, maps and handouts can be known.");
       if (cmd.known) sc.known = true;
       else delete sc.known;
       // Their compendium entries follow, quietly.
