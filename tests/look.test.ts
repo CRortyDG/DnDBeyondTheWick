@@ -209,3 +209,52 @@ describe("hair under hats", () => {
       for (let hair = 1; hair < lookCount("hair"); hair++) if (hair !== 5) expect(above({ hat, hair }, rows), `hat ${hat} hair ${hair}`).toBe(above({ hat, hair: 0 }, rows));
   });
 });
+
+describe("pixel detail levels", () => {
+  it("draws the same recipe at 8, 16, 32 and 64-bit sizes, and 32-bit is what a look without a level gets", async () => {
+    const { drawLookDetail, drawLookDetailFace } = await import("@/shared/lookDetail");
+    const { drawLookHd } = await import("@/shared/lookArtHd");
+    const look: Look = { ...randomLook(seeded(4)), background: 1 };
+    const sizes = [0, 1, 2, 3].map((detail) => {
+      const p = drawLookDetail({ ...look, detail });
+      expect(p.d.every(Boolean)).toBe(true);
+      const f = drawLookDetailFace({ ...look, detail });
+      return [p.w, p.h, f.w, f.h];
+    });
+    expect(sizes).toEqual([
+      [48, 56, 22, 22],
+      [48, 56, 22, 22],
+      [96, 112, 44, 44],
+      [192, 224, 88, 88],
+    ]);
+    expect(drawLookDetail(look).d.join()).toBe(drawLookHd(look).d.join());
+    // 8-bit keeps to a small console palette; 16-bit at the same size uses more colours.
+    const colours = (detail: number) => new Set(drawLookDetail({ ...look, detail }).d).size;
+    expect(colours(0)).toBeLessThan(colours(1));
+    expect(colours(0)).toBeLessThanOrEqual(54);
+  });
+
+  it("the level is saved with the look, and the default is left out", () => {
+    expect(cleanCharLook({ hair: 2, detail: 0 })).toEqual({ hair: 2, detail: 0 });
+    expect(cleanCharLook({ hair: 2, detail: 3 })).toEqual({ hair: 2, detail: 3 });
+    expect(cleanCharLook({ hair: 2, detail: 2 })).toEqual({ hair: 2 });
+    expect(cleanCharLook({ hair: 2, detail: 9 })).toEqual({ hair: 2 });
+    expect(cleanCharLook({ hair: 2, detail: "8" })).toEqual({ hair: 2 });
+  });
+
+  it("the cape, long cloak and hooded cloak flare out from the shoulders instead of hanging as a box", async () => {
+    const { drawLookHd } = await import("@/shared/lookArtHd");
+    const f = frameOf(0);
+    for (const cloak of [1, 2, 5]) {
+      const p = drawLookHd({ cloak, background: 0, hair: 0 });
+      const width = (y: number) => {
+        let x0 = 0;
+        while (x0 < p.w && !p.get(x0, y)) x0++;
+        let x1 = p.w - 1;
+        while (x1 > x0 && !p.get(x1, y)) x1--;
+        return x1 - x0;
+      };
+      expect(width(f.ly * 2 + 8), `cloak ${cloak}`).toBeGreaterThan(width(f.ty * 2 + 6) + 3);
+    }
+  });
+});

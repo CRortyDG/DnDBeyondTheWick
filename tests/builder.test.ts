@@ -486,7 +486,8 @@ describe("audit log", () => {
   it("logs every call, success or not, without the key or the content", async () => {
     await call(KEY, "create_entry", { kind: "person", name: "Secretive Sal", secret: "SUPERSECRET-CONTENT" });
     await call(KEY, "entry.remove", {});
-    await call(KEY.slice(0, -1) + "f", "get_overview");
+    // A wrong key: the real one with its last character changed (never to itself).
+    await call(KEY.slice(0, -1) + (KEY.endsWith("f") ? "0" : "f"), "get_overview");
     const a = await dm("/api/builder-admin/activity");
     const rows = a.data.rows as { op: string; ok: boolean; code?: string; label: string }[];
     expect(rows.map((r) => [r.op, r.ok])).toEqual(

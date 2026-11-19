@@ -4,6 +4,9 @@
 
 import { type Look, type LookColorKey, type LookPartKey, LOOK_DEFAULTS, SWATCHES } from "./look";
 
+/** The default build, for callers that only need a frame. */
+export const LOOK_DEFAULTS_BODY = LOOK_DEFAULTS.body;
+
 export const LOOK_W = 48;
 export const LOOK_H = 56;
 
@@ -631,8 +634,8 @@ const MOUTHS: ((c: Ctx) => void)[] = [
   (c) => headStamp(c, ["mmmm", "w..w"], { m: MOUTH, w: WHITE }, -9, -4),
 ];
 
-/** Marks the detailed renderer draws itself: freckles, war paint, whiskers. */
-export const HD_MARKS: readonly number[] = [1, 4, 6];
+/** Marks the detailed renderer draws itself: freckles, scar, war paint, whiskers. */
+export const HD_MARKS: readonly number[] = [1, 3, 4, 6];
 
 /** Marks under the beard (most), and tusks over it. */
 const MARKS: ((c: Ctx) => void)[] = [
@@ -900,15 +903,22 @@ function headTop(c: Ctx) {
 
 // ---- cloaks, wings, tails ------------------------------------------------------------
 
-function cloakBack(c: Ctx) {
+/** hdBody: the detailed renderer draws the cloth itself (lookBodyHd.ts), so only the hood's halo is drawn here. */
+function cloakBack(c: Ctx, hdBody = false) {
   const k = c.v("cloak");
   const { p, f, cloak } = c;
-  if (k === 1 || k === 2 || k === 5) {
-    const to = k === 1 ? f.ly + 4 : f.feet;
+  if ((k === 1 || k === 2 || k === 5) && !hdBody) {
+    const to = k === 1 ? f.ly + 5 : f.feet;
+    const rows = to - f.ty;
     for (let y = f.ty; y <= to; y++) {
       const i = y - f.ty;
-      const w = k === 1 ? 1 : Math.floor(i / 6);
-      for (let x = f.lax - 1 - w; x <= f.rax + 3 + w; x++) p.set(x, y, x <= f.lax - w ? cloak.base : x >= f.rax + 2 + w ? cloak.deep : cloak.lo);
+      // Narrow at the shoulders, flaring toward the hem.
+      const w = (k === 1 ? Math.floor((i * 2) / rows) : Math.floor(i / 6)) - (i === 0 ? 1 : 0);
+      for (let x = f.lax - 1 - w; x <= f.rax + 3 + w; x++) {
+        // The hem hangs in points.
+        if (y === to && (x - f.lax) % 4 === 1) continue;
+        p.set(x, y, x <= f.lax - w ? cloak.base : x >= f.rax + 2 + w ? cloak.deep : (x - f.lax) % 4 === 1 ? cloak.deep : cloak.lo);
+      }
     }
   }
   if (k === 5) {
@@ -1439,18 +1449,21 @@ export function drawLook(look: Look): Pix {
  * the base size: on the skin (ears, marks), over the face (tusks, hair, horns,
  * hat) and the gear (cloak clasp, things in hand).
  */
-export function splitLayers(look: Look): { bg: Pix; back: Pix; front: Pix; cover: Pix; gear: Pix; pet: Pix; c: Ctx } {
+export function splitLayers(look: Look): { bg: Pix; back: Pix; backHair: Pix; front: Pix; cover: Pix; gear: Pix; pet: Pix; c: Ctx } {
   const bg = new Pix();
   const back = new Pix();
   const front = new Pix();
   const cover = new Pix();
   const gear = new Pix();
+  const backHair = new Pix();
   const c = ctxOf(look, back);
   call(BACKDROPS, c.v("background"), bg, c);
   platform(bg, c.v("platform"));
   wings(c);
   tail(c);
-  cloakBack(c);
+  cloakBack(c, true);
+  // Long hair lies over the cloak, which the detailed renderer draws in between.
+  c.p = backHair;
   hairBack(c);
   // On the skin: ears and marks. The detailed renderer draws beards, freckles,
   // war paint and whiskers itself, at full size.
@@ -1466,7 +1479,7 @@ export function splitLayers(look: Look): { bg: Pix; back: Pix; front: Pix; cover
   // The detailed renderer draws the spellbook itself, at full size.
   if (c.v("offhand") !== 3) offHand(c);
   mainHand(c);
-  return { bg, back, front, cover, gear, pet: pet(c), c };
+  return { bg, back, backHair, front, cover, gear, pet: pet(c), c };
 }
 
 /** The three layers at the base size, before outlines. hdFace leaves the eyes and mouth out (drawn later at double size). */

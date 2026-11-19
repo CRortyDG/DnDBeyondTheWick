@@ -5,8 +5,8 @@
 
 import type { Look } from "./look";
 import { type Ctx, layers, LOOK_H, LOOK_W, mix, MOUTH, OUT, Pix, splitLayers, tone, WHITE } from "./lookArt";
-import { bodyHd, bookHd, handsHd, hframe, OUTFITS_HD } from "./lookBodyHd";
-import { beardHd, marksHd, stubbleHd, whiskersHd } from "./lookFaceHd";
+import { bodyHd, bookHd, cloakBackHd, handsHd, hframe, OUTFITS_HD } from "./lookBodyHd";
+import { beardHd, marksHd, scarHd, stubbleHd, whiskersHd } from "./lookFaceHd";
 
 export const HD_W = LOOK_W * 2;
 export const HD_H = LOOK_H * 2;
@@ -102,7 +102,7 @@ function seams(p: Pix) {
  * top-left corner, darker toward the bottom right, in a few steps blended
  * with an ordered dither (the 16-bit way to get smooth shading).
  */
-function shadeRegions(p: Pix, { strength = 0.12, minSize = 14, dirX = 0.55, dirY = 0.45, steps = 0.06 } = {}) {
+function shadeRegions(p: Pix, { strength = 0.12, minSize = 14, dirX = 0.55, dirY = 0.45, steps = 0.06, dither = true } = {}) {
   const seen = new Uint8Array(p.w * p.h);
   const stack: number[] = [];
   for (let start = 0; start < p.d.length; start++) {
@@ -144,7 +144,7 @@ function shadeRegions(p: Pix, { strength = 0.12, minSize = 14, dirX = 0.55, dirY
       const lo = Math.floor(amount / steps) * steps;
       const frac = (amount - lo) / steps;
       // Clean bands, with a checkerboard only along the seam between two.
-      const q = Math.abs(frac - 0.5) < 0.12 ? ((x + y) % 2 ? lo + steps : lo) : frac > 0.5 ? lo + steps : lo;
+      const q = dither && Math.abs(frac - 0.5) < 0.12 ? ((x + y) % 2 ? lo + steps : lo) : frac > 0.5 ? lo + steps : lo;
       if (Math.abs(q) > 0.001) p.d[i] = t(c, Math.round(q * 100) / 100);
     }
   }
@@ -256,14 +256,20 @@ function drawFace(p: Pix, c: Ctx) {
   p.stamp(X + 8, Y + m.top, m.rows, { m: MOUTH, M: "#4a1820", w: WHITE, t: "#e07a8a", l: mix(c.skin.base, "#d05a5a", 0.3) });
 }
 
-/** The look at double size with the richer finish. */
-export function drawLookHd(look: Look): Pix {
-  const { bg, back, front, cover, gear, pet, c } = splitLayers(look);
+/**
+ * The look at double size with the richer finish. smooth: many fine steps of
+ * shading with no dither, for the finest detail level (lookDetail.ts).
+ */
+export function drawLookHd(look: Look, smooth = false): Pix {
+  const { bg, back, backHair, front, cover, gear, pet, c } = splitLayers(look);
   // Wings, tail and the back of a cloak or long hair are smoothed up from the
   // base size; the body, clothes and beard are drawn natively at double size;
   // hair, hats and gear go over the top, then the hands close over any grips.
   const big = scale2x(back);
   const h = hframe(c.f);
+  // The cloak's cloth, at full size, over wings and tail and under long hair.
+  cloakBackHd(big, h, c);
+  big.over(scale2x(backHair));
   bodyHd(big, h, c.skin);
   (OUTFITS_HD[c.v("outfit")] ?? OUTFITS_HD[0])(big, h, c);
   big.over(scale2x(front));
@@ -280,16 +286,17 @@ export function drawLookHd(look: Look): Pix {
   if (c.v("hand")) handsHd(big, h, c.skin, "r");
   if (off && off !== 1 && off !== 2 && off !== 4 && off !== 5) handsHd(big, h, c.skin, "l");
   seams(big);
-  shadeRegions(big);
+  shadeRegions(big, smooth ? { steps: 0.02, dither: false, strength: 0.14 } : undefined);
   bevel(big);
   rim(big);
   stubbleHd(big, h, c, hidden);
   marksHd(big, h, c, hidden);
+  scarHd(big, h, c, hidden);
   face(big, c, hidden);
   softOutline(big);
   whiskersHd(big, h, c, hidden);
   const pp = scale2x(pet);
-  shadeRegions(pp, { minSize: 8 });
+  shadeRegions(pp, smooth ? { minSize: 8, steps: 0.02, dither: false } : { minSize: 8 });
   rim(pp);
   softOutline(pp);
   const out = scale2x(bg);
