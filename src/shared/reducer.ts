@@ -22,7 +22,7 @@ import { pickableNoteIds } from "./lastTime";
 import { findRef, sessionRecap, slugInput, stageRank, blankEntry, ENTRIES_MAX, LEADS_MAX, entriesForScene, entriesOf, entryFromScene, entryScene, entryTags, factSlug, FACTS_MAX, isFound, shopEntry, slugify, syncShopEntries, uniqueSlug } from "./discovery";
 import { DM_AUTHOR } from "./types";
 import { originOf } from "./presets";
-import { boardNotes, cleanLook, cleanPlace, defaultWidth, NOTICES_MAX, placeFor, slugify as noteSlug, topZ } from "./board";
+import { boardNotes, isFlyerHandout, cleanLook, cleanPlace, defaultWidth, NOTICES_MAX, placeFor, slugify as noteSlug, topZ } from "./board";
 import { decodeBits, emptyBits, encodeBits, fullBits } from "./fog";
 import { addPartyTokens, freeSpot, snapToGrid, syncFightTokens, tokensOf, TOKENS_MAX } from "./tokens";
 import { levelLine } from "./levels";
@@ -1011,8 +1011,9 @@ function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
     if (shown?.kind === "portrait") meetPortrait(shown);
     // Once a map has been on the TV, players can open it on their phones.
     if (shown?.kind === "map") shown.known = true;
-    // Once a handout has been on the TV, players keep it in Discover to reread.
-    if (shown?.kind === "handout") shown.known = true;
+    // Once a handout has been on the TV, players keep it in Discover to reread
+    // (not a job flyer's close-up: that lives on their Jobs tab).
+    if (shown?.kind === "handout" && !isFlyerHandout(shown)) shown.known = true;
     // Mark it shown, so from now on its uploaded picture may reach players/TV (but not before its first reveal).
     if (shown) shown.shownAt ??= ctx.now;
     s.live.sceneId = id;

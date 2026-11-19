@@ -1,6 +1,6 @@
 // The notice board: every note on it (plain notices, job flyers, player flyers)
 // hangs where the DM put it. Positions are on the cork, which is BOARD_W x BOARD_H.
-import type { Flyer, GameState, Job, NoteFont, NoteLook, NotePlace, Notice, Paper, PinColor } from "./types";
+import type { Flyer, GameState, Job, NoteFont, NoteLook, NotePlace, Notice, Paper, PinColor, Scene } from "./types";
 
 /** The cork inside the frame, in TV pixels. */
 export const BOARD_W = 1836;
@@ -16,6 +16,12 @@ export const TITLE_SIZE_MAX = 90;
 export const LIST_MAX = 8;
 
 export type NoteKind = "notice" | "job" | "flyer";
+
+/** A handout that is really a close-up of a job flyer on the board (Artum's Winterfest handbill).
+ *  Players already have the job on their Jobs tab, so it never stays in Discover → Handouts. */
+export function isFlyerHandout(sc: Pick<Scene, "kind" | "art">): boolean {
+  return sc.kind === "handout" && sc.art?.builtin === "artum-notice";
+}
 
 export const PAPERS: { id: Paper; label: string; job?: boolean }[] = [
   { id: "scrawl", label: "Scrawled note", job: true },

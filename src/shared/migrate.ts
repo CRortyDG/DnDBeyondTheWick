@@ -1,7 +1,7 @@
 // Upgrades a stored game to the current shape the first time it's read.
 // Safe to run on an already-current game.
 import { ARTUM_LOOK, ARTUM_PLACE, emptyProgress, OLD_ARTUM, seedJobs, seedNotices, STINGER_SCENE } from "./seed";
-import { LEGACY_SLOTS } from "./board";
+import { isFlyerHandout, LEGACY_SLOTS } from "./board";
 import type { Beat, GameState, Item, ItemCategory, Shop } from "./types";
 import { refForScene, sceneSlugBase, uniqueSceneSlug } from "./assets";
 import { entryFromScene } from "./discovery";
@@ -233,11 +233,20 @@ export function withAssets<T extends GameState | null>(g: T): T {
   if (!g.upgrades?.includes("handouts-known")) {
     const ids = g.players.filter((p) => !p.archived).map((p) => p.id);
     for (const sc of g.scenes) {
-      if (sc.kind !== "handout" || sc.shownAt === undefined || sc.known) continue;
+      if (sc.kind !== "handout" || sc.shownAt === undefined || sc.known || isFlyerHandout(sc)) continue;
       sc.known = true;
       if (g.world) sc.knownBy = [...ids];
     }
     g.upgrades = [...(g.upgrades ?? []), "handouts-known"];
+  }
+  // A job flyer's close-up (Artum's notice) was swept into Discover by the rule above; it's a job, not a handout.
+  if (!g.upgrades?.includes("flyer-handouts")) {
+    for (const sc of g.scenes) {
+      if (!isFlyerHandout(sc)) continue;
+      delete sc.known;
+      delete sc.knownBy;
+    }
+    g.upgrades = [...(g.upgrades ?? []), "flyer-handouts"];
   }
   return g;
 }
