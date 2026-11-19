@@ -1,12 +1,22 @@
 "use client";
 
 import type { Look } from "@/shared/look";
-import { lookKey } from "@/shared/look";
+import { lookKey, lookStyleOf } from "@/shared/look";
 import { type Pix, toRgba } from "@/shared/lookArt";
 import { drawLookHd, drawLookHdFace } from "@/shared/lookArtHd";
+import { lookSvg, VEC_H, VEC_W } from "@/shared/lookVector";
 import "./look.css";
 
 const cache = new Map<string, string>();
+
+/** The DM's table-wide art style (index into LOOK_STYLES), set from each screen's latest view. */
+let forcedStyle: number | null = null;
+export function setForcedLookStyle(style: number | null | undefined) {
+  forcedStyle = style ?? null;
+}
+export function forcedLookStyle(): number | null {
+  return forcedStyle;
+}
 
 /** A pixel grid as a PNG data URL, scale × its size (1 = one pixel per pixel; CSS scales it crisply). */
 export function pixUrl(p: Pix, scale = 1): string {
@@ -34,8 +44,7 @@ export function pixUrl(p: Pix, scale = 1): string {
  * everything else gets an ordinary file download. Runs synchronously inside
  * the tap so Safari still counts it as the user's own action.
  */
-export function savePicture(p: Pix, scale: number, filename: string): Promise<void> {
-  const url = pixUrl(p, scale);
+export function savePicture(url: string, filename: string): Promise<void> {
   const bin = atob(url.slice(url.indexOf(",") + 1));
   const bytes = new Uint8Array(bin.length);
   for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
@@ -63,19 +72,47 @@ function download(file: File) {
   setTimeout(() => URL.revokeObjectURL(href), 60_000);
 }
 
-/** The look's picture (whole, or just the head and shoulders), cached. */
-export function lookUrl(look: Look, face = false): string {
-  const key = (face ? "f" : "w") + lookKey(look);
+/**
+ * The look's picture (whole, or just the head and shoulders), cached. Drawn in
+ * the look's own style, or the DM's table-wide one; own: ignore the table's.
+ */
+export function lookUrl(look: Look, face = false, own = false): string {
+  const style = lookStyleOf(look, own ? null : forcedStyle);
+  const key = (face ? "f" : "w") + style + lookKey(look);
   let url = cache.get(key);
   if (url === undefined) {
-    url = pixUrl(face ? drawLookHdFace(look) : drawLookHd(look));
+    url = style === "pixel" ? pixUrl(face ? drawLookHdFace(look) : drawLookHd(look)) : "data:image/svg+xml;charset=utf-8," + encodeURIComponent(lookSvg(look, style, face));
     if (cache.size > 300) cache.clear();
     cache.set(key, url);
   }
   return url;
 }
 
-/** A crisp pixel-art picture of a character. face: head and shoulders, square. */
-export function PixelLook({ look, face = false, className = "", alt = "" }: { look: Look; face?: boolean; className?: string; alt?: string }) {
-  return <img className={`pixel-look${face ? " face" : ""}${className ? " " + className : ""}`} src={lookUrl(look, face)} alt={alt} draggable={false} />;
+/**
+ * The whole picture as a PNG data URL, for saving or uploading: pixel art at
+ * pixelScale × its size; a drawn style at the same width.
+ */
+export async function lookPng(look: Look, pixelScale: number, own = true): Promise<string> {
+  const style = lookStyleOf(look, own ? null : forcedStyle);
+  const full = drawLookHd(look);
+  if (style === "pixel") return pixUrl(full, pixelScale);
+  const w = full.w * pixelScale;
+  const h = Math.round((w * VEC_H) / VEC_W);
+  const img = new Image();
+  img.decoding = "async";
+  img.src = lookUrl(look, false, own);
+  await img.decode();
+  const c = document.createElement("canvas");
+  c.width = w;
+  c.height = h;
+  const ctx = c.getContext("2d");
+  if (!ctx) return "";
+  ctx.drawImage(img, 0, 0, w, h);
+  return c.toDataURL("image/png");
+}
+
+/** A picture of a character, in its art style. face: head and shoulders, square. */
+export function PixelLook({ look, face = false, className = "", alt = "", own = false }: { look: Look; face?: boolean; className?: string; alt?: string; own?: boolean }) {
+  const drawn = lookStyleOf(look, own ? null : forcedStyle) !== "pixel";
+  return <img className={`pixel-look${drawn ? " drawn" : ""}${face ? " face" : ""}${className ? " " + className : ""}`} src={lookUrl(look, face, own)} alt={alt} draggable={false} />;
 }

@@ -22,6 +22,7 @@ import { CharacterSheetView } from "../ui/CharacterSheet";
 import { sheetNumbers } from "@/shared/sheet";
 import { featureOn, FEATURES, hiddenOf, playerOff } from "@/shared/features";
 import { Switch } from "./FeaturesPanel";
+import { LOOK_STYLES } from "@/shared/look";
 
 function seenText(t?: number | null) {
   if (!t) return "never seen";
@@ -156,6 +157,24 @@ export function PlayersPanel() {
             {Array.from({ length: 12 }, (_, i) => i + 1).map((n) => (
               <option key={n} value={n}>
                 {n}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="pg-toolbar-field" title="How characters are drawn on tokens, the TV and lists. Each player's own pick, or one style for the whole table.">
+          Art
+          <select
+            className="fld"
+            value={s.lookStyle ?? ""}
+            onChange={(e) => {
+              const v = e.target.value === "" ? null : Number(e.target.value);
+              void run({ type: "game.lookStyle", style: v }, v === null ? "Each player's own art style." : `Everyone drawn in ${LOOK_STYLES[v].label} style.`);
+            }}
+          >
+            <option value="">Each player's pick</option>
+            {LOOK_STYLES.map((st, i) => (
+              <option key={st.id} value={i}>
+                All {st.label}
               </option>
             ))}
           </select>
@@ -299,7 +318,7 @@ function PlayerDrawer({ p, onClose }: { p: DmPlayer; onClose: () => void }) {
           {p.look ? <PixelLook look={p.look} className="pg-look-big" alt={`${p.character || p.name}'s look`} /> : null}
           <div>
             <span className="label">Look</span>
-            <p className="hint">{p.look ? "Their pixel-art character, on their token and the TV. Players usually make their own." : "No look yet. Players make one on their phone's Character tab, or you can make it for them."}</p>
+            <p className="hint">{p.look ? "Their character picture, on their token and the TV. Players usually make their own and pick its art style." : "No look yet. Players make one on their phone's Character tab, or you can make it for them."}</p>
             <button type="button" className="btn small" onClick={() => setStyling(true)}>
               {p.look ? "Change look" : "Make a look"}
             </button>

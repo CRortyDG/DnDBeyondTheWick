@@ -49,7 +49,30 @@ export type LookPartKey = (typeof LOOK_PARTS)[number];
 export const LOOK_COLORS = ["skin", "eye", "hairColor", "main", "trim", "cloakColor", "hatColor", "metal", "petColor", "sky"] as const;
 export type LookColorKey = (typeof LOOK_COLORS)[number];
 
-export type Look = Partial<Record<LookPartKey | LookColorKey, number>>;
+/** Art styles: the same recipe drawn as pixel art or as one of the drawn (vector) styles. */
+export const LOOK_STYLES = [
+  { id: "pixel", label: "Pixel", hint: "Crisp pixel art" },
+  { id: "ink", label: "Storybook", hint: "Inked lines, watercolour wash" },
+  { id: "paint", label: "Painted", hint: "Soft light, like rulebook art" },
+  { id: "cel", label: "Cartoon", hint: "Bold outline, big head" },
+] as const;
+export type LookStyleId = (typeof LOOK_STYLES)[number]["id"];
+
+export type Look = Partial<Record<LookPartKey | LookColorKey, number>> & {
+  /** Index into LOOK_STYLES; missing = pixel. */
+  style?: number;
+};
+
+/** The style a look is drawn in. forced (the DM's table-wide choice) wins when set. */
+export function lookStyleOf(look: Look, forced?: number | null): LookStyleId {
+  const i = forced ?? look.style ?? 0;
+  return (LOOK_STYLES[i] ?? LOOK_STYLES[0]).id;
+}
+
+/** A table-wide style index, cleaned: null when it's not a real style. */
+export function cleanLookStyle(raw: unknown): number | null {
+  return typeof raw === "number" && Number.isInteger(raw) && raw >= 0 && raw < LOOK_STYLES.length ? raw : null;
+}
 
 export interface Swatch {
   name: string;
@@ -230,7 +253,7 @@ export const LOOSE_COLORS: { key: LookColorKey; group: LookGroup }[] = [{ key: "
 const layerOf = (k: LookPartKey) => LAYERS.find((l) => l.key === k)!;
 
 /** The default for anything unset. */
-export const LOOK_DEFAULTS: Required<Look> = {
+export const LOOK_DEFAULTS: Required<Omit<Look, "style">> = {
   body: 0,
   ears: 0,
   eyes: 0,
@@ -274,6 +297,8 @@ export function cleanCharLook(raw: unknown): Look | null {
     if (typeof v !== "number" || !Number.isInteger(v) || v < 0 || v >= lookCount(k)) continue;
     out[k] = v;
   }
+  const style = cleanLookStyle((raw as Record<string, unknown>).style);
+  if (style) out.style = style;
   return Object.keys(out).length ? out : null;
 }
 
@@ -327,5 +352,5 @@ export function randomizeGroup(look: Look, group: LookGroup, rand: () => number 
 
 /** Same look, same string: a cache key. */
 export function lookKey(look: Look): string {
-  return [...LOOK_PARTS, ...LOOK_COLORS].map((k) => lookValue(look, k)).join(".");
+  return [...LOOK_PARTS, ...LOOK_COLORS].map((k) => lookValue(look, k)).join(".") + (look.style ? `s${look.style}` : "");
 }

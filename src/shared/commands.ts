@@ -616,6 +616,7 @@ export const dmCommand = z.discriminatedUnion("type", [
   z.object({ type: z.literal("request.hide"), requestId: id, hidden: z.boolean() }),
   z.object({ type: z.literal("request.remove"), requestId: id }),
   z.object({ type: z.literal("game.tvPurchases"), on: z.boolean() }),
+  z.object({ type: z.literal("game.lookStyle"), style: z.number().int().min(0).max(9).nullable() }),
 
   // The Arrival intro (the link texted before session 0).
   /** Give every seated player without one a private link. */
