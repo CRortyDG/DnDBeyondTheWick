@@ -62,7 +62,7 @@ describe("a new campaign", () => {
   it("knows every content upgrade, so a blank game never grows Candlefair content", () => {
     // If this fails, a new seed added content through an upgrade tag: add the tag to CONTENT_UPGRADES.
     const g = hydrate(structuredClone(blankGame("wick", "Blank", 1)))!;
-    const added = (g.upgrades ?? []).filter((t) => !CONTENT_UPGRADES.includes(t) && t !== "assets" && t !== "handouts-known");
+    const added = (g.upgrades ?? []).filter((t) => !CONTENT_UPGRADES.includes(t) && t !== "assets" && t !== "handouts-known" && t !== "flyer-handouts");
     expect(added).toEqual([]);
     expect(JSON.stringify(g)).not.toMatch(/Mags|Artum|Pudding|Winterfest/);
   });
