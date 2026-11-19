@@ -7,7 +7,7 @@ import { type Ctx, type Frame, mix, OUT, type Pix, type Ramp, ramp, WHITE } from
 
 type Span = [y: number, x0: number, x1: number];
 
-interface HFrame {
+export interface HFrame {
   cx: number;
   hx: number;
   hy: number;
@@ -62,7 +62,7 @@ function fill(p: Pix, spans: Span[], r: Ramp, mode: "cyl" | "shade" | "flat" = "
 
 // ---- shapes -----------------------------------------------------------------
 
-const headSpans = (h: HFrame): Span[] => {
+export const headSpans = (h: HFrame): Span[] => {
   const out: Span[] = [];
   for (let r = 0; r < 24; r++) {
     const d = Math.abs(r + 0.5 - 12) / 12;
@@ -537,6 +537,93 @@ export const OUTFITS_HD: Outfit[] = [
       p.hl(x0 - 1, x1 + 1, y, "#4a3f58");
       p.hl(x0 - 1, x1 + 1, y + 1, "#3a3048");
     }
+  },
+  // Samurai armour: laced plates in the main colour, cords in the second colour.
+  (p, h, { main, trim, metal }) => {
+    const cloth = ramp("#2c2a3c");
+    const len = h.feet - h.ly;
+    /** A row of lacing: cords alternating with the gaps between plates. */
+    const lace = (x0: number, x1: number, y: number) => {
+      for (let x = x0; x <= x1; x++) p.set(x, y, (x - x0) % 3 === 1 ? trim.base : main.deep);
+    };
+    // Wide trousers gathered into shin guards; split-toe socks and sandals.
+    legsWear(p, h, cloth);
+    const shin = Math.max(5, Math.round(len * 0.32));
+    for (const side of ["l", "r"] as const) {
+      const sp = legSpans(h, side);
+      for (const [y, x0, x1] of sp.slice(3, -shin)) p.set(side === "l" ? x0 - 1 : x1 + 1, y, side === "l" ? cloth.base : cloth.deep);
+      const guard = sp.slice(-shin, -2);
+      fill(p, guard, metal, side === "r" ? "shade" : "cyl");
+      guard.forEach(([y, x0, x1], i) => {
+        p.set((x0 + x1) >> 1, y, side === "l" ? metal.hi : metal.base);
+        if (i % 3 === 1) p.hl(x0, x1, y, side === "l" ? trim.base : trim.lo);
+      });
+      sp.slice(-2).forEach(([y, x0, x1], i) => {
+        p.hl(side === "l" ? x0 - 2 : x0, side === "r" ? x1 + 2 : x1, y, i ? "#2a1f1a" : side === "l" ? WHITE : mix(WHITE, OUT, 0.18));
+      });
+    }
+    // The cuirass: bands of plates with a row of lacing between them.
+    fill(p, torsoSpans(h), main);
+    for (const [y, x0, x1] of torsoSpans(h, 3, h.th - 4)) {
+      const band = (y - h.ty - 3) % 4;
+      if (band === 3) lace(x0 + 1, x1 - 1, y);
+      else if (band === 0) p.hl(x0 + 1, x1 - 2, y, main.hi);
+    }
+    // Collar and a gold crest on the chest.
+    p.hl(h.cx - 4, h.cx + 3, h.ty, trim.base);
+    p.hl(h.cx - 3, h.cx + 2, h.ty + 1, trim.lo);
+    p.hl(h.cx - 1, h.cx, h.ty + 2, trim.lo);
+    p.rect(h.cx - 2, h.ty + 4, 4, 2, GOLD.base);
+    p.hl(h.cx - 1, h.cx, h.ty + 3, GOLD.hi);
+    p.hl(h.cx - 1, h.cx, h.ty + 6, GOLD.lo);
+    // Cloth sleeves with splinted forearm guards.
+    sleeves(p, h, cloth);
+    for (const side of ["l", "r"] as const) {
+      const sp = armSpans(h, side, armLen(h) - Math.min(7, armLen(h) - 6));
+      fill(p, sp, metal, side === "r" ? "shade" : "cyl");
+      for (const [y, x0, x1] of sp) p.set((x0 + x1 + 1) >> 1, y, side === "l" ? metal.hi : metal.lo);
+      const [y, x0, x1] = sp[0];
+      p.hl(x0, x1, y, side === "l" ? trim.base : trim.lo);
+    }
+    // Big square shoulder guards hanging over the upper arms.
+    const sodeRows = Math.min(13, armLen(h) - 5);
+    for (const side of ["l", "r"] as const) {
+      const x0 = side === "l" ? h.lax - 2 : h.rax - 1;
+      const x1 = x0 + 8;
+      for (let i = 0; i < sodeRows; i++) {
+        const y = h.ty - 1 + i;
+        if (i === 0) p.hl(x0 + 1, x1 - 1, y, metal.hi);
+        else if (i % 4 === 0) lace(x0, x1, y);
+        else {
+          p.hl(x0, x1, y, side === "l" ? main.base : main.lo);
+          p.set(x0, y, side === "l" ? main.hi : main.base);
+          p.set(x1, y, main.deep);
+        }
+      }
+      p.hl(x0, x1, h.ty - 1 + sodeRows, main.deep);
+    }
+    // A skirt of four hanging plate panels.
+    const drop = Math.max(6, Math.round(len * 0.42));
+    const sx = h.lx - 3;
+    const sw = h.lw + 6;
+    for (let i = 0; i < drop; i++)
+      for (let x = sx; x < sx + sw; x++) {
+        const rel = x - sx;
+        const gap = i > 0 && [1, 2, 3].some((k) => rel === Math.round((k * sw) / 4));
+        const edge = [0, 1, 2, 3].some((k) => rel === Math.round((k * sw) / 4) + (k ? 1 : 0));
+        let col = x < h.cx ? main.base : main.lo;
+        if (gap) col = cloth.deep;
+        else if (i === drop - 1) col = main.deep;
+        else if (i % 4 === 2) col = rel % 3 === 1 ? trim.base : main.deep;
+        else if (edge) col = x < h.cx ? main.hi : main.base;
+        p.set(x, h.ly + i, col);
+      }
+    // Sash with a knot and two tails.
+    for (const [y, x0, x1] of torsoSpans(h, h.th - 4, h.th)) p.hl(x0, x1, y, y >= h.ty + h.th - 2 ? trim.lo : trim.base);
+    p.rect(h.cx - 2, h.ty + h.th - 5, 4, 5, trim.hi);
+    p.hl(h.cx - 2, h.cx + 1, h.ty + h.th - 1, trim.base);
+    p.vl(h.cx - 2, h.ty + h.th, h.ty + h.th + 3, trim.base);
+    p.vl(h.cx + 1, h.ty + h.th, h.ty + h.th + 2, trim.lo);
   },
 ];
 
