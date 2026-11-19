@@ -102,7 +102,7 @@ function seams(p: Pix) {
  * top-left corner, darker toward the bottom right, in a few steps blended
  * with an ordered dither (the 16-bit way to get smooth shading).
  */
-function shadeRegions(p: Pix, { strength = 0.12, minSize = 14, dirX = 0.55, dirY = 0.45, steps = 0.06, dither = true } = {}) {
+function shadeRegions(p: Pix, { strength = 0.12, minSize = 14, dirX = 0.55, dirY = 0.45, steps = 0.06 } = {}) {
   const seen = new Uint8Array(p.w * p.h);
   const stack: number[] = [];
   for (let start = 0; start < p.d.length; start++) {
@@ -144,7 +144,7 @@ function shadeRegions(p: Pix, { strength = 0.12, minSize = 14, dirX = 0.55, dirY
       const lo = Math.floor(amount / steps) * steps;
       const frac = (amount - lo) / steps;
       // Clean bands, with a checkerboard only along the seam between two.
-      const q = dither && Math.abs(frac - 0.5) < 0.12 ? ((x + y) % 2 ? lo + steps : lo) : frac > 0.5 ? lo + steps : lo;
+      const q = Math.abs(frac - 0.5) < 0.12 ? ((x + y) % 2 ? lo + steps : lo) : frac > 0.5 ? lo + steps : lo;
       if (Math.abs(q) > 0.001) p.d[i] = t(c, Math.round(q * 100) / 100);
     }
   }
@@ -256,11 +256,8 @@ function drawFace(p: Pix, c: Ctx) {
   p.stamp(X + 8, Y + m.top, m.rows, { m: MOUTH, M: "#4a1820", w: WHITE, t: "#e07a8a", l: mix(c.skin.base, "#d05a5a", 0.3) });
 }
 
-/**
- * The look at double size with the richer finish. smooth: many fine steps of
- * shading with no dither, for the finest detail level (lookDetail.ts).
- */
-export function drawLookHd(look: Look, smooth = false): Pix {
+/** The look at double size with the richer finish. */
+export function drawLookHd(look: Look): Pix {
   const { bg, back, backHair, front, cover, gear, pet, c } = splitLayers(look);
   // Wings, tail and the back of a cloak or long hair are smoothed up from the
   // base size; the body, clothes and beard are drawn natively at double size;
@@ -286,7 +283,7 @@ export function drawLookHd(look: Look, smooth = false): Pix {
   if (c.v("hand")) handsHd(big, h, c.skin, "r");
   if (off && off !== 1 && off !== 2 && off !== 4 && off !== 5) handsHd(big, h, c.skin, "l");
   seams(big);
-  shadeRegions(big, smooth ? { steps: 0.02, dither: false, strength: 0.14 } : undefined);
+  shadeRegions(big);
   bevel(big);
   rim(big);
   stubbleHd(big, h, c, hidden);
@@ -296,7 +293,7 @@ export function drawLookHd(look: Look, smooth = false): Pix {
   softOutline(big);
   whiskersHd(big, h, c, hidden);
   const pp = scale2x(pet);
-  shadeRegions(pp, smooth ? { minSize: 8, steps: 0.02, dither: false } : { minSize: 8 });
+  shadeRegions(pp, { minSize: 8 });
   rim(pp);
   softOutline(pp);
   const out = scale2x(bg);

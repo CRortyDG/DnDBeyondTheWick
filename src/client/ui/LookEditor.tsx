@@ -23,7 +23,7 @@ import {
   randomLook,
   SWATCHES,
 } from "@/shared/look";
-import { forcedLookStyle, isSmooth, lookPng, lookUrl, savePicture } from "./PixelLook";
+import { forcedLookStyle, lookPng, lookUrl, savePicture } from "./PixelLook";
 
 /**
  * The character maker: a big pixel-art preview, a tab per part of the body,
@@ -112,7 +112,7 @@ export function LookEditor({
       </header>
       <div className="look-ed-body">
         <div className="look-ed-stage">
-          <img className={`pixel-look look-ed-preview${isSmooth(look, true) ? " drawn" : ""}`} src={lookUrl(look, false, true)} alt="Your character" />
+          <img className={`pixel-look look-ed-preview${lookStyleOf(look) !== "pixel" ? " drawn" : ""}`} src={lookUrl(look, false, true)} alt="Your character" />
           <div className="look-ed-styles" role="radiogroup" aria-label="Art style">
             {LOOK_STYLES.map((st, i) => (
               <button key={st.id} type="button" role="radio" aria-checked={style === i} className={style === i ? "on" : ""} title={st.hint} onClick={() => change({ ...look, style: i || undefined })}>

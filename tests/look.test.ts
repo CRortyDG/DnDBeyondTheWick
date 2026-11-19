@@ -216,11 +216,11 @@ describe("hair under hats", () => {
 });
 
 describe("pixel detail levels", () => {
-  it("draws the same recipe at 8, 16, 32 and 64-bit sizes, and 32-bit is what a look without a level gets", async () => {
+  it("draws the same recipe at 8, 16 and 32-bit sizes, and 32-bit is what a look without a level gets", async () => {
     const { drawLookDetail, drawLookDetailFace } = await import("@/shared/lookDetail");
     const { drawLookHd } = await import("@/shared/lookArtHd");
     const look: Look = { ...randomLook(seeded(4)), background: 1 };
-    const sizes = [0, 1, 2, 3].map((detail) => {
+    const sizes = [0, 1, 2].map((detail) => {
       const p = drawLookDetail({ ...look, detail });
       expect(p.d.every(Boolean)).toBe(true);
       const f = drawLookDetailFace({ ...look, detail });
@@ -230,9 +230,10 @@ describe("pixel detail levels", () => {
       [48, 56, 22, 22],
       [48, 56, 22, 22],
       [96, 112, 44, 44],
-      [192, 224, 88, 88],
     ]);
     expect(drawLookDetail(look).d.join()).toBe(drawLookHd(look).d.join());
+    // A look saved at the removed 64-bit level draws as 32-bit.
+    expect(drawLookDetail({ ...look, detail: 3 }).d.join()).toBe(drawLookHd(look).d.join());
     // 8-bit keeps to a small console palette; 16-bit at the same size uses more colours.
     const colours = (detail: number) => new Set(drawLookDetail({ ...look, detail }).d).size;
     expect(colours(0)).toBeLessThan(colours(1));
@@ -241,7 +242,9 @@ describe("pixel detail levels", () => {
 
   it("the level is saved with the look, and the default is left out", () => {
     expect(cleanCharLook({ hair: 2, detail: 0 })).toEqual({ hair: 2, detail: 0 });
-    expect(cleanCharLook({ hair: 2, detail: 3 })).toEqual({ hair: 2, detail: 3 });
+    expect(cleanCharLook({ hair: 2, detail: 1 })).toEqual({ hair: 2, detail: 1 });
+    // The removed 64-bit level: a look saved with it goes back to the default.
+    expect(cleanCharLook({ hair: 2, detail: 3 })).toEqual({ hair: 2 });
     expect(cleanCharLook({ hair: 2, detail: 2 })).toEqual({ hair: 2 });
     expect(cleanCharLook({ hair: 2, detail: 9 })).toEqual({ hair: 2 });
     expect(cleanCharLook({ hair: 2, detail: "8" })).toEqual({ hair: 2 });
