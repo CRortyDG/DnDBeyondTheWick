@@ -6,6 +6,7 @@ import { starterById } from "./starters";
 import { keyRack, myRoom, type KeyRackView, type MyRoom } from "./rooms";
 import { latestLastTime, type LastTimeCard } from "./lastTime";
 import { myWhispers, type MyWhisper } from "./whispers";
+import { nextGameFor, type NextGame } from "./invites";
 import { decodeBits, fogged, publicFog, type PublicFog } from "./fog";
 import { publicGrid, publicTokens, type PublicGrid, type PublicToken } from "./tokens";
 import { leadsView, type LeadsView } from "./leads";
@@ -469,6 +470,8 @@ export interface PlayerView extends Common {
   chronicle: ChronicleView;
   /** "Last time on…": the newest recap card the DM sent after a session ended. Missing: none sent. */
   lastTime?: LastTimeCard;
+  /** The next game night I'm on, or could still grab a seat for (from the DM's invites). Missing: none coming up. */
+  nextGame?: NextGame;
   /** Secret whispers the DM sent me (and only me, or me and a few others: their names aren't sent), newest first. */
   whispers?: MyWhisper[];
   /** The bounty board: pinned jobs. Empty while it's locked. */
@@ -890,6 +893,8 @@ export function projectPlayer(table: GameState, version: number, playerId: strin
     chronicle: projectChronicle(game, { dm: false, playerId: p.id }),
     // The lensed game holds only this character's parties' sessions.
     ...(latestLastTime(game) ? { lastTime: latestLastTime(game)! } : {}),
+    // Invites live on the whole table (not the lens): the party check is inside.
+    ...(nextGameFor(table, p.id) ? { nextGame: nextGameFor(table, p.id)! } : {}),
     ...(myWhispers(table, p.id).length ? { whispers: myWhispers(table, p.id) } : {}),
     // The lensed game holds this character's own stage, so no playerId here.
     ...(jobsLocked(game) ? { jobsLocked: true as const } : {}),
