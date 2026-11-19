@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { View } from "@/shared/projection";
 import { api, ApiError, liveUrl, type Ident } from "./api";
 import { swapGatedArt } from "./practiceArt";
+import { setForcedLookStyle } from "./ui/PixelLook";
 
 export type Phase = "loading" | "ok" | "taken" | "knocking" | "full" | "invalid" | "no-game" | "error";
 
@@ -53,6 +54,8 @@ export function useGame<V extends View = View>(ident: Ident | null): GameHook<V>
       if (raw.version < versionRef.current) return;
       versionRef.current = raw.version;
       lastRaw.current = raw;
+      // The DM's table-wide character art style, read by every character picture on this screen.
+      setForcedLookStyle(raw.role === "dm" ? raw.state.lookStyle : "lookStyle" in raw ? raw.lookStyle : undefined);
       // Practice screens can't send the key with an <img>: gated art comes as blobs fetched with it.
       const v = ident?.practice ? swapGatedArt(raw, ident, () => lastRaw.current && setView(swapGatedArt(lastRaw.current, ident, () => {}) as V)) : raw;
       setView(v as V);

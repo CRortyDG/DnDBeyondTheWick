@@ -1272,6 +1272,8 @@ export interface GameState {
   requests: TradeRequest[];
   /** "Mira bought a Shield." on the TV when a request is approved. undefined = on. */
   tvPurchases?: boolean;
+  /** One art style for every character at the table (an index into LOOK_STYLES). Missing: each player picks their own. */
+  lookStyle?: number;
   rentals: Rental[];
   trainings: Training[];
   stakes: Stake[];

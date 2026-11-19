@@ -7,9 +7,8 @@
 // never leave this screen.
 
 import type { Look } from "@/shared/look";
-import { drawLookHd } from "@/shared/lookArtHd";
 import { LookEditor } from "../ui/LookEditor";
-import { pixUrl } from "../ui/PixelLook";
+import { lookPng } from "../ui/PixelLook";
 import { featureOn } from "@/shared/features";
 import { RoomFields } from "./Rooms";
 import { AttitudeTracker } from "./AttitudeTracker";
@@ -257,7 +256,7 @@ function EntryEditor({ entry: e, tv }: { entry: Entry; tv: boolean }) {
   /** Save a character-maker look as this entry's picture: drawn big and crisp, uploaded like any image. */
   const savePixelPortrait = async (look: Look): Promise<string | null> => {
     try {
-      const blob = await (await fetch(pixUrl(drawLookHd(look), 6))).blob();
+      const blob = await (await fetch(await lookPng(look, 6))).blob();
       const url = await uploadImage(ident, new File([blob], `${e.slug || "portrait"}.png`, { type: "image/png" }));
       return (await run({ type: "entry.picture", entryId: e.id, art: { url }, alt: e.name, look }, "Picture saved.")) ? null : "Couldn't save the picture.";
     } catch (err) {
@@ -334,9 +333,9 @@ function EntryEditor({ entry: e, tv }: { entry: Entry; tv: boolean }) {
           </button>
         ) : null}
         <button className="btn small" type="button" disabled={busy} onClick={() => setStyling(true)}>
-          {e.pixelLook ? "Edit pixel portrait" : "Make a pixel portrait"}
+          {e.pixelLook ? "Edit drawn portrait" : "Draw a portrait"}
         </button>
-        {styling ? <LookEditor initial={e.pixelLook} name={e.name} title={`${e.name || "Portrait"}: pixel portrait`} onSave={savePixelPortrait} onClose={() => setStyling(false)} /> : null}
+        {styling ? <LookEditor initial={e.pixelLook} name={e.name} title={`${e.name || "Portrait"}: portrait`} tableStyle={false} onSave={savePixelPortrait} onClose={() => setStyling(false)} /> : null}
         <input ref={picFile} type="file" accept="image/*" hidden onChange={(ev) => void setPicture(ev.target.files?.[0])} />
         <span className="silhouette-preview">
           <Portrait name={e.name} kind={e.kind} silhouette={e.silhouette} rumored className="person-face" />

@@ -107,7 +107,7 @@ export function CharacterTab({
   );
 }
 
-/** My pixel-art look, and the button that opens the character maker. */
+/** My character look, and the button that opens the character maker. */
 export function LookCard({ view, send }: { view: PlayerView; send: (c: object) => Promise<string | null> }) {
   const me = view.me;
   const [open, setOpen] = useState(false);
@@ -135,7 +135,7 @@ export function LookCard({ view, send }: { view: PlayerView; send: (c: object) =
       )}
       <div className="look-card-text">
         <h2>{me.look ? "Your look" : "Make your look"}</h2>
-        <p className="note">{me.look ? "Shown on your map token, the TV and the turn order." : "A little pixel-art you: pick hair, outfit, gear, even a pet. It shows on your map token and the TV."}</p>
+        <p className="note">{me.look ? "Shown on your map token, the TV and the turn order." : "A little drawn you, in pixel art, storybook, painted or cartoon style: pick hair, outfit, gear, even a pet. It shows on your map token and the TV."}</p>
         <button type="button" className={`btn${me.look ? "" : " primary"}`} onClick={onOpen}>
           {me.look ? "Change my look" : "Make my look"}
         </button>

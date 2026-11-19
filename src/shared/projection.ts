@@ -309,6 +309,8 @@ interface Common {
   world?: WorldView;
   /** Features the DM turned off for the whole table (see features.ts). Missing: every feature on. */
   off?: FeatureId[];
+  /** The DM's table-wide character art style (an index into LOOK_STYLES). Missing: each player's own. */
+  lookStyle?: number;
 }
 
 export interface TvView extends Common {
@@ -642,6 +644,7 @@ function common(game: GameState, version: number, viewer: Viewer): Common {
     banner: game.banner ? { ...game.banner } : null,
     renown: { rank, name: ladder[rank].name, meaning: ladder[rank].meaning, ladder: ladder.map((r) => ({ name: r.name, pay: r.pay })), ...(game.renownProgress ? { progress: publicProgress(game) } : {}) },
     ...(effectiveOff(game).length ? { off: effectiveOff(game) } : {}),
+    ...(game.lookStyle != null ? { lookStyle: game.lookStyle } : {}),
   };
 }
 

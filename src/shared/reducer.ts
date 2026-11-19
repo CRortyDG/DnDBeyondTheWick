@@ -12,7 +12,7 @@ import { clockNow, clockOf, creditCp, duesFor, firstChargeCp, nextNight, nightOf
 import { chapterAt, shopVisibleTo } from "./projection";
 import { CHARACTER_MAX, CLIP_GIF_MAX, CLIP_VIDEO_MAX, INTRO_SCENE_ID, STINGER_SCENE_ID, TABLE_SCENE_ID, WHY_MAX } from "./arrival";
 import { starterById } from "./starters";
-import { cleanCharLook } from "./look";
+import { cleanCharLook, cleanLookStyle } from "./look";
 import { chapterSessionId, cleanTags, cleanText, defaultChapterId, NEXT_CHAPTER, NOTES_MAX, penName } from "./chronicle";
 import { BOARD_SLOTS, jobPoints, jobsOf, jobTitle, pinnedCount, pointsOf, rankForPoints, rankName, ranksOf, RENOWN_POINTS, RENOWN_POINTS_MAX, renownMet, renownNeeded, renownOf, shopOpenNow, thresholdsOf, tierOf, trustMet, trustText } from "./renown";
 import { LOG_MAX, PLAYER_ROLL_GAP_MS, rollD20, rollPool, type RollTo } from "./dice";
@@ -4302,6 +4302,12 @@ function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
       if (cmd.on) delete s.tvPurchases;
       else s.tvPurchases = false;
       break;
+    case "game.lookStyle": {
+      const style = cleanLookStyle(cmd.style);
+      if (style === null) delete s.lookStyle;
+      else s.lookStyle = style;
+      break;
+    }
 
     // ---------- phone requests: the player asks ----------
     case "me.requestBuy": {

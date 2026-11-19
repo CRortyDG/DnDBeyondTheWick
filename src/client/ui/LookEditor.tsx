@@ -1,24 +1,26 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   COLOR_LABELS,
   LAYERS,
   LOOK_GROUPS,
+  LOOK_STYLES,
   LOOSE_COLORS,
   type Look,
   type LookColorKey,
   type LookGroup,
   type LookPartKey,
   lookCount,
+  lookKey,
+  lookStyleOf,
   lookValue,
   randomizeGroup,
   randomLook,
   SWATCHES,
 } from "@/shared/look";
-import { drawLookHd } from "@/shared/lookArtHd";
-import { lookUrl, savePicture } from "./PixelLook";
+import { forcedLookStyle, lookPng, lookUrl, savePicture } from "./PixelLook";
 
 /**
  * The character maker: a big pixel-art preview, a tab per part of the body,
@@ -32,6 +34,7 @@ export function LookEditor({
   onSave,
   onClose,
   onRemove,
+  tableStyle = true,
 }: {
   initial?: Look | null;
   title?: string;
@@ -41,6 +44,8 @@ export function LookEditor({
   onSave: (look: Look) => Promise<string | null>;
   onClose: () => void;
   onRemove?: () => Promise<string | null>;
+  /** Mention the DM's table-wide style, if one is set (players' own looks; not NPC portraits). */
+  tableStyle?: boolean;
 }) {
   const [look, setLook] = useState<Look>(() => initial ?? randomLook());
   const [past, setPast] = useState<Look[]>([]);
@@ -63,9 +68,28 @@ export function LookEditor({
     if (e) setErr(e);
     else onClose();
   };
+  // The download is made ahead of the tap, so phones still count the save as the tap's own action.
+  const [png, setPng] = useState("");
+  const key = lookKey(look);
+  useEffect(() => {
+    let live = true;
+    setPng("");
+    const t = setTimeout(() => {
+      lookPng(look, 4)
+        .then((u) => live && setPng(u))
+        .catch(() => {});
+    }, 250);
+    return () => {
+      live = false;
+      clearTimeout(t);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key]);
   const download = () => {
-    void savePicture(drawLookHd(look), 4, `${(name || "character").replace(/[^\w-]+/g, "-").toLowerCase()}.png`);
+    if (png) void savePicture(png, `${(name || "character").replace(/[^\w-]+/g, "-").toLowerCase()}.png`);
   };
+  const style = look.style ?? 0;
+  const forced = tableStyle ? forcedLookStyle() : null;
 
   const layers = LAYERS.filter((l) => l.group === tab);
   const loose = LOOSE_COLORS.filter((c) => c.group === tab);
@@ -84,9 +108,17 @@ export function LookEditor({
       </header>
       <div className="look-ed-body">
         <div className="look-ed-stage">
-          <img className="pixel-look look-ed-preview" src={lookUrl(look)} alt="Your character" />
+          <img className={`pixel-look look-ed-preview${lookStyleOf(look) !== "pixel" ? " drawn" : ""}`} src={lookUrl(look, false, true)} alt="Your character" />
+          <div className="look-ed-styles" role="radiogroup" aria-label="Art style">
+            {LOOK_STYLES.map((st, i) => (
+              <button key={st.id} type="button" role="radio" aria-checked={style === i} className={style === i ? "on" : ""} title={st.hint} onClick={() => change({ ...look, style: i || undefined })}>
+                {st.label}
+              </button>
+            ))}
+          </div>
+          {forced !== null && forced !== style ? <p className="look-ed-note">Your DM shows everyone at the table in {LOOK_STYLES[forced]?.label ?? "one"} style for now. Your pick is kept for when that's off.</p> : null}
           <div className="look-ed-dice">
-            <button type="button" className="look-ed-btn" onClick={() => change(randomLook())}>
+            <button type="button" className="look-ed-btn" onClick={() => change({ ...randomLook(), ...(look.style ? { style: look.style } : {}) })}>
               🎲 Surprise me
             </button>
             <button type="button" className="look-ed-btn" onClick={() => change(randomizeGroup(look, tab))}>
@@ -144,7 +176,7 @@ export function LookEditor({
             ))}
           </div>
           <div className="look-ed-foot">
-            <button type="button" className="look-ed-btn" onClick={download}>
+            <button type="button" className="look-ed-btn" onClick={download} disabled={!png}>
               Download picture
             </button>
             {onRemove ? (
