@@ -20,10 +20,10 @@ function when(t: number): string {
 }
 
 /** The strip above the page: sealed while something's unread, quiet once read (tonight only). */
-export function Whispers({ view, send }: { view: PlayerView; send: Send }) {
+export function Whispers({ view, send, sealedOnly = false }: { view: PlayerView; send: Send; /** Only a new, unread whisper (the Story tab shows tonight's too). */ sealedOnly?: boolean }) {
   const list = view.whispers ?? [];
   const unread = list.filter((w) => !w.seen);
-  const tonight = list.filter((w) => w.tonight && !w.mine);
+  const tonight = sealedOnly ? [] : list.filter((w) => w.tonight && !w.mine);
   const [open, setOpen] = useState(false);
 
   // A little buzz when a new one lands (phones that allow it). Not for ones already here on load.

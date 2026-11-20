@@ -34,6 +34,10 @@ DM-only data never leaves the campaign's room for the TV or a phone. The room bu
 
 Tests in `tests/projection.test.ts` put a marker string in every DM-only field and check it never appears in the TV or player data.
 
+## Out of the book: the player's page between games
+
+Between games a player's phone opens **out of the book**: the campaign's closed book on the table, with the out-of-character things around it (a first-visit checklist, the next game, their character sheet and look, D&D Beyond link and name lock, their party). **Open the book** goes into the usual tabs; the closed-book button by their name comes back out. Once the DM starts a session the book opens itself on Story, and a fight still jumps to the Fight tab. The DM can put a short line on the cover (**Game → Book cover line**, e.g. "Being told by the Wizard"). Code: `src/client/player/OutsideBook.tsx`.
+
 ## Arrival: the intro texted before session 0
 
 Each player gets a private link, `/arrive/<code>`, from the DM view's **Arrival** tab (**Copy text** copies a ready-to-send message; edit the message there). On a phone it plays a short tap-through intro (their arrival in Candlefair by ship), then lands on their seat: a character name, an optional "Why did you get on that boat?" line, and **Take a seat**. After that the link opens straight on the seat page, with **Replay intro**.

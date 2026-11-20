@@ -44,7 +44,6 @@ export function CharacterTab({
   if (building) return <SheetBuilder level={me.level} starter={me.starter} replacing={!!me.sheet} send={send} onClose={() => setBuilding(false)} />;
   return (
     <>
-      {!me.sheet ? <WelcomeCard view={view} /> : null}
       <LookCard view={view} send={send} />
       {me.sheet ? (
         <section className="pl-sheet" aria-label="Character sheet">
@@ -105,39 +104,6 @@ export function CharacterTab({
         <StartSheet view={view} send={send} onLink={onLink} onBuild={() => setBuilding(true)} />
       )}
     </>
-  );
-}
-
-/** My character look, and the button that opens the character maker. */
-/** A first-visit hello for someone with no character yet: you're in, here's what to do while you wait. Hidden once dismissed (per campaign, on this device). */
-function WelcomeCard({ view }: { view: PlayerView }) {
-  const me = view.me;
-  const key = `cf-welcome:${view.game.id}:${me.id}`;
-  const [gone, setGone] = useState(() => {
-    try {
-      return localStorage.getItem(key) === "1";
-    } catch {
-      return false;
-    }
-  });
-  if (gone) return null;
-  const hide = () => {
-    try {
-      localStorage.setItem(key, "1");
-    } catch {}
-    setGone(true);
-  };
-  return (
-    <section className="box welcome-card" aria-labelledby="welcome-card-title">
-      <h2 id="welcome-card-title">You&rsquo;re in, {me.name}</h2>
-      <p>
-        Welcome to <b>{view.game.name}</b>. While you wait for the DM, make your character and your look below.
-      </p>
-      <p className="note">The rest fills in as you play: the story so far, people and places you find, your gold. When a fight starts, your phone shows your turn.</p>
-      <button type="button" className="btn" onClick={hide}>
-        Got it
-      </button>
-    </section>
   );
 }
 

@@ -654,6 +654,7 @@ export const dmCommand = z.discriminatedUnion("type", [
   z.object({ type: z.literal("game.rename"), name: text(120).min(1) }),
   z.object({ type: z.literal("game.vtt"), url: text(300) }),
   z.object({ type: z.literal("game.town"), town: text(60) }),
+  z.object({ type: z.literal("game.bookLine"), line: text(80) }),
   z.object({
     type: z.literal("game.renownRanks"),
     ranks: z.array(z.object({ name: text(40).optional(), meaning: text(120).optional(), pay: text(40).optional(), raised: text(80).optional(), points: z.number().int().min(0).max(RENOWN_POINTS_MAX).optional() })).max(RENOWN_MAX + 1),

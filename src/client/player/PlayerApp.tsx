@@ -24,7 +24,6 @@ import { NAV_ICONS, PlayerNav, type Screen } from "./PlayerNav";
 import { DecisionBanners, MyRequests, RequestSheet, SendGold } from "./Requests";
 import { CharacterTab, LookCard } from "./CharacterTab";
 import { LastTime } from "./LastTime";
-import { NextGame } from "./NextGame";
 import { WhisperHistoryButton, Whispers } from "./Whispers";
 import { TurnFlash, TurnSoundNudge } from "./TurnCue";
 import { PartyButton } from "./Party";
@@ -32,6 +31,8 @@ import { useWakeLock } from "../ui/wakeLock";
 import { MyRoomCard } from "./MyRoom";
 import { FEATURE, FEATURES, type FeatureId } from "@/shared/features";
 import { HERE_ASK_COOLDOWN_MS } from "@/shared/attendance";
+import { OutsideBook } from "./OutsideBook";
+import { LookEditor } from "../ui/LookEditor";
 
 export function PlayerApp({ ident: initial }: { ident: Ident }) {
   const [ident, setIdent] = useState(initial);
@@ -152,6 +153,28 @@ function PlayerScreen({ view, online, send, ident, setIdent }: { view: PlayerVie
     setScreenPick(s);
     window.scrollTo({ top: 0 });
   };
+  // Out of the book (the cover and the out-of-character things) between games; in the book once a session or a fight is on.
+  const [inBook, setInBook] = useState(() => !!(view.session || view.fight || view.map));
+  const openBook = (at?: Screen) => {
+    setInBook(true);
+    if (at) setScreenPick(at);
+    window.scrollTo({ top: 0 });
+  };
+  const closeBook = () => {
+    setInBook(false);
+    window.scrollTo({ top: 0 });
+  };
+  const [lookOpen, setLookOpen] = useState(false);
+  // The DM starting a session opens the book on tonight's chapter.
+  const sessionNo = view.session?.number ?? null;
+  const sessionWas = useRef(sessionNo);
+  useEffect(() => {
+    if (sessionNo !== null && sessionNo !== sessionWas.current) {
+      setInBook(true);
+      setScreenPick("chronicle");
+    }
+    sessionWas.current = sessionNo;
+  }, [sessionNo]);
   // The map tab exists while a map is on the TV, or once the party knows a map.
   const hasMaps = !!view.map || view.maps.length > 0;
   // Feature switches: off for the table, off for me, or a tab I hid myself.
@@ -180,10 +203,10 @@ function PlayerScreen({ view, online, send, ident, setIdent }: { view: PlayerVie
   const myTurn = !!f && f.status === "running" && !!f.currentId && mineIds.has(f.currentId);
   const upNext = !!f && f.status === "running" && !!f.nextId && mineIds.has(f.nextId) && !myTurn;
   useEffect(() => {
-    if (f?.id) setScreenPick("fight");
+    if (f?.id) (setScreenPick("fight"), setInBook(true));
   }, [f?.id]);
   useEffect(() => {
-    if (myTurn) setScreenPick("fight");
+    if (myTurn) (setScreenPick("fight"), setInBook(true));
   }, [myTurn, f?.round]);
   usePlayerSounds(view, has("deviceSound"));
   // A phone on the table shouldn't go dark mid-fight.
@@ -220,6 +243,24 @@ function PlayerScreen({ view, online, send, ident, setIdent }: { view: PlayerVie
     return null;
   };
 
+  const fightStrip = f ? (
+    <button type="button" className={`pl-fight-strip${myTurn ? " turn" : upNext ? " next" : ""}`} onClick={() => openBook("fight")}>
+      <span className="pl-fight-strip-k">{myTurn ? "Your turn!" : upNext ? "You’re up next" : f.status === "setup" ? "Roll initiative" : f.status === "over" ? "Fight over" : "Fight"}</span>
+      <span className="pl-fight-strip-v">
+        {f.status === "running" || f.status === "paused" ? `Round ${f.round} · now ${f.order.find((c) => c.id === f.currentId)?.name ?? "…"}` : "Open the fight"}
+      </span>
+    </button>
+  ) : null;
+
+  const closeBookButton = (
+    <button type="button" className="pl-close-book" onClick={closeBook} aria-label="Close the book: next game, your character and look">
+      <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="5" y="3" width="14" height="18" rx="1.5" />
+        <path d="M8.5 3v18M19 10h-2.5v4H19" />
+      </svg>
+    </button>
+  );
+
   const navProps = {
     screen,
     onScreen: setScreen,
@@ -234,6 +275,7 @@ function PlayerScreen({ view, online, send, ident, setIdent }: { view: PlayerVie
 
   const goldPage = (
     <>
+          <DecisionBanners view={view} />
           {me.balanceCp < 0 && view.mine.credit.length ? (
             <p className="note owe-note" role="status">
               You owe {formatCp(-me.balanceCp)} on your tab at {view.mine.credit.map((c) => c.shopName).join(" and ")}. Pay it off before anyone comes asking.
@@ -343,15 +385,6 @@ function PlayerScreen({ view, online, send, ident, setIdent }: { view: PlayerVie
             </section>
           ) : null}
 
-          <button type="button" className="pl-row-link" onClick={() => setYouOpen(true)}>
-            <span>
-              <b>Your character</b>
-              <span>D&amp;D Beyond{view.vttUrl ? ", the VTT" : ""} and your name lock</span>
-            </span>
-            <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-              <path d="m9 6 6 6-6 6" />
-            </svg>
-          </button>
     </>
   );
 
@@ -359,6 +392,16 @@ function PlayerScreen({ view, online, send, ident, setIdent }: { view: PlayerVie
     <>
       <TurnFlash turnKey={turnKey} who={turnWho} />
       {locking ? <LockSheet onLock={lockWith} onClose={() => setLocking(false)} /> : null}
+      {lookOpen ? (
+        <LookEditor
+          initial={me.look}
+          name={me.character || me.name}
+          title={me.look ? "Change your look" : "Make your look"}
+          onSave={(look) => send({ type: "me.look", look })}
+          onRemove={me.look ? () => send({ type: "me.look", look: null }) : undefined}
+          onClose={() => setLookOpen(false)}
+        />
+      ) : null}
       {diceOpen ? (
         <Sheet title="Dice" onClose={() => setDiceOpen(false)} className="pl-dice-sheet">
           <Dice view={view} send={send} />
@@ -469,6 +512,36 @@ function PlayerScreen({ view, online, send, ident, setIdent }: { view: PlayerVie
     </>
   );
 
+  const toasts = (
+    <>
+      <BannerToast banner={view.banner} className="phone-banner" />
+      <BannerToast banner={view.levelUp ? { id: `level-${view.levelUp.n}`, text: `You're level ${view.levelUp.level}!`, at: 0 } : null} className="phone-banner level-banner" />
+      {view.world?.news ? <BannerToast banner={{ id: `news-${view.world.news.n}`, text: view.world.news.text, at: 0 }} className="phone-banner world-news" /> : null}
+    </>
+  );
+
+  // Out of the book: the closed book on the table and everything out of character.
+  if (!inBook) {
+    return (
+      <div className={`player-root ob-root${wide ? " ob-wide" : ""}`}>
+        {!online ? (
+          <p className="player-offline pl-offline" role="status">
+            Reconnecting&hellip;
+          </p>
+        ) : null}
+        {fightStrip}
+        {toasts}
+        <OutsideBook view={view} onOpen={openBook} onYou={() => setYouOpen(true)} onLook={() => setLookOpen(true)} onLock={lock} sheetsOn={sheetsOn} />
+        {msg ? (
+          <p className="player-msg pl-msg" role="status">
+            {msg}
+          </p>
+        ) : null}
+        {sheets}
+      </div>
+    );
+  }
+
   // A computer's screen: tabs down the left, the page in the middle, and your purse and dice kept open on the right.
   if (wide) {
     return (
@@ -501,6 +574,9 @@ function PlayerScreen({ view, online, send, ident, setIdent }: { view: PlayerVie
                 <span>Roll dice</span>
               </button>
             ) : null}
+            <button type="button" className="pl-side-link" onClick={closeBook}>
+              Close the book
+            </button>
             <button type="button" className="pl-side-link" onClick={() => setYouOpen(true)}>
               Your character
             </button>
@@ -513,21 +589,12 @@ function PlayerScreen({ view, online, send, ident, setIdent }: { view: PlayerVie
           Reconnecting&hellip;
         </p>
       ) : null}
-      {view.world ? <WorldStrip world={view.world} /> : null}
-      {me.away ? <AwayStrip view={view} send={send} /> : null}
-      <DecisionBanners view={view} />
-      <NextGame view={view} />
-      <LastTime view={view} />
-      <Whispers view={view} send={send} />
-      {screen !== "fight" ? <CompanionStrip view={view} send={send} /> : null}
-      {f && screen !== "fight" ? (
-        <button type="button" className={`pl-fight-strip${myTurn ? " turn" : upNext ? " next" : ""}`} onClick={() => setScreen("fight")}>
-          <span className="pl-fight-strip-k">{myTurn ? "Your turn!" : upNext ? "You’re up next" : f.status === "setup" ? "Roll initiative" : f.status === "over" ? "Fight over" : "Fight"}</span>
-          <span className="pl-fight-strip-v">
-            {f.status === "running" || f.status === "paused" ? `Round ${f.round} · now ${f.order.find((c) => c.id === f.currentId)?.name ?? "…"}` : "Open the fight"}
-          </span>
-        </button>
-      ) : null}
+      {screen === "chronicle" && view.world ? <WorldStrip world={view.world} /> : null}
+      {screen === "chronicle" && me.away ? <AwayStrip view={view} send={send} /> : null}
+      {screen === "chronicle" ? <LastTime view={view} /> : null}
+      <Whispers view={view} send={send} sealedOnly={screen !== "chronicle"} />
+      {screen === "chronicle" ? <CompanionStrip view={view} send={send} /> : null}
+      {screen !== "fight" ? fightStrip : null}
       <BannerToast banner={view.banner} className="phone-banner" />
       <BannerToast banner={newTab} className="phone-banner new-tab-banner" />
       <BannerToast banner={view.levelUp ? { id: `level-${view.levelUp.n}`, text: `You're level ${view.levelUp.level}!`, at: 0 } : null} className="phone-banner level-banner" />
@@ -592,6 +659,7 @@ function PlayerScreen({ view, online, send, ident, setIdent }: { view: PlayerVie
   return (
     <div className="player-root">
       <header className="player-top pl-top">
+        {closeBookButton}
         <button type="button" className="pl-who" aria-haspopup="dialog" aria-label={`${me.character ?? me.name}: your character, D&D Beyond link, name lock and sound`} onClick={() => setYouOpen(true)}>
           <span className="player-name">{me.character ?? me.name}</span>
           <span className="pl-sub">
@@ -625,21 +693,12 @@ function PlayerScreen({ view, online, send, ident, setIdent }: { view: PlayerVie
           Reconnecting&hellip;
         </p>
       ) : null}
-      {view.world ? <WorldStrip world={view.world} /> : null}
-      {me.away ? <AwayStrip view={view} send={send} /> : null}
-      <DecisionBanners view={view} />
-      <NextGame view={view} />
-      <LastTime view={view} />
-      <Whispers view={view} send={send} />
-      {screen !== "fight" ? <CompanionStrip view={view} send={send} /> : null}
-      {f && screen !== "fight" ? (
-        <button type="button" className={`pl-fight-strip${myTurn ? " turn" : upNext ? " next" : ""}`} onClick={() => setScreen("fight")}>
-          <span className="pl-fight-strip-k">{myTurn ? "Your turn!" : upNext ? "You’re up next" : f.status === "setup" ? "Roll initiative" : f.status === "over" ? "Fight over" : "Fight"}</span>
-          <span className="pl-fight-strip-v">
-            {f.status === "running" || f.status === "paused" ? `Round ${f.round} · now ${f.order.find((c) => c.id === f.currentId)?.name ?? "…"}` : "Open the fight"}
-          </span>
-        </button>
-      ) : null}
+      {screen === "chronicle" && view.world ? <WorldStrip world={view.world} /> : null}
+      {screen === "chronicle" && me.away ? <AwayStrip view={view} send={send} /> : null}
+      {screen === "chronicle" ? <LastTime view={view} /> : null}
+      <Whispers view={view} send={send} sealedOnly={screen !== "chronicle"} />
+      {screen === "chronicle" ? <CompanionStrip view={view} send={send} /> : null}
+      {screen !== "fight" ? fightStrip : null}
       <BannerToast banner={view.banner} className="phone-banner" />
       <BannerToast banner={newTab} className="phone-banner new-tab-banner" />
       <BannerToast banner={view.levelUp ? { id: `level-${view.levelUp.n}`, text: `You're level ${view.levelUp.level}!`, at: 0 } : null} className="phone-banner level-banner" />

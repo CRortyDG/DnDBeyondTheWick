@@ -4179,6 +4179,12 @@ function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
     case "game.town":
       s.town = cmd.town.replace(/\s+/g, " ").trim();
       break;
+    case "game.bookLine": {
+      const line = cmd.line.replace(/\s+/g, " ").trim();
+      if (line) s.bookLine = line;
+      else delete s.bookLine;
+      break;
+    }
     case "game.builderNotes": {
       const t = cmd.text.replace(/\r\n?/g, "\n").trim();
       if (t) s.builderNotes = t;
