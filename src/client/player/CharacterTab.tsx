@@ -95,16 +95,52 @@ export function CharacterTab({
               Open D&amp;D Beyond too
             </a>
           ) : null}
-          {!me.sheet.locked ? (
-            <button type="button" className="btn" onClick={() => setBuilding(true)}>
-              Start again with the character builder
-            </button>
-          ) : null}
+          {!me.sheet.locked ? <StartAgain rebuild={me.rebuild} send={send} onBuild={() => setBuilding(true)} /> : null}
         </section>
       ) : (
         <StartSheet view={view} send={send} onLink={onLink} onBuild={() => setBuilding(true)} />
       )}
     </>
+  );
+}
+
+/** "Start again with the character builder": free until the game has started, then the DM OKs it. */
+function StartAgain({ rebuild, send, onBuild }: { rebuild: PlayerView["me"]["rebuild"]; send: (c: object) => Promise<string | null>; onBuild: () => void }) {
+  const [err, setErr] = useState<string | null>(null);
+  const ask = async (cancel?: boolean) => setErr(await send({ type: "me.askRebuild", ...(cancel ? { cancel: true } : {}) }));
+  if (!rebuild || rebuild === "ok") {
+    return (
+      <>
+        {rebuild === "ok" ? <p className="note">The DM says you can start your character again.</p> : null}
+        <button type="button" className="btn" onClick={onBuild}>
+          Start again with the character builder
+        </button>
+      </>
+    );
+  }
+  return (
+    <div className="cs-rebuild">
+      {rebuild === "waiting" ? (
+        <>
+          <p className="note">You asked the DM to let you start your character again. Waiting for them.</p>
+          <button type="button" className="btn small" onClick={() => void ask(true)}>
+            Never mind
+          </button>
+        </>
+      ) : (
+        <>
+          <p className="note">{rebuild === "notNow" ? "The DM said not now. You can ask again in a few minutes." : "Your game has started, so starting your character again with the builder needs the DM's OK."}</p>
+          <button type="button" className="btn" onClick={() => void ask()}>
+            Ask the DM to start again
+          </button>
+        </>
+      )}
+      {err ? (
+        <p className="cs-err" role="alert">
+          {err}
+        </p>
+      ) : null}
+    </div>
   );
 }
 

@@ -49,7 +49,12 @@ export interface SheetSpell {
   scale?: boolean;
   type?: string;
   note?: string;
+  /** From a feat or species (Magic Initiate, an Elven Lineage): doesn't count toward the class's cantrips and prepared spells. */
+  bonus?: boolean;
 }
+
+/** Counts toward the class's cantrips and prepared spells. Sheets built before the bonus flag: Magic Initiate spells said so in their note. */
+export const classSpell = (s: Pick<SheetSpell, "bonus" | "note">) => !s.bonus && !/^Magic Initiate\b/.test(s.note ?? "");
 
 /** Class resources the app counts for you, from the SRD class tables. */
 export const RESOURCES = {
@@ -325,6 +330,7 @@ export const spellBody = z.object({
   scale: z.boolean().optional(),
   type: z.string().max(20).optional(),
   note: z.string().max(SPELL_NOTE_MAX).optional(),
+  bonus: z.boolean().optional(),
 });
 
 export const featureBody = z.object({
@@ -381,7 +387,7 @@ export function patchMagic(sheet: CharacterSheet, patch: MagicPatch) {
       seen.add(s.id);
       const out: SheetSpell = { id: s.id, name: clean(s.name) || "Spell", level: s.level };
       if (s.srd) out.srd = s.srd;
-      for (const k of ["prepared", "conc", "ritual", "attack", "addMod", "scale"] as const) if (s[k]) out[k] = true;
+      for (const k of ["prepared", "conc", "ritual", "attack", "addMod", "scale", "bonus"] as const) if (s[k]) out[k] = true;
       if (s.save) out.save = s.save;
       if (s.count && s.sides) {
         out.count = s.count;

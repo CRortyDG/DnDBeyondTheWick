@@ -175,6 +175,7 @@ function describe(r: TradeRequest): string {
   if (r.kind === "give") return `send ${formatCp(r.totalCp)} to ${r.toPlayerName}`;
   if (r.kind === "contribute") return `${formatCp(r.chargedCp ?? r.totalCp)} toward ${r.itemName}`;
   if (r.kind === "job") return `the job “${r.jobTitle ?? "a job"}” for the party`;
+  if (r.kind === "gold") return `${formatCp(r.chargedCp ?? r.totalCp)} starting gold`;
   if (r.flyer) return `flyer “${r.flyer.title}”`;
   return `${r.qty > 1 ? `${r.qty} × ` : ""}${r.itemName}`;
 }
@@ -229,6 +230,10 @@ function RequestRow({ r }: { r: TradeRequest }) {
       <div className="inbox-what">
         {r.kind === "job" ? (
           <JobAsk r={r} />
+        ) : r.kind === "gold" ? (
+          <>
+            Starting gold: <b className="purse-amt">{formatCp(r.totalCp)}</b> into their purse
+          </>
         ) : r.kind === "give" ? (
           <>
             Send <b className="purse-amt">{formatCp(r.totalCp)}</b> to <b>{r.toPlayerName}</b>
@@ -262,6 +267,7 @@ function RequestRow({ r }: { r: TradeRequest }) {
         )}
         {item && item.stock !== null ? ` · ${item.stock} in stock` : ""}
       </div>
+      {r.kind === "gold" && s.requests.some((x) => x.kind === "gold" && x.playerId === r.playerId && x.status === "approved") ? <div className="inbox-warn">You approved starting gold for an earlier build of theirs too.</div> : null}
       {priceChanged ? <div className="inbox-warn">The price is now {formatCp(nowCp)} each. Approving charges what they saw, unless you set a price.</div> : null}
       {r.question ? (
         <div className="inbox-note">
@@ -351,14 +357,14 @@ function RequestRow({ r }: { r: TradeRequest }) {
       ) : (
         <div className="inline">
           <button type="button" className="btn primary" onClick={() => void approve()}>
-            {r.kind === "job" ? "Give the party the job" : r.flyer ? "Pin it up" : service ? (answer.trim() ? "Answer and charge" : "Done, charge it") : "Approve"}
+            {r.kind === "job" ? "Give the party the job" : r.kind === "gold" ? "Add to their purse" : r.flyer ? "Pin it up" : service ? (answer.trim() ? "Answer and charge" : "Done, charge it") : "Approve"}
           </button>
           <button type="button" className="btn" onClick={() => setMode("decline")}>
             Decline
           </button>
-          {r.kind === "buy" && !r.flyer ? (
+          {(r.kind === "buy" && !r.flyer) || r.kind === "gold" ? (
             <button type="button" className="btn" onClick={() => setMode("price")}>
-              Different price
+              {r.kind === "gold" ? "Different amount" : "Different price"}
             </button>
           ) : null}
         </div>
@@ -530,7 +536,7 @@ function HistoryFix({ r, mode, onClose }: { r: TradeRequest; mode: HistoryMode; 
   const p = s.players.find((x) => x.id === r.playerId);
   const name = p?.name ?? r.playerName;
   const [reason, setReason] = useState(r.reason ?? "");
-  const hold = r.totalCp + (r.rewardCp ?? 0);
+  const hold = r.kind === "gold" ? 0 : r.totalCp + (r.rewardCp ?? 0);
   const free = p ? availableCp(s, p.id) : 0;
   const go = async (ok: Promise<boolean>) => {
     if (await ok) onClose();

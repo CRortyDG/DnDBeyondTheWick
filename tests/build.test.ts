@@ -5,7 +5,8 @@ import { seedGame } from "@/shared/seed";
 import { hydrate } from "@/server/store";
 import { playerCommand, type Command } from "@/shared/commands";
 import { sheetNumbers, skillBonus } from "@/shared/sheet";
-import { buildSheet, maxHpFor, nextLevel, pointBuyCost, STARTER_BUILDS, type BuildChoices } from "@/shared/sheetBuild";
+import { buildSheet, isSrdSubclass, maxHpFor, nextLevel, pointBuyCost, rebuildNeedsOk, STARTER_BUILDS, type BuildChoices } from "@/shared/sheetBuild";
+import { availableCp } from "@/shared/requests";
 import { featureNow } from "@/shared/sheetMagic";
 import { STARTER_IDS } from "@/shared/starters";
 import type { GameState } from "@/shared/types";
@@ -97,7 +98,9 @@ describe("character builder", () => {
     const r = run(g, { type: "me.build", choices: monk });
     g = r.state;
     expect(g.players[0].hp).toMatchObject({ cur: 10, max: 10 });
-    expect(g.players[0].sheet!.notes).toMatch(/19 GP/);
+    // Starting gold is a request for the DM, not a line in the notes.
+    expect(g.players[0].sheet!.notes).toBeUndefined();
+    expect(g.requests.at(-1)).toMatchObject({ kind: "gold", playerId: "p1", status: "pending", totalCp: 1900 });
     expect(r.info).toMatch(/10 HP, AC 15/);
     g = apply(g, { type: "sheet.lock", on: true }, { ...DM, rand: () => 0.5 }).state;
     expect(() => run(g, { type: "me.build", choices: monk })).toThrow(/locked/);
@@ -131,5 +134,70 @@ describe("character builder", () => {
   it("works out max HP", () => {
     expect(maxHpFor("Wizard", "Human", 8, 1)).toBe(5);
     expect(maxHpFor("Barbarian", "Dwarf", 16, 3)).toBe(12 + 3 + 2 * (7 + 3) + 3);
+  });
+});
+
+describe("builder fixes (phase 1)", () => {
+  const dm = (g: GameState, cmd: Command, now = 1000) => apply(g, cmd, { now, actor: { role: "dm" }, rand: () => 0.5 }).state;
+
+  it("starting again keeps the damage taken, and not mid-fight", () => {
+    let g = table();
+    g = run(g, { type: "me.build", choices: monk }).state;
+    g.players[0].hp = { cur: 1, max: 10, temp: 3 };
+    const fighter: BuildChoices = { ...monk, cls: "Fighter", species: "Dwarf", lineage: undefined, background: "Soldier", bonus: { str: 2, con: 1 }, skills: ["perception", "history"], extraSkills: [], spells: [] };
+    g = run(g, { type: "me.build", choices: fighter }).state;
+    // A Dwarf Fighter has 13 max HP here: the 9 damage taken still counts.
+    expect(g.players[0].hp).toMatchObject({ max: 13, cur: 4, temp: 3 });
+    g = dm(g, { type: "fight.start" });
+    expect(() => run(g, { type: "me.build", choices: monk })).toThrow(/middle of a fight/);
+  });
+
+  it("once a session has started, starting again needs the DM's OK, once", () => {
+    let g = table();
+    g = run(g, { type: "me.build", choices: monk }, as("p1", 2000)).state;
+    expect(rebuildNeedsOk(g, g.players[0])).toBe(false);
+    g = dm(g, { type: "session.start" }, 3000);
+    expect(rebuildNeedsOk(g, g.players[0])).toBe(true);
+    expect(() => run(g, { type: "me.build", choices: monk }, as("p1", 4000))).toThrow(/DM OKs/);
+    g = run(g, { type: "me.askRebuild" }, as("p1", 4000)).state;
+    expect(g.players[0].rebuildAsk).toBe(4000);
+    g = dm(g, { type: "sheet.rebuild", playerId: "p1", ok: false }, 5000);
+    expect(g.players[0].rebuildNo).toBe(5000);
+    expect(() => run(g, { type: "me.askRebuild" }, as("p1", 6000))).toThrow(/not now/);
+    g = dm(g, { type: "sheet.rebuild", playerId: "p1", ok: true }, 7000);
+    g = run(g, { type: "me.build", choices: monk }, as("p1", 8000)).state;
+    expect(g.players[0].rebuildOk).toBeUndefined();
+    // Built after the session started: free again until the next one.
+    expect(rebuildNeedsOk(g, g.players[0])).toBe(false);
+  });
+
+  it("starting gold: one request, approved into the purse", () => {
+    let g = table();
+    g = run(g, { type: "me.build", choices: monk }).state;
+    g = run(g, { type: "me.build", choices: { ...monk, kit: 1 } }).state;
+    const gold = g.requests.filter((r) => r.kind === "gold");
+    expect(gold.map((r) => r.status)).toEqual(["cancelled", "pending"]);
+    const before = g.players[0].balanceCp;
+    // It's coming in, so it holds none of their gold.
+    expect(availableCp(g, "p1")).toBe(before);
+    g = dm(g, { type: "request.approve", requestId: gold[1].id });
+    expect(g.players[0].balanceCp).toBe(before + gold[1].totalCp);
+  });
+
+  it("rolled scores are kept for the DM; kit choices and doubled feats", () => {
+    const rolled = buildSheet({ ...monk, method: "rolled", base: { str: 18, dex: 18, con: 18, int: 18, wis: 18, cha: 18 } }, 1, h).sheet;
+    expect(rolled.build).toMatchObject({ method: "rolled", rolled: { str: 18 } });
+    const m = buildSheet({ ...monk, kitPicks: { "Artisan’s Tools or Musical Instrument": "Flute" } }, 1, h).sheet;
+    expect(m.items!.map((x) => x.name)).toContain("Flute");
+    expect(m.items!.some((x) => / or /.test(x.name))).toBe(false);
+    const human: BuildChoices = { ...monk, species: "Human", lineage: undefined, background: "Criminal", bonus: { dex: 2, con: 1 }, skills: ["acrobatics", "athletics"], extraSkills: ["perception"], feat: "Alert", spells: [] };
+    expect(() => buildSheet(human, 1, h)).toThrow(/already gives you Alert/);
+    expect(() => buildSheet({ ...human, feat: "Skilled", extraSkills: ["perception", "history", "arcana", "nature"] }, 1, h)).not.toThrow();
+  });
+
+  it("only the free rules' subclass gets its features", () => {
+    expect(isSrdSubclass("Fighter", "")).toBe(true);
+    expect(isSrdSubclass("Fighter", " champion ")).toBe(true);
+    expect(isSrdSubclass("Fighter", "Battle Master")).toBe(false);
   });
 });

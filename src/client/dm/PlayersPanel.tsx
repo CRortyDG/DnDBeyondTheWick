@@ -19,7 +19,8 @@ import { Drawer } from "./Drawer";
 import { MenuItem, RowMenu } from "./RowMenu";
 import { PlusIcon } from "./navIcons";
 import { CharacterSheetView } from "../ui/CharacterSheet";
-import { sheetNumbers } from "@/shared/sheet";
+import { ABILITIES, ABILITY_SHORT, sheetNumbers } from "@/shared/sheet";
+import { rebuildNeedsOk } from "@/shared/sheetBuild";
 import { featureOn, FEATURES, hiddenOf, playerOff } from "@/shared/features";
 import { Switch } from "./FeaturesPanel";
 import { LOOK_STYLES } from "@/shared/look";
@@ -385,6 +386,8 @@ function PlayerDrawer({ p, onClose }: { p: DmPlayer; onClose: () => void }) {
         {p.sheetOff ? (
           <p className="note">Off: their phone shows the Gold tab as before{p.sheet ? ", and the sheet they made is kept for if you turn it back on" : ""}.</p>
         ) : p.sheet ? (
+          <>
+          <BuildNote p={p} />
           <CharacterSheetView
             sheet={p.sheet}
             level={p.level}
@@ -397,6 +400,7 @@ function PlayerDrawer({ p, onClose }: { p: DmPlayer; onClose: () => void }) {
             hp={p.hp && p.hp.max > 0 ? <p className="note">HP {p.hp.cur} of {p.hp.max}{p.hp.temp ? `, ${p.hp.temp} temp` : ""}. They change it on their phone, or you do in a fight.</p> : <p className="note">No HP set yet.</p>}
             editLabel="Edit"
           />
+          </>
         ) : (
           <>
             <p className="note">{p.dndbUrl ? "They use D&D Beyond. " : ""}No sheet in the app yet. They can start one on their phone (Character tab), or you can start it here.</p>
@@ -459,5 +463,39 @@ function PlayerDrawer({ p, onClose }: { p: DmPlayer; onClose: () => void }) {
         </div>
       </section>
     </Drawer>
+  );
+}
+
+/** How a builder sheet was made (rolled scores are typed in on the phone, so you see them), and a fresh start. */
+function BuildNote({ p }: { p: DmPlayer }) {
+  const { view, run } = useDm();
+  const b = p.sheet?.build;
+  const needs = rebuildNeedsOk(view.state, p);
+  if (!b && !needs && !p.rebuildOk) return null;
+  return (
+    <div className="dm-build-note">
+      {b?.method === "rolled" ? (
+        <p className={b.rolled && ABILITIES.some((a) => b.rolled![a] >= 17) ? "inbox-warn" : "note"}>
+          Rolled scores, typed in on their phone{b.rolled ? `: ${ABILITIES.map((a) => `${ABILITY_SHORT[a]} ${b.rolled![a]}`).join(", ")}` : ""} (before bonuses). Ask to see the dice if you weren&rsquo;t watching.
+        </p>
+      ) : b?.method ? (
+        <p className="note">Made with the builder ({b.method === "pointbuy" ? "point buy" : "standard array"}).</p>
+      ) : null}
+      {p.rebuildOk ? (
+        <p className="note">
+          You&rsquo;ve let them start again with the builder.{" "}
+          <button type="button" className="btn small" onClick={() => run({ type: "sheet.rebuild", playerId: p.id, ok: false })}>
+            Take it back
+          </button>
+        </p>
+      ) : needs && !p.sheet?.locked ? (
+        <p className="note">
+          The game has started, so starting again with the builder needs your OK.{" "}
+          <button type="button" className="btn small" onClick={() => run({ type: "sheet.rebuild", playerId: p.id, ok: true }, `${p.name} can start their character again.`)}>
+            Let them start again
+          </button>
+        </p>
+      ) : null}
+    </div>
   );
 }

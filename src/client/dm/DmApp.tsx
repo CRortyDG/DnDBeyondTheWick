@@ -310,6 +310,8 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
   const [drafts, recountDrafts] = usePendingDrafts(ident);
   // Players marked away who say they're here tonight: the DM marks them here, or keeps them away, in one tap.
   const hereAsks = s.currentSessionId ? s.players.filter((p) => p.away && !p.archived && p.hereAsk !== undefined).sort((a, b) => (a.hereAsk ?? 0) - (b.hereAsk ?? 0)) : [];
+  // Players asking to start their character again with the builder (after the game started).
+  const rebuildAsks = s.players.filter((p) => !p.archived && p.rebuildAsk !== undefined).sort((a, b) => (a.rebuildAsk ?? 0) - (b.rebuildAsk ?? 0));
   const [editingMap, setEditingMap] = useState<string | null>(null);
   /** The finder: open (optionally to pin onto one key) or closed. */
   const [finder, setFinder] = useState<{ pinTo?: number } | null>(null);
@@ -763,6 +765,26 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
                 </button>
                 <button className="btn small primary" type="button" onClick={() => run({ type: "run.attend", playerId: p.id, here: true }, `${p.name} is here.`)}>
                   Mark here
+                </button>
+              </span>
+            ))}
+          </div>
+        ) : null}
+        {rebuildAsks.length ? (
+          <div className="dm-knocks dm-here-asks" role="status">
+            {rebuildAsks.map((p) => (
+              <span key={p.id} className="knock here-ask">
+                <span className="knock-tag">Character</span>
+                <span>
+                  <b>{p.name}</b>
+                  {p.character?.trim() && p.character.trim() !== p.name ? <> ({p.character.trim()})</> : null} wants to start their character again with the builder.
+                </span>
+                <span className="spacer" />
+                <button className="btn small" type="button" onClick={() => run({ type: "sheet.rebuild", playerId: p.id, ok: false })}>
+                  Not now
+                </button>
+                <button className="btn small primary" type="button" onClick={() => run({ type: "sheet.rebuild", playerId: p.id, ok: true }, `${p.name} can start their character again.`)}>
+                  Allow
                 </button>
               </span>
             ))}

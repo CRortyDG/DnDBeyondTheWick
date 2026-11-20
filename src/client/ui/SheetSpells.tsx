@@ -5,6 +5,7 @@ import { ABILITIES, ABILITY_NAME, ABILITY_SHORT, classOf, EXTRA_MAX, NAME_FIELD_
 import {
   castAbilityOf,
   castingRow,
+  classSpell,
   pactLeft,
   pactOf,
   slotsLeft,
@@ -117,8 +118,10 @@ export function SpellsBlock({
   const pact = pactOf(sheet, level);
   const row = castingRow(sheet, level);
   const list = sheet.spells ?? [];
-  const prepared = list.filter((s) => s.level > 0 && s.prepared).length;
-  const cantrips = list.filter((s) => s.level === 0).length;
+  // Spells from a feat or species are extra: they don't count toward the class's numbers.
+  const prepared = list.filter((s) => s.level > 0 && s.prepared && classSpell(s)).length;
+  const cantrips = list.filter((s) => s.level === 0 && classSpell(s)).length;
+  const extras = list.filter((s) => !classSpell(s)).length;
   const hidden = list.filter((s) => s.level > 0 && !s.prepared).length;
   const shown = editing || showAll ? list : list.filter((s) => s.level === 0 || s.prepared);
   const levels = [...new Set(shown.map((s) => s.level))].sort((a, b) => a - b);
@@ -198,6 +201,7 @@ export function SpellsBlock({
           {row[0] ? `Cantrips ${cantrips} of ${row[0]}` : ""}
           {row[0] && row[1] ? " · " : ""}
           {row[1] ? `Prepared ${prepared} of ${row[1]}` : ""}
+          {extras ? ` · ${extras} extra from a feat or species` : ""}
         </p>
       ) : null}
 
@@ -414,7 +418,7 @@ function SpellCard({ sp, onSave, onRemove }: { sp: SheetSpell; onSave: (s: Sheet
     setD(next);
     if (JSON.stringify(next) !== JSON.stringify(sp)) void onSave(next);
   };
-  const flag = (k: "prepared" | "conc" | "ritual" | "attack" | "addMod" | "scale", label: string) => (
+  const flag = (k: "prepared" | "conc" | "ritual" | "attack" | "addMod" | "scale" | "bonus", label: string) => (
     <label className="check">
       <input type="checkbox" checked={!!d[k]} onChange={(e) => commit({ ...d, [k]: e.target.checked || undefined })} /> {label}
     </label>
@@ -485,6 +489,7 @@ function SpellCard({ sp, onSave, onRemove }: { sp: SheetSpell; onSave: (s: Sheet
         {flag("attack", "Spell attack")}
         {flag("addMod", "Add ability to the roll")}
         {d.level === 0 ? flag("scale", "Dice grow at 5, 11, 17") : null}
+        {flag("bonus", "Extra, from a feat or species (doesn't count toward your class's number)")}
       </div>
       {!sp.srd ? (
         <label className="cs-field">
