@@ -141,7 +141,13 @@ function PlayerScreen({ view, online, send, ident, setIdent }: { view: PlayerVie
   const [looking, setLooking] = useState<string | null>(null);
   const wide = useWide();
   // During a session the phone opens on the Chronicle, so a note is one tap away.
-  const [screenPick, setScreenPick] = useState<Screen>(view.map ? "map" : view.session ? "chronicle" : "purse");
+  // Between sessions, someone with no character yet opens on Character (the welcome and "Make my character"); otherwise Gold.
+  const [screenPick, setScreenPick] = useState<Screen>(() => {
+    if (view.map) return "map";
+    if (view.session) return "chronicle";
+    const sheetHidden = !!view.me.sheetOff || [...(view.me.off ?? []), ...(view.me.hidden ?? [])].includes("sheets");
+    return !view.me.sheet && !sheetHidden ? "sheet" : "purse";
+  });
   const setScreen = (s: Screen) => {
     setScreenPick(s);
     window.scrollTo({ top: 0 });
