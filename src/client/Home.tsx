@@ -50,7 +50,80 @@ export function Home() {
           <span>Players join on their phones with the code.</span>
         </li>
       </ol>
+      <Tour />
     </HomeShell>
+  );
+}
+
+/**
+ * "See it at the table": what the app looks like before anyone commits to a campaign.
+ * One fight from the Marrowmere starter on the TV, a player's phone and the DM's screen, plus the 1-minute demo.
+ * Images and video live in public/tour/ (stills shot from a local Marrowmere campaign; video is the 60 s demo cut).
+ */
+function Tour() {
+  return (
+    <section className="hm-tour" aria-labelledby="hm-tour-title">
+      <div className="hm-tour-head">
+        <span className="hm-kicker">See it at the table</span>
+        <h2 id="hm-tour-title">One fight, three screens</h2>
+        <p>From The Bell under Marrowmere, the ready-to-run starter you can pick when you start a campaign.</p>
+      </div>
+      <div className="hm-tour-stage">
+        <figure className="hm-shot hm-shot-tv">
+          <img
+            src="/tour/tv.webp"
+            width={1440}
+            height={810}
+            loading="lazy"
+            decoding="async"
+            alt="The TV during a fight: the turn order across the top, Wren Ashby's turn in the middle with her hit points, and who is up next."
+          />
+        </figure>
+        <figure className="hm-shot hm-shot-phone">
+          <img
+            src="/tour/phone.webp"
+            width={600}
+            height={1140}
+            loading="lazy"
+            decoding="async"
+            alt="Wren's phone at the same moment: Your turn, her hit points, the turn order and an End my turn button."
+          />
+        </figure>
+      </div>
+      <ul className="hm-tour-points">
+        <li>
+          <b>On the TV</b>
+          <span>Turn order, maps, handouts and dice the whole table watches land.</span>
+        </li>
+        <li>
+          <b>On every phone</b>
+          <span>Your turn, your hit points, your character sheet and your own dice.</span>
+        </li>
+        <li>
+          <b>On the DM&rsquo;s screen</b>
+          <span>Run the fight, the episode and the world, and choose what the TV shows.</span>
+        </li>
+      </ul>
+      <div className="hm-tour-more">
+        <figure className="hm-shot hm-shot-dm">
+          <img
+            src="/tour/dm.webp"
+            width={1280}
+            height={800}
+            loading="lazy"
+            decoding="async"
+            alt="The DM's fight screen: every combatant's initiative, hit points and armour class, with damage, heal and conditions to the side."
+          />
+          <figcaption>The DM&rsquo;s side of the same fight.</figcaption>
+        </figure>
+        <figure className="hm-shot hm-shot-video">
+          <video controls playsInline preload="none" poster="/tour/tour-poster.webp" width={1280} height={720}>
+            <source src="/tour/tour.mp4" type="video/mp4" />
+          </video>
+          <figcaption>A whole game night in one minute (sound on).</figcaption>
+        </figure>
+      </div>
+    </section>
   );
 }
 
