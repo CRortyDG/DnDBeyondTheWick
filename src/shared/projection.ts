@@ -342,7 +342,7 @@ export interface PublicSession {
 
 interface Common {
   version: number;
-  game: { id: string; name: string; /** The town's name ("" if the DM hasn't named it). */ town: string };
+  game: { id: string; name: string; /** The town's name ("" if the DM hasn't named it). */ town: string; /** The line on the players' book cover. */ bookLine?: string };
   purse: PublicPlayer[];
   shops: PublicShop[];
   items: PublicItem[];
@@ -712,7 +712,7 @@ function common(game: GameState, version: number, viewer: Viewer): Common {
   const ladder = ranksOf(game);
   return {
     version,
-    game: { id: game.id, name: game.name, town: townOf(game) },
+    game: { id: game.id, name: game.name, town: townOf(game), ...(game.bookLine ? { bookLine: game.bookLine } : {}) },
     purse: game.players.filter((p) => !p.archived && !p.away).map((p) => ({ id: p.id, name: penName(p), balanceCp: p.balanceCp, inspired: !!p.inspired, ...(p.sheet && !p.sheetOff ? { sheet: true as const } : {}), ...(p.look ? { look: { ...p.look } } : {}) })),
     shops: shops.map((x) => ({ id: x.id, name: x.name, subtitle: x.subtitle, closed: !!x.closed, ...(renownMet(game, x.renown) ? {} : { needs: rankName(x.renown ?? 0, game) }), ...(trustText(game, x.trust) ? { goodwill: trustText(game, x.trust)! } : {}) })),
     items: game.items.filter((it) => open.has(it.shopId)).map((it) => publicItem(game, it)).filter((x): x is PublicItem => x !== null),

@@ -3217,20 +3217,272 @@ html[data-view="player"] {
   box-shadow: 0 6px 18px rgba(0, 0, 0, 0.5);
 }
 
-/* First-visit welcome on the Character tab (CharacterTab.tsx WelcomeCard). */
-:where(html[data-view="player"]) .welcome-card {
-  border-color: rgba(227, 182, 92, 0.45);
-  background: linear-gradient(180deg, rgba(227, 182, 92, 0.1), rgba(227, 182, 92, 0.03));
+
+/* ---- Out of the book (OutsideBook.tsx): the closed book on the table between games. ---- */
+:where(html[data-view="player"]) .ob-root {
+  /* No tab bar here: just room for the home indicator. */
+  padding-bottom: calc(40px + env(safe-area-inset-bottom));
+  min-height: 100dvh;
+  background: radial-gradient(ellipse 120% 60% at 50% 22%, #3b2616 0, #1a120c 55%, var(--pl-bg-0) 100%);
 }
-:where(html[data-view="player"]) .welcome-card p {
-  margin: 6px 0 0;
+:where(html[data-view="player"]) .ob-wide {
+  background: none;
+  max-width: 560px;
+  margin: 0 auto;
+  padding-top: 24px;
+}
+:where(html[data-view="player"]) .ob {
+  display: grid;
+  gap: var(--pl-s4);
+}
+:where(html[data-view="player"]) .ob-top {
+  padding-top: calc(12px + env(safe-area-inset-top));
+}
+:where(html[data-view="player"]) .ob-who {
+  all: unset;
+  display: grid;
+  cursor: pointer;
+}
+:where(html[data-view="player"]) .ob-name {
+  font-family: var(--font-sc);
+  font-size: 24px;
+  line-height: 1.15;
+  color: var(--parchment);
+}
+:where(html[data-view="player"]) .ob-sub {
+  font-family: var(--pl-font-ui);
+  font-size: 13px;
+  color: var(--pl-text-2);
+}
+:where(html[data-view="player"]) .ob-book {
+  display: grid;
+  justify-items: center;
+  gap: var(--pl-s5);
+  padding: var(--pl-s2) 0 var(--pl-s2);
+}
+:where(html[data-view="player"]) .ob-cover {
+  position: relative;
+  width: min(260px, 72vw);
+  aspect-ratio: 5 / 6;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 28px 26px 30px 32px;
+  border: 0;
+  border-radius: 6px 14px 14px 6px;
+  background: linear-gradient(100deg, #2a130b 0, #4a2414 8%, #5c2d18 50%, #47210f 100%);
+  box-shadow:
+    0 18px 40px rgba(0, 0, 0, 0.6),
+    inset 0 0 0 2px #7a4a22,
+    inset 7px 0 0 #2a130b;
+  color: #e8c06a;
+  text-align: center;
+  cursor: pointer;
+  transition: transform 0.25s ease;
+}
+:where(html[data-view="player"]) .ob-cover::before {
+  content: "";
+  position: absolute;
+  inset: 14px 14px 14px 21px;
+  border: 1.5px solid rgba(201, 151, 63, 0.75);
+  border-radius: 4px;
+  pointer-events: none;
+}
+:where(html[data-view="player"]) .ob-cover:hover,
+:where(html[data-view="player"]) .ob-cover:focus-visible {
+  transform: translateY(-3px) rotate(-0.6deg);
+}
+:where(html[data-view="player"]) .ob-cover-title {
+  font-family: var(--font-sc);
+  font-size: clamp(22px, 6.6vw, 27px);
+  line-height: 1.1;
+  text-shadow: 0 1px 0 #000;
+  overflow-wrap: anywhere;
+}
+:where(html[data-view="player"]) .ob-cover-line {
+  font-family: var(--font-body, "IM Fell English", serif);
+  font-style: italic;
+  font-size: 14px;
+  color: #d9b77a;
+}
+:where(html[data-view="player"]) .ob-cover-orn {
+  font-size: 22px;
+  color: #c9973f;
+}
+:where(html[data-view="player"]) .ob-ribbon {
+  position: absolute;
+  bottom: -24px;
+  right: 46px;
+  width: 16px;
+  height: 50px;
+  background: var(--pl-wax);
+  clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 82%, 0 100%);
+}
+:where(html[data-view="player"]) .ob-open {
+  min-width: 220px;
+  margin-top: 10px;
+}
+:where(html[data-view="player"]) .ob-card {
+  border: 1px solid var(--pl-border);
+  border-radius: var(--pl-r-md);
+  background: var(--pl-bg-1);
+  padding: var(--pl-s4);
+  display: grid;
+  gap: var(--pl-s2);
+}
+:where(html[data-view="player"]) .ob-card h2 {
+  margin: 0;
+}
+:where(html[data-view="player"]) .ob-k {
+  font-family: var(--pl-font-ui);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--pl-text-3);
+}
+:where(html[data-view="player"]) .ob-note {
+  margin: 0;
+  font-family: var(--pl-font-ui);
+  font-size: 14.5px;
+  line-height: 1.45;
+  color: var(--pl-text-2);
+}
+:where(html[data-view="player"]) .ob-welcome {
+  border-color: var(--pl-gold-line);
+  background: linear-gradient(160deg, #2a2015, var(--pl-bg-1));
+}
+:where(html[data-view="player"]) .ob-welcome h2 {
+  color: var(--pl-gold);
+}
+:where(html[data-view="player"]) .ob-steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+}
+:where(html[data-view="player"]) .ob-steps li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 46px;
   font-family: var(--pl-font-ui);
   font-size: 15px;
-  line-height: 1.5;
 }
-:where(html[data-view="player"]) .welcome-card h2 {
-  margin-bottom: 4px;
+:where(html[data-view="player"]) .ob-steps li.done .ob-step-label {
+  color: var(--pl-text-3);
 }
-:where(html[data-view="player"]) .welcome-card .btn {
-  margin-top: 12px;
+:where(html[data-view="player"]) .ob-step-label {
+  flex: 1;
+  min-width: 0;
+}
+:where(html[data-view="player"]) .ob-check {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 1.5px solid var(--pl-border-strong);
+  display: grid;
+  place-items: center;
+  font-size: 12px;
+}
+:where(html[data-view="player"]) .ob-steps li.done .ob-check {
+  background: var(--pl-ok);
+  border-color: var(--pl-ok);
+  color: #10200f;
+}
+:where(html[data-view="player"]) .ob-hide {
+  justify-self: start;
+  font-size: 13px;
+  color: var(--pl-text-3);
+}
+:where(html[data-view="player"]) .ob-nudge {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 48px;
+  padding: 10px 14px;
+  border: 1px solid var(--pl-border);
+  border-radius: var(--pl-r-md);
+  background: var(--pl-bg-1);
+  color: var(--pl-text);
+  font: 15px var(--pl-font-ui);
+  text-align: left;
+  cursor: pointer;
+}
+:where(html[data-view="player"]) .ob-nudge > span:nth-child(2) {
+  flex: 1;
+}
+:where(html[data-view="player"]) .ob-nudge.sealed {
+  border-color: rgba(166, 58, 44, 0.6);
+}
+:where(html[data-view="player"]) .ob-dot {
+  flex: none;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--pl-wax);
+}
+:where(html[data-view="player"]) .ob-dot.gold {
+  background: var(--pl-gold);
+}
+:where(html[data-view="player"]) .ob-go {
+  color: var(--pl-gold);
+  font-size: 14px;
+  white-space: nowrap;
+}
+:where(html[data-view="player"]) .ob-rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+:where(html[data-view="player"]) .ob-rows li + li {
+  border-top: 1px solid var(--pl-border);
+}
+:where(html[data-view="player"]) .ob-rows button {
+  all: unset;
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 46px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font: 15px var(--pl-font-ui);
+  color: var(--pl-text);
+  cursor: pointer;
+}
+:where(html[data-view="player"]) .ob-rows button:focus-visible {
+  outline: 2px solid var(--pl-gold);
+  outline-offset: 2px;
+}
+:where(html[data-view="player"]) .ob-party {
+  justify-self: start;
+  margin-top: 4px;
+}
+/* The closed-book button in the phone header: back out of the book. */
+:where(html[data-view="player"]) .pl-close-book {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  margin-right: -4px;
+  border: 1px solid var(--pl-border-strong);
+  border-radius: 50%;
+  background: transparent;
+  color: var(--pl-text-2);
+  cursor: pointer;
+}
+:where(html[data-view="player"]) .pl-close-book:hover {
+  color: var(--pl-gold);
+  border-color: var(--pl-gold-line);
+}
+@media (prefers-reduced-motion: reduce) {
+  :where(html[data-view="player"]) .ob-cover {
+    transition: none;
+  }
 }

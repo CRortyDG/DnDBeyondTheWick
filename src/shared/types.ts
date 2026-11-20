@@ -1353,6 +1353,8 @@ export interface GameState {
   origin?: import("./presets").Origin;
   /** The town the shop and the players' phones name. Missing: Candlefair. "" on a blank campaign until the DM names it. Read with townOf(). */
   town?: string;
+  /** A line on the cover of the players' book ("Being told by the Wizard"). Missing: none. */
+  bookLine?: string;
   /** The DM's own wording for the five Renown ranks (blank fields keep the default). Read with ranksOf(). */
   renownRanks?: Partial<{ name: string; meaning: string; pay: string; raised: string; points: number }>[];
   /** One-time content upgrades already applied to this game (see migrate.ts), so a later delete sticks. */

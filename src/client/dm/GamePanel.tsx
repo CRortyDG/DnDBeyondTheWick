@@ -112,6 +112,13 @@ export function GamePanel() {
             hint="Titles the shop on the TV and phones (“Candlefair Market”) and the players’ Renown line."
             onCommit={(v) => run({ type: "game.town", town: v }, v.trim() ? "Town name saved." : "Town name cleared.")}
           />
+          <Field
+            label="Book cover line"
+            value={s.bookLine ?? ""}
+            placeholder="Being told by the Wizard"
+            hint="A short line on the cover of the book players see on their phone between games. Leave blank for none."
+            onCommit={(v) => run({ type: "game.bookLine", line: v }, v.trim() ? "Cover line saved." : "Cover line cleared.")}
+          />
         </div>
       </section>
       <SessionsBox />
