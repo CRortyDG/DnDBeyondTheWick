@@ -15,6 +15,7 @@ import { itemFromName, type SheetItem } from "./sheetGear";
 import { castingRow, featureFrom, patchMagic, spellBody, SPELLS_MAX, suggestedFeatures } from "./sheetMagic";
 import { BUILD_BACKGROUND_DATA, BUILD_CLASS_DATA } from "./srdBuildData";
 import type { StarterId } from "./starters";
+import type { GameState, Player } from "./types";
 
 export const SCORE_BASE_MIN = 3;
 export const SCORE_BASE_MAX = 18;
@@ -31,6 +32,28 @@ export const BUILD_BACKGROUNDS = Object.keys(BUILD_BACKGROUND_DATA);
 /** The SRD's origin feats (a background gives one; a Human picks one more). */
 export const ORIGIN_FEATS = ["Alert", "Magic Initiate", "Savage Attacker", "Skilled"] as const;
 export type OriginFeat = (typeof ORIGIN_FEATS)[number];
+
+/** Kit lines that are a choice in the rules: what each can be. The first is the default. */
+export const KIT_CHOICES: Record<string, { label: string; options: string[] }> = {
+  "Artisan’s Tools or Musical Instrument": {
+    label: "Artisan's tools or a musical instrument",
+    options: ["Lute", "Flute", "Drum", "Horn", "Lyre", "Bagpipes", "Dulcimer", "Pan Flute", "Shawm", "Viol", "Alchemist's Supplies", "Brewer's Supplies", "Calligrapher's Supplies", "Carpenter's Tools", "Cartographer's Tools", "Cobbler's Tools", "Cook's Utensils", "Glassblower's Tools", "Jeweler's Tools", "Leatherworker's Tools", "Mason's Tools", "Painter's Supplies", "Potter's Tools", "Smith's Tools", "Tinker's Tools", "Weaver's Tools", "Woodcarver's Tools"],
+  },
+  "Gaming Set": { label: "Gaming set", options: ["Playing Cards", "Dice", "Dragonchess", "Three-Dragon Ante"] },
+};
+/** The kit choices a class and background ask for. */
+export const kitChoicesFor = (cls: string | undefined, kit: number, bg: string | undefined, bgKit: boolean): string[] => {
+  const lines: [string, number][] = [...((cls && BUILD_CLASS_DATA[cls]?.kits[kit]?.items) || []), ...((bg && bgKit && BUILD_BACKGROUND_DATA[bg]?.kit) || [])];
+  const names = lines.map(([n]) => n);
+  return [...new Set(names.filter((n) => KIT_CHOICES[n]))];
+};
+/** What a kit choice became: their pick, or the first option. */
+export const kitPick = (name: string, picks: Record<string, string> | undefined) => {
+  const c = KIT_CHOICES[name];
+  if (!c) return name;
+  const p = picks?.[name];
+  return p && c.options.includes(p) ? p : c.options[0];
+};
 
 export const LANGUAGES = ["Common Sign Language", "Draconic", "Dwarvish", "Elvish", "Giant", "Gnomish", "Goblin", "Halfling", "Orc"];
 
@@ -127,6 +150,13 @@ export const expertiseBy = (cls: string | undefined, level: number) =>
 export const asiLevels = (cls: string | undefined) => (cls ? (BUILD_CLASS_DATA[cls]?.asi ?? []) : []);
 export const asiCountBy = (cls: string | undefined, level: number) => asiLevels(cls).filter((l) => l <= level).length;
 
+/** The free rules' subclass for this class (blank counts: it's the default). Another name gets no built-in features. */
+export const isSrdSubclass = (cls: string | undefined, name: string | undefined) => {
+  const sub = cls ? BUILD_CLASS_DATA[cls]?.sub : undefined;
+  const n = name?.replace(/\s+/g, " ").trim().toLowerCase();
+  return !!sub && (!n || n === sub.toLowerCase());
+};
+
 export const hitDieFor = (cls: string): HitDie => CLASSES.find((c) => c.name === cls)?.hitDie ?? 8;
 /** The fixed hit points per level after the first: half the die, plus one. */
 export const avgHp = (die: HitDie) => die / 2 + 1;
@@ -171,6 +201,27 @@ export interface BuildRecord {
   lineage?: string;
   /** Origin feats: the background's, and a Human's second one. */
   feats: string[];
+  /** When it was made with the builder (missing: before this was kept). */
+  at?: number;
+  /** How the scores were set. "rolled": the player typed them in, so the DM sees them. */
+  method?: "standard" | "pointbuy" | "rolled";
+  /** Rolled: the six numbers before any bonus. */
+  rolled?: Record<Ability, number>;
+}
+
+/** After the DM says "not now", a player can ask to start again this much later. */
+export const REBUILD_ASK_COOLDOWN_MS = 3 * 60_000;
+
+/**
+ * Starting again with the builder needs the DM's OK once a session has started
+ * since the sheet was made: before then it's free. A blank sheet is always free.
+ */
+export function rebuildNeedsOk(s: Pick<GameState, "sessions">, p: Pick<Player, "sheet" | "rebuildOk">): boolean {
+  const sh = p.sheet;
+  if (!sh || p.rebuildOk) return false;
+  if (!sh.build && !sh.cls?.trim()) return false;
+  const since = sh.build?.at ?? 0;
+  return s.sessions.some((x) => x.startedAt >= since);
 }
 
 // ---------------------------------------------------------------------------
@@ -203,6 +254,8 @@ export const buildChoices = z.object({
   /** Which of the class's kits (the last one is all gold), and the background's kit or its 50 GP. */
   kit: z.number().int().min(0).max(3),
   bgKit: z.boolean(),
+  /** Kit lines that are a choice ("Gaming Set"): what they picked. */
+  kitPicks: z.record(z.string().max(60), z.string().max(40)).optional(),
   spells: z.array(spellBody).max(SPELLS_MAX),
   traits: z.string().max(BUILD_TRAITS_MAX).optional(),
   profs: z.string().max(BUILD_PROFS_MAX).optional(),
@@ -212,6 +265,8 @@ export type BuildChoices = z.infer<typeof buildChoices>;
 export const buildCommands = [
   /** Make my sheet from the builder (replaces one I have, unless the DM locked it). */
   z.object({ type: z.literal("me.build"), choices: buildChoices }),
+  /** Ask the DM to let me start my character again (once a session has started), or take the ask back. */
+  z.object({ type: z.literal("me.askRebuild"), cancel: z.boolean().optional() }),
   /** Take my next level, after the DM raised it: hit points (the average or a roll), and what the level asks for. */
   z.object({
     type: z.literal("me.levelUp"),
@@ -261,6 +316,7 @@ export function buildSheet(c: BuildChoices, level: number | undefined, h: { now:
   if (ABILITIES.some((a) => scores[a] > SCORE_CAP)) fail(`A score can't go above ${SCORE_CAP}.`);
 
   // Skills
+  if (sp.human && c.feat && c.feat === bg.feat) fail(`${c.background} already gives you ${bg.feat}. Pick a different extra feat.`);
   const feats = [bg.feat, ...(sp.human && c.feat ? [c.feat] : [])];
   const have = new Set<SkillId>(bg.skills as SkillId[]);
   const pick = [...new Set(c.skills)];
@@ -295,9 +351,9 @@ export function buildSheet(c: BuildChoices, level: number | undefined, h: { now:
     if (same) same.qty += qty;
     else items.push(itemFromName(name, h.newId(), qty));
   };
-  for (const [n, q] of kit.items) add(n, q);
+  for (const [n, q] of kit.items) add(kitPick(n, c.kitPicks), q);
   if (c.bgKit) {
-    for (const [n, q] of bg.kit) add(n, q);
+    for (const [n, q] of bg.kit) add(kitPick(n, c.kitPicks), q);
     gp += bg.gp;
   } else gp += 50;
   // Wear the armor and shield, and wield the first melee and ranged weapon.
@@ -334,7 +390,7 @@ export function buildSheet(c: BuildChoices, level: number | undefined, h: { now:
   if (traits) sheet.traits = traits;
   const profs = c.profs?.replace(/\r\n?/g, "\n").trim();
   if (profs) sheet.profs = profs;
-  sheet.build = { level: L, species: c.species, ...(lineage ? { lineage } : {}), feats };
+  sheet.build = { level: L, species: c.species, ...(lineage ? { lineage } : {}), feats, at: h.now, method: c.method, ...(c.method === "rolled" ? { rolled: { ...c.base } } : {}) };
   return { sheet, maxHp: maxHpFor(c.cls, c.species, scores.con, L), gp };
 }
 

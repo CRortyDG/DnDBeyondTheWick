@@ -392,6 +392,8 @@ export const sheetDmCommands = [
   z.object({ type: z.literal("sheet.lock"), playerId: id.optional(), on: z.boolean() }),
   /** Use a slot or a feature, cast a spell, end concentration, on a player's sheet. */
   z.object({ type: z.literal("sheet.act"), playerId: id, act: sheetAct }),
+  /** Let a player start their character again with the builder (once), or say not now to their ask. */
+  z.object({ type: z.literal("sheet.rebuild"), playerId: id, ok: z.boolean() }),
 ] as const;
 
 const sheetRoll = z.discriminatedUnion("kind", [
@@ -560,6 +562,19 @@ export function applySheet(s: GameState, cmd: SheetCommand, h: { actor: { role: 
         if (!p.sheet) continue;
         if (cmd.on) p.sheet.locked = true;
         else delete p.sheet.locked;
+      }
+      return;
+    }
+    case "sheet.rebuild": {
+      const p = find(cmd.playerId);
+      if (cmd.ok) {
+        p.rebuildOk = true;
+        delete p.rebuildAsk;
+        delete p.rebuildNo;
+      } else {
+        delete p.rebuildOk;
+        if (p.rebuildAsk !== undefined) p.rebuildNo = h.now;
+        delete p.rebuildAsk;
       }
       return;
     }

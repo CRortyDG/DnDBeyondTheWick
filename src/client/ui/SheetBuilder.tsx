@@ -12,6 +12,10 @@ import {
   buildSheet,
   DRACONIC_TYPE,
   expertiseBy,
+  isSrdSubclass,
+  KIT_CHOICES,
+  kitChoicesFor,
+  kitPick,
   LANGUAGES,
   lineageSpellsAt,
   lineageSpellsBy,
@@ -28,7 +32,7 @@ import {
   type OriginFeat,
 } from "@/shared/sheetBuild";
 import { BUILD_BACKGROUND_DATA, BUILD_CLASS_DATA } from "@/shared/srdBuildData";
-import { SPELL_LEVEL_NAME, type SheetSpell } from "@/shared/sheetMagic";
+import { classSpell, SPELL_LEVEL_NAME, type SheetSpell } from "@/shared/sheetMagic";
 import { STARTERS, type StarterId } from "@/shared/starters";
 import { spellFromSrd, useSrdSpells, type SrdSpell } from "./SheetSpells";
 
@@ -133,6 +137,8 @@ interface Draft {
   feat?: OriginFeat;
   kit: number;
   bgKit: boolean;
+  /** Kit lines that are a choice ("Gaming Set"): what they picked. */
+  kitPicks: Record<string, string>;
   classSpells: string[];
   miSpells: string[];
   miList: string;
@@ -142,7 +148,7 @@ interface Draft {
   ready?: StarterId;
 }
 
-const emptyDraft = (): Draft => ({ method: "standard", base: arrayFor(undefined), bonus: {}, asi: {}, skills: [], keen: [], anySkills: [], expertise: [], kit: 0, bgKit: true, classSpells: [], miSpells: [], miList: "Wizard", langs: [], subclass: "" });
+const emptyDraft = (): Draft => ({ method: "standard", base: arrayFor(undefined), bonus: {}, asi: {}, skills: [], keen: [], anySkills: [], expertise: [], kit: 0, bgKit: true, kitPicks: {}, classSpells: [], miSpells: [], miList: "Wizard", langs: [], subclass: "" });
 
 function draftFromStarter(id: StarterId, level: number): Draft {
   const b = STARTER_BUILDS[id];
@@ -170,7 +176,7 @@ function draftFromStarter(id: StarterId, level: number): Draft {
     miSpells: [...b.initiate],
     miList: initiateList(c.background, "Wizard"),
     asi: readyAsi(c.cls, { ...c.base }, c.bonus, level),
-    langs: defaultLangs(c.species),
+    langs: starterLangs(c.species),
     ready: id,
   };
 }
@@ -189,6 +195,12 @@ function readyAsi(cls: string, base: Record<Ability, number>, bonus: BuildChoice
     if (!pts) break;
   }
   return out;
+}
+/** A ready-made comes with its two languages picked: its species' own, and a common second. */
+function starterLangs(species: string): string[] {
+  const own = defaultLangs(species);
+  const more = ["Elvish", "Dwarvish", "Halfling"].filter((l) => !own.includes(l));
+  return [...own, ...more].slice(0, 2);
 }
 function defaultLangs(species: string | undefined): string[] {
   const own = species ? SPECIES_LANG[species] : undefined;
@@ -212,7 +224,11 @@ function spellsOf(d: Draft, level: number, srd: SrdSpell[] | null): SheetSpell[]
     if (!o || seen.has(i)) return;
     seen.add(i);
     const sp = spellFromSrd(o);
-    if (note) sp.note = note;
+    if (note) {
+      // From a feat or species: extra, on top of the class's own number.
+      sp.note = note;
+      sp.bonus = true;
+    }
     out.push(sp);
   };
   for (const i of d.classSpells) add(i);
@@ -234,8 +250,10 @@ function choicesOf(d: Draft, level: number, srd: SrdSpell[] | null, text: Builde
   if (ct) {
     const names = ct.f.filter(([l]) => l <= level).map(([l, n]) => (l > 1 ? `${n} (${l})` : n));
     if (names.length) lines.push(`${d.cls}: ${[...new Set(names)].join(", ")}`);
-    const sub = level >= cd.subAt ? ct.s.filter(([l]) => l <= level).map(([l, n]) => `${n} (${l})`) : [];
+    // Only the free rules' subclass has its features here: another one, they type in.
+    const sub = level >= cd.subAt && isSrdSubclass(d.cls, d.subclass) ? ct.s.filter(([l]) => l <= level).map(([l, n]) => `${n} (${l})`) : [];
     if (sub.length) lines.push(`${d.subclass.trim() || cd.sub}: ${sub.join(", ")}`);
+    else if (level >= cd.subAt && d.subclass.trim()) lines.push(`${d.subclass.trim()}: (type its features here)`);
   }
   const st = text?.species[d.species];
   if (st) {
@@ -246,7 +264,9 @@ function choicesOf(d: Draft, level: number, srd: SrdSpell[] | null, text: Builde
   if (d.species === "Dragonborn" && d.lineage) lines.push(`Breath Weapon and resistance: ${DRACONIC_TYPE[d.lineage]}`);
   lines.push(`Feats: ${feats.map((f) => (f === "Magic Initiate" ? `Magic Initiate (${initiateList(d.background, d.miList)})` : f)).join(", ")}`);
   const langs = ["Common", ...d.langs];
-  const profs = [`Armor and weapons: ${cd.profs}`, bg.tool ? `Tools: ${bg.tool}` : "", `Languages: ${langs.join(", ")}`].filter(Boolean).join("\n");
+  // Tools: the background's (a Gaming Set is the one they picked) and a Monk's tool or instrument.
+  const tools = [...(bg.tool ? [kitPick(bg.tool, d.kitPicks)] : []), ...(d.cls === "Monk" ? [kitPick("Artisan’s Tools or Musical Instrument", d.kitPicks)] : [])];
+  const profs = [`Armor and weapons: ${cd.profs}`, tools.length ? `Tools: ${[...new Set(tools)].join(", ")}` : "", `Languages: ${langs.join(", ")}`].filter(Boolean).join("\n");
   return {
     cls: d.cls,
     ...(d.subclass.trim() ? { subclass: d.subclass.trim() } : {}),
@@ -263,6 +283,7 @@ function choicesOf(d: Draft, level: number, srd: SrdSpell[] | null, text: Builde
     ...(d.species === "Human" && d.feat ? { feat: d.feat } : {}),
     kit: d.kit,
     bgKit: d.bgKit,
+    ...(Object.keys(d.kitPicks).length ? { kitPicks: d.kitPicks } : {}),
     spells: spellsOf(d, level, srd),
     traits: lines.join("\n"),
     profs,
@@ -286,6 +307,33 @@ function preview(c: BuildChoices | null, level: number): { sheet: CharacterSheet
   }
 }
 
+/** The builder keeps its place on this phone (per game and player), so a screen lock or a reload loses nothing. */
+const draftKey = () => `cb-draft:${typeof location === "undefined" ? "" : location.search}`;
+const STEPS: Step[] = ["start", "class", "species", "background", "scores", "skills", "kit", "spells", "review"];
+function loadDraft(level: number): { step: Step; d: Draft } | null {
+  try {
+    const x = JSON.parse(localStorage.getItem(draftKey()) ?? "null") as { step?: Step; d?: Draft; level?: number } | null;
+    if (!x?.d || !x.step || !STEPS.includes(x.step) || x.step === "start" || x.level !== level) return null;
+    return { step: x.step, d: { ...emptyDraft(), ...x.d } };
+  } catch {
+    return null;
+  }
+}
+function saveDraft(step: Step, d: Draft, level: number) {
+  try {
+    localStorage.setItem(draftKey(), JSON.stringify({ step, d, level }));
+  } catch {
+    // Private browsing: nothing kept, the builder still works.
+  }
+}
+function clearDraft() {
+  try {
+    localStorage.removeItem(draftKey());
+  } catch {
+    // Nothing to clear.
+  }
+}
+
 export function SheetBuilder({
   level: lv,
   starter,
@@ -302,9 +350,15 @@ export function SheetBuilder({
   onClose: () => void;
 }) {
   const level = Math.min(20, Math.max(1, lv ?? 1));
-  const [step, setStep] = useState<Step>("start");
-  const [d, setD] = useState<Draft>(emptyDraft);
+  const [saved] = useState(() => loadDraft(level));
+  const [step, setStep] = useState<Step>(saved?.step ?? "start");
+  const [d, setD] = useState<Draft>(saved?.d ?? emptyDraft);
+  const [resumed, setResumed] = useState(!!saved);
+  const [leaving, setLeaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  useEffect(() => {
+    if (step !== "start") saveDraft(step, d, level);
+  }, [step, d, level]);
   const [busy, setBusy] = useState(false);
   const text = useBuilderText();
   const srd = useSrdSpells(true);
@@ -331,12 +385,15 @@ export function SheetBuilder({
     const e = await send({ type: "me.build", choices });
     setBusy(false);
     if (e) setErr(e);
-    else onClose();
+    else {
+      clearDraft();
+      onClose();
+    }
   };
 
   if (step === "start") {
     return (
-      <section className="box cb" aria-label="Make a character">
+      <section className="box cb cb-make" aria-label="Make a character">
         <div className="cb-top">
           <h2>Make your character</h2>
           <button type="button" className="btn small" onClick={onClose}>
@@ -381,16 +438,56 @@ export function SheetBuilder({
   }
 
   return (
-    <section className="box cb" aria-label="Make a character">
+    <section className="box cb cb-make" aria-label="Make a character">
       <div className="cb-top">
         <button type="button" className="btn small" onClick={d.ready && step === "review" ? () => go("start") : back}>
           &larr; Back
         </button>
         <span className="cb-step">{d.ready && step === "review" ? STARTERS.find((s) => s.id === d.ready)?.title : `Step ${at + 1} of ${steps.length}`}</span>
-        <button type="button" className="btn small" onClick={onClose}>
+        <button type="button" className="btn small" onClick={() => setLeaving(true)}>
           Cancel
         </button>
       </div>
+      {leaving ? (
+        <div className="cb-leave" role="alertdialog" aria-label="Stop building?">
+          <p>Stop building? Your choices stay on this phone for next time.</p>
+          <div className="cb-leave-btns">
+            <button type="button" className="btn small primary" onClick={() => setLeaving(false)}>
+              Keep building
+            </button>
+            <button type="button" className="btn small" onClick={onClose}>
+              Stop for now
+            </button>
+            <button
+              type="button"
+              className="btn small danger"
+              onClick={() => {
+                clearDraft();
+                onClose();
+              }}
+            >
+              Throw them away
+            </button>
+          </div>
+        </div>
+      ) : null}
+      {resumed ? (
+        <p className="note cb-resumed">
+          Picked up where you left off.{" "}
+          <button
+            type="button"
+            className="cb-more-btn"
+            onClick={() => {
+              clearDraft();
+              setResumed(false);
+              setD(emptyDraft());
+              go("start");
+            }}
+          >
+            Start over
+          </button>
+        </p>
+      ) : null}
       {step === "class" ? <ClassStep d={d} set={set} level={level} text={text} /> : null}
       {step === "species" ? <SpeciesStep d={d} set={set} text={text} /> : null}
       {step === "background" ? <BackgroundStep d={d} set={set} text={text} /> : null}
@@ -406,9 +503,12 @@ export function SheetBuilder({
       ) : null}
       <div className="cb-foot">
         {step === "review" ? (
-          <button type="button" className="btn primary big" disabled={busy || typeof pv === "string" || !srd || !text} onClick={() => void make()}>
-            {busy ? "Making…" : replacing ? "Replace my sheet with this" : "Make my character"}
-          </button>
+          <>
+            {d.langs.length < 2 ? <p className="note">Pick your two languages above.</p> : null}
+            <button type="button" className="btn primary big" disabled={busy || typeof pv === "string" || !srd || !text || d.langs.length < 2} onClick={() => void make()}>
+              {busy ? "Making…" : replacing ? "Replace my sheet with this" : "Make my character"}
+            </button>
+          </>
         ) : (
           <>
             {!ready.ok ? <p className="note">{ready.why}</p> : null}
@@ -435,7 +535,9 @@ function stepReady(step: Step, d: Draft, level: number): { ok: boolean; why?: st
       return { ok: true };
     }
     case "background":
-      return d.background ? { ok: true } : no("Pick a background.");
+      if (!d.background) return no("Pick a background.");
+      if (d.species === "Human" && d.feat === BUILD_BACKGROUND_DATA[d.background]?.feat) return no(`Pick a different Human feat: ${d.background} already gives ${d.feat}.`);
+      return { ok: true };
     case "scores": {
       if (d.method === "pointbuy") {
         const c = pointBuyCost(d.base);
@@ -557,11 +659,16 @@ function SpeciesStep({ d, set, text }: StepProps & { text: BuilderText | null })
                   {sp.human ? (
                     <div className="cb-chips" role="radiogroup" aria-label="Extra feat">
                       <span className="note">Versatile, your extra feat:</span>
-                      {ORIGIN_FEATS.map((f) => (
-                        <button key={f} type="button" role="radio" aria-checked={d.feat === f} className={`cb-pick${d.feat === f ? " on" : ""}`} onClick={() => set({ feat: f, anySkills: [] })}>
-                          {f}
-                        </button>
-                      ))}
+                      {ORIGIN_FEATS.map((f) => {
+                        // Not the one their background already gives (an origin feat is taken once).
+                        const fromBg = d.background ? BUILD_BACKGROUND_DATA[d.background]?.feat === f : false;
+                        return (
+                          <button key={f} type="button" role="radio" aria-checked={d.feat === f} disabled={fromBg} className={`cb-pick${d.feat === f ? " on" : ""}`} onClick={() => set({ feat: f, anySkills: [] })}>
+                            {f}
+                            {fromBg ? ` (from ${d.background})` : ""}
+                          </button>
+                        );
+                      })}
                     </div>
                   ) : null}
                   {sp.human && d.feat && text ? <div className="cs-prose cs-spell-text">{text.feats[d.feat]?.replace(/\*\*/g, "")}</div> : null}
@@ -606,6 +713,16 @@ function BackgroundStep({ d, set, text }: StepProps & { text: BuilderText | null
                 </span>
                 <small>Raises {join(bg.ab.map((a) => ABILITY_NAME[a as Ability]))}</small>
               </button>
+              {on && d.species === "Human" && d.feat === bg.feat ? (
+                <div className="cb-chips" role="radiogroup" aria-label="Extra feat">
+                  <span className="note">{name} already gives you {bg.feat}, so pick a different Human feat:</span>
+                  {ORIGIN_FEATS.filter((f) => f !== bg.feat).map((f) => (
+                    <button key={f} type="button" role="radio" aria-checked={false} className="cb-pick" onClick={() => set({ feat: f, anySkills: [] })}>
+                      {f}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
               {on && text ? (
                 <ul className="cb-rules">
                   <Rules name={feat} text={text.feats[bg.feat]} />
@@ -839,7 +956,7 @@ function KitStep({ d, set }: StepProps) {
   return (
     <>
       <h2>Starting kit</h2>
-      <p className="note">Gear goes into your inventory, with armor worn and weapons ready. Gold is noted on your sheet for the DM to add to your purse.</p>
+      <p className="note">Gear goes into your inventory, with armor worn and weapons ready. The gold goes to the DM as a request: once they OK it, it lands in your purse.</p>
       <h3 className="cs-h">From {d.cls}</h3>
       <div className="cb-list" role="radiogroup" aria-label="Class kit">
         {cd.kits.map((k, i) => (
@@ -860,6 +977,22 @@ function KitStep({ d, set }: StepProps) {
           <span>50 GP</span>
         </button>
       </div>
+      {kitChoicesFor(d.cls, d.kit, d.background, d.bgKit).map((name) => {
+        const c = KIT_CHOICES[name];
+        const now = kitPick(name, d.kitPicks);
+        return (
+          <label key={name} className="cs-field">
+            <span>Pick your {c.label.toLowerCase()}</span>
+            <select className="fld" value={now} onChange={(e) => set({ kitPicks: { ...d.kitPicks, [name]: e.target.value } })}>
+              {c.options.map((o) => (
+                <option key={o} value={o}>
+                  {o}
+                </option>
+              ))}
+            </select>
+          </label>
+        );
+      })}
     </>
   );
 }
@@ -999,7 +1132,7 @@ function ReviewStep({ d, set, level, pv, replacing, edit, goStep }: StepProps & 
         {sheet.items?.length ? (
           <li>
             <b>Kit:</b> {sheet.items.map((x) => (x.qty > 1 ? `${x.name} ×${x.qty}` : x.name)).join(", ")}
-            {gp ? `, and ${gp} GP for the DM to add` : ""}
+            {gp ? `, and ${gp} GP that the DM OKs into your purse` : ""}
           </li>
         ) : null}
         {sheet.spells?.length ? (
@@ -1007,7 +1140,7 @@ function ReviewStep({ d, set, level, pv, replacing, edit, goStep }: StepProps & 
             <b>Spells:</b> {sheet.spells.map((x) => x.name).join(", ")}
           </li>
         ) : null}
-        {cd && (spellCounts(d.cls!, level).prepared > (sheet.spells ?? []).filter((x) => x.level > 0 && !x.note).length || spellCounts(d.cls!, level).cantrips > (sheet.spells ?? []).filter((x) => x.level === 0 && !x.note).length) ? (
+        {cd && (spellCounts(d.cls!, level).prepared > (sheet.spells ?? []).filter((x) => x.level > 0 && classSpell(x)).length || spellCounts(d.cls!, level).cantrips > (sheet.spells ?? []).filter((x) => x.level === 0 && classSpell(x)).length) ? (
           <li className="note">
             At level {level} you can know {spellCounts(d.cls!, level).cantrips} cantrips and prepare {spellCounts(d.cls!, level).prepared} spells. Add the rest from Spells on your sheet.
           </li>
@@ -1072,7 +1205,8 @@ export function LevelUpCard({ sheet, level, send }: { sheet: CharacterSheet; lev
   const cls = sheet.cls;
   const ct = text?.classes[cls];
   const fresh = ct ? ct.f.filter(([l]) => l === nx.to) : [];
-  const subFresh = ct && (nx.subclass || (sheet.subclass && nx.to > BUILD_CLASS_DATA[cls].subAt)) ? ct.s.filter(([l]) => l === nx.to) : [];
+  // The free rules' subclass features, only for that subclass (or the one they'll take now, if they leave the name blank).
+  const subFresh = ct && ((nx.subclass && isSrdSubclass(cls, sub)) || (!nx.subclass && sheet.subclass && nx.to > BUILD_CLASS_DATA[cls].subAt && isSrdSubclass(cls, sheet.subclass))) ? ct.s.filter(([l]) => l === nx.to) : [];
   const before = spellCounts(cls, nx.to - 1);
   const after = spellCounts(cls, nx.to);
   const asiUsed = Object.values(asi).reduce((n, v) => n + (v ?? 0), 0);

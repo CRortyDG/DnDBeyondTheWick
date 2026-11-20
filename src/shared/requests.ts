@@ -3,9 +3,9 @@
 
 import type { GameState, Item, Shop, TradeRequest } from "./types";
 
-/** Gold held by this player's pending requests (purchases and gold they're sending). */
+/** Gold held by this player's pending requests (purchases and gold they're sending). Starting gold is coming in, so it holds nothing. */
 export function heldCp(s: Pick<GameState, "requests">, playerId: string): number {
-  return s.requests.reduce((a, r) => (r.status === "pending" && r.playerId === playerId ? a + r.totalCp + (r.rewardCp ?? 0) : a), 0);
+  return s.requests.reduce((a, r) => (r.status === "pending" && r.playerId === playerId && r.kind !== "gold" ? a + r.totalCp + (r.rewardCp ?? 0) : a), 0);
 }
 
 /** Units of this item held by pending requests. */

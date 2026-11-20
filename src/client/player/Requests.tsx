@@ -188,6 +188,7 @@ function title(r: MyRequest) {
   if (r.kind === "give") return `Send ${formatCp(r.totalCp)} to ${r.toPlayerName}`;
   if (r.kind === "contribute") return `${formatCp(r.totalCp)} toward ${r.itemName}`;
   if (r.kind === "job") return `Take the job: ${r.jobTitle ?? "a job"}`;
+  if (r.kind === "gold") return "Starting gold";
   if (r.flyerTitle) return `Flyer: ${r.flyerTitle}`;
   return `${r.qty > 1 ? `${r.qty} × ` : ""}${r.itemName}`;
 }
@@ -288,7 +289,7 @@ export function DecisionBanners({ view }: { view: PlayerView }) {
       {fresh.map((r) => (
         <div key={r.id} className={`decision decision-${r.status}`}>
           <strong>{r.status === "approved" ? "Approved" : "Declined"}:</strong> {title(r)}
-          {r.status === "approved" && r.kind === "buy" ? <> for {formatCp(r.chargedCp ?? r.totalCp)}</> : null}
+          {r.status === "approved" && (r.kind === "buy" || r.kind === "gold") ? <> for {formatCp(r.chargedCp ?? r.totalCp)}</> : null}
           {r.status === "declined" && r.reason ? <div className="decision-reason">{r.reason}</div> : null}
           {r.answer ? <div className="decision-reason">{r.answer}</div> : null}
         </div>

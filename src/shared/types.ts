@@ -172,6 +172,12 @@ export interface Player {
   hereAsk?: number;
   /** The DM said "not yet" to their ask (when): they can ask again a minute later. Cleared when the session ends. */
   hereNo?: number;
+  /** Asked the DM to start their character again with the builder (when). Cleared once the DM answers. */
+  rebuildAsk?: number;
+  /** The DM said "not now" to that ask (when). */
+  rebuildNo?: number;
+  /** The DM allowed one fresh start with the builder. Used up when they make the character. */
+  rebuildOk?: true;
   archived: boolean;
   dropIn: boolean;
   balanceCp: number;
@@ -698,7 +704,7 @@ export type RequestStatus = "pending" | "approved" | "declined" | "cancelled";
  */
 export interface TradeRequest {
   id: string;
-  kind: "buy" | "give" | "contribute" | "job";
+  kind: "buy" | "give" | "contribute" | "job" | "gold";
   playerId: string;
   playerName: string;
   at: number;

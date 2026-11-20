@@ -55,7 +55,7 @@ import { fillRanges, TABLES_MAX, tablesOf } from "./tables";
 import type { MadeBy, RandomTable } from "./types";
 import { addBought, ITEMS_MAX } from "./sheetGear";
 import { applySheet, armorClass, type HitDie, hitDieSpec, isSheetCommand, mod, restSheet, rollSpec, shortRestSheet, syncConcFromFight, syncInitiative } from "./sheet";
-import { buildSheet, levelUpSheet, maxHpFor } from "./sheetBuild";
+import { buildSheet, levelUpSheet, maxHpFor, REBUILD_ASK_COOLDOWN_MS, rebuildNeedsOk } from "./sheetBuild";
 import { FADE_DEFAULT, isLayerId, isSfxId, mixLayers } from "./sound";
 
 export class CommandError extends Error {
@@ -868,6 +868,15 @@ function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
           o.reason = "The party already took it.";
         }
       }
+      r.status = "approved";
+      r.decidedAt = ctx.now;
+      return;
+    }
+    if (r.kind === "gold") {
+      if (!override && p.archived) fail(`${p.name} has left the table.`, "recheck");
+      const amount = totalCp ?? r.totalCp;
+      move(p, amount, "Starting gold (character builder)", "grant", { requestId: r.id });
+      r.chargedCp = amount;
       r.status = "approved";
       r.decidedAt = ctx.now;
       return;
@@ -4243,7 +4252,7 @@ function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
       const p = player(r.playerId);
       if (p.archived) fail(`${p.name} has left the table. Bring them back first.`);
       // It holds the gold again, so it can't promise more than they have free.
-      const hold = r.totalCp + (r.rewardCp ?? 0);
+      const hold = r.kind === "gold" ? 0 : r.totalCp + (r.rewardCp ?? 0);
       const free = availableCp(s, p.id);
       if (hold > free) fail(`${p.name} only has ${formatCp(Math.max(0, free))} free now, not ${formatCp(hold)}. Give them the gold first, or ask them to request it again.`);
       r.status = "pending";
@@ -4536,21 +4545,71 @@ function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
       const p = me();
       if (p.sheetOff) fail("Character sheets are turned off for you. Ask the DM if you'd like one.");
       if (p.sheet?.locked) fail("The DM has locked your sheet. Ask them to unlock it to start again.");
-      const made = buildSheet(cmd.choices, p.level, { now: ctx.now, newId: () => nextId("it"), fail });
       const old = p.sheet;
+      if (old && s.fight && s.fight.status !== "over" && s.fight.order.some((c) => c.kind === "player" && c.playerId === p.id)) fail("Not in the middle of a fight. Start again once it's over.");
+      if (rebuildNeedsOk(s, p)) fail("Your game has started, so the DM OKs a fresh start. Ask them from your Character tab.");
+      const made = buildSheet(cmd.choices, p.level, { now: ctx.now, newId: () => nextId("it"), fail });
       if (old) {
-        // Starting again keeps what they bought and their notes.
+        // Starting again keeps what they bought and their notes (without the old builder's gold line).
         const bought = (old.items ?? []).filter((x) => x.from);
         if (bought.length) made.sheet.items = [...(made.sheet.items ?? []), ...bought].slice(0, ITEMS_MAX);
-        if (old.notes) made.sheet.notes = old.notes;
+        const notes = old.notes
+          ?.split("\n")
+          .filter((l) => !l.startsWith("Starting gold from the builder:"))
+          .join("\n")
+          .trim();
+        if (notes) made.sheet.notes = notes;
       }
-      const gold = `Starting gold from the builder: ${made.gp} GP. The DM adds it to your purse.`;
-      made.sheet.notes = made.sheet.notes ? `${made.sheet.notes}\n${gold}` : gold;
       p.sheet = made.sheet;
+      delete p.rebuildOk;
+      delete p.rebuildAsk;
+      delete p.rebuildNo;
       const tv = p.hp?.tv;
-      p.hp = { cur: made.maxHp, max: made.maxHp, temp: 0, ...(tv !== undefined ? { tv } : {}) };
+      if (old && p.hp && p.hp.max > 0) {
+        // A fresh start isn't a long rest: keep the damage they've taken (and any temp HP).
+        const lost = Math.max(0, p.hp.max - p.hp.cur);
+        p.hp.max = made.maxHp;
+        p.hp.cur = p.hp.cur <= 0 ? 0 : Math.max(1, made.maxHp - lost);
+      } else p.hp = { cur: made.maxHp, max: made.maxHp, temp: 0, ...(tv !== undefined ? { tv } : {}) };
+      // Starting gold goes to the DM as one request: approving it puts it in the purse.
+      const before = s.requests.filter((r) => r.kind === "gold" && r.playerId === p.id);
+      for (const r of before) {
+        if (r.status !== "pending") continue;
+        r.status = "cancelled";
+        r.decidedAt = ctx.now;
+      }
+      if (made.gp > 0) {
+        const cp = made.gp * 100;
+        s.requests.push({
+          id: nextId("rq"),
+          kind: "gold",
+          playerId: p.id,
+          playerName: p.name,
+          at: ctx.now,
+          status: "pending",
+          totalCp: cp,
+          note: `${made.sheet.species} ${made.sheet.cls}, from the character builder`,
+          secret: false,
+          qty: 1,
+          unitCp: cp,
+        });
+        pruneRequests();
+      }
       syncInitiative(s, p);
       out.info = `${p.character?.trim() || "Your character"} is ready: ${made.maxHp} HP, AC ${armorClass(made.sheet)}.`;
+      break;
+    }
+    case "me.askRebuild": {
+      const p = me();
+      if (cmd.cancel) {
+        delete p.rebuildAsk;
+        break;
+      }
+      if (!p.sheet || p.sheetOff) fail("You don't have a character sheet here.");
+      if (p.sheet.locked) fail("The DM has locked your sheet. Ask them to unlock it to start again.");
+      if (!rebuildNeedsOk(s, p)) break;
+      if (p.rebuildNo !== undefined && ctx.now - p.rebuildNo < REBUILD_ASK_COOLDOWN_MS) fail("The DM just said not now. You can ask again in a few minutes.");
+      p.rebuildAsk ??= ctx.now;
       break;
     }
     case "me.levelUp": {

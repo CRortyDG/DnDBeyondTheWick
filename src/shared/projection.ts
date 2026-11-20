@@ -11,6 +11,7 @@ import { decodeBits, fogged, publicFog, type PublicFog } from "./fog";
 import { publicGrid, publicTokens, type PublicGrid, type PublicToken } from "./tokens";
 import { leadsView, type LeadsView } from "./leads";
 import type { CharacterSheet } from "./sheet";
+import { rebuildNeedsOk } from "./sheetBuild";
 import { effectiveOff, featureOn, FEATURES, hiddenOf, playerOff, waitsToUnlock, type FeatureId } from "./features";
 import { areaCounts, type AreaCount } from "./discovery";
 import { townOf } from "./presets";
@@ -299,7 +300,7 @@ export interface PublicRenown {
 /** One of my phone requests, as I see it. */
 export interface MyRequest {
   id: string;
-  kind: "buy" | "give" | "contribute" | "job";
+  kind: "buy" | "give" | "contribute" | "job" | "gold";
   at: number;
   status: RequestStatus;
   totalCp: number;
@@ -458,6 +459,8 @@ export interface PlayerView extends Common {
     sheet?: CharacterSheet;
     /** The DM turned the sheet off for me: the tab is just Gold, as before. */
     sheetOff?: boolean;
+    /** Starting again with the builder: missing = free. "ask": the DM OKs it now; "waiting": they asked; "notNow": the DM said not now; "ok": the DM allowed it. */
+    rebuild?: "ask" | "waiting" | "notNow" | "ok";
     /** Which starting point I picked on the Arrival seat page (a sheet can start from it). */
     starter?: string;
     /** Features off for me: the table's, plus any the DM turned off just for me. Missing: none. */
@@ -869,6 +872,7 @@ export function projectPlayer(table: GameState, version: number, playerId: strin
       hp: { cur: p.hp?.cur ?? 0, max: p.hp?.max ?? 0, temp: p.hp?.temp ?? 0, tv: p.hp?.tv !== false },
       ...(p.level ? { level: p.level } : {}),
       ...(noSheet ? { sheetOff: true } : p.sheet ? { sheet: structuredClone(p.sheet) } : {}),
+      ...(!noSheet && p.sheet ? (p.rebuildOk ? { rebuild: "ok" as const } : rebuildNeedsOk(game, p) ? { rebuild: p.rebuildAsk !== undefined ? ("waiting" as const) : p.rebuildNo !== undefined ? ("notNow" as const) : ("ask" as const) } : {}) : {}),
       ...(p.arrival?.pick ? { starter: p.arrival.pick } : {}),
       ...(myOff.length ? { off: myOff } : {}),
       ...(hiddenOf(p).length ? { hidden: hiddenOf(p) } : {}),

@@ -266,6 +266,7 @@ const PLAYER_NEEDS: Record<string, FeatureId> = {
   "me.hitDie": "sheets",
   "me.giveItem": "sheets",
   "me.build": "sheets",
+  "me.askRebuild": "sheets",
   "me.levelUp": "sheets",
   "me.whisperSeen": "whispers",
   "me.whisperReply": "whispers",
