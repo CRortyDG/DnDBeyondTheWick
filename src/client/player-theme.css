@@ -3216,3 +3216,21 @@ html[data-view="player"] {
   background: var(--parchment);
   box-shadow: 0 6px 18px rgba(0, 0, 0, 0.5);
 }
+
+/* First-visit welcome on the Character tab (CharacterTab.tsx WelcomeCard). */
+:where(html[data-view="player"]) .welcome-card {
+  border-color: rgba(227, 182, 92, 0.45);
+  background: linear-gradient(180deg, rgba(227, 182, 92, 0.1), rgba(227, 182, 92, 0.03));
+}
+:where(html[data-view="player"]) .welcome-card p {
+  margin: 6px 0 0;
+  font-family: var(--pl-font-ui);
+  font-size: 15px;
+  line-height: 1.5;
+}
+:where(html[data-view="player"]) .welcome-card h2 {
+  margin-bottom: 4px;
+}
+:where(html[data-view="player"]) .welcome-card .btn {
+  margin-top: 12px;
+}
