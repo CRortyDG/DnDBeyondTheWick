@@ -5740,3 +5740,36 @@ html[data-view="dm"] .basic-monsters label.basic-mon input {
   align-items: center;
   gap: 8px;
 }
+
+/* ---------- Renown page: the ladder, what each rank opens, the ladder editor ---------- */
+:where(html[data-view="dm"]) .renown-page > .panel-grid { grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); align-items: start; }
+@media (max-width: 1000px) {
+  :where(html[data-view="dm"]) .renown-page > .panel-grid { grid-template-columns: minmax(0, 1fr); }
+}
+:where(html[data-view="dm"]) .renown-ladder-view,
+:where(html[data-view="dm"]) .ladder-rows { list-style: none; margin: var(--dm-s2) 0 0; padding: 0; display: grid; gap: var(--dm-s2); }
+:where(html[data-view="dm"]) .renown-ladder-view > li { display: grid; gap: 4px; padding: var(--dm-s2) var(--dm-s3); border: 1px solid var(--dm-border); border-radius: var(--dm-r-sm); }
+:where(html[data-view="dm"]) .renown-ladder-view > li.on { border-color: var(--dm-gold); background: var(--dm-gold-soft); }
+:where(html[data-view="dm"]) .renown-ladder-view > li.past { opacity: 0.75; }
+:where(html[data-view="dm"]) .rl-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 10px; }
+:where(html[data-view="dm"]) .rl-num { display: inline-grid; place-items: center; min-width: 22px; height: 22px; border-radius: 999px; background: var(--dm-bg-3); font-size: 12px; font-weight: 700; }
+:where(html[data-view="dm"]) .rl-pts { margin-left: auto; }
+:where(html[data-view="dm"]) .rl-opens > summary { cursor: pointer; font-size: 13px; color: var(--dm-gold); }
+:where(html[data-view="dm"]) .rl-opens ul { margin: 4px 0 0; padding-left: 18px; font-size: 13px; }
+:where(html[data-view="dm"]) .rl-opens-none { font-size: 13px; }
+:where(html[data-view="dm"]) .ladder-row { display: grid; gap: var(--dm-s2); padding: var(--dm-s3); border: 1px solid var(--dm-border); border-radius: var(--dm-r-sm); }
+:where(html[data-view="dm"]) .ladder-row-head { display: flex; flex-wrap: wrap; align-items: center; gap: var(--dm-s2); }
+:where(html[data-view="dm"]) .ladder-name { flex: 1 1 180px; font-weight: 600; }
+:where(html[data-view="dm"]) .ladder-row-tools { display: flex; gap: 4px; margin-left: auto; }
+:where(html[data-view="dm"]) .ladder-row-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: var(--dm-s2); }
+:where(html[data-view="dm"]) .ladder-row-fields label { display: grid; gap: 4px; font-size: 13px; align-content: start; }
+:where(html[data-view="dm"]) .ladder-points .amt { max-width: 6em; }
+:where(html[data-view="dm"]) .ladder-add { justify-self: start; }
+:where(html[data-view="dm"]) .ladder-moves { margin-top: var(--dm-s3); padding: var(--dm-s2) var(--dm-s3); border-radius: var(--dm-r-sm); background: var(--dm-gold-soft); font-size: 14px; }
+:where(html[data-view="dm"]) .ladder-moves p { margin: 2px 0; }
+:where(html[data-view="dm"]) .ladder-problem { color: var(--dm-warn); }
+:where(html[data-view="dm"]) .ladder-editor .inline { margin-top: var(--dm-s3); }
+:where(html[data-view="dm"]) .renown-catchup { margin-bottom: var(--dm-s3); padding: var(--dm-s2) var(--dm-s3); border: 1px solid var(--dm-gold); border-radius: var(--dm-r-sm); background: var(--dm-gold-soft); }
+:where(html[data-view="dm"]) .renown-catchup p { margin: 0 0 var(--dm-s2); }
+:where(html[data-view="dm"]) .renown-pop-link { display: block; margin-top: var(--dm-s2); }
+:where(html[data-view="dm"]) .renown-page .ladder-editor { grid-column: 1 / -1; }

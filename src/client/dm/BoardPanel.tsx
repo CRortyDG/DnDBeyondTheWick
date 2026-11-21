@@ -9,7 +9,7 @@ import { BoardCanvas, LookFields, useScrollIn } from "./BoardCanvas";
 import { useMemo, useState } from "react";
 import { cpToGpInput, formatCp, parseAmount } from "@/shared/money";
 import { jobWhen, type PublicJob } from "@/shared/projection";
-import { defaultPayout, jobPoints, jobsOf, jobTitle, payoutPlayers, rankName, ranksOf, RENOWN_POINTS, renownOf } from "@/shared/renown";
+import { defaultPayout, jobPoints, jobsOf, jobTitle, payoutPlayers, progressOf, rankName, ranksOf, renownOf } from "@/shared/renown";
 import type { Flyer, Job, JobReward, JobStatus, JobStyle, NoteLook, TrustNeed } from "@/shared/types";
 import { partiesOf, partyName } from "@/shared/world";
 import { entriesOf, isFound, jobsGateEntry, kindInfo, stageLabel } from "@/shared/discovery";
@@ -17,7 +17,7 @@ import { penName } from "@/shared/chronicle";
 import { JobCard, STYLE_LABELS, whenLabel } from "../scenes/Board";
 import { useDm } from "./context";
 import { PageHead } from "./PageHead";
-import { RenownControl, RenownHistory } from "./RenownControl";
+import { featureOn } from "@/shared/features";
 import { PlusIcon } from "./navIcons";
 
 const STATUS_LABELS: Record<JobStatus, string> = { open: "Open", taken: "Taken", done: "Done", expired: "Pulled" };
@@ -144,96 +144,22 @@ function JobsGateBox() {
   );
 }
 
+/** Renown has its own page now: a line here says where the party stands and points there. */
 function RenownBox() {
-  const { view, run } = useDm();
-  const rank = renownOf(view.state);
-  const ranks = ranksOf(view.state);
-  return (
-    <section className="box">
-      <h3>Renown</h3>
-      <p className="note">One rank for the whole party. Finished jobs and your awards add Renown points; when the points reach the next rank, the rank goes up by itself. Raising it plays a moment on the TV (untick the box to skip it), writes it in the Chronicle, and opens anything that was waiting on it. Points never lower it: that stays your call with −, and lowering is quiet. You can also change it from the ❦ button in the top bar.</p>
-      <ol className="renown-ladder">
-        {ranks.map((r, i) => (
-          <li key={r.name} className={i === rank ? "on" : i < rank ? "past" : undefined}>
-            <span>
-              <b>{r.name}</b> <span className="note">· {r.meaning}{i ? ` · ${r.points} points` : ""}</span>
-            </span>
-            <span className="note">{r.pay}</span>
-          </li>
-        ))}
-      </ol>
-      <RenownControl />
-      <label className="check">
-        <input type="checkbox" checked={!!view.state.renownProgress} onChange={(e) => void run({ type: "renown.progress", on: e.target.checked }, e.target.checked ? "Players now see the progress bar." : "Players see only the rank.")} /> Show Renown progress to players
-      </label>
-      <RenownHistory />
-      <RankWords />
-    </section>
-  );
-}
-
-const RANK_FIELDS = [
-  { k: "name", label: "Rank", max: 40 },
-  { k: "meaning", label: "What it means", max: 120 },
-  { k: "pay", label: "Jobs pay", max: 40 },
-  { k: "raised", label: "TV line when reached", max: 80 },
-] as const;
-
-/** Reword the five ranks for this campaign. A blank box keeps the default text. */
-function RankWords() {
-  const { view, run, toast } = useDm();
+  const { view } = useDm();
   const s = view.state;
-  const defaults = ranksOf({ town: s.town });
-  const [d, setD] = useState(() => defaults.map((_, i) => { const { points, ...words } = s.renownRanks?.[i] ?? {}; return { ...words, points: points === undefined ? "" : String(points) }; }) as Record<string, string | undefined>[]);
-  const typed = d.map((x, i) => (i === 0 || !x.points?.trim() ? RENOWN_POINTS[i] : /^\d{1,3}$/.test(x.points.trim()) ? Number(x.points.trim()) : NaN));
-  const badAt = typed.findIndex((n, i) => i > 0 && (Number.isNaN(n) || n <= typed[i - 1]));
-  const save = () => {
-    if (badAt > 0) return void toast(`${defaults[badAt].name} needs a whole number of points, more than ${defaults[badAt - 1].name}.`);
-    void run({ type: "game.renownRanks", ranks: d.map(({ points, ...words }, i) => ({ ...words, ...(i > 0 && points?.trim() ? { points: typed[i] } : {}) })) }, "Renown ranks saved.");
-  };
+  if (!featureOn(s, "renown")) return null;
+  const p = progressOf(s);
   return (
-    <details className="rank-words">
-      <summary>Reword the ranks for this campaign</summary>
-      <p className="note">Leave a box empty to keep the text shown in grey. Every campaign has five ranks. &ldquo;Points to reach&rdquo; is the party&rsquo;s running total, so each rank needs more than the one before.</p>
-      {defaults.map((r, i) => (
-        <fieldset key={i} className="rank-words-row">
-          <legend>Rank {i + 1}</legend>
-          {RANK_FIELDS.map((f) => (
-            <label key={f.k}>
-              {f.label}
-              <input
-                className="fld"
-                maxLength={f.max}
-                placeholder={r[f.k]}
-                value={d[i][f.k] ?? ""}
-                onChange={(e) => setD((all) => all.map((x, j) => (j === i ? { ...x, [f.k]: e.target.value } : x)))}
-              />
-            </label>
-          ))}
-          {i > 0 ? (
-            <label>
-              Points to reach
-              <input
-                className="fld amt"
-                inputMode="numeric"
-                placeholder={String(RENOWN_POINTS[i])}
-                value={d[i].points ?? ""}
-                onChange={(e) => setD((all) => all.map((x, j) => (j === i ? { ...x, points: e.target.value } : x)))}
-              />
-              {!Number.isNaN(typed[i]) && !Number.isNaN(typed[i - 1]) && typed[i] > typed[i - 1] ? <span className="note">{typed[i] - typed[i - 1]} more than {defaults[i - 1].name}</span> : <span className="note">Must be more than {defaults[i - 1].name}</span>}
-            </label>
-          ) : null}
-        </fieldset>
-      ))}
-      <div className="inline">
-        <button type="button" className="btn primary" onClick={save}>
-          Save ranks
-        </button>
-        <button type="button" className="btn" onClick={() => setD(defaults.map(() => ({})))}>
-          Clear all
-        </button>
-      </div>
-    </details>
+    <section className="box renown-link-box">
+      <h3>Renown</h3>
+      <p className="note">
+        The party is <b>{rankName(p.rank, s)}</b> with {p.points} points{p.next !== null ? ` (${p.next} for ${p.nextName})` : ""}. Jobs above their rank stay readable on the board, stamped &ldquo;Experienced parties only&rdquo;.
+      </p>
+      <a className="btn small" href="#page=renown">
+        Ranks, points and history
+      </a>
+    </section>
   );
 }
 
