@@ -7,7 +7,7 @@
 import { z } from "zod";
 import { formatCp } from "./money";
 import { entriesOf } from "./discovery";
-import { rankName, renownOf } from "./renown";
+import { rankName, renownOf, RENOWN_TOP, topRank } from "./renown";
 import { tableRenown } from "./world";
 import { lastEndedClock } from "./progress";
 import type { Entry, GameState, Item, LedgerEntry, LedgerKind, Player, Rental, RoomInfo, RoomMoment, RoomSettings, RoomType, Shop } from "./types";
@@ -74,10 +74,10 @@ export function characterRank(g: Pick<GameState, "players" | "renown" | "world">
 }
 
 /** Why this character can't have the Good Room yet, or null. */
-export function goodRoomLock(g: Pick<GameState, "players" | "renown" | "world" | "rooms" | "town" | "renownRanks">, playerId: string): string | null {
+export function goodRoomLock(g: Pick<GameState, "players" | "renown" | "world" | "rooms" | "town" | "renownRanks"> & Partial<Pick<GameState, "renownLadder">>, playerId: string): string | null {
   const set = roomSettings(g);
   if (set.good.mode !== "renown") return null;
-  if (characterRank(g, playerId) >= set.good.rank) return null;
+  if (characterRank(g, playerId) >= Math.min(set.good.rank, topRank(g))) return null;
   return `The Good Room is earned: it needs ${rankName(set.good.rank, g)}.`;
 }
 
@@ -281,7 +281,7 @@ export const roomDmCommands = [
       .object({
         rentCp: cpSchema,
         firstFree: z.boolean(),
-        good: z.object({ mode: z.enum(["renown", "rent"]), rank: z.number().int().min(0).max(4), rentCp: cpSchema }).partial(),
+        good: z.object({ mode: z.enum(["renown", "rent"]), rank: z.number().int().min(0).max(RENOWN_TOP), rentCp: cpSchema }).partial(),
         register: z.array(z.string().max(REGISTER_LINE_MAX)).max(REGISTER_MAX),
       })
       .partial(),

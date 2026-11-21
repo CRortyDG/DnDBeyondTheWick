@@ -33,17 +33,17 @@ export function Jobs({ view, send, availableAt }: { view: PlayerView; send: Send
         <summary>
           <span className="pl-renown-k">Renown</span>
           <span className="pl-renown-v">{view.renown.name}</span>
-          <span className="pl-renown-pay">jobs pay {view.renown.ladder[rank]?.pay ?? "—"}</span>
+          {view.renown.ladder[rank]?.pay ? <span className="pl-renown-pay">jobs pay {view.renown.ladder[rank].pay}</span> : null}
           {view.renown.progress ? <RenownBar p={view.renown.progress} /> : null}
         </summary>
         <p>
-          {view.game.town || "The town"} knows the party as <b>{view.renown.name}</b>. <span className="note">{view.renown.meaning}.</span>
+          {view.game.town || "The town"} knows the party as <b>{view.renown.name}</b>. {view.renown.meaning ? <span className="note">{view.renown.meaning}.</span> : null}
         </p>
         <ol className="renown-ladder">
           {view.renown.ladder.map((r, i) => (
-            <li key={r.name} className={i === rank ? "on" : i < rank ? "past" : undefined}>
+            <li key={i} className={i === rank ? "on" : i < rank ? "past" : undefined}>
               <span>{r.name}</span>
-              <span className="note">jobs pay {r.pay}</span>
+              {r.pay ? <span className="note">jobs pay {r.pay}</span> : null}
             </li>
           ))}
         </ol>

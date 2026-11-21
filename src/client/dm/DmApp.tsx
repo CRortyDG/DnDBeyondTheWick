@@ -44,6 +44,7 @@ import { InvitesPanel } from "./InvitesPanel";
 import { ChroniclePanel } from "./ChroniclePanel";
 import { BoardPanel } from "./BoardPanel";
 import { RenownChip } from "./RenownControl";
+import { RenownPanel } from "./RenownPanel";
 import { FightScreen } from "./FightScreen";
 import { IntroRemote } from "./IntroRemote";
 import { Storyboard } from "./Storyboard";
@@ -64,9 +65,9 @@ import { usePhone, usePhoneAttr, useTablet, useTabletAttr, useWakeLock } from ".
 import { FullScreenButton, TabletOffer } from "./TabletBits";
 import { FeaturesPanel } from "./FeaturesPanel";
 import { featureOn, type FeatureId } from "@/shared/features";
-import { MailIcon, DieIcon, SparkIcon, BoardIcon, BookIcon, CoinIcon, EyeIcon, GearIcon, GlobeIcon, ListIcon, MapIcon, PanelRightIcon, PeopleIcon, PinIcon, PlayIcon, QuillIcon, SearchIcon, ShipIcon, SkullIcon, SlidersIcon, StoreIcon, SwordIcon } from "./navIcons";
+import { MailIcon, DieIcon, SparkIcon, BoardIcon, MedalIcon, BookIcon, CoinIcon, EyeIcon, GearIcon, GlobeIcon, ListIcon, MapIcon, PanelRightIcon, PeopleIcon, PinIcon, PlayIcon, QuillIcon, SearchIcon, ShipIcon, SkullIcon, SlidersIcon, StoreIcon, SwordIcon } from "./navIcons";
 
-type Tab = "features" | "world" | "bank" | "shop" | "board" | "scenes" | "discovery" | "leads" | "players" | "arrival" | "invites" | "story" | "episodes" | "monsters" | "companions" | "tables" | "chronicle" | "builder" | "game";
+type Tab = "features" | "world" | "bank" | "shop" | "board" | "renown" | "scenes" | "discovery" | "leads" | "players" | "arrival" | "invites" | "story" | "episodes" | "monsters" | "companions" | "tables" | "chronicle" | "builder" | "game";
 type NavItem = { id: Tab; label: string; icon: (p: { size?: number }) => ReactElement; key?: string };
 /** The DM pages, grouped by when you reach for them. */
 const NAV: { group: string; items: NavItem[] }[] = [
@@ -86,6 +87,7 @@ const NAV: { group: string; items: NavItem[] }[] = [
       { id: "leads", label: "Leads", icon: PinIcon },
       { id: "scenes", label: "Maps & props", icon: MapIcon },
       { id: "board", label: "Notice board", icon: BoardIcon },
+      { id: "renown", label: "Renown", icon: MedalIcon },
       { id: "monsters", label: "Monsters", icon: SkullIcon },
       { id: "companions", label: "Companions", icon: PeopleIcon },
       { id: "tables", label: "Random tables", icon: DieIcon },
@@ -112,8 +114,9 @@ const PAGE_NEEDS: Partial<Record<Tab, FeatureId[]>> = {
   shop: ["shops"],
   discovery: ["discover"],
   leads: ["leads"],
-  // The notice board also holds jobs, flyers and the Renown plaque: it goes only when all of those are off.
-  board: ["board", "jobs", "renown"],
+  // The notice board also holds jobs and flyers: it goes only when both are off.
+  board: ["board", "jobs"],
+  renown: ["renown"],
   monsters: ["combat"],
   companions: ["companions"],
   tables: ["tables"],
@@ -130,7 +133,7 @@ function navFor(s: Pick<GameState, "featuresOff">): { group: string; items: NavI
   return NAV.map((g) => ({ ...g, items: g.items.filter((i) => shown(i.id)) })).filter((g) => g.items.length);
 }
 /** Pages that draw their own header (with summary and buttons). */
-const OWN_HEAD = new Set<Tab>(["world", "bank", "players", "arrival", "invites", "shop", "discovery", "leads", "scenes", "board", "monsters", "companions", "tables", "episodes", "story", "chronicle", "builder", "features", "game"]);
+const OWN_HEAD = new Set<Tab>(["world", "bank", "players", "arrival", "invites", "shop", "discovery", "leads", "scenes", "board", "renown", "monsters", "companions", "tables", "episodes", "story", "chronicle", "builder", "features", "game"]);
 const PAGE_LABEL = Object.fromEntries([...NAV.flatMap((g) => g.items), FEATURES_NAV, SETTINGS].map((i) => [i.id, i.label])) as Record<Tab, string>;
 
 /** The page in the address (#page=discovery), so a reload keeps your place. */
@@ -816,6 +819,7 @@ function DmConsole({ view, ident, online, send, call }: { view: DmView; ident: I
               {tab === "bank" ? <BankPanel /> : null}
               {tab === "shop" ? <ShopPanel /> : null}
               {tab === "board" ? <BoardPanel /> : null}
+              {tab === "renown" ? <RenownPanel /> : null}
               {tab === "scenes" ? <ScenesPanel /> : null}
               {tab === "discovery" ? <DiscoveryPanel /> : null}
               {tab === "leads" ? <LeadsPanel /> : null}

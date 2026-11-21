@@ -21,8 +21,13 @@ export interface RenownRank {
 export const RENOWN_POINTS = [0, 3, 8, 16, 28];
 /** Most points any rank can need. */
 export const RENOWN_POINTS_MAX = 999;
+/** Fewest and most ranks a campaign's ladder can have. */
+export const RENOWN_TIERS_MIN = 2;
+export const RENOWN_TIERS_MAX = 10;
+/** The highest rank number any campaign can have (the commands check against this; the reducer against the ladder). */
+export const RENOWN_TOP = RENOWN_TIERS_MAX - 1;
 
-/** The ladder with {town} for the campaign's town. Every campaign has these five steps; the DM can reword them. */
+/** The ladder with {town} for the campaign's town. The default campaign has these five steps; the DM can change them all. */
 const LADDER: Omit<RenownRank, "points">[] = [
   { name: "Strangers", meaning: "Nobody knows your names yet", pay: "15–50 gp", raised: "Strangers in {town}" },
   { name: "Known in town", meaning: "Locals nod at you", pay: "50–150 gp", raised: "{Town} knows your names" },
@@ -40,23 +45,57 @@ const CANDLEFAIR: Partial<Omit<RenownRank, "points">>[] = [
   { name: "Famous on the Coast", meaning: "People in Baldur’s Gate have heard of you", raised: "Your names have reached Baldur’s Gate" },
 ];
 
+/** What a campaign's ladder is read from: the DM's own ladder, else the old rewording of the default five. */
+type Ladderish = Pick<GameState, "town" | "renownRanks" | "renownLadder">;
+
 function townName(g: Pick<GameState, "town">): string {
   return g.town === undefined ? "Candlefair" : g.town.trim();
 }
 
-/** The five ranks as this campaign words them: the DM's own text where set, else the defaults for its town. */
-export function ranksOf(g: Pick<GameState, "town" | "renownRanks">): RenownRank[] {
+/** {town} and {Town} in a rank's text, for this campaign's town. */
+export function fillTown(g: Pick<GameState, "town">, t: string): string {
   const town = townName(g);
-  const fill = (t: string) =>
-    t
-      .replace(/\{Town\}/g, town || "The town")
-      .replace(/\{town\}/g, town || "the town");
+  return t.replace(/\{Town\}/g, town ? town.charAt(0).toUpperCase() + town.slice(1) : "The town").replace(/\{town\}/g, town || "the town");
+}
+
+/**
+ * The ladder's own text, before {town} is filled in: the DM's ladder as saved, else
+ * the five defaults for this town with any old rewording on top. This is what the
+ * ladder editor starts from.
+ */
+export function ladderTemplate(g: Partial<Ladderish>): RenownRank[] {
+  const t = thresholdsOf(g);
+  if (g.renownLadder?.length) return g.renownLadder.map((r, i) => ({ name: r.name, meaning: r.meaning, pay: r.pay, raised: r.raised, points: t[i] }));
+  const town = townName(g);
   return LADDER.map((base, i) => {
     const r = town === "Candlefair" ? { ...base, ...CANDLEFAIR[i] } : base;
     const o = g.renownRanks?.[i] ?? {};
-    const pick = (k: keyof typeof base) => (o[k]?.trim() ? o[k]!.trim() : fill(r[k]));
-    return { name: pick("name"), meaning: pick("meaning"), pay: pick("pay"), raised: pick("raised"), points: thresholdsOf(g)[i] };
+    const pick = (k: keyof typeof base) => (o[k]?.trim() ? o[k]!.trim() : r[k]);
+    return { name: pick("name"), meaning: pick("meaning"), pay: pick("pay"), raised: pick("raised"), points: t[i] };
   });
+}
+
+/** The default ladder for a town (what "Back to the default ladder" gives). */
+export function defaultLadder(g: Pick<GameState, "town">): RenownRank[] {
+  return ladderTemplate({ town: g.town });
+}
+
+/** The ranks as this campaign words them, {town} filled in. A blank TV line falls back to the rank's name. */
+export function ranksOf(g: Partial<Ladderish>): RenownRank[] {
+  return ladderTemplate(g).map((r) => {
+    const name = fillTown(g, r.name);
+    return { name, meaning: fillTown(g, r.meaning), pay: fillTown(g, r.pay), raised: r.raised.trim() ? fillTown(g, r.raised) : name, points: r.points };
+  });
+}
+
+/** How many ranks this campaign has. */
+export function ladderSize(g: Partial<Pick<GameState, "renownLadder">>): number {
+  return g.renownLadder?.length || LADDER.length;
+}
+
+/** The campaign's top rank number. */
+export function topRank(g: Partial<Pick<GameState, "renownLadder">>): number {
+  return ladderSize(g) - 1;
 }
 
 /**
@@ -64,17 +103,27 @@ export function ranksOf(g: Pick<GameState, "town" | "renownRanks">): RenownRank[
  * defaults. Always 0 for the first rank and always rising, so a bad stored value
  * can never make two ranks share a threshold.
  */
-export function thresholdsOf(g: Pick<GameState, "renownRanks">): number[] {
+export function thresholdsOf(g: Partial<Pick<GameState, "renownRanks" | "renownLadder">>): number[] {
+  const want = g.renownLadder?.length ? g.renownLadder.map((r) => r.points) : RENOWN_POINTS.map((d, i) => g.renownRanks?.[i]?.points ?? d);
   const out: number[] = [];
-  RENOWN_POINTS.forEach((d, i) => {
-    const want = i === 0 ? 0 : (g.renownRanks?.[i]?.points ?? d);
-    out.push(i === 0 ? 0 : Math.min(RENOWN_POINTS_MAX, Math.max(out[i - 1] + 1, Math.round(want))));
+  want.forEach((w, i) => {
+    out.push(i === 0 ? 0 : Math.min(RENOWN_POINTS_MAX, Math.max(out[i - 1] + 1, Math.round(Number.isFinite(w) ? w : 0))));
   });
   return out;
 }
 
+/** A sensible number of points for a new rank after this many (the default steps grow by 2, then 3, then 4 each time). */
+export function nextDefaultPoints(totals: number[]): number {
+  const n = totals.length;
+  if (n < RENOWN_POINTS.length) return Math.max(RENOWN_POINTS[n], (totals[n - 1] ?? 0) + 1);
+  const last = totals[n - 1] ?? 0;
+  const step = n > 1 ? last - totals[n - 2] : 3;
+  return Math.min(RENOWN_POINTS_MAX, last + Math.max(1, step + 4));
+}
+
 /** The Candlefair wording (kept for anything that has no campaign at hand). */
 export const RENOWN: RenownRank[] = ranksOf({});
+/** The default ladder's top rank. Campaigns can have more or fewer: use topRank(g). */
 export const RENOWN_MAX = RENOWN.length - 1;
 
 export const STRANGERS = 0;
@@ -84,17 +133,17 @@ export const HEROES = 3;
 export const FAMOUS = 4;
 
 /** The party's rank right now. */
-export function renownOf(g: Pick<GameState, "renown">): number {
-  return Math.max(0, Math.min(RENOWN_MAX, g.renown ?? 0));
+export function renownOf(g: Pick<GameState, "renown"> & Partial<Pick<GameState, "renownLadder">>): number {
+  return Math.max(0, Math.min(topRank(g), g.renown ?? 0));
 }
 
 /** The party's Renown points. Games from before points: the current rank's threshold. */
-export function pointsOf(g: Pick<GameState, "renown" | "renownPoints" | "renownRanks">): number {
+export function pointsOf(g: Pick<GameState, "renown" | "renownPoints" | "renownRanks"> & Partial<Pick<GameState, "renownLadder">>): number {
   return g.renownPoints ?? thresholdsOf(g)[renownOf(g)];
 }
 
 /** The highest rank this many points reaches. */
-export function rankForPoints(g: Pick<GameState, "renownRanks">, points: number): number {
+export function rankForPoints(g: Partial<Pick<GameState, "renownRanks" | "renownLadder">>, points: number): number {
   const t = thresholdsOf(g);
   let r = 0;
   t.forEach((need, i) => {
@@ -118,7 +167,7 @@ export interface RenownProgress {
 }
 
 /** Where the party stands on the way to its next rank. */
-export function progressOf(g: Pick<GameState, "town" | "renown" | "renownPoints" | "renownRanks">): RenownProgress {
+export function progressOf(g: Pick<GameState, "town" | "renown" | "renownPoints" | "renownRanks"> & Partial<Pick<GameState, "renownLadder">>): RenownProgress {
   const rank = renownOf(g);
   const ranks = ranksOf(g);
   const points = pointsOf(g);
@@ -134,13 +183,14 @@ export function jobPoints(j: Pick<Job, "renownPoints">): number {
   return j.renownPoints ?? 1;
 }
 
-export function rankName(rank: number, g?: Pick<GameState, "town" | "renownRanks">): string {
-  return (g ? ranksOf(g) : RENOWN)[Math.max(0, Math.min(RENOWN_MAX, rank))].name;
+export function rankName(rank: number, g?: Partial<Ladderish>): string {
+  const ranks = g ? ranksOf(g) : RENOWN;
+  return ranks[Math.max(0, Math.min(ranks.length - 1, rank))].name;
 }
 
 /** Has the party reached this rank? No requirement is always met. */
-export function renownMet(g: Pick<GameState, "renown">, need: number | undefined): boolean {
-  return !need || need <= renownOf(g);
+export function renownMet(g: Pick<GameState, "renown"> & Partial<Pick<GameState, "renownLadder">>, need: number | undefined): boolean {
+  return !need || Math.min(need, topRank(g)) <= renownOf(g);
 }
 
 const TRUST: Record<Relation, number> = { hostile: -2, wary: -1, stranger: 0, friendly: 1, ally: 2 };
@@ -154,7 +204,7 @@ export function trustMet(g: Pick<GameState, "entries">, need: TrustNeed | null |
 }
 
 /** Both locks: the party's Renown and someone's goodwill. */
-type Gated = Pick<GameState, "renown" | "entries">;
+type Gated = Pick<GameState, "renown" | "entries"> & Partial<Pick<GameState, "renownLadder">>;
 export function gateMet(g: Gated, x: { renown?: number; trust?: TrustNeed | null }): boolean {
   return renownMet(g, x.renown) && trustMet(g, x.trust);
 }
@@ -176,8 +226,8 @@ export function tierOf(g: Gated, it: Pick<Item, "tier" | "renown" | "trust">): I
 }
 
 /** The rank an item still waits on (only while that is what keeps it locked). */
-export function renownNeeded(g: Pick<GameState, "renown">, it: Pick<Item, "tier" | "renown">): number | null {
-  return (it.tier === "sale" || it.tier === "locked") && !renownMet(g, it.renown) ? (it.renown ?? 0) : null;
+export function renownNeeded(g: Pick<GameState, "renown"> & Partial<Pick<GameState, "renownLadder">>, it: Pick<Item, "tier" | "renown">): number | null {
+  return (it.tier === "sale" || it.tier === "locked") && !renownMet(g, it.renown) ? Math.min(it.renown ?? 0, topRank(g)) : null;
 }
 
 /** Open for business: not closed, and the party has the Renown this storefront needs. */
