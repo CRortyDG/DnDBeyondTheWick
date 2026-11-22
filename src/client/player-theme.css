@@ -1494,6 +1494,92 @@ html[data-view="player"] {
   font-size: 12px;
 }
 
+/* Full screen map. Real full screen where the browser allows it; on iPhone it
+   fills the window instead. Either way: picker, header, then the map takes the rest. */
+:where(html[data-view="player"]) .phone-map-head .btn.small {
+  white-space: nowrap;
+  flex: none;
+}
+:where(html[data-view="player"]) .phone-map-fs svg {
+  flex: none;
+}
+@media (max-width: 559px) {
+  :where(html[data-view="player"]) .phone-maps:not(.is-full) .phone-map-fs {
+    width: 40px;
+    min-width: 40px;
+    padding: 0;
+  }
+  :where(html[data-view="player"]) .phone-maps:not(.is-full) .phone-map-fs-text {
+    display: none;
+  }
+}
+:where(html[data-view="player"]) .phone-map-head h2 {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+:where(html[data-view="player"]) .phone-maps.is-full {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  gap: var(--pl-s2);
+  padding: max(var(--pl-s2), env(safe-area-inset-top))
+    max(var(--pl-s3), env(safe-area-inset-right))
+    max(var(--pl-s2), env(safe-area-inset-bottom))
+    max(var(--pl-s3), env(safe-area-inset-left));
+  background: var(--pl-bg-0);
+  overscroll-behavior: contain;
+}
+:where(html[data-view="player"]) .phone-maps.is-full .phone-map-pick {
+  flex: none;
+  margin-top: 0;
+}
+:where(html[data-view="player"]) .phone-maps.is-full .phone-map {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+:where(html[data-view="player"]) .phone-maps.is-full .phone-map-head {
+  flex: none;
+}
+:where(html[data-view="player"]) .phone-maps.is-full .phone-map-frame {
+  flex: 1;
+  height: auto;
+  min-height: 0;
+  margin: 0;
+  border: 1px solid var(--pl-border);
+  border-radius: var(--pl-r-md);
+}
+:where(html[data-view="player"]) .phone-maps.is-full .phone-map-help {
+  display: none;
+}
+/* The location card floats over the bottom of the map. */
+:where(html[data-view="player"]) .phone-maps.is-full .phone-pin-card {
+  position: absolute;
+  left: var(--pl-s2);
+  right: var(--pl-s2);
+  bottom: var(--pl-s2);
+  z-index: 12;
+  max-width: 520px;
+  max-height: 40%;
+  overflow-y: auto;
+  margin: 0;
+}
+:where(html[data-view="player"]) .phone-maps.is-full .note.warn {
+  flex: none;
+  margin: 0;
+}
+/* The page behind the window-filling map doesn't scroll. */
+html[data-view="player"][data-map-full],
+html[data-view="player"][data-map-full] body {
+  overflow: hidden;
+}
+
 /* ---------- fights ---------- */
 
 /* A strip under the header while a fight is on and you're on another tab. */

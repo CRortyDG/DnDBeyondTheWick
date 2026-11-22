@@ -10,6 +10,7 @@ import { pixelsToPin } from "@/shared/mapGeometry";
 import type { PhoneMap as PhoneMapView, PlayerView } from "@/shared/projection";
 import { snapToGrid } from "@/shared/tokens";
 import { FogLayer, FogTiles } from "../ui/Fog";
+import { ExitFullscreenIcon, FullscreenIcon } from "../ui/icons";
 import { Seal, sealSizePx, useMapBox } from "../ui/MapView";
 import { artSrc } from "../ui/SceneView";
 import { GridLines, Token } from "../ui/Tokens";
@@ -18,8 +19,68 @@ const ZMIN = 1;
 const ZMAX = 5;
 const clamp = (v: number, a: number, b: number) => Math.min(b, Math.max(a, v));
 
+type FsEl = HTMLElement & { webkitRequestFullscreen?: () => Promise<void> | void };
+type FsDoc = Document & { webkitFullscreenEnabled?: boolean; webkitFullscreenElement?: Element | null; webkitExitFullscreen?: () => Promise<void> | void };
+const fsElement = () => document.fullscreenElement ?? (document as FsDoc).webkitFullscreenElement ?? null;
+
+/**
+ * Full screen for the map. Where the browser lets a page element go full screen
+ * (desktop, Android, iPad) it uses that. iPhone Safari only does it for videos,
+ * so there the map fills the window instead (same look, the address bar stays).
+ * Esc, the exit button or the browser's own exit all bring it back.
+ */
+function useMapFullscreen(el: React.RefObject<HTMLElement | null>) {
+  const [mode, setMode] = useState<"off" | "native" | "window">("off");
+  useEffect(() => {
+    const sync = () => setMode((m) => (m === "native" && fsElement() !== el.current ? "off" : m));
+    document.addEventListener("fullscreenchange", sync);
+    document.addEventListener("webkitfullscreenchange", sync);
+    return () => {
+      document.removeEventListener("fullscreenchange", sync);
+      document.removeEventListener("webkitfullscreenchange", sync);
+    };
+  }, [el]);
+  // The window fill: lock the page behind it and let Esc close it.
+  useEffect(() => {
+    if (mode !== "window") return;
+    const root = document.documentElement;
+    root.dataset.mapFull = "";
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setMode("off");
+    window.addEventListener("keydown", onKey);
+    return () => {
+      delete root.dataset.mapFull;
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [mode]);
+  const enter = async () => {
+    const node = el.current as FsEl | null;
+    if (!node) return;
+    // iPhone reports full screen as not allowed for anything but video.
+    const allowed = document.fullscreenEnabled ?? (document as FsDoc).webkitFullscreenEnabled ?? false;
+    const req = allowed ? (node.requestFullscreen?.bind(node) ?? node.webkitRequestFullscreen?.bind(node)) : undefined;
+    if (req) {
+      try {
+        await req();
+        setMode("native");
+        return;
+      } catch {
+        // Refused (an iframe, a policy): fill the window instead.
+      }
+    }
+    setMode("window");
+  };
+  const exit = () => {
+    if (mode === "native" && fsElement()) void (document.exitFullscreen?.() ?? (document as FsDoc).webkitExitFullscreen?.());
+    setMode("off");
+  };
+  return { full: mode !== "off", enter, exit };
+}
+
 /** live: this map is on the TV, so my token can move. Other known maps are for looking at. */
-export function PhoneMap({ pm, meId, send, live = true }: { pm: PhoneMapView; meId: string; send: (cmd: PlayerCommand) => Promise<string | null>; live?: boolean }) {
+type MapFullscreen = ReturnType<typeof useMapFullscreen>;
+const NO_FS: MapFullscreen = { full: false, enter: async () => {}, exit: () => {} };
+
+export function PhoneMap({ pm, meId, send, live = true, fs = NO_FS }: { pm: PhoneMapView; meId: string; send: (cmd: PlayerCommand) => Promise<string | null>; live?: boolean; fs?: MapFullscreen }) {
   const map = pm.map;
   const fog = map.fog;
   const src = fog ? undefined : artSrc(pm.art) ?? undefined;
@@ -156,6 +217,15 @@ export function PhoneMap({ pm, meId, send, live = true }: { pm: PhoneMapView; me
         <button type="button" className="btn small" onClick={() => zoomBy(1.5)} aria-label="Zoom in" disabled={view.z >= ZMAX}>
           +
         </button>
+        {fs.full ? (
+          <button type="button" className="btn small primary phone-map-fs" onClick={fs.exit} aria-label="Exit full screen">
+            <ExitFullscreenIcon size={18} /> <span className="phone-map-fs-text">Exit</span>
+          </button>
+        ) : (
+          <button type="button" className="btn small phone-map-fs" onClick={() => void fs.enter()} aria-label="Full screen" title="Full screen">
+            <FullscreenIcon size={18} /> <span className="phone-map-fs-text">Full screen</span>
+          </button>
+        )}
       </div>
       <div
         ref={outer}
@@ -197,7 +267,7 @@ export function PhoneMap({ pm, meId, send, live = true }: { pm: PhoneMapView; me
           </div>
         </div>
       ) : null}
-      {map.pins.some((p) => p.name) ? (
+      {map.pins.some((p) => p.name) && !fs.full ? (
         <ol className="phone-legend" aria-label="Locations">
           {map.pins
             .filter((p) => p.name)
@@ -217,7 +287,7 @@ export function PhoneMap({ pm, meId, send, live = true }: { pm: PhoneMapView; me
           {err}
         </p>
       ) : null}
-      <p className="note">
+      <p className="note phone-map-help">
         {!live
           ? "Tap a location to read about it. Pinch or use + and − to zoom."
           : mine
@@ -238,9 +308,15 @@ export function Maps({ view, send }: { view: PlayerView; send: (cmd: PlayerComma
   const liveId = view.map?.sceneId ?? null;
   useEffect(() => setPick(null), [liveId]);
   const shown = all.find((m) => m.sceneId === pick) ?? all[0];
+  // Full screen holds the picker and the map, so it stays full when the TV changes map.
+  const wrap = useRef<HTMLDivElement>(null);
+  const fs = useMapFullscreen(wrap);
+  useEffect(() => {
+    if (!shown && fs.full) fs.exit();
+  });
   if (!shown) return null;
   return (
-    <>
+    <div ref={wrap} className={`phone-maps${fs.full ? " is-full" : ""}`} role={fs.full ? "dialog" : undefined} aria-modal={fs.full ? true : undefined} aria-label={fs.full ? "Map, full screen" : undefined}>
       {all.length > 1 ? (
         <div className="phone-map-pick" role="tablist" aria-label="Maps">
           {all.map((m) => (
@@ -251,7 +327,7 @@ export function Maps({ view, send }: { view: PlayerView; send: (cmd: PlayerComma
           ))}
         </div>
       ) : null}
-      <PhoneMap key={shown.sceneId} pm={shown} meId={view.me.id} send={send} live={shown.sceneId === liveId} />
-    </>
+      <PhoneMap key={shown.sceneId} pm={shown} meId={view.me.id} send={send} live={shown.sceneId === liveId} fs={fs} />
+    </div>
   );
 }
