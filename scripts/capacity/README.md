@@ -1,6 +1,6 @@
 # Capacity measurement (local only)
 
-These scripts back `CAPACITY_REPORT.md`. They never talk to production: `sim.ts` refuses any `--base` that isn't localhost, and `wrangler.jsonc` here is a separate config (`candlefair-capacity-local`) meant only for `wrangler dev`. **Never deploy it.**
+These scripts back `docs/capacity-report.md`. They never talk to production: `sim.ts` refuses any `--base` that isn't localhost, and `wrangler.jsonc` here is a separate config (`candlefair-capacity-local`) meant only for `wrangler dev`. **Never deploy it.**
 
 | File | What it does |
 | --- | --- |

@@ -2,7 +2,7 @@
 import { describe, expect, it } from "vitest";
 import { addUsage, billable, busiest, costLines, freeDayFit, freeDayLines, nextUtcMidnight, nextUtcMonth, projectMonthly, ZERO_USAGE, type UsageCounts } from "@/shared/hosting";
 
-// About one 4-hour night for a table of 7 (CAPACITY_REPORT.md).
+// About one 4-hour night for a table of 7 (docs/capacity-report.md).
 const NIGHT: UsageCounts = { ...ZERO_USAGE, workerRequests: 412, roomRequests: 380, socketMessages: 140, pings: 4032, events: 424, rowsRead: 11_073, rowsWritten: 312, uploads: 4, uploadBytes: 3_276_800 };
 const MB = 1024 * 1024;
 

@@ -1,6 +1,23 @@
 # Candlefair
 
-A table companion for **Tales from the Flickering Candle**. It runs next to D&D Beyond and covers what D&D Beyond doesn't: a TV display for the table, a party bank and shop, and session tools for the DM. Every screen stays in sync live.
+**A free companion for D&D at the table.** The TV becomes the table, every player plays from their phone, and the DM runs the night from one console that remembers every name, place and loose thread. It runs next to D&D Beyond and covers what it doesn't.
+
+**Try it:** [dnd.calebs.garden](https://dnd.calebs.garden). Start a campaign from the front page; there are no accounts and nothing to install.
+
+![The Candlefair TV during a fight: initiative order across the top, whose turn it is, and who is up next](public/tour/tv.webp)
+
+- **The TV** shows the map with fog of war, fights, scenes, handouts and every dice roll, live (3D dice included), with sound made in the browser.
+- **Phones** hold each player's character sheet, gold, journal and what the party has discovered. Players buy from shops, roll on the TV and get secret whispers from the DM.
+- **The DM console** runs the bank, shops, fights, the story and its people and places, and remembers past sessions so nobody keeps the books.
+- **Spoiler safe:** DM-only data never leaves the campaign's room for a TV or phone. Each screen's data is built from an allow-list and tested.
+
+**How it's built:** one Cloudflare Durable Object per campaign (in-memory game, its own SQLite, WebSocket pushes), a Worker in front, R2 for images, React + Vite on the client. Idle campaigns hibernate and cost nothing. Around 1,000 tests run on every PR. More in [How it's built](#how-its-built), [docs/capacity-report.md](docs/capacity-report.md) and [docs/security-audit.md](docs/security-audit.md).
+
+Made by [Caleb](https://calebs.garden) for a home game called *Tales from the Flickering Candle*, and free for any table.
+
+The rest of this file is the manual: [how access works](#how-access-works), [running it locally](#run-it-locally), [deploying](#deploy-cloudflare-workers--durable-objects--r2), and every feature.
+
+## Starting a campaign
 
 Anyone can start a campaign from the front page. Each campaign has a short code (like `wick7kq`) and its own DM key.
 
