@@ -135,7 +135,7 @@ export function HomeShell({ intro, children }: { intro?: boolean; children: Reac
         <span className="hm-mark" aria-hidden="true">
           <CandleIcon size={intro ? 30 : 22} />
         </span>
-        <span className="hm-name">Candlefair</span>
+        <span className="hm-name">Dungeon Garden</span>
         {intro ? <p className="hm-tagline">A table companion for D&amp;D played in person: phones in hand, the world on the TV.</p> : null}
       </header>
       {children}

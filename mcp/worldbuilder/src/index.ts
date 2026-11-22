@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Candlefair Worldbuilder: a local MCP server (stdio) for Claude Desktop and
+ * Dungeon Garden Worldbuilder: a local MCP server (stdio) for Claude Desktop and
  * Claude Code. It forwards each tool call to the campaign's Worldbuilder API
  * (POST /api/builder/<tool>) with the builder key in the Authorization header.
  *
@@ -9,8 +9,10 @@
  * here to give Claude clear tools and early, friendly errors.
  *
  * Config (environment variables, set in the Claude Desktop config):
- *   CANDLEFAIR_URL          https://your-site.example (no path)
- *   CANDLEFAIR_BUILDER_KEY  cfb_... (from the DM view: Settings, Worldbuilder)
+ *   DUNGEON_GARDEN_URL          https://your-site.example (no path)
+ *   DUNGEON_GARDEN_BUILDER_KEY  cfb_... (from the DM view: Settings, Worldbuilder)
+ * The older CANDLEFAIR_URL and CANDLEFAIR_BUILDER_KEY names (from before the
+ * rename) still work, so existing configs keep running.
  *
  * The key is never printed, logged or returned from a tool.
  */
@@ -27,22 +29,22 @@ const TIMEOUT_MS = 15_000;
 const STOP_AFTER = 3;
 
 function fail(msg: string): never {
-  process.stderr.write(`candlefair-worldbuilder: ${msg}\n`);
+  process.stderr.write(`dungeon-garden-worldbuilder: ${msg}\n`);
   process.exit(1);
 }
 
-const KEY = (process.env.CANDLEFAIR_BUILDER_KEY ?? "").trim();
-const RAW_URL = (process.env.CANDLEFAIR_URL ?? "").trim();
-if (!KEY_RE.test(KEY)) fail("CANDLEFAIR_BUILDER_KEY is missing or isn't a builder key (cfb_...). Make one in the DM view: Settings, Worldbuilder.");
+const KEY = (process.env.DUNGEON_GARDEN_BUILDER_KEY ?? process.env.CANDLEFAIR_BUILDER_KEY ?? "").trim();
+const RAW_URL = (process.env.DUNGEON_GARDEN_URL ?? process.env.CANDLEFAIR_URL ?? "").trim();
+if (!KEY_RE.test(KEY)) fail("DUNGEON_GARDEN_BUILDER_KEY is missing or isn't a builder key (cfb_...). Make one in the DM view: Settings, Worldbuilder.");
 let BASE: URL;
 try {
   BASE = new URL(RAW_URL);
 } catch {
-  fail("CANDLEFAIR_URL is missing or isn't a web address (https://...).");
+  fail("DUNGEON_GARDEN_URL is missing or isn't a web address (https://...).");
 }
 const local = ["localhost", "127.0.0.1", "[::1]"].includes(BASE.hostname);
-if (BASE.protocol !== "https:" && !(local && BASE.protocol === "http:")) fail("CANDLEFAIR_URL must start with https:// (http:// only for localhost).");
-if (BASE.username || BASE.password || BASE.search || BASE.hash) fail("CANDLEFAIR_URL should be just the site address, like https://candlefair.example.");
+if (BASE.protocol !== "https:" && !(local && BASE.protocol === "http:")) fail("DUNGEON_GARDEN_URL must start with https:// (http:// only for localhost).");
+if (BASE.username || BASE.password || BASE.search || BASE.hash) fail("DUNGEON_GARDEN_URL should be just the site address, like https://dnd.example.");
 const ORIGIN = BASE.origin;
 
 /** Groups this chat's drafts in the DM's review queue. */
@@ -76,7 +78,7 @@ async function call(op: string, body: Record<string, unknown> = {}, raw?: Raw): 
       signal: AbortSignal.timeout(TIMEOUT_MS),
     });
   } catch (e) {
-    return { isError: true, content: [{ type: "text", text: scrub(`Couldn't reach the campaign (${e instanceof Error ? e.name : "network error"}). Check CANDLEFAIR_URL and the connection.`) }] };
+    return { isError: true, content: [{ type: "text", text: scrub(`Couldn't reach the campaign (${e instanceof Error ? e.name : "network error"}). Check DUNGEON_GARDEN_URL and the connection.`) }] };
   }
   const text = await res.text().catch(() => "");
   let data: Record<string, unknown> | null = null;
@@ -99,10 +101,10 @@ const id = z.string().max(64).describe("An id from search, get_entry, list_threa
 const areas = z.array(s(40)).max(8).describe('Areas it belongs to, like "Candlefair" or "The Docks".');
 
 const server = new McpServer(
-  { name: "candlefair-worldbuilder", version: "0.1.0" },
+  { name: "dungeon-garden-worldbuilder", version: "0.1.0" },
   {
     instructions: [
-      "You are helping the DM build their Candlefair campaign. Start every session with get_overview and follow its style_guide exactly.",
+      "You are helping the DM build their Dungeon Garden campaign. Start every session with get_overview and follow its style_guide exactly.",
       "Ask the DM questions before writing; prefer a few well-made drafts to many thin ones. Search before creating, so you don't duplicate someone who exists.",
       "Everything you write is a draft. The DM reviews it on the Worldbuilder page; nothing reaches the players until they approve and reveal it. You cannot reveal, pin, publish, delete or change game state, so don't try.",
       "To change something that already exists, use suggest_change with a reason. You can only edit your own pending drafts.",

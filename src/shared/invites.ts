@@ -333,7 +333,7 @@ export function calendarFile(v: CalendarEvent, url: string, where: string, now =
   return [
     "BEGIN:VCALENDAR",
     "VERSION:2.0",
-    "PRODID:-//Candlefair//Invite//EN",
+    "PRODID:-//Dungeon Garden//Invite//EN",
     "CALSCALE:GREGORIAN",
     "METHOD:PUBLISH",
     "BEGIN:VEVENT",

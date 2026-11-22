@@ -168,7 +168,7 @@ export function AdminApp() {
     <div className="ad">
       <header className="ad-top">
         <div>
-          <h1>Candlefair admin</h1>
+          <h1>Dungeon Garden admin</h1>
           <p className="ad-sub">Read-only. Nothing here changes a game.</p>
         </div>
         <div className="ad-top-actions">
@@ -282,7 +282,7 @@ function KeyGate({ error, onKey }: { error: string; onKey: (k: string, remember:
           if (k.trim()) onKey(k.trim(), remember);
         }}
       >
-        <h1>Candlefair admin</h1>
+        <h1>Dungeon Garden admin</h1>
         <p className="ad-sub">For the site owner. Paste the admin key you set as the Worker secret ADMIN_KEY.</p>
         {error && <p className="ad-error" role="alert">{error}</p>}
         <label className="ad-field">
