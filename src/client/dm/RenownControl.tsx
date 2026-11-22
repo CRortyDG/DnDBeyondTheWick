@@ -327,6 +327,9 @@ export function RenownChip() {
         <div className="renown-pop" role="dialog" aria-label="Party Renown" ref={pop} style={shift ? { transform: `translateX(${shift}px)` } : undefined}>
           <h4>Party Renown</h4>
           <RenownControl />
+          <a className="renown-pop-link note" href="#page=renown" onClick={() => setOpen(false)}>
+            The ladder, what each rank opens, and the history
+          </a>
         </div>
       ) : null}
     </div>

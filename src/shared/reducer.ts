@@ -14,7 +14,7 @@ import { CHARACTER_MAX, CLIP_GIF_MAX, CLIP_VIDEO_MAX, INTRO_SCENE_ID, STINGER_SC
 import { starterById } from "./starters";
 import { cleanCharLook, cleanLookStyle } from "./look";
 import { chapterSessionId, cleanTags, cleanText, defaultChapterId, NEXT_CHAPTER, NOTES_MAX, penName } from "./chronicle";
-import { BOARD_SLOTS, jobPoints, jobsOf, jobTitle, pinnedCount, pointsOf, rankForPoints, rankName, ranksOf, RENOWN_POINTS, RENOWN_POINTS_MAX, renownMet, renownNeeded, renownOf, shopOpenNow, thresholdsOf, tierOf, trustMet, trustText } from "./renown";
+import { BOARD_SLOTS, jobPoints, jobsOf, jobTitle, ladderSize, pinnedCount, pointsOf, rankForPoints, rankName, ranksOf, RENOWN, RENOWN_POINTS, RENOWN_POINTS_MAX, topRank, renownMet, renownNeeded, renownOf, shopOpenNow, thresholdsOf, tierOf, trustMet, trustText } from "./renown";
 import { LOG_MAX, PLAYER_ROLL_GAP_MS, rollD20, rollPool, type RollTo } from "./dice";
 import { leadsOf, leadVisible, tally, voteClosed } from "./leads";
 import { jobsLocked, NOTICE_BOARD_ENTRY } from "./discovery";
@@ -31,7 +31,7 @@ import { applyCompanion, attachCompanion, companionsWith, companionTemplatesOf, 
 import { applyFeatures, checkFeature, featureOn, isFeatureCommand } from "./features";
 import { ATTITUDE_LOG_MAX, attitudeSettings, bandInfo, bandLine, clampScore, jobPerson, offsetOf, partyScore, relationOf, scoreFor, syncBands } from "./attitude";
 import type { AttitudeShift, Relation } from "./types";
-import { applyRooms, cleanRoom, isRoomCommand, roomsOf } from "./rooms";
+import { applyRooms, cleanRoom, isRoomCommand, roomSettings, roomsOf } from "./rooms";
 import { applyWhisper, isWhisperCommand } from "./whispers";
 import { applyFight, isFightCommand, startFightFromBeat, type FightHelpers } from "./combatReducer";
 import type { Notice, NotePlace } from "./types";
@@ -43,7 +43,7 @@ import type { Capture, Clue } from "./types";
 import { catchUp, characterPoints, materialize, partiesFor, partiesOf, PARTIES_MAX, PARTY_COLORS, partyById, presentIds, recordKnowledge, seedKnowledge, tableParty, tablePoints, tableRenown, tellTable, tidyLive, WORLD_EVENTS_MAX } from "./world";
 import { pendingPlacement, STORY_SECTION, syncStoryStatus } from "./episodeBuilder";
 import type { Flyer, Party, TvDiceRoll, WorldEvent } from "./types";
-import type { Actor, Beat, BeatAction, Entry, EntryFact, Episode, FlyerText, Stage, GameState, Item, ItemTier, Job, Lead, LedgerEntry, LedgerKind, MapData, MapToken, Note, Pin, PinLink, Player, Rental, RenownChange, Scene, Session, SessionRun, Shop, StoryBlock, TradeRequest, Vote } from "./types";
+import type { Actor, Beat, BeatAction, Entry, EntryFact, Episode, FlyerText, Stage, GameState, Item, ItemTier, Job, Lead, LedgerEntry, LedgerKind, MapData, MapToken, Note, Pin, PinLink, Player, Rental, RenownChange, RenownLadderRank, Scene, Session, SessionRun, Shop, StoryBlock, TradeRequest, Vote } from "./types";
 import type { z } from "zod";
 import { currentValue, madeIndex, sameValue, SUGGEST_FIELDS, type BuilderOp, type BuilderRef } from "./builderOps";
 import { storyOf } from "./story";
@@ -580,7 +580,7 @@ function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
       if (why) chronicle(`Renown: the party is now ${r.name}. ${why}`);
       return;
     }
-    chronicle(`Renown: the party is now ${r.name}. ${why || `${r.meaning}.`}`);
+    chronicle(`Renown: the party is now ${r.name}.${why ? ` ${why}` : r.meaning ? ` ${r.meaning}.` : ""}`);
     if (tv === false) return;
     announce(r.raised);
     s.renownMoment = { rank: to, n: ++s.seq, at: ctx.now };
@@ -2426,6 +2426,7 @@ function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
 
     // ---------- Renown and the bounty board ----------
     case "renown.set": {
+      if (cmd.rank > topRank(s)) fail("That rank isn't on the ladder any more.", "recheck");
       const was = renownOf(s);
       if (cmd.rank === was) break;
       const from = pointsOf(s);
@@ -2461,7 +2462,8 @@ function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
         const n = name ? renownNote(e, (t) => t.startsWith(`Renown: the party is now ${name}.`)) : undefined;
         const head = `Renown: the party is now ${name}.`;
         if (n) {
-          if (why || e.rankTo > e.rankFrom) n.text = `${head} ${why || `${ranksOf(s)[e.rankTo].meaning}.`}`;
+          const meaning = ranksOf(s)[e.rankTo]?.meaning;
+          if (why || e.rankTo > e.rankFrom) n.text = `${head}${why ? ` ${why}` : meaning ? ` ${meaning}.` : ""}`;
           else dropNote(n);
         } else if (why && name) chronicle(`${head} ${why}`);
       }
@@ -2488,6 +2490,14 @@ function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
       if (e.source !== "set") shiftRenown(e, -e.amount, !!cmd.lower, false);
       dropRankUpNote(e);
       s.renownLog = (s.renownLog ?? []).filter((x) => x !== e);
+      break;
+    }
+    case "renown.catchUp": {
+      const was = renownOf(s);
+      const reach = rankForPoints(s, pointsOf(s));
+      if (reach <= was) fail("The party's points don't reach a higher rank.", "recheck");
+      setRank(reach, undefined, cmd.tv);
+      logRenown({ source: "set", amount: 0, reason: "The ladder changed: their points already reached it.", rankFrom: was, rankTo: reach });
       break;
     }
     case "renown.progress":
@@ -4176,6 +4186,67 @@ function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
       }
       if (s.renownRanks.every((o) => !Object.keys(o).length)) delete s.renownRanks;
       break;
+    case "game.renownLadder": {
+      const oldSize = ladderSize(s);
+      const top = (n: number) => Math.max(0, Math.min(oldSize - 1, n));
+      let next: RenownLadderRank[] | undefined;
+      // Where each old rank goes: its own new spot, else the nearest kept rank below it (else the first).
+      const to: number[] = [];
+      if (cmd.reset || !cmd.ranks) {
+        next = undefined;
+        for (let i = 0; i < oldSize; i++) to.push(Math.min(i, RENOWN.length - 1));
+      } else {
+        const one = (t: string) => t.replace(/\s+/g, " ").trim();
+        next = cmd.ranks.map((r, i) => ({ name: one(r.name), meaning: one(r.meaning), pay: one(r.pay), raised: one(r.raised), points: i === 0 ? 0 : r.points }));
+        const blank = next.findIndex((r) => !r.name);
+        if (blank >= 0) fail(`Rank ${blank + 1} needs a name.`);
+        const dup = next.findIndex((r, i) => next!.findIndex((x) => x.name.toLowerCase() === r.name.toLowerCase()) !== i);
+        if (dup >= 0) fail(`Two ranks are called “${next[dup].name}”. Give each its own name.`);
+        const bad = next.findIndex((r, i) => i > 0 && r.points <= next![i - 1].points);
+        if (bad > 0) fail(`${next[bad].name} needs more points than ${next[bad - 1].name}.`);
+        const seen = new Set<number>();
+        for (const r of cmd.ranks) {
+          if (r.from === null) continue;
+          if (r.from >= oldSize || seen.has(r.from)) fail("The ladder changed while you were editing it. Open it again.", "recheck");
+          seen.add(r.from);
+        }
+        const at = new Map(cmd.ranks.flatMap((r, i) => (r.from === null ? [] : [[r.from, i] as const])));
+        for (let i = 0; i < oldSize; i++) {
+          let j = i;
+          while (j >= 0 && !at.has(j)) j--;
+          to.push(j >= 0 ? at.get(j)! : 0);
+        }
+      }
+      const move = (n: number | undefined) => (n === undefined ? undefined : to[top(n)]);
+      // Points first, while the old thresholds still say what an old game's missing total means.
+      s.renownPoints = pointsOf(s);
+      for (const p of s.players) if (p.renown !== undefined) p.renownPoints = characterPoints(s, p);
+      s.renown = move(renownOf(s))!;
+      for (const p of s.players) if (p.renown !== undefined) p.renown = move(p.renown)!;
+      for (const it of s.items) {
+        if (it.renown) it.renown = move(it.renown);
+        if (!it.renown) delete it.renown;
+      }
+      for (const sh of s.shops) {
+        if (sh.renown) sh.renown = move(sh.renown);
+        if (!sh.renown) delete sh.renown;
+      }
+      for (const j of jobsOf(s)) j.renown = move(j.renown) ?? 0;
+      {
+        // The Good Room (its default needs rank 2, so that follows too).
+        const set = roomSettings(s);
+        if (move(set.good.rank) !== set.good.rank) s.rooms = { ...set, good: { ...set.good, rank: move(set.good.rank)! } };
+      }
+      for (const e of s.renownLog ?? []) {
+        e.rankFrom = move(e.rankFrom)!;
+        e.rankTo = move(e.rankTo)!;
+      }
+      delete s.renownMoment;
+      delete s.renownRanks;
+      if (next) s.renownLadder = next;
+      else delete s.renownLadder;
+      break;
+    }
     case "game.town":
       s.town = cmd.town.replace(/\s+/g, " ").trim();
       break;

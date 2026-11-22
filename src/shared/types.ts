@@ -1353,8 +1353,10 @@ export interface GameState {
   origin?: import("./presets").Origin;
   /** The town the shop and the players' phones name. Missing: Candlefair. "" on a blank campaign until the DM names it. Read with townOf(). */
   town?: string;
-  /** The DM's own wording for the five Renown ranks (blank fields keep the default). Read with ranksOf(). */
+  /** Old: the DM's rewording of the default five Renown ranks (blank fields keep the default). Superseded by renownLadder once the DM saves the ladder. Read with ranksOf(). */
   renownRanks?: Partial<{ name: string; meaning: string; pay: string; raised: string; points: number }>[];
+  /** The DM's own Renown ladder, every rank spelled out (2 to 10 ranks; {town} is filled in when read). Missing: the default five. Read with ranksOf(). */
+  renownLadder?: RenownLadderRank[];
   /** One-time content upgrades already applied to this game (see migrate.ts), so a later delete sticks. */
   upgrades?: string[];
   /** DM-ONLY: the storyboard (threads, story beats, planned session dates). Never copied into a TV or player view. Read with storyOf(). */
@@ -1488,6 +1490,18 @@ export interface WorldSettings {
   events?: WorldEvent[];
   /** The last world news or event moment on the TV and phones: plays when n changes. */
   news?: { n: number; at: number; text: string };
+}
+
+/** One rank of the DM's own Renown ladder. Text may hold {town} / {Town}. */
+export interface RenownLadderRank {
+  name: string;
+  meaning: string;
+  /** Typical job pay, each ("" shows nothing). */
+  pay: string;
+  /** The TV line when the party reaches it ("" uses the name). */
+  raised: string;
+  /** Running total of points to reach it (0 for the first rank). */
+  points: number;
 }
 
 /** DM-ONLY: one change to the party's Renown points. */

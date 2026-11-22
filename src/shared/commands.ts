@@ -3,7 +3,7 @@ import { practiceDmCommands } from "./practice";
 import { LAST_TIME_NOTES_MAX, LAST_TIME_TEXT_MAX } from "./lastTime";
 import { companionDmCommands, companionPlayerCommands } from "./companions";
 import { CATEGORY_IDS, KIND_IDS } from "./progress";
-import { RENOWN_MAX, RENOWN_POINTS_MAX } from "./renown";
+import { RENOWN_MAX, RENOWN_POINTS_MAX, RENOWN_TIERS_MAX, RENOWN_TIERS_MIN, RENOWN_TOP } from "./renown";
 import { FONT_IDS, LIST_MAX, NOTE_W_MAX, NOTE_W_MIN, PAPER_IDS, PIN_IDS, TITLE_SIZE_MAX, TITLE_SIZE_MIN } from "./board";
 import { DIE_SIDES, diceCount, MAX_DICE, MAX_OF_ONE, MAX_PLUS } from "./dice";
 import { fightDmCommands, fightPlayerCommands, monsterBody } from "./combatSchema";
@@ -190,7 +190,7 @@ const effect = z.discriminatedUnion("type", [
   z.object({ type: z.literal("income"), dice: z.string().regex(/^\s*(\d*d\d+([+-]\d+)?|\d+)\s*$/i), unitCp: cp }),
   z.object({ type: z.literal("credit"), limitCp: cp }),
 ]);
-const rank = z.number().int().min(0).max(RENOWN_MAX);
+const rank = z.number().int().min(0).max(RENOWN_TOP);
 /** Renown points a job gives when done. */
 const jobRenown = z.number().int().min(0).max(10);
 const flyerText = z.object({ title: text(60).min(1), body: text(400), signedBy: text(60) });
@@ -403,6 +403,8 @@ export const dmCommand = z.discriminatedUnion("type", [
   z.object({ type: z.literal("renown.points"), amount: z.number().int().min(-50).max(50).refine((n) => n !== 0, "Give or take at least one point."), reason: text(200).optional(), tv: z.boolean().optional() }),
   /** Show the party's progress toward the next rank on phones. */
   z.object({ type: z.literal("renown.progress"), on: z.boolean() }),
+  /** The party's points already reach a higher rank (the DM lowered a threshold): raise it to that rank now (tv as renown.set). */
+  z.object({ type: z.literal("renown.catchUp"), tv: z.boolean().optional() }),
   // Jobs wait until the party finds this entry (null: always show). make: a new hidden "Notice board" place.
   z.object({ type: z.literal("jobs.gate"), entryId: id.nullable().optional(), make: z.literal(true).optional() }),
   /**
@@ -657,6 +659,21 @@ export const dmCommand = z.discriminatedUnion("type", [
   z.object({
     type: z.literal("game.renownRanks"),
     ranks: z.array(z.object({ name: text(40).optional(), meaning: text(120).optional(), pay: text(40).optional(), raised: text(80).optional(), points: z.number().int().min(0).max(RENOWN_POINTS_MAX).optional() })).max(RENOWN_MAX + 1),
+  }),
+  /**
+   * The whole Renown ladder, top to bottom as the DM wants it (2 to 10 ranks). Each
+   * rank says which rank it was before (from), so locks, the party's rank and the
+   * history follow it when ranks move; what needed a removed rank needs the nearest
+   * kept rank below it. reset: back to the default five (from is ignored).
+   */
+  z.object({
+    type: z.literal("game.renownLadder"),
+    ranks: z
+      .array(z.object({ from: z.number().int().min(0).max(RENOWN_TOP).nullable(), name: text(40), meaning: text(120), pay: text(40), raised: text(80), points: z.number().int().min(0).max(RENOWN_POINTS_MAX) }))
+      .min(RENOWN_TIERS_MIN)
+      .max(RENOWN_TIERS_MAX)
+      .optional(),
+    reset: z.literal(true).optional(),
   }),
 
   // Random tables (DM-only).

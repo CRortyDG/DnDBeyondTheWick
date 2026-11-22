@@ -30,6 +30,12 @@ export const BoardIcon = (p: P) => (
     <path d="M7 8h4v4H7zM14 9h3v6h-3z" />
   </svg>
 );
+export const MedalIcon = (p: P) => (
+  <svg {...base(p)}>
+    <circle cx="12" cy="9" r="5.5" />
+    <path d="M8.6 13.4 7 21l5-2.6 5 2.6-1.6-7.6M12 6.5l.8 1.6 1.7.2-1.2 1.2.3 1.7-1.6-.8-1.6.8.3-1.7-1.2-1.2 1.7-.2z" />
+  </svg>
+);
 export const MapIcon = (p: P) => (
   <svg {...base(p)}>
     <path d="M3 6.5 8.5 4.5l7 2 5.5-2v13l-5.5 2-7-2-5.5 2zM8.5 4.5v13M15.5 6.5v13" />

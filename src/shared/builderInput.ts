@@ -9,7 +9,7 @@ import { monsterBody } from "./combatSchema";
 import { AREAS_MAX, DM_TEXT_MAX, FACT_MAX, HINT_MAX, NAME_MAX, PERSON_NOTE_MAX, SUMMARY_MAX, TITLE_MAX } from "./discovery";
 import { BEAT_TYPE_IDS, MONTH_RE } from "./story";
 import { fillRanges, TABLE_DICE, TABLE_KIND_IDS, TABLE_NAME_MAX, TABLE_ROW_MAX, TABLE_ROWS_MAX } from "./tables";
-import { RENOWN_MAX } from "./renown";
+import { RENOWN_TOP } from "./renown";
 import { HOOKS, KEY_MAX, PERK_MAX, TAG_MAX } from "./rooms";
 import type { BuilderOp, BuilderRef, SuggestTarget } from "./builderOps";
 import type { Stage } from "./types";
@@ -107,7 +107,7 @@ export const flyerInput = z
     posted_by: txt(80).optional(),
     reward_gp: z.number().min(0).max(100_000).optional(),
     reward_kind: z.enum(["each", "total", "hidden"]).optional(),
-    renown: z.number().int().min(0).max(RENOWN_MAX).optional(),
+    renown: z.number().int().min(0).max(RENOWN_TOP).optional(),
     renown_points: z.number().int().min(0).max(10).optional(),
     dm_adventure: txt(300).optional(),
     dm_loot: txt(1000).optional(),

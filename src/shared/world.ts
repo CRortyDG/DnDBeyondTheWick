@@ -12,7 +12,7 @@
 // its own character, so it shows what that character knows.
 
 import { isFound, stageRank } from "./discovery";
-import { pointsOf, RENOWN_MAX, thresholdsOf } from "./renown";
+import { pointsOf, thresholdsOf, topRank } from "./renown";
 import type { Entry, GameState, Party, Scene, Stage, WorldEvent } from "./types";
 
 export const PARTIES_MAX = 12;
@@ -134,14 +134,14 @@ export function tableRenown(g: Pick<GameState, "players" | "renown">, ids: strin
 }
 
 /** A character's own Renown points (from before points: their rank's threshold). */
-export function characterPoints(g: Pick<GameState, "renown" | "renownPoints" | "renownRanks">, p: { renown?: number; renownPoints?: number }): number {
+export function characterPoints(g: Pick<GameState, "renown" | "renownPoints" | "renownRanks"> & Partial<Pick<GameState, "renownLadder">>, p: { renown?: number; renownPoints?: number }): number {
   if (p.renownPoints !== undefined) return p.renownPoints;
   if (p.renown === undefined) return pointsOf(g);
-  return thresholdsOf(g)[Math.max(0, Math.min(RENOWN_MAX, p.renown))];
+  return thresholdsOf(g)[Math.max(0, Math.min(topRank(g), p.renown))];
 }
 
 /** The table's Renown points: the best of the characters with the table's (best) rank. */
-export function tablePoints(g: Pick<GameState, "players" | "renown" | "renownPoints" | "renownRanks">, ids: string[]): number {
+export function tablePoints(g: Pick<GameState, "players" | "renown" | "renownPoints" | "renownRanks"> & Partial<Pick<GameState, "renownLadder">>, ids: string[]): number {
   const rank = tableRenown(g, ids);
   let best = -1;
   for (const id of ids) {
@@ -218,6 +218,9 @@ export function recordKnowledge(before: GameState, after: GameState): void {
       if (!!op?.discovered !== p.discovered) p.knownBy = edit(p.knownBy, ids, p.discovered);
     }
   }
+  // A new Renown ladder already moved every character's own rank: nothing to copy.
+  const same = (a: unknown, b: unknown) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
+  if (!same(before.renownLadder, after.renownLadder) || !same(before.renownRanks, after.renownRanks)) return;
   if ((before.renown ?? 0) !== (after.renown ?? 0)) {
     for (const p of after.players) if (ids.includes(p.id)) p.renown = after.renown ?? 0;
   }
