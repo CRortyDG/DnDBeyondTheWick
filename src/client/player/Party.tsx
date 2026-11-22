@@ -44,13 +44,17 @@ export function PartySheet({ view, onClose }: { view: PlayerView; onClose: () =>
   );
 }
 
-/** A button for "Your character" (and the computer's side bar) that opens the party page. */
-export function PartyButton({ view, className = "btn big" }: { view: PlayerView; className?: string }) {
+/**
+ * A button for "Your character" (and the computer's side bar) that opens the party page.
+ * Pass onOpen to show the page from higher up instead: a sheet drawn inside a sticky or
+ * fixed box is trapped in that box's layer, and later layers paint over it.
+ */
+export function PartyButton({ view, className = "btn big", onOpen }: { view: PlayerView; className?: string; onOpen?: () => void }) {
   const [open, setOpen] = useState(false);
   const count = (view.party ?? []).length;
   return (
     <>
-      <button type="button" className={className} aria-haspopup="dialog" onClick={() => setOpen(true)}>
+      <button type="button" className={className} aria-haspopup="dialog" onClick={() => (onOpen ? onOpen() : setOpen(true))}>
         Your party{count > 1 ? ` (${count})` : ""}
       </button>
       {open ? <PartySheet view={view} onClose={() => setOpen(false)} /> : null}
