@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { DIE_SIDES, describeDice, describeResult, diceCount, MAX_DICE, MAX_OF_ONE, MAX_PLUS, type DiceResult, type DieSides } from "@/shared/dice";
 import { Die } from "./Die";
+import { OutOf } from "./OutOf";
 import "./dice.css";
 
 type Counts = Record<DieSides, number>;
@@ -84,7 +85,10 @@ export function RollLine({ r, who, tag, secret }: { r: DiceResult; who?: string;
   const label = r.label ? `${r.label}: ` : "";
   return (
     <li>
-      <span className="dt-total">{r.total}</span>
+      <span className="dt-total">
+        {r.total}
+        <OutOf r={r} />
+      </span>
       <span>
         {who ? <b className="dt-who">{who} </b> : null}
         {label}

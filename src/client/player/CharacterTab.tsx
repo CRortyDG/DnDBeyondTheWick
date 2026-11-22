@@ -6,6 +6,7 @@ import type { SheetRoll } from "@/shared/sheet";
 import type { PlayerView } from "@/shared/projection";
 import { STARTERS } from "@/shared/starters";
 import { CharacterSheetView } from "../ui/CharacterSheet";
+import { OutOf } from "../ui/OutOf";
 import { LevelUpCard, SheetBuilder } from "../ui/SheetBuilder";
 import { MyHp } from "./FightCard";
 import { LookEditor } from "../ui/LookEditor";
@@ -192,7 +193,10 @@ function LastRoll({ view }: { view: PlayerView }) {
   const nat = natural(r);
   return (
     <div className={`cs-last${nat === 20 ? " crit" : nat === 1 ? " fumble" : ""}`} role="status">
-      <b>{r.total}</b>
+      <b>
+        {r.total}
+        <OutOf r={r} />
+      </b>
       <span>
         {r.label}: {describeResult(r)} ({r.groups.flatMap((g) => g.rolls).join(", ")}){nat === 20 ? " · Natural 20!" : nat === 1 ? " · Natural 1" : ""}
         {r.to === "tv" ? " · on the TV" : " · DM only"}
