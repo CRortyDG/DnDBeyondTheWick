@@ -9,6 +9,7 @@ import type { Art, TokenColor } from "@/shared/types";
 import { artSrc } from "./SceneView";
 import type { Look } from "@/shared/look";
 import { PixelLook } from "./PixelLook";
+import { conditionGlyph } from "@/shared/conditionRules";
 
 export interface TokenLook {
   label: string;
@@ -21,6 +22,8 @@ export interface TokenLook {
   look?: Look;
   down?: boolean;
   current?: boolean;
+  /** Fight conditions: up to two marks on the ring's edge, then "+N". */
+  conds?: string[];
 }
 
 /** One token: a coloured ring with initials (or a picture), the name under it. */
@@ -40,11 +43,21 @@ export function Token({
     <div
       className={`tok tok-${t.color}${t.down ? " down" : ""}${t.current ? " current" : ""}${className ? " " + className : ""}`}
       style={{ left: `${x * 100}%`, top: `${y * 100}%`, width: px, height: px, "--tok": `${px}px`, ...style } as CSSProperties}
-      aria-label={t.name || t.label}
+      aria-label={(t.name || t.label) + (t.conds?.length ? ` (${t.conds.join(", ")})` : "")}
       {...rest}
     >
       <span className="tok-disc">{src ? <img src={src} alt="" draggable={false} /> : t.look ? <PixelLook look={t.look} face /> : <span className="tok-label">{t.label}</span>}</span>
       {t.down ? <span className="tok-x" aria-hidden="true" /> : null}
+      {t.conds?.length ? (
+        <span className="tok-conds" title={t.conds.join(", ")} aria-hidden="true">
+          {t.conds.slice(0, 2).map((n, i) => (
+            <span key={i} className="tok-cond">
+              {conditionGlyph(n)}
+            </span>
+          ))}
+          {t.conds.length > 2 ? <span className="tok-cond more">+{t.conds.length - 2}</span> : null}
+        </span>
+      ) : null}
       {showName && t.name ? (
         <span className="tok-name" title={t.name}>
           {shortName(t.name)}

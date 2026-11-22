@@ -6922,6 +6922,33 @@ input.fld.inline-input {
     linear-gradient(45deg, transparent 44%, #e58a7a 44%, #e58a7a 56%, transparent 56%),
     linear-gradient(-45deg, transparent 44%, #e58a7a 44%, #e58a7a 56%, transparent 56%);
 }
+/* Fight conditions on a token: small wax marks on the ring's top right. */
+.tok-conds {
+  position: absolute;
+  top: calc(var(--tok) * -0.12);
+  left: 62%;
+  display: flex;
+  gap: 1px;
+  pointer-events: none;
+  z-index: 1;
+}
+.tok-cond {
+  min-width: max(13px, calc(var(--tok) * 0.38));
+  height: max(13px, calc(var(--tok) * 0.38));
+  padding: 0 2px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  background: var(--wax);
+  color: var(--parchment);
+  border: 1px solid rgba(13, 10, 8, 0.9);
+  font-size: max(9px, calc(var(--tok) * 0.24));
+  line-height: 1;
+}
+.tok-cond.more {
+  background: rgba(13, 10, 8, 0.9);
+  font-family: var(--font-num);
+}
 .tok.current {
   z-index: 6;
 }

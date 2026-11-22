@@ -8,6 +8,7 @@
 import { PixelLook } from "./PixelLook";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { HEALTH_LABEL, type FightView, type PublicCombatant } from "@/shared/combat";
+import { conditionGlyph } from "@/shared/conditionRules";
 import { artSrc } from "./SceneView";
 import { shortName } from "./Tokens";
 import "./fight.css";
@@ -76,6 +77,7 @@ function Turns({ fight, onMap }: { fight: FightView; onMap: boolean }) {
             <Badge c={c} size="sm" />
             <span className="fv-chip-name">{c.name}</span>
             <Health c={c} small />
+            <CondPips c={c} />
           </li>
         ))}
       </ol>
@@ -145,6 +147,7 @@ function MapTurns({ fight, now, next }: { fight: FightView; now: PublicCombatant
               {chipName(c.name)}
             </span>
             <Health c={c} small />
+            <CondPips c={c} />
           </li>
         ))}
       </ol>
@@ -254,28 +257,32 @@ function Badge({ c, size }: { c: PublicCombatant; size: "sm" | "md" | "lg" }) {
   );
 }
 
-const COND_GLYPH: Record<string, string> = {
-  Blinded: "◉",
-  Charmed: "♥",
-  Deafened: "◌",
-  Exhaustion: "☾",
-  Frightened: "!",
-  Grappled: "✊",
-  Incapacitated: "✕",
-  Invisible: "◇",
-  Paralyzed: "≋",
-  Petrified: "▲",
-  Poisoned: "☠",
-  Prone: "▁",
-  Restrained: "⛓",
-  Stunned: "✶",
-  Unconscious: "z",
-};
+
+/** A chip's conditions as small marks on its top edge: two, then "+N". */
+function CondPips({ c }: { c: PublicCombatant }) {
+  if (!c.conditions.length) return null;
+  const shown = c.conditions.slice(0, 2);
+  const more = c.conditions.length - shown.length;
+  return (
+    <span className="fv-pips" aria-label={c.conditions.map((k) => k.name + (k.level ? ` ${k.level}` : "")).join(", ")}>
+      {shown.map((k, i) => (
+        <span key={i} className="fv-pip" aria-hidden="true">
+          {conditionGlyph(k.name)}
+        </span>
+      ))}
+      {more > 0 ? (
+        <span className="fv-pip more" aria-hidden="true">
+          +{more}
+        </span>
+      ) : null}
+    </span>
+  );
+}
 
 function CondIcon({ name }: { name: string }) {
   return (
     <span className="fv-cond-icon" aria-hidden="true">
-      {COND_GLYPH[name] ?? name.charAt(0).toUpperCase()}
+      {conditionGlyph(name)}
     </span>
   );
 }

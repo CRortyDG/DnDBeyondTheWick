@@ -8,6 +8,7 @@
 import type { Look } from "./look";
 import { parseDice, rollDice } from "./progress";
 import { penName } from "./chronicle";
+import { fightCondsFromSheet } from "./sheet";
 import type { Art, Combatant, ConditionTick, Fight, FightCondition, FightGroup, FightMoment, FightOutcome, FightReminder, FightReminderKind, FightStep, GameState, MonsterTemplate, Player, PlayerHp } from "./types";
 
 /** The 2024 conditions, in the order the DM picks from. */
@@ -373,7 +374,8 @@ export function playerCombatant(id: string, p: Player): Combatant {
     hp: 0,
     maxHp: 0,
     tempHp: 0,
-    conditions: [],
+    // Conditions ticked on the sheet come along (see syncSheetsFromFight).
+    conditions: fightCondsFromSheet(p, id),
     // Concentrating on a spell from the sheet when the fight starts.
     concentrating: !!p.sheet?.conc && !p.sheetOff,
     spent: {},
@@ -451,6 +453,8 @@ export function isDice(text: string): boolean {
 // What the TV and phones see
 
 export interface PublicCondition {
+  /** Lets a player take their own off (me.uncondition). */
+  id?: string;
   name: string;
   level?: number;
   rounds?: number;
@@ -532,7 +536,7 @@ function publicCombatant(game: GameState, c: Combatant, art: (sceneId: string) =
     name: tvName(c),
     down: false,
     conditions: c.conditions.map((x) => {
-      const pc: PublicCondition = { name: x.name };
+      const pc: PublicCondition = { id: x.id, name: x.name };
       if (x.level) pc.level = x.level;
       if (x.rounds !== undefined) pc.rounds = x.rounds;
       return pc;

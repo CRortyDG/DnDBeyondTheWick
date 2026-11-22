@@ -3234,3 +3234,90 @@ html[data-view="player"] {
 :where(html[data-view="player"]) .welcome-card .btn {
   margin-top: 12px;
 }
+
+/* Your conditions in a fight: chips with a ×, every rule on your turn, "+ Condition" to mark yourself. */
+:where(html[data-view="player"]) .pl-my-conds {
+  display: grid;
+  gap: var(--pl-s2);
+  justify-items: start;
+}
+:where(html[data-view="player"]) .cond-chip-wrap {
+  display: inline-flex;
+  align-items: center;
+}
+:where(html[data-view="player"]) .cond-chip-g {
+  margin-right: 4px;
+  color: var(--pl-danger);
+}
+:where(html[data-view="player"]) .cond-chip-x {
+  width: 32px;
+  height: 36px;
+  margin-left: -2px;
+  border: 0;
+  background: none;
+  color: var(--pl-text-2);
+  font: inherit;
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+}
+:where(html[data-view="player"]) .cond-rules {
+  margin: var(--pl-s2) 0 0;
+  padding: var(--pl-s2) var(--pl-s3);
+  list-style: none;
+  display: grid;
+  gap: var(--pl-s1);
+  border-radius: var(--pl-r-sm);
+  background: var(--pl-bg-2);
+  border: 1px solid var(--pl-border-strong);
+  font-size: 14px;
+  line-height: 1.45;
+}
+:where(html[data-view="player"]) .cond-rules b {
+  color: var(--pl-gold);
+}
+:where(html[data-view="player"]) .pl-cond-pick {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--pl-s1);
+}
+:where(html[data-view="player"]) .pl-cond-opt {
+  min-height: 36px;
+  padding: 0 var(--pl-s3);
+  border-radius: 999px;
+  border: 1px solid var(--pl-border-strong);
+  background: var(--pl-bg-2);
+  color: var(--pl-text-2);
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+}
+:where(html[data-view="player"]) .pl-cond-opt.on {
+  border-color: var(--pl-danger);
+  color: var(--pl-text);
+  background: rgba(226, 115, 95, 0.12);
+}
+/* Conditions on a phone turn-order face: small marks over its top edge. */
+:where(html[data-view="player"]) .pl-strip li {
+  position: relative;
+}
+:where(html[data-view="player"]) .pl-av-conds {
+  position: absolute;
+  top: 0;
+  right: 2px;
+  display: flex;
+  gap: 1px;
+}
+:where(html[data-view="player"]) .pl-av-conds span {
+  min-width: 18px;
+  height: 18px;
+  padding: 0 3px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  background: var(--pl-wax);
+  color: var(--pl-text);
+  border: 1px solid var(--pl-bg-0);
+  font-size: 11px;
+  line-height: 1;
+}

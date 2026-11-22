@@ -117,4 +117,7 @@ export const fightPlayerCommands = [
   z.object({ type: z.literal("me.hp"), mode: mode.optional(), amount: hpNum.min(1).optional(), cur: hpNum.optional(), max: hpNum.optional(), temp: hpNum.optional(), tv: z.boolean().optional() }),
   z.object({ type: z.literal("me.deathSave"), mark: z.enum(["ok", "fail", "nat20", "unok", "unfail"]) }),
   z.object({ type: z.literal("me.endTurn") }),
+  /** Mark yourself with a standard condition ("I'm prone"); the DM sees it and can take it off. */
+  z.object({ type: z.literal("me.condition"), name: text(40).min(1), level: z.number().int().min(1).max(6).optional() }),
+  z.object({ type: z.literal("me.uncondition"), conditionId: id }),
 ] as const;
