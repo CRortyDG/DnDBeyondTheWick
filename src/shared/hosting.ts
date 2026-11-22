@@ -98,7 +98,7 @@ export function busiest(days: { day: string; counts: UsageCounts }[]): { day: st
 
 // ---------------------------------------------------------------- prices
 
-/** Billed duration: an event in production takes about 30 ms (CAPACITY_REPORT.md), at 128 MB. */
+/** Billed duration: an event in production takes about 30 ms (docs/capacity-report.md), at 128 MB. */
 export const MS_PER_EVENT = 30;
 const GB_PER_ROOM = 0.125;
 /** The Worker's own CPU per request: about 1 ms (scripts/capacity/cpu-bench.ts). */

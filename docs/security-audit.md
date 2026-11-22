@@ -2,7 +2,7 @@
 
 Scope: the Cloudflare Worker (`worker/`), the room API (`src/server/`), how
 campaign codes, DM links, player names and Arrival links work, and uploads.
-Builds on the capacity audit (draft PR #27, `CAPACITY_REPORT.md`), which found
+Builds on the capacity audit (draft PR #27, `capacity-report.md`), which found
 that nothing rate-limited requests.
 
 ## What can be guessed, and how hard it is

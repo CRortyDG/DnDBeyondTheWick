@@ -1,4 +1,4 @@
-// Fixes from the 2026-11-15 adversarial audit (SECURITY_AUDIT.md, "Adversarial pass").
+// Fixes from the 2026-11-15 adversarial audit (docs/security-audit.md, "Adversarial pass").
 import { beforeEach, describe, expect, it } from "vitest";
 import { sha256 } from "@/server/auth";
 import { execute, hello } from "@/server/game";

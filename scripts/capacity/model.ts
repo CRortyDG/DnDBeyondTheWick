@@ -1,11 +1,11 @@
 /**
  * Turns per-session numbers (from sim.ts) into free-tier capacity and
  * Workers Paid cost. Prices and limits checked on developers.cloudflare.com
- * on 2026-11-14; see CAPACITY_REPORT.md for the pages.
+ * on 2026-11-14; see docs/capacity-report.md for the pages.
  *
  *   npx tsx scripts/capacity/model.ts [path/to/sim-output.json]
  *
- * With no file it uses the numbers recorded in CAPACITY_REPORT.md.
+ * With no file it uses the numbers recorded in docs/capacity-report.md.
  */
 import { readFileSync } from "node:fs";
 
