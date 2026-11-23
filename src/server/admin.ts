@@ -3,6 +3,7 @@ import { sameHash, sha256 } from "./auth";
 import { json, miss } from "./api";
 import { ADMIN_BATCH, ADMIN_HEADER, ADMIN_KEY_MIN, type AdminTag, type CampaignStory, type CampaignSummary, type FoundBy, type ListedRow, type RegistryRow } from "@/shared/admin";
 import { normaliseGameId } from "@/shared/handles";
+import type { StorageStatus } from "@/shared/admin";
 
 /**
  * The site owner's admin console, on the server: /api/admin/*. Only the admin
@@ -16,6 +17,10 @@ export interface Registry {
   list(ip: string): Promise<ListedRow[]>;
   add(rows: Omit<RegistryRow, "addedAt">[], at: number): Promise<number>;
   label(code: string, tag: AdminTag | null, note: string | undefined): Promise<boolean>;
+  /** The site's R2 storage tally and limits (src/server/spend.ts). Missing: not tracked here. */
+  storageStatus?(): Promise<StorageStatus>;
+  storageSetOff?(off: boolean): Promise<StorageStatus>;
+  storageRecount?(): Promise<StorageStatus>;
 }
 
 /** What a room tells the console (worker/room.ts). */
@@ -57,6 +62,7 @@ const CODE = z.string().min(1).max(40);
 const codesBody = z.object({ codes: z.array(CODE).min(1).max(ADMIN_BATCH) });
 const labelBody = z.object({ code: CODE, tag: z.enum(["mine", "test", "real"]).nullable(), note: z.string().max(500).optional() });
 const scanBody = z.object({ source: z.enum(["images", "cloudflare"]), cursor: z.string().max(2000).optional() });
+const storageBody = z.object({ uploads: z.enum(["on", "off"]).optional(), recount: z.literal(true).optional() });
 const addBody = z.object({ codes: z.array(CODE).min(1).max(ADMIN_BATCH), foundBy: z.enum(["device", "images"]).optional() });
 
 async function body<T>(req: Request, schema: z.ZodType<T>): Promise<T | null> {
@@ -149,6 +155,19 @@ export async function handleAdmin(req: Request, deps: AdminDeps): Promise<Respon
     const page = await deps.cloudflareIds(b.cursor);
     const res = await probeAndAdd(deps, page.ids.slice(0, ADMIN_BATCH).map((id) => ({ room: deps.roomById!(id) })), "cloudflare", now);
     return json({ ...res, cursor: page.cursor ?? null });
+  }
+  // The site's image storage: how full it is, a re-count, and the switch that turns uploads off everywhere.
+  if (path === "/api/admin/storage") {
+    const r = deps.registry;
+    if (!r.storageStatus || !r.storageSetOff || !r.storageRecount) return bad("Storage isn't tracked here.", 501);
+    if (req.method === "GET") return json({ storage: await r.storageStatus() });
+    if (req.method === "POST") {
+      const b = await body(req, storageBody);
+      if (!b || (!b.uploads && !b.recount)) return bad('Send {"uploads": "on" | "off"} or {"recount": true}.');
+      let storage = b.uploads ? await r.storageSetOff(b.uploads === "off") : await r.storageStatus();
+      if (b.recount) storage = await r.storageRecount();
+      return json({ storage });
+    }
   }
   return bad("Not found.", 404);
 }

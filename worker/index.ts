@@ -16,6 +16,7 @@ import { adminDeps, registry } from "./admin";
 import { handleAdmin, isAdminPath } from "@/server/admin";
 import { BATCH_HEADER, COUNTRY_HEADER, PICTURE_ALT_HEADER, PICTURE_ENTRY_HEADER } from "@/server/builder";
 import { carriesBuilderKey, parseBuilderAuth } from "@/server/builderKeys";
+import { DailyCounter, DEFAULT_ROOM_CALLS_PER_DAY, secondsToUtcMidnight, type StorageAnswer, type StorageAsk } from "@/server/spend";
 
 export { GameRoom, Registry };
 
@@ -128,6 +129,59 @@ async function overApi(env: Env, ip: string, url: URL): Promise<boolean> {
 
 const slowDown = (msg: string) => json({ error: msg, code: "rate-limited" }, 429);
 
+/** Calls to rooms per address today, in this instance (see DailyCounter). Made on first use, when the vars are known. */
+let roomCalls: DailyCounter | null = null;
+
+function dayKey(ip: string): Request {
+  return new Request(`https://daily.candlefair.invalid/${encodeURIComponent(ip)}`);
+}
+
+/**
+ * The daily budget: true once this address has made more calls today than any
+ * table would. Counted in memory, saved to the data centre's cache every 50
+ * calls so other instances (and this one, after a restart) pick it up.
+ */
+async function overDaily(env: Env, ctx: ExecutionContext, ip: string): Promise<boolean> {
+  if (ip === "local") return false;
+  if (!roomCalls) {
+    const n = Number(env.ROOM_CALLS_PER_DAY);
+    roomCalls = new DailyCounter(Number.isFinite(n) && n > 0 ? n : DEFAULT_ROOM_CALLS_PER_DAY);
+  }
+  const now = Date.now();
+  const cache = edgeCache();
+  if (cache && roomCalls.needsSeed(ip, now)) {
+    const hit = await cache.match(dayKey(ip));
+    roomCalls.seed(ip, hit ? Number(await hit.text()) || 0 : 0, now);
+  }
+  roomCalls.add(ip, now);
+  const save = roomCalls.shouldSave(ip);
+  if (cache && save !== null) ctx.waitUntil(cache.put(dayKey(ip), new Response(String(save), { headers: { "Cache-Control": `max-age=${secondsToUtcMidnight(now)}` } })));
+  return roomCalls.over(ip, now);
+}
+
+// ---------------------------------------------------------------- R2 spending
+//
+// Every file stored in R2 is first counted by the registry against the site's
+// storage ceiling and today's write cap (src/server/spend.ts), and the admin
+// console can turn uploads off. A campaign's own image space is checked by its
+// room as before.
+
+async function reserveStorage(env: Env, ask: StorageAsk): Promise<StorageAnswer> {
+  try {
+    return await registry(env).storageReserve(ask);
+  } catch (e) {
+    // If the registry can't answer, don't store: an unknown total is the risky case.
+    console.error("storage reserve failed", e);
+    return { ok: false, code: "uploads-off", error: "Uploads aren't available right now. Try again in a minute." };
+  }
+}
+
+function releaseStorage(env: Env, ctx: ExecutionContext, ask: StorageAsk) {
+  ctx.waitUntil(registry(env).storageRelease(ask.bytes, ask.files).catch((e) => console.error("storage release failed", e)));
+}
+
+const storageRefused = (a: Exclude<StorageAnswer, { ok: true }>) => json({ error: a.error, code: a.code }, a.code === "writes-today" ? 429 : 507);
+
 /**
  * The Worldbuilder's door: POST /api/builder/<op> with a cfb_ key in the
  * Authorization header. Not for browsers (no CORS; a page's request is
@@ -174,6 +228,14 @@ async function createCampaign(req: Request, env: Env, ctx: ExecutionContext): Pr
   const wanted = typeof body.code === "string" && body.code.trim() ? normaliseGameId(body.code) : null;
   const problem = wanted !== null ? pickedCodeProblem(wanted) : null;
   if (problem) return json({ error: problem }, 400);
+  // Daily caps on new campaigns, site-wide and per address: each one is a room with storage of its own.
+  const tooMany = await registry(env)
+    .createAllowed(ip)
+    .catch((e) => {
+      console.error("create check failed", e);
+      return null;
+    });
+  if (tooMany) return json({ error: tooMany, code: "rate-limited" }, 429);
   const key = newDmKey();
   for (let attempt = 0; attempt < 6; attempt++) {
     const game = wanted ?? makeCampaignCode();
@@ -227,15 +289,26 @@ async function upload(req: Request, env: Env, ctx: ExecutionContext, ip: string)
   if (!ext) return json({ error: "That isn't an image or a video (MP4, WebM or MOV)." }, 400);
   if (file.size > MAX_UPLOAD) return json({ error: "That image is over 25 MB." }, 413);
   if (VIDEO_EXT[file.type] && file.size > CLIP_VIDEO_MAX) return json({ error: `That video is over ${CLIP_VIDEO_MAX / 1024 / 1024} MB. A minute of 720p fits.` }, 413);
-  // Count it against the campaign's image space (and check the key again, in the room that holds it).
+  // The whole site's storage first, then the campaign's own image space (which checks the key again, in the room that holds it).
+  const ask = { bytes: file.size, files: 1 };
+  const site = await reserveStorage(env, ask);
+  if (!site.ok) return storageRefused(site);
   const reserve = await room(env, game).fetch(
     new Request(`https://room/internal/upload-reserve?game=${encodeURIComponent(game)}&size=${file.size}`, { method: "POST", headers: { [KEY_HEADER]: key } }),
   );
-  if (!reserve.ok) return new Response(reserve.body, { status: reserve.status, headers: { "Content-Type": "application/json; charset=utf-8" } });
+  if (!reserve.ok) {
+    releaseStorage(env, ctx, ask);
+    return new Response(reserve.body, { status: reserve.status, headers: { "Content-Type": "application/json; charset=utf-8" } });
+  }
   const bytes = new Uint8Array(12);
   crypto.getRandomValues(bytes);
   const name = `${game}/${[...bytes].map((b) => b.toString(16).padStart(2, "0")).join("")}.${ext}`;
-  await env.FILES.put(name, file.stream(), { httpMetadata: { contentType: file.type } });
+  try {
+    await env.FILES.put(name, file.stream(), { httpMetadata: { contentType: file.type } });
+  } catch (e) {
+    releaseStorage(env, ctx, ask);
+    throw e;
+  }
   return json({ url: `/api/files/${name}` });
 }
 
@@ -266,10 +339,16 @@ async function uploadTiles(req: Request, env: Env, ctx: ExecutionContext, ip: st
     total += f.size;
   }
   if (total > MAX_UPLOAD) return json({ error: "That map is too big to cut up (over 25 MB of pieces). Try a smaller image." }, 413);
+  const ask = { bytes: total, files: files.length };
+  const site = await reserveStorage(env, ask);
+  if (!site.ok) return storageRefused(site);
   const reserve = await room(env, game).fetch(
     new Request(`https://room/internal/upload-reserve?game=${encodeURIComponent(game)}&size=${total}&count=${files.length}`, { method: "POST", headers: { [KEY_HEADER]: key } }),
   );
-  if (!reserve.ok) return new Response(reserve.body, { status: reserve.status, headers: { "Content-Type": "application/json; charset=utf-8" } });
+  if (!reserve.ok) {
+    releaseStorage(env, ctx, ask);
+    return new Response(reserve.body, { status: reserve.status, headers: { "Content-Type": "application/json; charset=utf-8" } });
+  }
   const urls = await Promise.all(
     files.map(async (f) => {
       const bytes = new Uint8Array(12);
@@ -284,14 +363,35 @@ async function uploadTiles(req: Request, env: Env, ctx: ExecutionContext, ip: st
 
 const TILE_EXT: Record<string, string> = { "image/webp": "webp", "image/jpeg": "jpg", "image/png": "png" };
 
-/** Uploaded images and clips. The names are random, so the link is the permission. */
-async function serveFile(req: Request, env: Env, path: string): Promise<Response> {
+/**
+ * Uploaded images and clips. The names are random, so the link is the permission.
+ * Served by the Worker (never a public bucket address), from this data centre's
+ * cache when it can: a whole table loading the same map reads R2 once. Reads
+ * that do reach R2 are limited per address.
+ */
+async function serveFile(req: Request, env: Env, ctx: ExecutionContext, path: string): Promise<Response> {
   // A campaign's files are <code>/<random>; a preset's own copies are p/<preset code>/<random>.
   const m = /^\/api\/files\/((?:p\/[a-z0-9]{10}|[a-z0-9-]{1,40})\/[0-9a-f]{24}\.(png|jpg|webp|gif|svg|avif|mp4|webm|mov))$/.exec(path);
   if (!m) return new Response("Not found", { status: 404 });
+  const ranged = req.headers.has("Range");
+  const cache = edgeCache();
+  // The cache key is the bare path: a query string can't make every request a fresh read.
+  const cacheKey = new Request(new URL(path, req.url).toString());
+  if (cache && req.method === "GET" && !ranged) {
+    const hit = await cache.match(cacheKey);
+    if (hit) return hit;
+  }
+  if (await over(env.FILE_LIMIT, ipOf(req))) return new Response("Too many downloads from here. Wait a minute.", { status: 429, headers: { "Retry-After": "60" } });
+  const res = await readFile(req, env, m[1], m[2]);
+  if (cache && req.method === "GET" && !ranged && res.status === 200) ctx.waitUntil(cache.put(cacheKey, res.clone()));
+  return res;
+}
+
+async function readFile(req: Request, env: Env, key: string, ext: string): Promise<Response> {
   const headers: Record<string, string> = {
-    "Content-Type": EXT_TYPE[m[2]],
-    "Cache-Control": "public, max-age=31536000, immutable",
+    "Content-Type": EXT_TYPE[ext],
+    // A year in browsers; a week in Cloudflare's cache (so a deleted campaign's files don't linger there).
+    "Cache-Control": "public, max-age=31536000, s-maxage=604800, immutable",
     "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'",
     "Accept-Ranges": "bytes",
   };
@@ -299,9 +399,9 @@ async function serveFile(req: Request, env: Env, path: string): Promise<Response
   const range = parseRange(req.headers.get("Range"));
   if (range && req.method === "GET") {
     // R2 refuses a range that starts past the end; answer that the way a browser expects.
-    const obj = await env.FILES.get(m[1], { range }).catch(() => undefined);
+    const obj = await env.FILES.get(key, { range }).catch(() => undefined);
     if (obj === undefined) {
-      const head = await env.FILES.head(m[1]);
+      const head = await env.FILES.head(key);
       if (!head) return new Response("Not found", { status: 404 });
       return new Response(null, { status: 416, headers: { ...headers, "Content-Range": `bytes */${head.size}` } });
     }
@@ -315,7 +415,7 @@ async function serveFile(req: Request, env: Env, path: string): Promise<Response
       headers: { ...headers, ETag: obj.httpEtag, "Content-Range": `bytes ${start}-${end}/${size}`, "Content-Length": String(end - start + 1) },
     });
   }
-  const obj = req.method === "HEAD" ? await env.FILES.head(m[1]) : await env.FILES.get(m[1]);
+  const obj = req.method === "HEAD" ? await env.FILES.head(key) : await env.FILES.get(key);
   if (!obj) return new Response("Not found", { status: 404 });
   return new Response(req.method === "HEAD" ? null : (obj as R2ObjectBody).body, { headers: { ...headers, ETag: obj.httpEtag, "Content-Length": String(obj.size) } });
 }
@@ -468,11 +568,12 @@ export default {
     const path = url.pathname;
     try {
       // Images have random names and are cached by browsers; everything else in /api/ is limited per address.
-      if (path.startsWith("/api/files/") && (req.method === "GET" || req.method === "HEAD")) return withHeaders(await serveFile(req, env, path));
+      if (path.startsWith("/api/files/") && (req.method === "GET" || req.method === "HEAD")) return withHeaders(await serveFile(req, env, ctx, path));
       if (path.startsWith("/api/")) {
         const ip = ipOf(req);
         if (await lockedOut(ip)) return withHeaders(slowDown("Too many wrong codes or links from here. Try again in 15 minutes."));
         if (await overApi(env, ip, url)) return withHeaders(slowDown("Too many requests from here. Slow down a little."));
+        if (await overDaily(env, ctx, ip)) return withHeaders(slowDown("This address has made a very large number of requests today. Try again after midnight UTC."));
         if (path.startsWith("/api/builder/")) return withHeaders(await builderDoor(req, env, ctx, ip));
         // A Worldbuilder key opens nothing else (the room says the same for its own routes).
         if (carriesBuilderKey(req)) return withHeaders(json({ error: "A Worldbuilder key only works on the Worldbuilder API.", code: "wrong-door" }, 403));
@@ -484,7 +585,7 @@ export default {
         if (path === "/api/create" && req.method === "POST") return withHeaders(await createCampaign(req, env, ctx));
         if (path === "/api/upload" && req.method === "POST") return withHeaders(await upload(req, env, ctx, ip));
         if (path === "/api/upload-tiles" && req.method === "POST") return withHeaders(await uploadTiles(req, env, ctx, ip));
-        if (isPresetPath(path)) return withHeaders(await settle(await handlePresetApi(req, new R2Presets(env.FILES)), env, ctx, ip));
+        if (isPresetPath(path)) return withHeaders(await settle(await handlePresetApi(req, new R2Presets(env.FILES, (ask) => reserveStorage(env, ask))), env, ctx, ip));
         const game = normaliseGameId(url.searchParams.get("game"));
         // Practice mode: start, finish and the edit list need both rooms (src/server/practice.ts).
         if (isPracticeAdminPath(path)) return withHeaders(await settle(await handlePracticeAdmin(req, asStore(room(env, game)), asStore(practiceRoom(env, game))), env, ctx, ip));

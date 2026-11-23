@@ -58,6 +58,8 @@ export interface Store {
    * like a DM upload. Returns its /api/files/ link. Missing: the builder can't upload pictures here.
    */
   putBuilderPicture?(game: string, bytes: Uint8Array, ext: "jpg" | "png" | "webp"): Promise<{ url: string } | { error: string; status: number; code: string }>;
+  /** Count one new preset saved from this campaign; false when it has saved its share. Missing: not limited here. */
+  takePresetSlot?(game: string): Promise<boolean>;
   /** Worldbuilder keys, drafts and Activity, kept beside the game (never in it). Missing: no Worldbuilder. */
   builder?: BuilderStore;
 }
