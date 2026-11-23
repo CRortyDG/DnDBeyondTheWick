@@ -57,8 +57,8 @@ export function Home() {
 
 /**
  * "See it at the table": what the app looks like before anyone commits to a campaign.
- * One fight from the Marrowmere starter on the TV, a player's phone and the DM's screen, plus the 1-minute demo.
- * Images and video live in public/tour/ (stills shot from a local Marrowmere campaign; video is the 60 s demo cut).
+ * One fight from the Marrowmere starter on the TV, a player's phone and the DM's screen, plus the product ad.
+ * Images and video live in public/tour/ (stills shot from a local Marrowmere campaign; ad.mp4 is the ~100 s product ad at 1080p).
  */
 function Tour() {
   return (
@@ -117,10 +117,10 @@ function Tour() {
           <figcaption>The DM&rsquo;s side of the same fight.</figcaption>
         </figure>
         <figure className="hm-shot hm-shot-video">
-          <video controls playsInline preload="none" poster="/tour/tour-poster.webp" width={1280} height={720}>
-            <source src="/tour/tour.mp4" type="video/mp4" />
+          <video controls playsInline preload="none" poster="/tour/ad-poster.webp" width={1920} height={1080}>
+            <source src="/tour/ad.mp4" type="video/mp4" />
           </video>
-          <figcaption>A whole game night in one minute (sound on).</figcaption>
+          <figcaption>The whole app in a minute and a half (sound on).</figcaption>
         </figure>
       </div>
     </section>
