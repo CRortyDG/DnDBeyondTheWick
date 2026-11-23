@@ -96,6 +96,17 @@ export function describeResult(r: Pick<DiceResult, "groups" | "plus" | "keep">):
   );
 }
 
+/**
+ * The most this roll could have come to: every die on its top face, plus the modifier ("256 / 400").
+ * Null for a single die (or a d20 with advantage/disadvantage), where the die already says it.
+ */
+export function maxTotal(r: Pick<DiceResult, "groups" | "plus" | "keep">): number | null {
+  if (keptIndex(r) !== null) return null;
+  const dice = r.groups.reduce((n, g) => n + g.rolls.length, 0);
+  if (dice < 2) return null;
+  return r.groups.reduce((t, g) => t + g.sides * g.rolls.length, 0) + r.plus;
+}
+
 /** A lone d20: a natural 20 or natural 1 gets called out on the TV. */
 export function natural(r: Pick<DiceResult, "groups" | "keep">): 20 | 1 | null {
   const k = keptIndex(r);

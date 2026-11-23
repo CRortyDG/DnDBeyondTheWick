@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import type { RollEntry } from "@/shared/dice";
 import { describeResult } from "@/shared/dice";
 import { DicePicker, RollLine, useDicePicks } from "../ui/DicePicker";
+import { OutOf } from "../ui/OutOf";
 import { InspirationIcon as DiceIcon } from "../ui/icons";
 import { useDm } from "./context";
 import { RevealPicker } from "./RevealPicker";
@@ -55,6 +56,7 @@ export function TvDiceBar() {
       <span>
         On the TV: {roll.name ? `${roll.name} rolled ` : ""}
         <b>{roll.total}</b>
+        <OutOf r={roll} />
       </span>
       <button type="button" className="btn small" onClick={() => run({ type: "dice.clearTv" })} title="Take the dice off the TV now (Shift+D)">
         Clear TV
@@ -81,7 +83,10 @@ export function PlayerRollCards() {
             <b>{r.name}</b> rolled, just for you
           </div>
           <div className="dt-card-body">
-            <span className="dt-card-total">{r.total}</span>
+            <span className="dt-card-total">
+              {r.total}
+              <OutOf r={r} />
+            </span>
             <span>
               {r.label ? `${r.label}: ` : ""}
               {describeResult(r)}

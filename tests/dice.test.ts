@@ -1,7 +1,7 @@
 // The DM's dice tray: rolls on the TV.
 import { beforeEach, describe, expect, it } from "vitest";
 import { dmCommand, type Command } from "@/shared/commands";
-import { describeDice, describeResult, natural, rollPool } from "@/shared/dice";
+import { describeDice, describeResult, maxTotal, natural, rollPool } from "@/shared/dice";
 import { projectPlayer, projectTv } from "@/shared/projection";
 import { apply, CommandError, type Ctx } from "@/shared/reducer";
 import { freshStart, seedGame } from "@/shared/seed";
@@ -172,5 +172,18 @@ describe("the TV's fresh-build check", () => {
   it("finds the entry script in the built page", () => {
     expect(entryScript('<head><script type="module" crossorigin src="/assets/main-DQOZIYGm.js"></script></head>')).toBe("/assets/main-DQOZIYGm.js");
     expect(entryScript("<head></head>")).toBeNull();
+  });
+});
+
+describe("maxTotal", () => {
+  const g = (sides: 4 | 6 | 8 | 10 | 12 | 20 | 100, rolls: number[]) => ({ sides, rolls });
+  it("adds every die's top face and the modifier", () => {
+    expect(maxTotal({ groups: [g(20, Array(20).fill(13))], plus: 0 })).toBe(400);
+    expect(maxTotal({ groups: [g(6, [1, 2]), g(8, [3])], plus: 3 })).toBe(23);
+    expect(maxTotal({ groups: [g(6, [1, 2])], plus: -2 })).toBe(10);
+  });
+  it("says nothing for a single die or advantage", () => {
+    expect(maxTotal({ groups: [g(20, [7])], plus: 5 })).toBeNull();
+    expect(maxTotal({ groups: [g(20, [7, 12])], plus: 0, keep: "high" })).toBeNull();
   });
 });

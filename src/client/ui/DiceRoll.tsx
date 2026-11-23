@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { describeResult, keptIndex, natural, type DieSides } from "@/shared/dice";
+import { describeResult, keptIndex, maxTotal, natural, type DieSides } from "@/shared/dice";
 import type { TvView } from "@/shared/projection";
 import { Die } from "./Die";
+import { OutOf } from "./OutOf";
 import { diceSound } from "./tvSound";
 import "./dice.css";
 
@@ -206,7 +207,7 @@ export function DiceRollCard({ roll, still, leaving, together, crowd = 1 }: { ro
     <div
       className={`dice-roll-slot${reduce ? " still" : ""}${leaving ? " leaving" : ""}`}
       role="status"
-      aria-label={`${roll.name ? `${roll.name} rolled` : "Dice"}: ${describeResult(roll)}, total ${roll.total}`}
+      aria-label={`${roll.name ? `${roll.name} rolled` : "Dice"}: ${describeResult(roll)}, total ${roll.total}${maxTotal(roll) !== null ? ` out of ${maxTotal(roll)}` : ""}`}
     >
       <div className="dice-roll-card">
         {together ? (
@@ -245,7 +246,10 @@ export function DiceRollCard({ roll, still, leaving, together, crowd = 1 }: { ro
           ) : lone ? null : (
             <>
               <span className="dice-roll-total-label">Total</span>
-              <span className="dice-roll-total-num">{roll.total}</span>
+              <span className="dice-roll-total-num">
+                {roll.total}
+                <OutOf r={roll} />
+              </span>
             </>
           )}
           {nat && roll.plus ? <span className="dice-roll-total-num small">{roll.total}</span> : null}
