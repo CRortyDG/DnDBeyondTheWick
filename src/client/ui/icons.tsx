@@ -44,6 +44,14 @@ export function FullscreenIcon(p: P) {
   );
 }
 
+export function ExitFullscreenIcon(p: P) {
+  return (
+    <svg {...base(p)}>
+      <path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5" />
+    </svg>
+  );
+}
+
 export function EyeOffIcon(p: P) {
   return (
     <svg {...base(p)}>
