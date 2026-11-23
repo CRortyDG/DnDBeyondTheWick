@@ -27,7 +27,7 @@ import { LastTime } from "./LastTime";
 import { NextGame } from "./NextGame";
 import { WhisperHistoryButton, Whispers } from "./Whispers";
 import { TurnFlash, TurnSoundNudge } from "./TurnCue";
-import { PartyButton } from "./Party";
+import { PartyButton, PartySheet } from "./Party";
 import { useWakeLock } from "../ui/wakeLock";
 import { MyRoomCard } from "./MyRoom";
 import { FEATURE, FEATURES, type FeatureId } from "@/shared/features";
@@ -137,6 +137,9 @@ function PlayerScreen({ view, online, send, ident, setIdent }: { view: PlayerVie
   const [walletOpen, setWalletOpen] = useState<false | "purse" | "send">(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [youOpen, setYouOpen] = useState(false);
+  // Opened from the computer side bar. Kept up here with the other sheets: the side bar is
+  // sticky, so a sheet drawn inside it would sit under the purse and dice column.
+  const [partyOpen, setPartyOpen] = useState(false);
   const [diceOpen, setDiceOpen] = useState(false);
   const [looking, setLooking] = useState<string | null>(null);
   const wide = useWide();
@@ -359,6 +362,7 @@ function PlayerScreen({ view, online, send, ident, setIdent }: { view: PlayerVie
     <>
       <TurnFlash turnKey={turnKey} who={turnWho} />
       {locking ? <LockSheet onLock={lockWith} onClose={() => setLocking(false)} /> : null}
+      {partyOpen ? <PartySheet view={view} onClose={() => setPartyOpen(false)} /> : null}
       {diceOpen ? (
         <Sheet title="Dice" onClose={() => setDiceOpen(false)} className="pl-dice-sheet">
           <Dice view={view} send={send} />
@@ -504,7 +508,7 @@ function PlayerScreen({ view, online, send, ident, setIdent }: { view: PlayerVie
             <button type="button" className="pl-side-link" onClick={() => setYouOpen(true)}>
               Your character
             </button>
-            <PartyButton view={view} className="pl-side-link" />
+            <PartyButton view={view} className="pl-side-link" onOpen={() => setPartyOpen(true)} />
           </div>
         </aside>
         <main className="player-root pl-main">
