@@ -786,6 +786,8 @@ export interface Session {
   night?: number;
   /** The "Last time on…" card for players' devices: the DM's draft, and what was sent. */
   playerRecap?: PlayerRecap;
+  /** Level ups during this session (latest per character), for the end-of-night recap. */
+  levels?: { playerId: string; level: number }[];
 }
 
 /** Players only ever get `sent`, and only once the session has ended. The draft is DM-only. */
@@ -1756,6 +1758,8 @@ export interface FightSummary {
   endedAt: number;
   rounds: number;
   sessionId: string | null;
+  /** How it ended. Missing on fights kept before it was recorded. */
+  outcome?: FightOutcome;
   /** Real names, as the DM knows them. */
   combatants: string[];
   downed: string[];

@@ -844,6 +844,7 @@ function applyFightCore(s: GameState, cmd: FightCommand, h: FightHelpers): void 
         endedAt: f.endedAt ?? h.now,
         rounds: f.round,
         sessionId: f.sessionId,
+        ...(f.outcome ? { outcome: f.outcome } : {}),
         combatants: f.order.map((c) => c.name),
         downed: f.downed.map((id) => f.order.find((c) => c.id === id)?.name).filter((x): x is string => !!x),
         lootCp,

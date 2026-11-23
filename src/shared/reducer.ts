@@ -19,7 +19,7 @@ import { LOG_MAX, PLAYER_ROLL_GAP_MS, rollD20, rollPool, type RollTo } from "./d
 import { leadsOf, leadVisible, tally, voteClosed } from "./leads";
 import { jobsLocked, NOTICE_BOARD_ENTRY } from "./discovery";
 import { pickableNoteIds } from "./lastTime";
-import { findRef, sessionRecap, slugInput, stageRank, blankEntry, ENTRIES_MAX, LEADS_MAX, entriesForScene, entriesOf, entryFromScene, entryScene, entryTags, factSlug, FACTS_MAX, isFound, shopEntry, slugify, syncShopEntries, uniqueSlug } from "./discovery";
+import { findRef, lowerTitle, properWords, sessionRecap, shopPlace, slugInput, stageRank, blankEntry, ENTRIES_MAX, LEADS_MAX, entriesForScene, entriesOf, entryFromScene, entryScene, entryTags, factSlug, FACTS_MAX, isFound, shopEntry, slugify, syncShopEntries, uniqueSlug } from "./discovery";
 import { DM_AUTHOR } from "./types";
 import { originOf } from "./presets";
 import { boardNotes, isFlyerHandout, cleanLook, cleanPlace, defaultWidth, NOTICES_MAX, placeFor, slugify as noteSlug, topZ } from "./board";
@@ -1497,7 +1497,7 @@ function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
     s.discovery = { entryId: e.id, n: ++s.seq, at: ctx.now, ...(from ? { from } : {}), ...(factId ? { factId } : {}) };
   };
   const foundLine = (e: Entry) => {
-    const title = e.title.trim() ? `, ${e.title.trim().replace(/^[A-Z](?=[a-z])/, (c) => c.toLowerCase())}` : "";
+    const title = e.title.trim() ? `, ${lowerTitle(e.title.trim(), properWords(s))}` : "";
     switch (e.kind) {
       case "person":
         return `The party met ${e.name}${title}.`;
@@ -1522,7 +1522,8 @@ function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
       e.foundAt = ctx.now;
       e.foundIn = s.currentSessionId;
       if (sc) sc.known = true;
-      if (!e.room && (s.notes ?? []).length < NOTES_MAX) addNote(DM_AUTHOR, "The DM", foundLine(e), entryTags(s, e), undefined);
+      // A shop that's also a place (the Flickering Candle's storefront) leaves the line to the place, so it isn't "found" twice.
+      if (!e.room && !shopPlace(s, e) && (s.notes ?? []).length < NOTES_MAX) addNote(DM_AUTHOR, "The DM", foundLine(e), entryTags(s, e), undefined);
     } else if (!isFound(to) && isFound(from)) {
       delete e.foundAt;
       delete e.foundIn;
@@ -2729,6 +2730,12 @@ function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
         levels.push({ playerId: p.id, level: l.level });
       }
       chronicle(levelLine(s, levels));
+      // The end-of-night recap says who levelled up tonight.
+      const sess = s.sessions.find((x) => x.id === s.currentSessionId);
+      if (sess && levels.length) {
+        const kept = (sess.levels ?? []).filter((l) => !seen.has(l.playerId));
+        sess.levels = [...kept, ...levels];
+      }
       if (cmd.tv !== false) s.levelMoment = { n: ++s.seq, at: ctx.now, levels };
       break;
     }
