@@ -9,7 +9,7 @@
 // https://www.dndbeyond.com/srd. Anything from other books, players type in.
 
 import { z } from "zod";
-import type { GameState, Player } from "./types";
+import type { FightCondition, GameState, Player } from "./types";
 import { STARTERS, type StarterId } from "./starters";
 import { gearAc, gearPatchShape, giveItem, patchGear, weaponAttacks, type SheetItem } from "./sheetGear";
 import { applyAct, castAbilityOf, longRestMagic, magicPatchShape, patchMagic, sheetAct, shortRestMagic, spellAttackBonus, spellDice, type SheetMagic } from "./sheetMagic";
@@ -543,6 +543,81 @@ export function syncConcFromFight(s: GameState) {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Conditions: the sheet and the fight show the same list. Ticked on the sheet,
+// it joins the fight; set in the fight (by the DM or the player), it shows on
+// the sheet. When the fight ends, timed ones end with it and the rest stay.
+
+const SHEET_CONDS = new Set<string>(CONDITIONS);
+/** A standard condition the sheet keeps ("Poisoned" -> "poisoned"), or exhaustion. */
+function sheetKey(name: string): ConditionId | "exhaustion" | null {
+  const k = name.trim().toLowerCase();
+  if (k === "exhaustion") return k;
+  return SHEET_CONDS.has(k) ? (k as ConditionId) : null;
+}
+const capName = (k: string) => k.charAt(0).toUpperCase() + k.slice(1);
+
+/** The sheet's conditions as untimed fight conditions, for a player joining a fight. */
+export function fightCondsFromSheet(p: Player, idBase: string): FightCondition[] {
+  const sh = p.sheetOff ? undefined : p.sheet;
+  if (!sh) return [];
+  const out: FightCondition[] = (sh.conditions ?? []).map((k) => ({ id: `${idBase}-${k}`, name: capName(k), tick: "end" as const }));
+  if (sh.exhaustion) out.push({ id: `${idBase}-exhaustion`, name: "Exhaustion", level: sh.exhaustion, tick: "end" });
+  return out;
+}
+
+/** After a sheet change: the player's combatant in an open fight follows it. Custom conditions ("Hexed") stay. */
+export function syncFightFromSheet(s: GameState, p: Player) {
+  const f = s.fight;
+  const sh = p.sheet;
+  if (!f || f.status === "over" || !sh || p.sheetOff) return;
+  const c = f.order.find((x) => x.kind === "player" && x.playerId === p.id);
+  if (!c) return;
+  const want = new Set<string>(sh.conditions ?? []);
+  const have = new Set<string>();
+  c.conditions = c.conditions.filter((x) => {
+    const k = sheetKey(x.name);
+    if (!k) return true;
+    if (k === "exhaustion") {
+      if (!sh.exhaustion) return false;
+      x.level = sh.exhaustion;
+      have.add(k);
+      return true;
+    }
+    if (!want.has(k)) return false;
+    have.add(k);
+    return true;
+  });
+  for (const k of CONDITIONS) if (want.has(k) && !have.has(k)) c.conditions.push({ id: `${c.id}-${k}-${sh.updatedAt}`, name: capName(k), tick: "end" });
+  if (sh.exhaustion && !have.has("exhaustion")) c.conditions.push({ id: `${c.id}-exhaustion-${sh.updatedAt}`, name: "Exhaustion", level: sh.exhaustion, tick: "end" });
+}
+
+/** After the fight changes: each player's sheet shows their fight conditions. ending: the fight is over, so timed ones are dropped. */
+export function syncSheetsFromFight(s: GameState, ending = false) {
+  const f = s.fight;
+  if (!f) return;
+  const over = ending || f.status === "over";
+  for (const c of f.order) {
+    if (c.kind !== "player" || !c.playerId) continue;
+    const p = s.players.find((x) => x.id === c.playerId);
+    const sh = p && !p.sheetOff ? p.sheet : undefined;
+    if (!sh) continue;
+    const on = new Set<string>();
+    let ex = 0;
+    for (const x of c.conditions) {
+      if (over && x.rounds !== undefined) continue;
+      const k = sheetKey(x.name);
+      if (k === "exhaustion") ex = Math.max(ex, Math.min(EXHAUSTION_MAX, x.level ?? 1));
+      else if (k) on.add(k);
+    }
+    const list = CONDITIONS.filter((k) => on.has(k));
+    if (list.length) sh.conditions = list;
+    else delete sh.conditions;
+    if (ex) sh.exhaustion = ex;
+    else delete sh.exhaustion;
+  }
+}
+
 export function applySheet(s: GameState, cmd: SheetCommand, h: { actor: { role: string; playerId?: string }; now: number; fail: (m: string) => never; info?: (m: string) => void; newId: () => string }) {
   const find = (pid: string) => s.players.find((p) => p.id === pid) ?? h.fail("That player isn't here.");
   switch (cmd.type) {
@@ -573,6 +648,7 @@ export function applySheet(s: GameState, cmd: SheetCommand, h: { actor: { role: 
       p.sheet ??= blankSheet(h.now);
       patchSheet(p.sheet, cmd.patch, { locked: false, now: h.now, fail: h.fail });
       syncInitiative(s, p);
+      if (cmd.patch.conditions || cmd.patch.exhaustion !== undefined) syncFightFromSheet(s, p);
       return;
     }
     case "sheet.act": {
@@ -610,6 +686,7 @@ export function applySheet(s: GameState, cmd: SheetCommand, h: { actor: { role: 
       p.sheet ??= cmd.starter ? sheetFromStarter(p.arrival?.pick, h.now) : blankSheet(h.now);
       patchSheet(p.sheet, cmd.patch, { locked: !!p.sheet.locked, now: h.now, fail: h.fail });
       syncInitiative(s, p);
+      if (cmd.patch.conditions || cmd.patch.exhaustion !== undefined) syncFightFromSheet(s, p);
       return;
     }
   }

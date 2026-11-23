@@ -38,9 +38,9 @@ import { DM_AUTHOR } from "./types";
 import type { z } from "zod";
 import type { monsterBody } from "./combatSchema";
 
-export type FightCommand = Extract<Command, { type: `fight.${string}` | `monster.${string}` | "me.initiative" | "me.hp" | "me.deathSave" | "me.endTurn" | `me.companion${string}` }>;
+export type FightCommand = Extract<Command, { type: `fight.${string}` | `monster.${string}` | "me.initiative" | "me.hp" | "me.deathSave" | "me.endTurn" | "me.condition" | "me.uncondition" | `me.companion${string}` }>;
 
-const FIGHT_TYPES = new Set(["me.initiative", "me.hp", "me.deathSave", "me.endTurn"]);
+const FIGHT_TYPES = new Set(["me.initiative", "me.hp", "me.deathSave", "me.endTurn", "me.condition", "me.uncondition"]);
 
 export function isFightCommand(cmd: Command): cmd is FightCommand {
   return cmd.type.startsWith("fight.") || cmd.type.startsWith("monster.") || cmd.type.startsWith("me.companion") || FIGHT_TYPES.has(cmd.type);
@@ -686,6 +686,23 @@ function applyFightCore(s: GameState, cmd: FightCommand, h: FightHelpers): void 
     case "fight.uncondition": {
       const f = fight();
       const c = who(f, cmd.combatantId);
+      c.conditions = c.conditions.filter((x) => x.id !== cmd.conditionId);
+      break;
+    }
+    case "me.condition": {
+      const f = fight();
+      if (f.status === "over") fail("The fight is over.");
+      const c = f.order.find((x) => x.kind === "player" && x.playerId === h.actorPlayerId) ?? fail("You're not in this fight.");
+      const label = CONDITIONS.find((x) => x.toLowerCase() === cmd.name.trim().toLowerCase()) ?? fail("Pick a condition from the list.");
+      const had = c.conditions.find((x) => x.name === label);
+      if (had && label !== "Exhaustion") break;
+      c.conditions = c.conditions.filter((x) => x.name !== label);
+      c.conditions.push({ id: h.nextId("k"), name: label, ...(label === "Exhaustion" ? { level: cmd.level ?? had?.level ?? 1 } : {}), tick: "end" });
+      break;
+    }
+    case "me.uncondition": {
+      const f = fight();
+      const c = f.order.find((x) => x.kind === "player" && x.playerId === h.actorPlayerId) ?? fail("You're not in this fight.");
       c.conditions = c.conditions.filter((x) => x.id !== cmd.conditionId);
       break;
     }

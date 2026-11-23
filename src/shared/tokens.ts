@@ -69,6 +69,8 @@ export interface TokenFace {
   down: boolean;
   /** Their turn in the running fight. */
   current: boolean;
+  /** Their fight conditions' names ("Prone"), while a fight is on. */
+  conds: string[];
 }
 
 /** What a token shows, with its fight (names follow reveals, hidden foes stay hidden). */
@@ -95,6 +97,7 @@ export function tokenFace(game: GameState, t: MapToken): TokenFace {
     hidden: t.hidden || gonePlayer || (!!t.combatantId && (!c || c.hidden || !!c.gone)),
     down,
     current: !!running && !!c && f!.currentId === c.id && !c.hidden,
+    conds: c && f!.status !== "over" && !c.hidden ? c.conditions.map((x) => x.name) : [],
   };
 }
 
@@ -114,6 +117,8 @@ export interface PublicToken {
   look?: Look;
   down?: boolean;
   current?: boolean;
+  /** Fight conditions ("Prone"), shown as small marks on the token. */
+  conds?: string[];
   locked?: boolean;
 }
 
@@ -141,6 +146,7 @@ export function publicTokens(game: GameState, m: MapData): PublicToken[] {
     if (t.art?.url) pt.art = { url: t.art.url };
     if (face.down) pt.down = true;
     if (face.current) pt.current = true;
+    if (face.conds.length) pt.conds = face.conds;
     if (t.locked) pt.locked = true;
     out.push(pt);
   }

@@ -54,7 +54,7 @@ import { noticesOf } from "./board";
 import { fillRanges, TABLES_MAX, tablesOf } from "./tables";
 import type { MadeBy, RandomTable } from "./types";
 import { addBought, ITEMS_MAX } from "./sheetGear";
-import { applySheet, armorClass, type HitDie, hitDieSpec, isSheetCommand, mod, restSheet, rollSpec, shortRestSheet, syncConcFromFight, syncInitiative } from "./sheet";
+import { applySheet, armorClass, type HitDie, hitDieSpec, isSheetCommand, mod, restSheet, rollSpec, shortRestSheet, syncConcFromFight, syncInitiative, syncSheetsFromFight } from "./sheet";
 import { buildSheet, levelUpSheet, maxHpFor } from "./sheetBuild";
 import { FADE_DEFAULT, isLayerId, isSfxId, mixLayers } from "./sound";
 
@@ -1831,8 +1831,11 @@ function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
 
   if (isFightCommand(cmd)) {
     const wasOver = s.fight?.status === "over";
+    // A thrown-away fight: timed conditions end, the rest stay on the sheets.
+    if (cmd.type === "fight.cancel") syncSheetsFromFight(s, true);
     applyFight(s, cmd, fightHelpers);
     syncConcFromFight(s);
+    syncSheetsFromFight(s);
     syncFightTokens(s, nextId);
     if (cmd.type === "fight.end" && !wasOver) noteMonsters(true);
     else if (cmd.type === "fight.patch") noteMonsters(false);

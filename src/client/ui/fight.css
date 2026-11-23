@@ -131,6 +131,34 @@
 .fv-chip .fv-badge {
   grid-row: span 2;
 }
+.fv-chip {
+  position: relative;
+}
+/* Conditions on a strip chip: small wax marks on its top edge. */
+.fv-pips {
+  position: absolute;
+  top: calc(-16 * var(--u));
+  right: calc(8 * var(--u));
+  display: flex;
+  gap: calc(4 * var(--u));
+}
+.fv-pip {
+  min-width: calc(34 * var(--u));
+  height: calc(34 * var(--u));
+  padding: 0 calc(6 * var(--u));
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  background: var(--wax);
+  color: var(--parchment);
+  border: calc(2 * var(--u)) solid rgba(13, 10, 8, 0.9);
+  font-size: calc(20 * var(--u));
+  line-height: 1;
+}
+.fv-pip.more {
+  background: rgba(18, 14, 11, 0.95);
+  font-family: var(--font-num);
+}
 .fv-chip-name {
   font-size: calc(24 * var(--u));
   line-height: 1.1;

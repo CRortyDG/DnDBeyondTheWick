@@ -8,7 +8,8 @@
 import { ConditionChips } from "../ui/ConditionChips";
 import { useEffect, useRef, useState } from "react";
 import type { PlayerView } from "@/shared/projection";
-import { HEALTH_LABEL } from "@/shared/combat";
+import { CONDITIONS, HEALTH_LABEL, type PublicCondition } from "@/shared/combat";
+import { conditionGlyph, conditionRule } from "@/shared/conditionRules";
 import { CompanionInit, CompanionPanel, healthText, myCompanionIds } from "./Companions";
 import "../ui/fight.css";
 
@@ -98,7 +99,7 @@ export function FightCard({ view, send }: { view: PlayerView; send: Send }) {
             <div className="pl-fight-sub">{myTurn ? "Everyone’s waiting on you" : compTurn ? `You run ${compTurn.name}. Everyone’s waiting` : upNext ? `After ${current?.name ?? "this turn"}` : mine ? "Waiting for your turn" : "Watching the fight"}</div>
           </header>
           {mine?.concDc ? <p className="fc-conc">You took damage while concentrating: Constitution save, DC {mine.concDc}.</p> : null}
-          {me?.conditions.length ? <ConditionChips list={me.conditions} label="Your conditions" /> : null}
+          {me ? <MyConditions list={me.conditions} myTurn={myTurn} go={go} /> : null}
         </>
       )}
       {compTurn ? <CompanionPanel c={compTurn} go={go} active /> : null}
@@ -112,6 +113,16 @@ export function FightCard({ view, send }: { view: PlayerView; send: Send }) {
                 <span className="pl-av" aria-hidden="true">
                   {c.art?.url ? <img src={c.art.url} alt="" /> : (c.name.trim()[0] ?? "?").toUpperCase()}
                 </span>
+                {c.conditions.length ? (
+                  <span className="pl-av-conds" aria-label={c.conditions.map((k) => k.name).join(", ")}>
+                    {c.conditions.slice(0, 2).map((k, i) => (
+                      <span key={i} aria-hidden="true">
+                        {conditionGlyph(k.name)}
+                      </span>
+                    ))}
+                    {c.conditions.length > 2 ? <span aria-hidden="true">+{c.conditions.length - 2}</span> : null}
+                  </span>
+                ) : null}
                 <span className="pl-av-name">{c.id === meId ? "You" : c.name}</span>
                 <span className="pl-av-state">
                   {c.kind === "monster" && c.health ? HEALTH_LABEL[c.health] : c.kind === "companion" && !c.down ? healthText({ health: c.health ?? "unhurt", hp: c.hp }) : c.down ? "Down" : c.id === f.nextId ? "Next" : ""}
@@ -145,6 +156,41 @@ export function FightCard({ view, send }: { view: PlayerView; send: Send }) {
         </p>
       ) : null}
     </section>
+  );
+}
+
+/** Your conditions in the fight: tap one for its rule (all rules show on your turn), take one off, or mark yourself ("I'm prone"). The DM sees every change. */
+function MyConditions({ list, myTurn, go }: { list: PublicCondition[]; myTurn: boolean; go: (c: object) => Promise<boolean> }) {
+  const [adding, setAdding] = useState(false);
+  const have = new Set(list.map((k) => k.name));
+  const pick = CONDITIONS.filter((c) => c !== "Exhaustion");
+  return (
+    <div className="pl-my-conds">
+      <ConditionChips list={list} label="Your conditions" rules={myTurn} onRemove={(k) => go({ type: "me.uncondition", conditionId: k.id })} />
+      <button type="button" className="btn small pl-cond-add" aria-expanded={adding} onClick={() => setAdding((a) => !a)}>
+        {adding ? "Done" : "+ Condition"}
+      </button>
+      {adding ? (
+        <div className="pl-cond-pick" role="group" aria-label="Add a condition">
+          {pick.map((c) => (
+            <button
+              key={c}
+              type="button"
+              className={`pl-cond-opt${have.has(c) ? " on" : ""}`}
+              aria-pressed={have.has(c)}
+              title={conditionRule(c)}
+              onClick={async () => {
+                const on = list.find((k) => k.name === c);
+                const ok = await go(on ? { type: "me.uncondition", conditionId: on.id } : { type: "me.condition", name: c });
+                if (ok && !on) setAdding(false);
+              }}
+            >
+              <span aria-hidden="true">{conditionGlyph(c)}</span> {c}
+            </button>
+          ))}
+        </div>
+      ) : null}
+    </div>
   );
 }
 

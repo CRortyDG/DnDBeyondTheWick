@@ -24,3 +24,27 @@ export const CONDITION_RULES: Record<string, string> = {
 export function conditionRule(name: string): string | undefined {
   return CONDITION_RULES[name.trim().toLowerCase()];
 }
+
+/** A small mark for each condition, so a TV chip or a map token can show it at a glance. */
+export const CONDITION_GLYPHS: Record<string, string> = {
+  blinded: "◉",
+  charmed: "♥",
+  deafened: "◌",
+  exhaustion: "☾",
+  frightened: "!",
+  grappled: "✊",
+  incapacitated: "✕",
+  invisible: "◇",
+  paralyzed: "≋",
+  petrified: "▲",
+  poisoned: "☠",
+  prone: "↓",
+  restrained: "⛓",
+  stunned: "✶",
+  unconscious: "z",
+};
+
+/** The mark for a condition by any casing; a custom one gets its first letter. */
+export function conditionGlyph(name: string): string {
+  return CONDITION_GLYPHS[name.trim().toLowerCase()] ?? (name.trim().charAt(0).toUpperCase() || "?");
+}
