@@ -11,6 +11,7 @@ import { decodeBits, fogged, publicFog, type PublicFog } from "./fog";
 import { publicGrid, publicTokens, type PublicGrid, type PublicToken } from "./tokens";
 import { leadsView, type LeadsView } from "./leads";
 import type { CharacterSheet } from "./sheet";
+import { myMorality, type MyMorality } from "./morality";
 import { effectiveOff, featureOn, FEATURES, hiddenOf, playerOff, waitsToUnlock, type FeatureId } from "./features";
 import { areaCounts, type AreaCount } from "./discovery";
 import { townOf } from "./presets";
@@ -466,6 +467,8 @@ export interface PlayerView extends Common {
     hidden?: FeatureId[];
     /** The DM has me away from tonight's session. Only set while a session is running. */
     away?: boolean;
+    /** My alignment and oath, as much as the DM lets me see. Missing: nothing set, or hidden. */
+    morality?: MyMorality;
     /** My "I'm here" ask: waiting for the DM, or the DM said not yet (when, so the phone knows when I can ask again). */
     hereAsk?: { status: "waiting" } | { status: "notYet"; at: number };
   };
@@ -872,6 +875,10 @@ export function projectPlayer(table: GameState, version: number, playerId: strin
       ...(p.arrival?.pick ? { starter: p.arrival.pick } : {}),
       ...(myOff.length ? { off: myOff } : {}),
       ...(hiddenOf(p).length ? { hidden: hiddenOf(p) } : {}),
+      ...(() => {
+        const m = myOff.includes("morality") ? undefined : myMorality(game, p);
+        return m ? { morality: m } : {};
+      })(),
       ...(game.currentSessionId && p.away && !p.archived
         ? {
             away: true,

@@ -7543,3 +7543,196 @@ input.fld.inline-input {
 :where(html[data-view="dm"]) .chron-lt-dm label.check {
   color: inherit;
 }
+
+/* ---------- Morality and oaths (DM drawer and phone) ---------- */
+.mor,
+.mor-card {
+  --mor-good: #6f9f5f;
+  --mor-neutral: #7d7264;
+  --mor-evil: #b44a3c;
+  --mor-kept: #6f9f5f;
+  --mor-strained: #c98a3a;
+  --mor-risk: #e58a7a;
+  --mor-broken: #b44a3c;
+}
+.mor {
+  margin-top: 18px;
+}
+.mor-card {
+  margin-top: 14px;
+}
+.mor-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+}
+.mor-label {
+  font-weight: 700;
+  color: var(--gold);
+}
+.mor-set .fld {
+  width: auto;
+}
+.mor-chart {
+  margin: 10px 0 4px;
+  max-width: 320px;
+}
+.mor-chart.compact {
+  max-width: 240px;
+}
+.mor-grid {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: repeat(3, 1fr);
+  aspect-ratio: 1;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+}
+.mor-cell {
+  display: grid;
+  place-items: center;
+  text-align: center;
+  padding: 4px;
+  font-size: 11px;
+  line-height: 1.15;
+  color: var(--muted);
+  opacity: 0.55;
+  border: 1px solid rgba(0, 0, 0, 0.35);
+}
+.mor-lg,
+.mor-ng,
+.mor-cg {
+  background: color-mix(in srgb, var(--mor-good) 30%, transparent);
+}
+.mor-ln,
+.mor-n,
+.mor-cn {
+  background: color-mix(in srgb, var(--mor-neutral) 30%, transparent);
+}
+.mor-le,
+.mor-ne,
+.mor-ce {
+  background: color-mix(in srgb, var(--mor-evil) 30%, transparent);
+}
+.mor-cell.on {
+  opacity: 1;
+  color: var(--parchment);
+  font-weight: 700;
+}
+.mor-dot {
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  margin: -9px 0 0 -9px;
+  border-radius: 50%;
+  background: var(--parchment-3);
+  border: 3px solid var(--tavern-deep);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+  transition:
+    left 0.4s ease,
+    top 0.4s ease;
+}
+.mor-dot.was {
+  width: 10px;
+  height: 10px;
+  margin: -5px 0 0 -5px;
+  border-width: 1px;
+  box-shadow: none;
+}
+.mor-form {
+  margin-top: 12px;
+  display: grid;
+  gap: 8px;
+}
+.mor-axes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+.mor-seg .btn.on {
+  border-color: var(--gold);
+  color: var(--gold-bright);
+}
+.mor-tenet {
+  flex: 1 1 200px;
+  min-width: 0;
+}
+.mor-go {
+  align-items: center;
+}
+.mor-oath {
+  margin-top: 14px;
+}
+.mor-oath h4 {
+  margin: 0 0 6px;
+}
+.mor-state {
+  font-size: 12px;
+  font-weight: 700;
+  padding: 1px 8px;
+  border-radius: 999px;
+  border: 1px solid currentColor;
+}
+.mor-state-kept {
+  color: var(--mor-kept);
+}
+.mor-state-strained {
+  color: var(--mor-strained);
+}
+.mor-state-atRisk {
+  color: var(--mor-risk);
+}
+.mor-state-broken {
+  color: var(--mor-broken);
+}
+.mor-warn {
+  margin: 8px 0;
+  padding: 8px 10px;
+  border-left: 3px solid var(--mor-risk);
+  background: color-mix(in srgb, var(--mor-risk) 12%, transparent);
+  font-size: 14px;
+}
+.mor-tenets {
+  margin: 8px 0;
+  padding-left: 1.3em;
+  display: grid;
+  gap: 4px;
+  font-size: 14px;
+}
+.mor-oath-actions {
+  flex-wrap: wrap;
+  align-items: center;
+}
+.mor-oath-edit textarea {
+  width: 100%;
+}
+.mor-mark {
+  margin-left: 6px;
+  font-size: 12px;
+  font-weight: 700;
+}
+.mor-mark-up {
+  color: var(--up);
+}
+.mor-mark-down {
+  color: var(--down);
+}
+.mor-h {
+  font-size: 18px;
+  margin: 14px 0 6px;
+}
+.mor-reasons {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 4px;
+  font-size: 14px;
+}
+.mor-chart.compact .mor-cell {
+  font-size: 10px;
+}

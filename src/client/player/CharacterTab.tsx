@@ -10,6 +10,7 @@ import { LevelUpCard, SheetBuilder } from "../ui/SheetBuilder";
 import { MyHp } from "./FightCard";
 import { LookEditor } from "../ui/LookEditor";
 import { PixelLook } from "../ui/PixelLook";
+import { MoralityCard } from "./Morality";
 
 /**
  * The Character tab: the sheet. Gold and shops have their own tab. A player who
@@ -46,6 +47,7 @@ export function CharacterTab({
     <>
       {!me.sheet ? <WelcomeCard view={view} /> : null}
       <LookCard view={view} send={send} />
+      <MoralityCard view={view} />
       {me.sheet ? (
         <section className="pl-sheet" aria-label="Character sheet">
           <LevelUpCard sheet={me.sheet} level={me.level} send={send} />

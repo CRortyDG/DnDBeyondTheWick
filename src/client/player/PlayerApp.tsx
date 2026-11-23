@@ -23,6 +23,7 @@ import { Sheet, useConfirm } from "./Sheet";
 import { NAV_ICONS, PlayerNav, type Screen } from "./PlayerNav";
 import { DecisionBanners, MyRequests, RequestSheet, SendGold } from "./Requests";
 import { CharacterTab, LookCard } from "./CharacterTab";
+import { MoralityCard } from "./Morality";
 import { LastTime } from "./LastTime";
 import { NextGame } from "./NextGame";
 import { WhisperHistoryButton, Whispers } from "./Whispers";
@@ -432,6 +433,7 @@ function PlayerScreen({ view, online, send, ident, setIdent }: { view: PlayerVie
             </a>
           ) : null}
           {!sheetsOn ? <LookCard view={view} send={send} /> : null}
+          {!sheetsOn ? <MoralityCard view={view} /> : null}
           <CharacterLink current={me.dndbUrl} onSave={async (url) => setMsg((await send({ type: "me.update", patch: { dndbUrl: url } })) ?? "Saved.")} />
           <p className="note gold-note">
             {sheetsOn && me.sheet ? (

@@ -388,6 +388,9 @@ export function freshStart(g: GameState): GameState {
     // A test fight's damage and inspiration don't carry into the real session one.
     delete p.hp;
     p.inspired = false;
+    // Their morality starts over; a sworn oath stays sworn, unbroken.
+    if (p.conduct?.oath) p.conduct = { law: 0, good: 0, oath: { name: p.conduct.oath.name, tenets: [...p.conduct.oath.tenets] } };
+    else delete p.conduct;
   }
   // No fight running, none in the history.
   delete s.fight;
