@@ -6,7 +6,7 @@ import { actorOf, createGame, execute, startingState, hello, HttpError, identify
 import type { Store } from "./store";
 import { CHARACTER_MAX, isToken, playerByToken, projectArrival, WHY_MAX } from "@/shared/arrival";
 import { STARTER_IDS } from "@/shared/starters";
-import { CHARACTER_MAX as INVITE_CHARACTER_MAX, inviteByCode, isSeatKey, NAME_MAX as INVITE_NAME_MAX, projectInvite } from "@/shared/invites";
+import { CHARACTER_MAX as INVITE_CHARACTER_MAX, CLAIMS_PER_ADDRESS, inviteByCode, isSeatKey, NAME_MAX as INVITE_NAME_MAX, projectInvite } from "@/shared/invites";
 import { normaliseGameId } from "@/shared/handles";
 import { upgrade } from "@/shared/migrate";
 import { gatedArtIsLive } from "@/shared/projection";
@@ -250,7 +250,16 @@ export async function handleApi(req: Request, store: Store): Promise<Response> {
         let out;
         if (r.data.type === "claim") {
           const known = await knownOn(state);
+          // A new name (not this phone again, not a player who already plays here) counts against
+          // this address's share of the invite, so one script can't fill every seat and the waitlist.
+          const ip = req.headers.get("CF-Connecting-IP");
+          const again = inv.entries.some((e) => e.keyHash === keyHash && e.state !== "out");
+          const counted = !!ip && !!store.inviteClaims && !again && !known;
+          if (counted && (await store.inviteClaims!(game, inv.id, ip!, false)) >= CLAIMS_PER_ADDRESS) {
+            throw new HttpError(429, "That's a lot of names from one connection. If you're claiming for friends, ask them to open the link themselves.", "claims");
+          }
           out = await execute(store, game, { role: "system" }, { type: "system.inviteClaim", inviteId: inv.id, keyHash, name: r.data.name, character: r.data.character, ...(known ? { playerId: known.id } : {}) });
+          if (counted) await store.inviteClaims!(game, inv.id, ip!, true);
         } else {
           // This phone's seat, or the seat of the player signed in on it.
           const known = await knownOn(state);
@@ -378,7 +387,9 @@ export async function handleApi(req: Request, store: Store): Promise<Response> {
       if (isNew && store.takePresetSlot && !(await store.takePresetSlot(game))) {
         throw new HttpError(429, "This campaign has saved as many new presets as it can. Save over one of its presets instead.", "preset-limit");
       }
-      return json({ ok: true, ...(await savePreset(store.presets, presetSetup(state), body)) });
+      // Each image a preset copies counts against this address's daily upload share (src/server/spend.ts).
+      const ip = req.headers.get("CF-Connecting-IP") ?? undefined;
+      return json({ ok: true, ...(await savePreset(store.presets, presetSetup(state), { ...body, ...(ip ? { ip } : {}) })) });
     }
 
     // DM only: replace the DM key. Every old DM link and saved key stops working.

@@ -1,6 +1,6 @@
 import { DurableObject } from "cloudflare:workers";
 import { handleApi, miss } from "@/server/api";
-import { isDmKey, KEY_HEADER } from "@/server/auth";
+import { isDmKey, KEY_HEADER, sha256 } from "@/server/auth";
 import { actorOf, HttpError, identify, identifyPractice, projectFor } from "@/server/game";
 import { hydrate, SNAPSHOTS_KEPT, type SnapshotData, type SnapshotInfo, type Store } from "@/server/store";
 import { isToken, projectArrival } from "@/shared/arrival";
@@ -13,6 +13,7 @@ import type { BuilderRow, BuilderStore } from "@/server/builderStore";
 import type { CampaignStory, CampaignSummary, RoomFacts } from "@/shared/admin";
 import { storyFor, summarise } from "@/server/adminStory";
 import { addUsage, busiest, USAGE_FIELDS, utcDay, ZERO_USAGE, type UsageCounts, type UsageReport } from "@/shared/hosting";
+import { admit, type SocketInfo } from "@/server/sockets";
 
 /** A campaign idle this long is deleted, with its images. */
 const IDLE_DELETE_MS = 180 * 24 * 60 * 60 * 1000;
@@ -21,8 +22,6 @@ const PRACTICE_IDLE_MS = 7 * 24 * 60 * 60 * 1000;
 const PRACTICE_CHECK_MS = 24 * 60 * 60 * 1000;
 const CHECK_EVERY_MS = 30 * 24 * 60 * 60 * 1000;
 
-/** Open screens one room will hold. A table needs about ten; this stops one code being flooded with sockets. */
-const MAX_SOCKETS = 100;
 /** A screen sends its key once per connection; a few retries are fine, a stream of messages is not. */
 const MAX_AUTHS = 5;
 const MAX_MESSAGE = 1024;
@@ -50,7 +49,14 @@ type Attachment = (
   | { mode: "pending"; player: string; auths?: number }
   | { mode: "view"; player: string; key: string | null; auths?: number }
   | { mode: "arrival"; token: string | null }
-) & { /** When the screen connected (ms), to count its keep-alive pings. */ at?: number };
+) & {
+  /** When the screen connected (ms), to count its keep-alive pings and close one that never signs in. */
+  at?: number;
+  /** The address it came from, for the per-address cap (src/server/sockets.ts). */
+  ip?: string;
+  /** Signed in as the DM or a player. Everyone else is a guest and can be asked to make room. */
+  member?: boolean;
+};
 
 /**
  * One campaign. Holds the game document and the money ledger in SQLite (one
@@ -366,7 +372,16 @@ export class GameRoom extends DurableObject<Env> implements Store {
     if (url.pathname === "/internal/upload-reserve" && req.method === "POST") return this.reserveUpload(req, url);
     if (url.pathname === "/api/live") {
       if (req.headers.get("Upgrade") !== "websocket") return new Response("Expected a WebSocket", { status: 426 });
-      if (this.ctx.getWebSockets().length >= MAX_SOCKETS) return new Response("This table has too many screens open.", { status: 429 });
+      // Room for this screen? Idle and guest connections make way for it (src/server/sockets.ts).
+      const ip = req.headers.get("CF-Connecting-IP") ?? "";
+      const open = this.ctx.getWebSockets();
+      const admission = admit(open.map((ws) => this.socketInfo(ws)), ip, Date.now());
+      for (const i of admission.close) {
+        try {
+          open[i].close(4008, "Making room for another screen");
+        } catch {}
+      }
+      if (!admission.ok) return new Response(admission.error, { status: 429 });
       const pair = new WebSocketPair();
       const [client, server] = [pair[0], pair[1]];
       this.ctx.acceptWebSocket(server);
@@ -376,6 +391,7 @@ export class GameRoom extends DurableObject<Env> implements Store {
         ? { mode: "arrival", token: isToken(t) ? t : null }
         : { mode: "pending", player: url.searchParams.get("player") ?? "" };
       att.at = Date.now();
+      if (ip) att.ip = ip;
       server.serializeAttachment(att);
       if (att.mode === "arrival") await this.push(server);
       // Still a socket (so an open screen doesn't reconnect in a loop), but a guess at a code
@@ -423,6 +439,20 @@ export class GameRoom extends DurableObject<Env> implements Store {
     if (n >= NEW_PRESETS_PER_CAMPAIGN) return false;
     this.sql.exec("INSERT INTO preset_saves (id, n) VALUES (1, 1) ON CONFLICT(id) DO UPDATE SET n = n + 1");
     return true;
+  }
+
+  /** New names claimed on one invite from one address. The address is kept only as a hash, in its own table. */
+  async inviteClaims(_game: string, inviteId: string, ip: string, add: boolean): Promise<number> {
+    if (!this.hasSchema) return 0;
+    this.sql.exec("CREATE TABLE IF NOT EXISTS invite_claims (invite TEXT NOT NULL, net TEXT NOT NULL, n INTEGER NOT NULL, at INTEGER NOT NULL, PRIMARY KEY (invite, net))");
+    const net = sha256(`${this.ctx.id.toString()}:${ip}`).slice(0, 20);
+    const now = Date.now();
+    if (add) {
+      this.sql.exec("INSERT INTO invite_claims (invite, net, n, at) VALUES (?, ?, 1, ?) ON CONFLICT(invite, net) DO UPDATE SET n = n + 1, at = excluded.at", inviteId, net, now);
+      // A month is longer than any invite is open.
+      this.sql.exec("DELETE FROM invite_claims WHERE at < ?", now - 30 * 24 * 60 * 60 * 1000);
+    }
+    return this.sql.exec<{ n: number }>("SELECT n FROM invite_claims WHERE invite = ? AND net = ?", inviteId, net).toArray()[0]?.n ?? 0;
   }
 
   /** A Worldbuilder picture: the builder door has checked the key; this stores it like a DM upload. */
@@ -475,7 +505,7 @@ export class GameRoom extends DurableObject<Env> implements Store {
     const auths = (att.auths ?? 0) + 1;
     if (auths > MAX_AUTHS) return hangUp();
     const key = typeof msg.key === "string" && msg.key ? msg.key.slice(0, 200) : null;
-    ws.serializeAttachment({ mode: "view", player: att.player, key, auths, at: att.at } satisfies Attachment);
+    ws.serializeAttachment({ mode: "view", player: att.player, key, auths, at: att.at, ...(att.ip ? { ip: att.ip } : {}) } satisfies Attachment);
     await this.push(ws);
   }
 
@@ -507,12 +537,24 @@ export class GameRoom extends DurableObject<Env> implements Store {
       if (who.kind === "invalid") throw new HttpError(401, "That DM key isn't right.", "bad-key");
       if (who.kind === "taken") throw new HttpError(403, "That name is taken.", "taken");
       if (who.kind === "unknown") throw new HttpError(404, "You're not at this table.", "unknown");
+      // Only screens that proved who they are: the DM key, or a player's own locked sign-in.
+      const member = who.kind === "dm" || (who.kind === "player" && !!state.players.find((p) => p.id === who.playerId)?.keyHash);
+      if (!!att.member !== member) ws.serializeAttachment({ ...att, member });
       send({ t: "view", view: await projectFor(state, version, actorOf(who), () => this.loadLedger()) });
     } catch (e) {
       const err = e instanceof HttpError ? e : new HttpError(500, "Something went wrong on the server.");
+      if (att.member) ws.serializeAttachment({ ...att, member: false });
       // The socket stays open: a knocking player hears when the DM lets them in.
       send({ t: "error", status: err.status, code: err.code ?? null, error: err.message, version });
     }
+  }
+
+  /** What the busy-room rules need to know about an open connection. */
+  private socketInfo(ws: WebSocket): SocketInfo {
+    const att = ws.deserializeAttachment() as Attachment | null;
+    if (!att) return { kind: "guest" };
+    const kind = att.mode === "pending" ? "pending" : att.mode === "view" && att.member ? "member" : "guest";
+    return { kind, ...(att.at !== undefined ? { at: att.at } : {}), ...(att.ip ? { ip: att.ip } : {}) };
   }
 
   // ---------------------------------------------------------------- usage

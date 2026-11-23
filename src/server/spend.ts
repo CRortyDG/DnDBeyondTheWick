@@ -49,9 +49,36 @@ export interface StorageAsk {
   bytes: number;
   /** Files to store (each one an R2 write). */
   files: number;
+  /** The address asking, when known: each address gets its own share of the day (ADDRESS_* below). */
+  ip?: string;
 }
 
-export type StorageAnswer = { ok: true } | { ok: false; code: "uploads-off" | "storage-full" | "writes-today"; error: string };
+export type StorageAnswer = { ok: true } | { ok: false; code: "uploads-off" | "storage-full" | "writes-today" | "address-today"; error: string };
+
+/**
+ * One address's share of a day's uploads. The site-wide caps above protect the
+ * bill, but whoever fills them pauses uploads for every DM, so no one address
+ * may use more than a slice: a busy prep day is a few hundred files.
+ */
+export const ADDRESS_FILES_PER_DAY = 2_500;
+export const ADDRESS_BYTES_PER_DAY = 1.5 * GB;
+
+/** What this address has stored today. */
+export interface AddressUse {
+  files: number;
+  bytes: number;
+}
+
+/** May this address store this much more today? Null if so. */
+export function addressProblem(used: AddressUse, ask: StorageAsk): Exclude<StorageAnswer, { ok: true }> | null {
+  if (used.files + ask.files > ADDRESS_FILES_PER_DAY || used.bytes + ask.bytes > ADDRESS_BYTES_PER_DAY) {
+    return { ok: false, code: "address-today", error: "That's a lot of uploading from here today. Try again tomorrow, or ask on another connection." };
+  }
+  return null;
+}
+
+/** An answer that means "not today" rather than "not at all": a 429. */
+export const isDailyRefusal = (code: string) => code === "writes-today" || code === "address-today";
 
 export const utcDayOf = (now: number) => new Date(now).toISOString().slice(0, 10);
 
