@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ADMIN_BATCH, ADMIN_HEADER, guess, lastActiveOf, type AdminTag, type CampaignStory, type CampaignSummary, type Guess, type ListedRow } from "@/shared/admin";
+import { ADMIN_BATCH, ADMIN_HEADER, guess, lastActiveOf, type AdminTag, type CampaignStory, type CampaignSummary, type Guess, type ListedRow, type StorageStatus } from "@/shared/admin";
 
 /**
  * The site owner's console: every campaign the registry knows, whether anyone
@@ -190,6 +190,8 @@ export function AdminApp() {
         <Stat n={openNow} label="Screens open now" hint="Other people's campaigns" live={openNow > 0} />
         <Stat n={all.length} label="Campaigns in the list" hint="Yours and tests included" />
       </section>
+
+      <StoragePanel adminKey={key} onError={setErr} />
 
       {(unknownDevice.length > 0 || deviceUnmarked.length > 0) && (
         <section className="ad-note">
@@ -574,6 +576,49 @@ function Backfill({ adminKey, scanOk, onDone }: { adminKey: string; scanOk: { im
       </div>
       {!scanOk.cloudflare && <p className="ad-dim">The full scan is off until the Worker has CF_API_TOKEN and CF_ACCOUNT_ID secrets.</p>}
       {status && <p className="ad-loading">{status}</p>}
+    </section>
+  );
+}
+
+const gb = (b: number) => `${(b / 1024 / 1024 / 1024).toFixed(b < 1024 ** 3 ? 2 : 1)} GB`;
+
+/** The site's image storage (R2): how full, today's writes, and the switch that stops uploads everywhere. */
+function StoragePanel({ adminKey, onError }: { adminKey: string; onError: (m: string) => void }) {
+  const [s, setS] = useState<StorageStatus | null>(null);
+  const [busy, setBusy] = useState(false);
+  const run = useCallback(
+    async (body?: unknown) => {
+      setBusy(true);
+      try {
+        setS((await call<{ storage: StorageStatus }>(adminKey, "/api/admin/storage", body)).storage);
+      } catch (e) {
+        if (!(e instanceof AuthError)) onError((e as Error).message);
+      } finally {
+        setBusy(false);
+      }
+    },
+    [adminKey, onError],
+  );
+  useEffect(() => {
+    void run();
+  }, [run]);
+  if (!s) return null;
+  const pct = Math.min(100, Math.round((s.bytes / s.ceilingBytes) * 100));
+  return (
+    <section className="ad-note" aria-label="Image storage">
+      <p>
+        Image storage: <b>{gb(s.bytes)}</b> of {gb(s.ceilingBytes)} ({pct}%), {s.files.toLocaleString()} files. Stored today: {s.writes.toLocaleString()} of{" "}
+        {s.writesPerDay.toLocaleString()}. {s.off ? <b>Uploads are off for everyone.</b> : pct >= 100 ? <b>Full: uploads are paused.</b> : "Uploads are on."}
+        {s.countedAt ? ` Counted ${new Date(s.countedAt).toLocaleString()}.` : ""}
+      </p>
+      <span className="ad-top-actions">
+        <button className="ad-btn" disabled={busy} onClick={() => void run({ recount: true })}>
+          Count again
+        </button>
+        <button className={s.off ? "ad-btn primary" : "ad-btn"} disabled={busy} onClick={() => void run({ uploads: s.off ? "on" : "off" })}>
+          {s.off ? "Turn uploads on" : "Turn uploads off"}
+        </button>
+      </span>
     </section>
   );
 }

@@ -25,4 +25,12 @@ export interface Env {
   GUESS_LIMIT?: RateLimit;
   /** Image uploads per address. */
   UPLOAD_LIMIT?: RateLimit;
+  /** File downloads per address that miss the cache and reach R2. */
+  FILE_LIMIT?: RateLimit;
+  /** Site-wide R2 storage ceiling in GB (default 8, never above the free 10). Over it, uploads stop. */
+  R2_CEILING_GB?: string;
+  /** Site-wide R2 writes a day (default 25,000; the free tier is about 33,000). Over it, uploads stop until midnight UTC. */
+  R2_WRITES_PER_DAY?: string;
+  /** Calls one address may make to campaign rooms a day (default 20,000). */
+  ROOM_CALLS_PER_DAY?: string;
 }

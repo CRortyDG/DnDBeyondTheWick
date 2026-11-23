@@ -7,6 +7,7 @@ import { isToken, projectArrival } from "@/shared/arrival";
 import type { GameState, LedgerEntry } from "@/shared/types";
 import type { Env } from "./env";
 import { R2Presets } from "./presets";
+import { registry } from "./admin";
 import type { PresetStore } from "@/server/presets";
 import type { BuilderRow, BuilderStore } from "@/server/builderStore";
 import type { CampaignStory, CampaignSummary, RoomFacts } from "@/shared/admin";
@@ -34,6 +35,8 @@ const USAGE_AFTER_WRITE_MS = 5_000;
 /** Images per campaign, counted as they are uploaded (they're never re-counted when a scene drops one). */
 export const UPLOAD_QUOTA_BYTES = 500 * 1024 * 1024;
 export const UPLOAD_QUOTA_FILES = 1000;
+/** New presets one campaign may save (saving over its own is free). */
+export const NEW_PRESETS_PER_CAMPAIGN = 20;
 
 interface Doc {
   game: string | null;
@@ -80,7 +83,7 @@ export class GameRoom extends DurableObject<Env> implements Store {
 
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
-    this.presets = new R2Presets(env.FILES);
+    this.presets = new R2Presets(env.FILES, (ask) => registry(env).storageReserve(ask));
     // Every query goes through here, so the rows it reads and writes are counted.
     const raw = ctx.storage.sql;
     const cursors = this.cursors;
@@ -412,10 +415,28 @@ export class GameRoom extends DurableObject<Env> implements Store {
     return null;
   }
 
+  /** New presets saved from this campaign. Saving over one of its own doesn't count. Each new one copies every image the campaign uses. */
+  async takePresetSlot(_game: string): Promise<boolean> {
+    if (!this.hasSchema) return false;
+    this.sql.exec("CREATE TABLE IF NOT EXISTS preset_saves (id INTEGER PRIMARY KEY CHECK (id = 1), n INTEGER NOT NULL)");
+    const n = this.sql.exec<{ n: number }>("SELECT n FROM preset_saves WHERE id = 1").toArray()[0]?.n ?? 0;
+    if (n >= NEW_PRESETS_PER_CAMPAIGN) return false;
+    this.sql.exec("INSERT INTO preset_saves (id, n) VALUES (1, 1) ON CONFLICT(id) DO UPDATE SET n = n + 1");
+    return true;
+  }
+
   /** A Worldbuilder picture: the builder door has checked the key; this stores it like a DM upload. */
   async putBuilderPicture(game: string, bytes: Uint8Array, ext: "jpg" | "png" | "webp") {
+    // The whole site's storage first (src/server/spend.ts), then the campaign's own.
+    const site = await registry(this.env)
+      .storageReserve({ bytes: bytes.length, files: 1 })
+      .catch(() => ({ ok: false as const, code: "uploads-off" as const, error: "Uploads aren't available right now. Try again in a minute." }));
+    if (!site.ok) return { error: site.error, status: site.code === "writes-today" ? 429 : 507, code: site.code };
     const err = this.takeUploadSpace(bytes.length, 1);
-    if (err) return { error: err, status: 413, code: "quota" };
+    if (err) {
+      await registry(this.env).storageRelease(bytes.length, 1).catch(() => undefined);
+      return { error: err, status: 413, code: "quota" };
+    }
     const rand = new Uint8Array(12);
     crypto.getRandomValues(rand);
     const name = `${game}/${[...rand].map((b) => b.toString(16).padStart(2, "0")).join("")}.${ext}`;
@@ -641,6 +662,11 @@ export class GameRoom extends DurableObject<Env> implements Store {
     const row = this.sql.exec<{ touched_at: number; game: string | null }>("SELECT touched_at, game FROM doc WHERE id = 1").toArray()[0];
     if (row && Date.now() - row.touched_at > IDLE_DELETE_MS && this.ctx.getWebSockets().length === 0) {
       if (row.game) {
+        // Give the space back to the site's storage ceiling (the daily re-count would catch it anyway).
+        const used = this.sql.exec("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'uploads'").toArray().length
+          ? this.sql.exec<{ bytes: number; files: number }>("SELECT bytes, files FROM uploads WHERE id = 1").toArray()[0]
+          : undefined;
+        if (used) await registry(this.env).storageRelease(used.bytes, used.files).catch(() => undefined);
         let cursor: string | undefined;
         do {
           const list = await this.env.FILES.list({ prefix: `${row.game}/`, cursor });

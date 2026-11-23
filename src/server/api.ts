@@ -373,6 +373,11 @@ export async function handleApi(req: Request, store: Store): Promise<Response> {
       const body = ((await readJson(req)) ?? {}) as { name?: unknown; code?: unknown; token?: unknown };
       const { state } = await store.read(game);
       if (!state) throw new HttpError(404, "No game here yet.", "no-game");
+      // A new preset copies every image the campaign uses, so each campaign gets a fair number of them.
+      const isNew = body.code === undefined || body.code === null;
+      if (isNew && store.takePresetSlot && !(await store.takePresetSlot(game))) {
+        throw new HttpError(429, "This campaign has saved as many new presets as it can. Save over one of its presets instead.", "preset-limit");
+      }
       return json({ ok: true, ...(await savePreset(store.presets, presetSetup(state), body)) });
     }
 

@@ -190,3 +190,18 @@ export function lastActiveOf(s: CampaignSummary): number {
   const day = s.activeDays.length ? Date.parse(s.activeDays[s.activeDays.length - 1] + "T12:00:00Z") : 0;
   return Math.max(s.touchedAt ?? 0, s.lastSeenAt ?? 0, s.createdAt, day);
 }
+
+/** The site's R2 storage, for the admin console (src/server/spend.ts holds the rules). */
+export interface StorageStatus {
+  bytes: number;
+  files: number;
+  /** Files stored today (UTC), against writesPerDay. */
+  writes: number;
+  day: string;
+  /** Uploads turned off by the site owner. */
+  off: boolean;
+  ceilingBytes: number;
+  writesPerDay: number;
+  /** When the bucket was last counted file by file (ms), or null if never. */
+  countedAt: number | null;
+}
