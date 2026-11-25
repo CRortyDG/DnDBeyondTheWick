@@ -1,7 +1,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { View } from "@/shared/projection";
-import { api, ApiError, liveUrl, type Ident } from "./api";
+import { api, ApiError, followMove, liveUrl, type Ident } from "./api";
 import { swapGatedArt } from "./practiceArt";
 import { setForcedLookStyle } from "./ui/PixelLook";
 
@@ -26,7 +26,7 @@ export interface CallResult {
   info?: string;
 }
 
-type HelloResult = { status: "ok"; view: View } | { status: Exclude<Phase, "ok" | "loading" | "error"> };
+type HelloResult = { status: "ok"; view: View } | { status: "moved"; game: string } | { status: Exclude<Phase, "ok" | "loading" | "error"> };
 
 /**
  * Keeps a live, filtered copy of the game for this page.
@@ -101,6 +101,10 @@ export function useGame<V extends View = View>(ident: Ident | null): GameHook<V>
         if (r.status === "ok") {
           accept(r.view);
           setPhase("ok");
+        } else if (r.status === "moved") {
+          // The DM moved the campaign to a new code; this screen's key played here, so follow it.
+          followMove(ident, r.game);
+          return;
         } else setPhase(r.status);
         setOnline(true);
       } catch (e) {

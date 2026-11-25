@@ -146,7 +146,9 @@ export function parseClientCommand(actor: Actor, body: unknown): Command | { typ
 
 export type HelloResult =
   | { status: "ok"; view: View; handle?: string }
-  | { status: "taken" | "knocking" | "full" | "invalid" | "no-game" };
+  | { status: "taken" | "knocking" | "full" | "invalid" | "no-game" }
+  /** The campaign moved to a new code (src/server/move.ts); only a key that played here is told. */
+  | { status: "moved"; game: string };
 
 /**
  * First contact when a page loads. Creates an unknown ?player= (unless the
