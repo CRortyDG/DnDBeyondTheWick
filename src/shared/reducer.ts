@@ -33,6 +33,7 @@ import { ATTITUDE_LOG_MAX, attitudeSettings, bandInfo, bandLine, clampScore, job
 import type { AttitudeShift, Relation } from "./types";
 import { applyRooms, cleanRoom, isRoomCommand, roomSettings, roomsOf } from "./rooms";
 import { applyWhisper, isWhisperCommand } from "./whispers";
+import { applyMorality, isMoralityCommand } from "./morality";
 import { applyFight, isFightCommand, startFightFromBeat, type FightHelpers } from "./combatReducer";
 import type { Notice, NotePlace } from "./types";
 import { beatSuggestions, entryRef, freeQuickKey, liveRef, QUICK_KEYS, quickOf, RECENT_MAX, refForScene, renameRefs, resolveRef, sceneSlug, uniqueSceneSlug } from "./assets";
@@ -1870,6 +1871,11 @@ function applyOne(input: GameState, cmd: Command, ctx: Ctx): Result {
 
   if (isWhisperCommand(cmd)) {
     applyWhisper(s, cmd, { now: ctx.now, actor: ctx.actor as { role: string; playerId?: string }, nextId, fail });
+    return out;
+  }
+
+  if (isMoralityCommand(cmd)) {
+    applyMorality(s, cmd, { now: ctx.now, sessionId: s.currentSessionId, nextId, fail });
     return out;
   }
 

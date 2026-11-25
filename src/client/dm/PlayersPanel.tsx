@@ -23,6 +23,7 @@ import { sheetNumbers } from "@/shared/sheet";
 import { featureOn, FEATURES, hiddenOf, playerOff } from "@/shared/features";
 import { Switch } from "./FeaturesPanel";
 import { LOOK_STYLES } from "@/shared/look";
+import { ConductBox, ConductTag } from "./Conduct";
 
 function seenText(t?: number | null) {
   if (!t) return "never seen";
@@ -255,6 +256,7 @@ function PlayerRow({ p, onEdit, selected }: { p: DmPlayer; onEdit: () => void; s
             </span>
           ) : null}
           {p.archived ? <span className="tag">left</span> : null}
+          <ConductTag p={p} />
           <span className="pg-money">{formatCp(p.balanceCp)}</span>
         </span>
         <InspireToggle playerId={p.id} name={p.name} on={!!p.inspired} compact />
@@ -379,6 +381,7 @@ function PlayerDrawer({ p, onClose }: { p: DmPlayer; onClose: () => void }) {
         </section>
       ) : null}
       <PlayerFeatures p={p} />
+      <ConductBox p={p} />
       {featureOn(view.state, "sheets") ? (
       <section className="dm-sheet" aria-label="Character sheet">
         <h3>Character sheet</h3>

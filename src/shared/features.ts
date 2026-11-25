@@ -30,6 +30,7 @@ export const FEATURE_IDS = [
   "board",
   "companions",
   "whispers",
+  "morality",
   "invites",
   "storyboard",
   "tables",
@@ -74,6 +75,7 @@ export const FEATURES: FeatureDef[] = [
   { id: "sound", name: "Sound", blurb: "Music, ambience and effects from the TV, and the soundboard.", group: "table", shows: ["dm", "tv"], from: "standard" },
   { id: "deviceSound", name: "Sounds on players' devices", blurb: "Small, quiet sounds on each player's own device for their own things: a heal, a hit, gold, their turn. Each player turns it on for themselves.", group: "table", shows: ["phone"], needs: "sound", from: "standard" },
   { id: "whispers", name: "Secret whispers", blurb: "Private notes from you to one player or a few, on their device only. They can answer quietly, or write to you first.", group: "table", shows: ["dm", "phone"], from: "minimal" },
+  { id: "morality", name: "Morality and oaths", blurb: "Each character's alignment drifts with what they do, and paladins keep their oath's tenets. Players see their own.", group: "table", shows: ["dm", "phone"], perPlayer: true, from: "standard" },
   { id: "companions", name: "Companions and hirelings", blurb: "NPCs who travel and fight with the party.", group: "table", shows: ["dm", "tv", "phone"], from: "everything" },
   // World
   { id: "maps", name: "Map on phones", blurb: "The Map tab: the map on the TV on each phone, with their own token.", group: "world", shows: ["phone"], playerHide: true, from: "standard" },

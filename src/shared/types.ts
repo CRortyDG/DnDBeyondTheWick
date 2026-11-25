@@ -207,6 +207,8 @@ export interface Player {
   tabsHidden?: import("./features").FeatureId[];
   /** DM-ONLY, practice copies only: a stand-in for rehearsing (see practice.ts). Never in a live game. */
   standIn?: StandIn;
+  /** Morality and oath (see morality.ts): the DM's log of how they live. Their phone gets only what MoralitySettings allows. */
+  conduct?: import("./morality").Conduct;
 }
 
 /** Numbers a practice stand-in uses that real players don't store. */
@@ -1292,6 +1294,8 @@ export interface GameState {
   jobsGate?: string;
   /** How the NPC attitude tracker works. Missing: the defaults. */
   attitudes?: AttitudeSettings;
+  /** How the morality and oath tracker works. Missing: the defaults in morality.ts. */
+  morality?: import("./morality").MoralitySettings;
   /** Plain notes on the notice board. Missing on games made before free placement; read with noticesOf(). */
   notices?: Notice[];
   /** The Renown plaque on the board's frame. Missing: shown. */

@@ -20,6 +20,7 @@ import { featureDmCommands, featurePlayerCommands } from "./features";
 import { offscriptDmCommands } from "./offscriptSchema";
 import { roomDmCommands, roomInfoSchema } from "./rooms";
 import { whisperDmCommands, whisperPlayerCommands } from "./whispers";
+import { moralityDmCommands } from "./morality";
 import { CLIP_URL_RE, CLIP_VIDEO_MAX, INTRO_STEPS_MAX, SLIDE_TEXT_MAX, SLIDES_MAX, WELCOME_MAX } from "./arrival";
 import type { TokenColor } from "./types";
 import { FOG_MAX_CELLS, TILE_URL_RE, TILES_MAX } from "./fog";
@@ -712,6 +713,9 @@ export const dmCommand = z.discriminatedUnion("type", [
 
   // Secret whispers.
   ...whisperDmCommands,
+
+  // Morality and oaths.
+  ...moralityDmCommands,
 ]);
 
 /** Commands a player may send about themselves. */
