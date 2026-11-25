@@ -11,6 +11,7 @@ import { withSeedOffscript } from "./seed-offscript";
 import type { PresetStore } from "./presets";
 import type { UsageReport } from "@/shared/hosting";
 import { MemoryBuilderStore, type BuilderStore } from "./builderStore";
+import type { MovedTo, MovePack } from "./move";
 
 /**
  * Where a game lives. One JSON document (state), a version number, an
@@ -65,6 +66,8 @@ export interface Store {
    * screen ever sees an address). add: count one more first. Missing: not limited here.
    */
   inviteClaims?(game: string, inviteId: string, ip: string, add: boolean): Promise<number>;
+  /** This code's campaign moved to a new code (src/server/move.ts): where, and which keys may know. Missing or null: it didn't. */
+  movedInfo?(game: string): Promise<MovedTo | null>;
   /** Worldbuilder keys, drafts and Activity, kept beside the game (never in it). Missing: no Worldbuilder. */
   builder?: BuilderStore;
 }
@@ -123,6 +126,31 @@ export class MemoryStore implements Store {
   async endPractice(game: string) {
     this.games.delete(game);
     this.bases.delete(game);
+  }
+  private moves = new Map<string, MovedTo>();
+  async movedInfo(game: string) {
+    return this.moves.get(game) ?? null;
+  }
+  async movePack(game: string): Promise<MovePack | null> {
+    const g = this.load(game);
+    if (!g.state || !g.dmKeyHash) return null;
+    return {
+      state: structuredClone(g.state),
+      ledger: structuredClone(g.ledger),
+      dmKeyHash: g.dmKeyHash,
+      snapshots: (g.snapshots ?? []).map((x) => ({ at: x.at, reason: x.reason, data: JSON.parse(x.json) as SnapshotData })),
+      uploads: { bytes: 0, files: 0 },
+      prefixes: [game],
+    };
+  }
+  async moveIn(game: string, pack: MovePack) {
+    await this.setDmKeyHash(game, pack.dmKeyHash);
+    await this.overwrite(game, pack.state, pack.ledger);
+    for (const x of pack.snapshots) await this.saveSnapshot(game, x.reason, x.at, x.data);
+  }
+  async retire(game: string, to: string, hashes: string[]) {
+    this.games.delete(game);
+    this.moves.set(game, { to, hashes });
   }
   private claims = new Map<string, number>();
   async inviteClaims(game: string, inviteId: string, ip: string, add: boolean) {

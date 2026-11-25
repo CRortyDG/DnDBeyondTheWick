@@ -73,6 +73,21 @@ export function readIdent(): Ident {
   return { game, player, key };
 }
 
+/**
+ * The campaign moved to a new code (Settings → Move to a new code): keep this
+ * screen's key under the new code, forget the old one, and reload there.
+ */
+export function followMove(ident: Ident, game: string) {
+  const slot = ident.practice ? "dm" : ident.player;
+  if (slot && ident.key) {
+    safeSet(keySlot(game, slot), ident.key);
+    safeSet(keySlot(ident.game, slot), null);
+  }
+  const url = new URL(window.location.href);
+  url.searchParams.set("game", game);
+  window.location.replace(url.toString());
+}
+
 /** Not the DM or TV screen. */
 function isPlayerName(player: string): boolean {
   const p = player.trim().toLowerCase();

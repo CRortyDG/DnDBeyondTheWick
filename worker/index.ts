@@ -10,6 +10,7 @@ import { CLIP_VIDEO_MAX } from "@/shared/arrival";
 import { whenText, type InviteView } from "@/shared/invites";
 import type { Env } from "./env";
 import { R2Presets } from "./presets";
+import { moveCampaign, type MovableStore } from "@/server/move";
 import { GameRoom } from "./room";
 import { Registry } from "./registry";
 import { adminDeps, registry } from "./admin";
@@ -268,6 +269,39 @@ async function createCampaign(req: Request, env: Env, ctx: ExecutionContext): Pr
     if (wanted) return json({ error: "That campaign code is taken. Try another, or leave it blank for a random one." }, 409);
   }
   return json({ error: "Couldn't find a free campaign code. Try again." }, 503);
+}
+
+/**
+ * DM only: move the campaign to a new random code (src/server/move.ts). The old
+ * code then shows no game, except to screens holding a key that played there,
+ * which are sent on to the new code.
+ */
+async function moveToNewCode(req: Request, env: Env, ctx: ExecutionContext, ip: string): Promise<Response> {
+  const url = new URL(req.url);
+  if (url.searchParams.get("practice") === "1") return json({ error: "Move the live campaign, not the practice copy." }, 400);
+  const game = normaliseGameId(url.searchParams.get("game"));
+  const check = await room(env, game).fetch(new Request(`https://room/internal/dm-check?game=${encodeURIComponent(game)}`, { headers: { [KEY_HEADER]: req.headers.get(KEY_HEADER) ?? "" } }));
+  if (!check.ok) {
+    await noteMiss(env, ctx, ip);
+    return json({ error: "Only the DM can move the campaign.", code: "bad-key" }, 401);
+  }
+  // A practice copy would be left behind under the old code: end it first.
+  await asStore(practiceRoom(env, game)).endPractice?.(game);
+  let to: string | null = null;
+  for (let attempt = 0; attempt < 6 && !to; attempt++) {
+    const c = makeCampaignCode();
+    if ((await asStore(room(env, c)).version(c)) === 0) to = c;
+  }
+  if (!to) return json({ error: "Couldn't find a free code. Try again." }, 503);
+  const asMovable = (stub: DurableObjectStub<GameRoom>) => stub as unknown as MovableStore;
+  await moveCampaign(asMovable(room(env, game)), asMovable(room(env, to)), game, to);
+  const country = (req as Request & { cf?: { country?: unknown } }).cf?.country;
+  ctx.waitUntil(
+    registry(env)
+      .created(to, `moved:${game}`, typeof country === "string" ? country : undefined, ip, Date.now())
+      .catch((e) => console.error("registry add failed", e)),
+  );
+  return json({ ok: true, game: to });
 }
 
 /** DM only: store an image in R2 under the campaign's code. */
@@ -587,6 +621,7 @@ export default {
         }
         if (path === "/api/create" && req.method === "POST") return withHeaders(await createCampaign(req, env, ctx));
         if (path === "/api/upload" && req.method === "POST") return withHeaders(await upload(req, env, ctx, ip));
+        if (path === "/api/move" && req.method === "POST") return withHeaders(await moveToNewCode(req, env, ctx, ip));
         if (path === "/api/upload-tiles" && req.method === "POST") return withHeaders(await uploadTiles(req, env, ctx, ip));
         if (isPresetPath(path)) return withHeaders(await settle(await handlePresetApi(req, new R2Presets(env.FILES, (ask) => reserveStorage(env, ask))), env, ctx, ip));
         const game = normaliseGameId(url.searchParams.get("game"));

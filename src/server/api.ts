@@ -17,6 +17,7 @@ import type { GameState, LedgerEntry } from "@/shared/types";
 import { handleBuilder } from "./builder";
 import { clearDrafts, handleBuilderAdmin } from "./builderAdmin";
 import { carriesBuilderKey } from "./builderKeys";
+import { movedAnswer } from "./move";
 
 /**
  * The game's HTTP API, as plain Request -> Response. In production it runs
@@ -127,6 +128,9 @@ export async function handleApi(req: Request, store: Store): Promise<Response> {
   const path = url.pathname;
   const method = req.method;
   // The Worldbuilder has its own door, its own key and its own allowlist (builder.ts).
+  // A campaign that moved to a new code: only its own keys learn where (src/server/move.ts).
+  const moved = store.movedInfo ? await store.movedInfo(normaliseGameId(url.searchParams.get("game"))) : null;
+  if (moved) return movedAnswer(req, moved, KEY_HEADER);
   if (path.startsWith("/api/builder/")) return handleBuilder(req, store);
   return guard(async () => {
     // A builder key opens nothing else: not the DM's routes, not a player's.

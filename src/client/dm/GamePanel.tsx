@@ -71,6 +71,23 @@ export function GamePanel() {
     }
   };
 
+  const moveCode = async () => {
+    const msg =
+      "Move this campaign to a new random code? Anyone who only knows the old code (from a shared link, a screenshot, a post) can't find it any more. " +
+      "Your devices and every player who has signed in follow it automatically. Reopen the TV link, and send new links to anyone who hasn't played yet. Old invite and Arrival links stop working, and Worldbuilder keys need making again.";
+    if (!(await ask(msg))) return;
+    if ((await askText("Type MOVE to confirm.", { mustBe: "MOVE", placeholder: "MOVE", yes: "Move to a new code", danger: true })) === null) return;
+    try {
+      const r = await api<{ game: string }>("/api/move", ident, { method: "POST" });
+      if (!ident.key) return toast(`Moved to ${r.game}. Open your DM link again.`);
+      rememberKey({ ...ident, game: r.game }, ident.key);
+      rememberKey(ident, null);
+      window.location.href = dmLink(r.game, ident.key);
+    } catch (e) {
+      toast(e instanceof Error ? e.message : String(e));
+    }
+  };
+
   return (
     <div className="pg settings-page">
       <PageHead
@@ -142,6 +159,15 @@ export function GamePanel() {
               </button>
               <button className="btn" type="button" onClick={rekey}>
                 Change DM key
+              </button>
+            </div>
+          </dd>
+          <dt>Code</dt>
+          <dd>
+            The code <code>{s.id}</code> is the door to this campaign. If it has been posted somewhere public, or it&rsquo;s short enough to guess, move to a new random one.
+            <div className="inline">
+              <button className="btn" type="button" onClick={moveCode}>
+                Move to a new code
               </button>
             </div>
           </dd>

@@ -14,6 +14,7 @@ import type { CampaignStory, CampaignSummary, RoomFacts } from "@/shared/admin";
 import { storyFor, summarise } from "@/server/adminStory";
 import { addUsage, busiest, USAGE_FIELDS, utcDay, ZERO_USAGE, type UsageCounts, type UsageReport } from "@/shared/hosting";
 import { admit, type SocketInfo } from "@/server/sockets";
+import { movedAnswer, type MovedTo, type MovePack } from "@/server/move";
 
 /** A campaign idle this long is deleted, with its images. */
 const IDLE_DELETE_MS = 180 * 24 * 60 * 60 * 1000;
@@ -65,6 +66,9 @@ type Attachment = (
  * WebSocket. Requests to one room run one at a time, so a save can't race
  * another save. Idle rooms hibernate and cost nothing.
  */
+/** A retired room (its campaign moved to a new code) is emptied completely after this long. */
+const MOVED_KEEP_MS = 180 * 24 * 60 * 60 * 1000;
+
 export class GameRoom extends DurableObject<Env> implements Store {
   private sql: SqlStorage;
   private doc: Doc | null = null;
@@ -246,6 +250,80 @@ export class GameRoom extends DurableObject<Env> implements Store {
     this.ledgerCache = null;
   }
 
+  // ---------------------------------------------------------------- moving to a new code (src/server/move.ts)
+
+  private movedCache: MovedTo | null | undefined;
+
+  private moved(): MovedTo | null {
+    if (this.movedCache !== undefined) return this.movedCache;
+    const has = this.sql.exec("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'moved'").toArray().length > 0;
+    const row = has ? this.sql.exec<{ to_code: string; hashes: string }>("SELECT to_code, hashes FROM moved WHERE id = 1").toArray()[0] : undefined;
+    this.movedCache = row ? { to: row.to_code, hashes: JSON.parse(row.hashes) as string[] } : null;
+    return this.movedCache;
+  }
+
+  async movedInfo(_game: string) {
+    return this.moved();
+  }
+
+  /** R2 folders this campaign's images live in besides its own (codes it moved from). */
+  private filePrefixes(): string[] {
+    if (!this.hasTable("file_prefixes")) return [];
+    return this.sql.exec<{ prefix: string }>("SELECT prefix FROM file_prefixes").toArray().map((r) => r.prefix);
+  }
+
+  async movePack(game: string): Promise<MovePack | null> {
+    if (this.practiceMode || this.moved()) return null;
+    const d = this.load();
+    if (!d.state || !d.dmKeyHash) return null;
+    const snaps = await this.listSnapshots(game);
+    const snapshots: MovePack["snapshots"] = [];
+    for (const s of [...snaps].reverse()) {
+      const data = await this.loadSnapshot(game, s.id);
+      if (data) snapshots.push({ at: s.at, reason: s.reason, data });
+    }
+    const up = this.hasTable("uploads") ? this.sql.exec<{ bytes: number; files: number }>("SELECT bytes, files FROM uploads WHERE id = 1").toArray()[0] : undefined;
+    return {
+      state: structuredClone(d.state),
+      ledger: structuredClone(this.loadLedger()),
+      dmKeyHash: d.dmKeyHash,
+      snapshots,
+      uploads: { bytes: up?.bytes ?? 0, files: up?.files ?? 0 },
+      prefixes: [...new Set([d.game ?? game, ...this.filePrefixes()])],
+    };
+  }
+
+  async moveIn(game: string, pack: MovePack) {
+    if (this.hasSchema || this.moved()) throw new Error("Only an empty room can take a moved campaign.");
+    await this.setDmKeyHash(game, pack.dmKeyHash);
+    await this.overwrite(game, pack.state, pack.ledger);
+    for (const s of pack.snapshots) await this.saveSnapshot(game, s.reason, s.at, s.data);
+    this.sql.exec("CREATE TABLE IF NOT EXISTS uploads (id INTEGER PRIMARY KEY CHECK (id = 1), bytes INTEGER NOT NULL, files INTEGER NOT NULL)");
+    this.sql.exec("INSERT INTO uploads (id, bytes, files) VALUES (1, ?, ?) ON CONFLICT(id) DO UPDATE SET bytes = excluded.bytes, files = excluded.files", pack.uploads.bytes, pack.uploads.files);
+    this.sql.exec("CREATE TABLE IF NOT EXISTS file_prefixes (prefix TEXT PRIMARY KEY)");
+    for (const p of pack.prefixes) if (p !== game) this.sql.exec("INSERT OR IGNORE INTO file_prefixes (prefix) VALUES (?)", p);
+  }
+
+  /** Empty this room (never its images: the new room owns them now) and leave only the way to the new code. */
+  async retire(_game: string, to: string, hashes: string[]) {
+    for (const ws of this.ctx.getWebSockets()) {
+      try {
+        // Screens go back through hello, which sends a screen that played here on to the new code.
+        ws.send(JSON.stringify({ t: "error", status: 404, code: "no-game", error: "This campaign moved.", version: 0 }));
+        ws.close(4000, "Moved");
+      } catch {}
+    }
+    await this.ctx.storage.deleteAll();
+    this.hasSchema = false;
+    this.hasBuilder = null;
+    this.doc = null;
+    this.ledgerCache = null;
+    this.sql.exec("CREATE TABLE moved (id INTEGER PRIMARY KEY CHECK (id = 1), to_code TEXT NOT NULL, hashes TEXT NOT NULL, at INTEGER NOT NULL)");
+    this.sql.exec("INSERT INTO moved (id, to_code, hashes, at) VALUES (1, ?, ?, ?)", to, JSON.stringify(hashes), Date.now());
+    this.movedCache = { to, hashes };
+    await this.ctx.storage.setAlarm(Date.now() + MOVED_KEEP_MS);
+  }
+
   // ---------------------------------------------------------------- safety snapshots
   //
   // The whole game and ledger, before a reset or restore and at each session's end.
@@ -366,6 +444,9 @@ export class GameRoom extends DurableObject<Env> implements Store {
 
   private async handle(req: Request): Promise<Response> {
     const url = new URL(req.url);
+    // This campaign moved to a new code: nothing here but the way there, for keys that played here.
+    const moved = this.moved();
+    if (moved) return movedAnswer(req, moved, KEY_HEADER);
     // A practice room answers only practice requests, and a live room never does.
     if ((url.searchParams.get("practice") === "1") !== this.practiceMode && !url.pathname.startsWith("/internal/")) return miss(new Response(JSON.stringify({ error: "No game here yet.", code: "no-game" }), { status: 404, headers: { "Content-Type": "application/json" } }));
     if (this.practiceMode && url.pathname.startsWith("/internal/")) return new Response("Not found", { status: 404 });
@@ -692,6 +773,12 @@ export class GameRoom extends DurableObject<Env> implements Store {
 
   /** Monthly: delete a campaign nobody has touched for six months, with its images. */
   async alarm() {
+    // A retired room: after a while, forget the way to the new code too. Never its images (the new room owns them).
+    if (this.moved()) {
+      await this.ctx.storage.deleteAll();
+      this.movedCache = null;
+      return;
+    }
     if (!this.hasSchema) return;
     this.count({ events: 1, roomRequests: 1 });
     this.flushUsage(true);
@@ -709,12 +796,15 @@ export class GameRoom extends DurableObject<Env> implements Store {
           ? this.sql.exec<{ bytes: number; files: number }>("SELECT bytes, files FROM uploads WHERE id = 1").toArray()[0]
           : undefined;
         if (used) await registry(this.env).storageRelease(used.bytes, used.files).catch(() => undefined);
-        let cursor: string | undefined;
-        do {
-          const list = await this.env.FILES.list({ prefix: `${row.game}/`, cursor });
-          if (list.objects.length) await this.env.FILES.delete(list.objects.map((o) => o.key));
-          cursor = list.truncated ? list.cursor : undefined;
-        } while (cursor);
+        // Its own folder, and the folders of any codes it moved from.
+        for (const prefix of [row.game, ...this.filePrefixes()]) {
+          let cursor: string | undefined;
+          do {
+            const list = await this.env.FILES.list({ prefix: `${prefix}/`, cursor });
+            if (list.objects.length) await this.env.FILES.delete(list.objects.map((o) => o.key));
+            cursor = list.truncated ? list.cursor : undefined;
+          } while (cursor);
+        }
       }
       await this.ctx.storage.deleteAll();
       this.hasSchema = false;
