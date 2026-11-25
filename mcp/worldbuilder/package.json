@@ -1,10 +1,10 @@
 {
-  "name": "candlefair-worldbuilder-mcp",
+  "name": "dungeon-garden-worldbuilder-mcp",
   "version": "0.1.0",
   "private": true,
-  "description": "Local MCP server (stdio) that lets Claude Desktop or Claude Code write Worldbuilder drafts into a Candlefair campaign for the DM to review.",
+  "description": "Local MCP server (stdio) that lets Claude Desktop or Claude Code write Worldbuilder drafts into a Dungeon Garden campaign for the DM to review.",
   "type": "module",
-  "bin": { "candlefair-worldbuilder": "dist/index.js" },
+  "bin": { "dungeon-garden-worldbuilder": "dist/index.js" },
   "main": "dist/index.js",
   "engines": { "node": ">=20" },
   "scripts": {

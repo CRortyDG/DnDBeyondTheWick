@@ -1,4 +1,6 @@
-# Candlefair
+# Dungeon Garden
+
+_Formerly Candlefair. The Cloudflare Worker, the R2 bucket and the default campaign code still use the old name on purpose, so live campaigns keep working. Candlefair is still the town in the original campaign._
 
 A table companion for **Tales from the Flickering Candle**. It runs next to D&D Beyond and covers what D&D Beyond doesn't: a TV display for the table, a party bank and shop, and session tools for the DM. Every screen stays in sync live.
 

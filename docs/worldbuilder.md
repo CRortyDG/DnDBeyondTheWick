@@ -38,7 +38,7 @@ npm run build
 ```
 
 This makes `mcp/worldbuilder/dist/index.js`, a local stdio MCP server. It talks
-only to your Candlefair site over HTTPS, sending the key in the
+only to your Dungeon Garden site over HTTPS, sending the key in the
 `Authorization` header.
 
 ## 3. Add it to Claude Desktop
@@ -49,12 +49,12 @@ Settings → Developer → Edit Config, then add this to `claude_desktop_config.
 ```json
 {
   "mcpServers": {
-    "candlefair-worldbuilder": {
+    "dungeon-garden-worldbuilder": {
       "command": "node",
       "args": ["/path/to/DnDBeyondTheWick/mcp/worldbuilder/dist/index.js"],
       "env": {
-        "CANDLEFAIR_URL": "https://your-candlefair-site.example",
-        "CANDLEFAIR_BUILDER_KEY": "cfb_PASTE_YOUR_KEY_HERE"
+        "DUNGEON_GARDEN_URL": "https://your-dungeon-garden-site.example",
+        "DUNGEON_GARDEN_BUILDER_KEY": "cfb_PASTE_YOUR_KEY_HERE"
       }
     }
   }
@@ -63,12 +63,14 @@ Settings → Developer → Edit Config, then add this to `claude_desktop_config.
 
 Restart Claude Desktop. Ask it to "read the campaign overview" to check it works.
 
+A config from before the rename, with `CANDLEFAIR_URL` and `CANDLEFAIR_BUILDER_KEY`, still works.
+
 ## 3b. Or add it to Claude Code
 
 ```sh
-claude mcp add candlefair-worldbuilder \
-  -e CANDLEFAIR_URL=https://your-candlefair-site.example \
-  -e CANDLEFAIR_BUILDER_KEY=cfb_PASTE_YOUR_KEY_HERE \
+claude mcp add dungeon-garden-worldbuilder \
+  -e DUNGEON_GARDEN_URL=https://your-dungeon-garden-site.example \
+  -e DUNGEON_GARDEN_BUILDER_KEY=cfb_PASTE_YOUR_KEY_HERE \
   -- node /path/to/DnDBeyondTheWick/mcp/worldbuilder/dist/index.js
 ```
 

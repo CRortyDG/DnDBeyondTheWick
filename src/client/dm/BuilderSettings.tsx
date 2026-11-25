@@ -133,7 +133,7 @@ export function BuilderSettings() {
           {fresh ? (
             <div className="box builder-fresh" role="status">
               <p>
-                <b>Your new key. Copy it now: it won&rsquo;t be shown again.</b> Paste it into your Claude Desktop config as CANDLEFAIR_BUILDER_KEY. Never put it in a file in the repository.
+                <b>Your new key. Copy it now: it won&rsquo;t be shown again.</b> Paste it into your Claude Desktop config as DUNGEON_GARDEN_BUILDER_KEY. Never put it in a file in the repository.
               </p>
               <code className="builder-key">{fresh}</code>
               <div className="inline">

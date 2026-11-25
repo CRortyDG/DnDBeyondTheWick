@@ -284,7 +284,7 @@ export async function handleApi(req: Request, store: Store): Promise<Response> {
       await requireDm(req, store, game);
       const body = (await readJson(req, MAX_IMPORT)) as { format?: string; state?: GameState; ledger?: LedgerEntry[] } | null;
       if (body?.format !== "candlefair-backup" || ![1, 2].includes(Number(body.state?.schema)) || !Array.isArray(body.ledger)) {
-        throw new HttpError(400, "That doesn't look like a Candlefair backup.");
+        throw new HttpError(400, "That doesn't look like a Dungeon Garden backup.");
       }
       const state = { ...upgrade(body.state), id: game };
       if (JSON.stringify(state).length > MAX_STATE_CHARS) throw new HttpError(413, "That backup is too big to restore.");
