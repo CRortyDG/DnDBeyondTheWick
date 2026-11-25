@@ -13,7 +13,7 @@ export const LAST_TIME_TEXT_MAX = 4000;
 export const LAST_TIME_NOTES_MAX = 8;
 
 /** The draft the DM starts from, before they've changed anything. */
-export function lastTimeDraft(g: Pick<GameState, "sessions" | "entries" | "notes">, sessionId: string): { text: string; noteIds: string[] } {
+export function lastTimeDraft(g: Pick<GameState, "sessions" | "entries" | "notes"> & Partial<Pick<GameState, "fights" | "players" | "town">>, sessionId: string): { text: string; noteIds: string[] } {
   const sess = g.sessions.find((x) => x.id === sessionId);
   const found = sessionRecap(g, sessionId)?.replace(/^Tonight you /, "Last time you ");
   const parts = [sess?.recap?.trim(), found].filter((x): x is string => !!x);
@@ -21,7 +21,7 @@ export function lastTimeDraft(g: Pick<GameState, "sessions" | "entries" | "notes
 }
 
 /** Notes the DM can put under the card: that chapter's visible ones, starred first. The discovery line the app wrote is left out (it's in the draft already). */
-export function lastTimeNoteChoices(g: Pick<GameState, "notes" | "sessions" | "entries">, sessionId: string) {
+export function lastTimeNoteChoices(g: Pick<GameState, "notes" | "sessions" | "entries"> & Partial<Pick<GameState, "fights" | "players" | "town">>, sessionId: string) {
   const auto = sessionRecap(g, sessionId);
   return notesOf(g)
     .filter((n) => n.sessionId === sessionId && !n.hidden && !n.world && !(n.authorId === DM_AUTHOR && n.text === auto))

@@ -11,7 +11,7 @@
 
 import { attitudeSettings, BAND_IDS, BANDS, bandInfo, publicAttitude, relationOf, type PublicAttitude } from "./attitude";
 import { featureOn } from "./features";
-import type { Art, Entry, EntryFact, EntryKind, GameState, Relation, Scene, Stage } from "./types";
+import type { Art, Entry, EntryFact, EntryKind, FightSummary, GameState, Relation, Scene, Stage } from "./types";
 
 /** Same as the Chronicle's tagKey (kept here so the two modules don't import each other). */
 const tagKey = (t: string) => t.replace(/\s+/g, " ").trim().toLowerCase();
@@ -365,9 +365,98 @@ export function areaCounts(g: Pick<GameState, "entries" | "discoveryTotals">): A
 
 const list = (xs: string[]) => (xs.length <= 1 ? xs.join("") : `${xs.slice(0, -1).join(", ")} and ${xs[xs.length - 1]}`);
 
-/** "Tonight you met Fennick and Artum, visited Lathtarl’s Lantern and learned 3 new things." Null on a quiet night. */
-export function sessionRecap(g: Pick<GameState, "entries">, sessionId: string): string | null {
-  const found = entriesOf(g).filter((e) => isFound(e.stage) && e.foundIn === sessionId);
+const NOT_NAMES = new Set(["the", "a", "an", "of", "and", "in", "on", "at", "to", "for", "old", "new"]);
+
+/** Capitalized words in the world's names ("candlefair", "rolf", "winterfest"), for telling a name from an ordinary word. */
+export function properWords(g: Pick<GameState, "entries"> & Partial<Pick<GameState, "town" | "players">>): Set<string> {
+  const out = new Set<string>();
+  const take = (t: string | undefined) => {
+    for (const w of (t ?? "").split(/[^A-Za-z’']+/)) {
+      const bare = w.replace(/['’]s$/, "").replace(/['’]/g, "");
+      if (/^[A-Z]/.test(bare) && !NOT_NAMES.has(bare.toLowerCase())) out.add(bare.toLowerCase());
+    }
+  };
+  take(g.town ?? "Candlefair");
+  for (const e of entriesOf(g)) take(e.name);
+  for (const p of g.players ?? []) {
+    take(p.name);
+    take(p.character);
+  }
+  return out;
+}
+
+/**
+ * A title after a name: "Mags Wick, keeper of the Flickering Candle". The first
+ * word goes lowercase unless it's a name: "Candlefair’s oldest knitter",
+ * "Rolf’s brother" and "Winterfest's planner" stay as they are, and so does an
+ * acronym. "A young noble" becomes "a young noble".
+ */
+export function lowerTitle(title: string, names: Set<string>): string {
+  const m = /^([A-Za-z]+)(['’]s(?![a-z]))?/.exec(title);
+  if (!m) return title;
+  const [, word, poss] = m;
+  if (poss) return title;
+  if (!/^[A-Z][a-z]*$/.test(word)) return title;
+  if (names.has(word.toLowerCase())) return title;
+  return word.toLowerCase() + title.slice(word.length);
+}
+
+/** The town's name as a key word ("candlefair"). */
+export function townKey(g: Partial<Pick<GameState, "town">>): string {
+  return (g.town ?? "Candlefair").toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
+/** "The Docks", "Candlefair Docks" -> "docks" (the town's own name and a leading "the" don't count). */
+export function placeKey(t: string, town: string): string {
+  const words = t.toLowerCase().replace(/[’']/g, "").split(/[^a-z0-9]+/).filter(Boolean);
+  const rest = words.filter((w, i) => !(i === 0 && w === "the") && w !== town);
+  return (rest.length ? rest : words).join(" ");
+}
+
+/**
+ * A shop that is also a place on the map: the Flickering Candle's storefront and
+ * the Flickering Candle, or the Docks' storefront and Candlefair Docks. The place
+ * speaks for both in the Chronicle and the end-of-night recap, so the party
+ * doesn't "find" somewhere twice.
+ */
+export function shopPlace(g: Pick<GameState, "entries"> & Partial<Pick<GameState, "town">>, e: Entry): Entry | undefined {
+  if (e.kind !== "shop") return undefined;
+  const town = townKey(g);
+  const key = placeKey(e.name, town);
+  if (!key) return undefined;
+  return entriesOf(g).find((x) => x.kind === "place" && !x.room && x.id !== e.id && placeKey(x.name, town) === key);
+}
+
+/** "won a fight", "won 1 of 2 fights", "lost a fight": the night's fights, no names (some foes are still secret). */
+function fightsPart(fights: Pick<FightSummary, "outcome">[]): string | null {
+  if (!fights.length) return null;
+  const n = (k: number, one: string) => (k === 1 ? one : `${k} fights`);
+  const won = fights.filter((f) => f.outcome === "won").length;
+  const lost = fights.filter((f) => f.outcome === "fallen").length;
+  const total = fights.length;
+  if (won === total) return `won ${n(won, "a fight")}`;
+  if (lost === total) return `lost ${n(lost, "a fight")}`;
+  if (won) return `won ${won} of ${total} fights`;
+  if (lost) return `lost ${lost} of ${total} fights`;
+  return `fought ${n(total, "a fight")}`;
+}
+
+/** "reached level 2" for the whole table, else "Brin reached level 4" or "levelled up (Brin to 4, Ash to 3)". */
+function levelsPart(g: Pick<GameState, "players">, levels: { playerId: string; level: number }[]): string | null {
+  if (!levels.length) return null;
+  const name = (id: string) => {
+    const p = g.players.find((x) => x.id === id);
+    return p ? p.character?.trim() || p.name : "Someone";
+  };
+  if (levels.length > 1 && levels.every((l) => l.level === levels[0].level)) return `reached level ${levels[0].level}`;
+  if (levels.length === 1) return `${name(levels[0].playerId)} reached level ${levels[0].level}`;
+  return `levelled up (${levels.map((l) => `${name(l.playerId)} to ${l.level}`).join(", ")})`;
+}
+
+/** "Tonight you met Fennick and Artum, visited Lathtarl’s Lantern, won a fight and reached level 2." Null on a quiet night. */
+export function sessionRecap(g: Pick<GameState, "entries"> & Partial<Pick<GameState, "town" | "sessions" | "fights" | "players">>, sessionId: string): string | null {
+  // A shop that's also a place is counted once, as the place.
+  const found = entriesOf(g).filter((e) => isFound(e.stage) && e.foundIn === sessionId && !shopPlace(g, e));
   const names = (k: EntryKind) => found.filter((e) => e.kind === k).map((e) => e.name);
   const parts: string[] = [];
   const met = names("person");
@@ -382,6 +471,10 @@ export function sessionRecap(g: Pick<GameState, "entries">, sessionId: string): 
   if (other.length) parts.push(`uncovered ${list(other)}`);
   const facts = entriesOf(g).reduce((n, e) => n + e.facts.filter((f) => f.revealedAt !== undefined && f.learnedIn === sessionId).length, 0);
   if (facts) parts.push(`learned ${facts === 1 ? "1 new thing" : `${facts} new things`}`);
+  const fought = fightsPart((g.fights ?? []).filter((f) => f.sessionId === sessionId));
+  if (fought) parts.push(fought);
+  const levelled = levelsPart({ players: g.players ?? [] }, g.sessions?.find((x) => x.id === sessionId)?.levels ?? []);
+  if (levelled) parts.push(levelled);
   if (!parts.length) return null;
   return `Tonight you ${list(parts)}.`;
 }

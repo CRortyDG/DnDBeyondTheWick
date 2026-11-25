@@ -626,3 +626,75 @@ describe("counters, goodwill locks and the session recap", () => {
     expect(g.recapCard).toBeUndefined();
   });
 });
+
+describe("the Chronicle and recap count a place once", () => {
+  const shopOf = (shopId: string) => g.entries!.find((e) => e.shopId === shopId)!;
+
+  it("a shop that's also a place leaves the Chronicle line to the place", () => {
+    dm({ type: "entry.stage", entryId: "e-docks", stage: "hidden", announce: false });
+    dm({ type: "entry.stage", entryId: shopOf("docks").id, stage: "hidden", announce: false });
+    dm({ type: "session.start" });
+    const before = (g.notes ?? []).length;
+    dm({ type: "entry.stage", entryId: shopOf("docks").id, stage: "found", announce: false });
+    expect((g.notes ?? []).length).toBe(before);
+    dm({ type: "entry.stage", entryId: "e-docks", stage: "found", announce: false });
+    expect(g.notes!.at(-1)!.text).toBe("The party visited Candlefair Docks.");
+    dm({ type: "session.end" });
+    expect(g.recapCard!.text).toBe("Tonight you visited Candlefair Docks.");
+  });
+
+  it("opening the storefront of a place they already visited isn't news", () => {
+    dm({ type: "entry.stage", entryId: shopOf("candle").id, stage: "hidden", announce: false });
+    dm({ type: "session.start" });
+    const before = (g.notes ?? []).length;
+    dm({ type: "entry.stage", entryId: shopOf("candle").id, stage: "found", announce: false });
+    expect((g.notes ?? []).length).toBe(before);
+    dm({ type: "session.end" });
+    expect(g.recapCard).toBeUndefined();
+  });
+
+  it("a shop with no place of its own still opens with a line", () => {
+    dm({ type: "entry.stage", entryId: shopOf("smith").id, stage: "hidden", announce: false });
+    dm({ type: "entry.stage", entryId: shopOf("smith").id, stage: "found", announce: false });
+    expect(g.notes!.at(-1)!.text).toBe("Now open to the party: The Smithy.");
+  });
+});
+
+describe("titles after a name", () => {
+  it("stay capitalized when they start with a name", () => {
+    dm({ type: "entry.add", entry: { kind: "person", name: "Granny Odile Brisk", title: "Candlefair's oldest knitter" } });
+    dm({ type: "entry.add", entry: { kind: "person", name: "Rolf Twyrtho", title: "Trader" } });
+    dm({ type: "entry.add", entry: { kind: "person", name: "Adon Twyrtho", title: "Rolf's brother" } });
+    dm({ type: "entry.add", entry: { kind: "person", name: "Edric Harrowmoor", title: "A young noble at his first Winterfest" } });
+    const line = (name: string) => {
+      dm({ type: "entry.stage", entryId: g.entries!.find((e) => e.name === name)!.id, stage: "found", announce: false });
+      return g.notes!.at(-1)!.text;
+    };
+    expect(line("Granny Odile Brisk")).toBe("The party met Granny Odile Brisk, Candlefair's oldest knitter.");
+    expect(line("Adon Twyrtho")).toBe("The party met Adon Twyrtho, Rolf's brother.");
+    expect(line("Edric Harrowmoor")).toBe("The party met Edric Harrowmoor, a young noble at his first Winterfest.");
+    expect(line("Rolf Twyrtho")).toBe("The party met Rolf Twyrtho, trader.");
+  });
+});
+
+describe("the night's recap", () => {
+  it("says who levelled up and how the fights went", () => {
+    dm({ type: "session.start" });
+    const sid = g.currentSessionId!;
+    const ids = g.players.filter((p) => !p.archived).map((p) => p.id);
+    dm({ type: "party.levelUp", levels: ids.map((playerId) => ({ playerId, level: 2 })), tv: false });
+    g.fights = [{ id: "f1", title: "Fight", where: "", startedAt: 1, endedAt: 2, rounds: 2, sessionId: sid, outcome: "won", combatants: [], downed: [], lootCp: 0, items: "" }];
+    dm({ type: "entry.stage", entryId: "e-artum", stage: "found", announce: false });
+    dm({ type: "session.end" });
+    expect(g.recapCard!.text).toBe("Tonight you met Artum, won a fight and reached level 2.");
+  });
+
+  it("counts mixed fights", () => {
+    dm({ type: "session.start" });
+    const sid = g.currentSessionId!;
+    const f = (id: string, outcome?: "won" | "fallen" | "ended") => ({ id, title: "Fight", where: "", startedAt: 1, endedAt: 2, rounds: 1, sessionId: sid, ...(outcome ? { outcome } : {}), combatants: [], downed: [], lootCp: 0, items: "" });
+    g.fights = [f("a", "won"), f("b", "ended")];
+    dm({ type: "session.end" });
+    expect(g.recapCard!.text).toBe("Tonight you won 1 of 2 fights.");
+  });
+});
