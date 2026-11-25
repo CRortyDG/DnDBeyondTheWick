@@ -60,6 +60,11 @@ export interface Store {
   putBuilderPicture?(game: string, bytes: Uint8Array, ext: "jpg" | "png" | "webp"): Promise<{ url: string } | { error: string; status: number; code: string }>;
   /** Count one new preset saved from this campaign; false when it has saved its share. Missing: not limited here. */
   takePresetSlot?(game: string): Promise<boolean>;
+  /**
+   * Seats claimed on one invite from one address (kept beside the game, never in it, so no
+   * screen ever sees an address). add: count one more first. Missing: not limited here.
+   */
+  inviteClaims?(game: string, inviteId: string, ip: string, add: boolean): Promise<number>;
   /** Worldbuilder keys, drafts and Activity, kept beside the game (never in it). Missing: no Worldbuilder. */
   builder?: BuilderStore;
 }
@@ -118,6 +123,13 @@ export class MemoryStore implements Store {
   async endPractice(game: string) {
     this.games.delete(game);
     this.bases.delete(game);
+  }
+  private claims = new Map<string, number>();
+  async inviteClaims(game: string, inviteId: string, ip: string, add: boolean) {
+    const k = `${game}|${inviteId}|${ip}`;
+    const n = (this.claims.get(k) ?? 0) + (add ? 1 : 0);
+    this.claims.set(k, n);
+    return n;
   }
   /** One campaign per test store is enough for the Worldbuilder tests. */
   builder: MemoryBuilderStore = new MemoryBuilderStore();

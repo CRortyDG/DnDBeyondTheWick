@@ -11,6 +11,8 @@ import { partiesOf } from "./world";
 export const INVITES_MAX = 60;
 export const SEATS_MAX = 8;
 export const WAITLIST_MAX = 20;
+/** New names one address may put on one invite: a couple sharing a phone, a friend's, not a script's. */
+export const CLAIMS_PER_ADDRESS = 3;
 /** Everyone ever on one invite, those who gave their seat back included. */
 export const ENTRIES_MAX = 60;
 export const NAME_MAX = 32;

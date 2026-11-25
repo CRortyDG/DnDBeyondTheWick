@@ -36,11 +36,12 @@ async function makeInvite(extra: Record<string, unknown> = {}, holdIds?: string[
 
 const key = (n: number) => `seat-key-for-phone-${String(n).padStart(4, "0")}`;
 
-async function phone(method: "GET" | "POST", code: string, seat: string | null, body?: object, extra: { player?: string; pkey?: string } = {}) {
+async function phone(method: "GET" | "POST", code: string, seat: string | null, body?: object, extra: { player?: string; pkey?: string; ip?: string } = {}) {
   const q = new URLSearchParams({ game: G, i: code, ...(extra.player ? { player: extra.player } : {}) });
   const headers: Record<string, string> = { "content-type": "application/json" };
   if (seat) headers[SEAT_HEADER] = seat;
   if (extra.pkey) headers["x-candlefair-key"] = extra.pkey;
+  if (extra.ip) headers["CF-Connecting-IP"] = extra.ip;
   const res = await handleApi(new Request(`http://x/api/invite?${q}`, { method, headers, ...(body ? { body: JSON.stringify(body) } : {}) }), store);
   const text = await res.text();
   return { status: res.status, body: JSON.parse(text) as InviteView & { error?: string; code?: string }, text, miss: res.headers.has("x-candlefair-miss") };
@@ -123,6 +124,22 @@ describe("claiming seats", () => {
     expect(e.playerId).toBeUndefined();
     await execute(store, G, DM, { type: "invite.entry", inviteId: inv.id, entryId: e.id, action: "ok" });
     expect((await phone("GET", inv.code, key(1))).body.me?.state).toBe("in");
+  });
+});
+
+describe("one connection can't fill an invite", () => {
+  it("takes a few names from one address, then asks the rest to open the link themselves", async () => {
+    const inv = await makeInvite({ seats: 4 });
+    const from = (n: number, name: string, ip: string) => phone("POST", inv.code, key(n), { type: "claim", name, character: "" }, { ip });
+    expect((await from(1, "Ana", "1.1.1.1")).status).toBe(200);
+    expect((await from(2, "Ben", "1.1.1.1")).status).toBe(200);
+    expect((await from(3, "Cy", "1.1.1.1")).status).toBe(200);
+    const fourth = await from(4, "Dee", "1.1.1.1");
+    expect(fourth.status).toBe(429);
+    expect(fourth.body.code).toBe("claims");
+    // The same phone again doesn't count, and other addresses are unaffected.
+    expect((await from(1, "Ana", "1.1.1.1")).status).toBe(200);
+    expect((await from(5, "Eve", "2.2.2.2")).body.me?.state).toBe("in");
   });
 });
 

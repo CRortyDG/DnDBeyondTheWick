@@ -5,11 +5,15 @@ import { handleApi } from "@/server/api";
 import { newDmKey, sha256 } from "@/server/auth";
 import { MemoryPresets } from "@/server/presets";
 import {
+  addressProblem,
+  ADDRESS_BYTES_PER_DAY,
+  ADDRESS_FILES_PER_DAY,
   addToTally,
   createProblem,
   CREATES_PER_ADDRESS_PER_DAY,
   CREATES_PER_DAY,
   DailyCounter,
+  isDailyRefusal,
   decideStorage,
   DEFAULT_CEILING_BYTES,
   DEFAULT_WRITES_PER_DAY,
@@ -166,5 +170,24 @@ describe("admin console storage switch", () => {
 
   it("needs the admin key", async () => {
     expect((await handleAdmin(req({ uploads: "off" }, "wrong".repeat(10)), deps())).status).toBe(401);
+  });
+});
+
+describe("each address's share of a day's uploads", () => {
+  it("lets an ordinary prep day through", () => {
+    expect(addressProblem({ files: 300, bytes: 400 * 1024 * 1024 }, { files: 100, bytes: 20 * 1024 * 1024 })).toBeNull();
+  });
+  it("stops one address before it can fill the site's daily file cap", () => {
+    // The Nov 23 attack: 100 map tiles a request, 10 requests a minute, for half an hour.
+    const r = addressProblem({ files: ADDRESS_FILES_PER_DAY - 50, bytes: 0 }, { files: 100, bytes: 1000 });
+    expect(r?.code).toBe("address-today");
+    expect(isDailyRefusal(r!.code)).toBe(true);
+  });
+  it("stops one address before it can fill the storage ceiling", () => {
+    expect(addressProblem({ files: 10, bytes: ADDRESS_BYTES_PER_DAY - 1000 }, { files: 1, bytes: 25 * 1024 * 1024 })?.code).toBe("address-today");
+  });
+  it("leaves room for several addresses under the site caps", () => {
+    expect(ADDRESS_FILES_PER_DAY * 5).toBeLessThanOrEqual(DEFAULT_WRITES_PER_DAY / 2);
+    expect(ADDRESS_BYTES_PER_DAY * 4).toBeLessThan(DEFAULT_CEILING_BYTES);
   });
 });

@@ -1,6 +1,6 @@
 import { presetFolder, type PresetRecord, type PresetStore } from "@/server/presets";
 import { HttpError } from "@/server/game";
-import type { StorageAnswer, StorageAsk } from "@/server/spend";
+import { isDailyRefusal, type StorageAnswer, type StorageAsk } from "@/server/spend";
 
 /** Asks the site's storage ceiling before each write (see src/server/spend.ts). */
 export type StorageGuard = (ask: StorageAsk) => Promise<StorageAnswer>;
@@ -12,10 +12,10 @@ export class R2Presets implements PresetStore {
     private guard?: StorageGuard,
   ) {}
 
-  private async room(bytes: number) {
+  private async room(bytes: number, ip?: string) {
     if (!this.guard) return;
-    const a = await this.guard({ bytes, files: 1 });
-    if (!a.ok) throw new HttpError(a.code === "writes-today" ? 429 : 507, a.error, a.code);
+    const a = await this.guard({ bytes, files: 1, ...(ip ? { ip } : {}) });
+    if (!a.ok) throw new HttpError(isDailyRefusal(a.code) ? 429 : 507, a.error, a.code);
   }
 
   private key(code: string) {
@@ -32,9 +32,9 @@ export class R2Presets implements PresetStore {
     }
   }
 
-  async put(code: string, rec: PresetRecord) {
+  async put(code: string, rec: PresetRecord, ip?: string) {
     const body = JSON.stringify(rec);
-    await this.room(body.length);
+    await this.room(body.length, ip);
     await this.bucket.put(this.key(code), body, { httpMetadata: { contentType: "application/json" }, customMetadata: { name: rec.name } });
   }
 
@@ -42,11 +42,11 @@ export class R2Presets implements PresetStore {
     await this.bucket.delete(this.key(code));
   }
 
-  async copyFile(key: string, code: string): Promise<string | null> {
+  async copyFile(key: string, code: string, ip?: string): Promise<string | null> {
     const obj = await this.bucket.get(key);
     if (!obj) return null;
     const to = presetFolder(code) + key.split("/").pop();
-    await this.room(obj.size);
+    await this.room(obj.size, ip);
     // One image at a time, as bytes: R2 wants a body of known length.
     await this.bucket.put(to, await obj.arrayBuffer(), { httpMetadata: obj.httpMetadata });
     return to;

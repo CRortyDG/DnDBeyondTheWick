@@ -22,13 +22,14 @@ export interface PresetRecord {
 
 export interface PresetStore {
   get(code: string): Promise<PresetRecord | null>;
-  put(code: string, rec: PresetRecord): Promise<void>;
+  /** ip: who is saving, counted against that address's daily upload share. */
+  put(code: string, rec: PresetRecord, ip?: string): Promise<void>;
   delete(code: string): Promise<void>;
   /**
    * Copy an uploaded image into the preset's own folder, so it outlives the
    * campaign it came from. Returns the new file key, or null if the image is gone.
    */
-  copyFile(key: string, code: string): Promise<string | null>;
+  copyFile(key: string, code: string, ip?: string): Promise<string | null>;
 }
 
 /** Where a preset's images live. Campaign folders are 3+ characters, so "p/" is never one. */
@@ -60,13 +61,13 @@ export function checkCode(raw: unknown): string {
 }
 
 /** Copy every image the setup uses into the preset's folder, and point the setup at the copies. */
-async function withOwnFiles(setup: GameState, code: string, presets: PresetStore): Promise<GameState> {
+async function withOwnFiles(setup: GameState, code: string, presets: PresetStore, ip?: string): Promise<GameState> {
   let text = JSON.stringify(setup);
   const keys = [...new Set([...text.matchAll(FILE_URL)].map((m) => m[1]))].filter((k) => !k.startsWith(presetFolder(code)));
   if (keys.length > MAX_PRESET_FILES) throw new HttpError(413, `That campaign uses ${keys.length} images; a preset can hold ${MAX_PRESET_FILES}.`);
   const moved = new Map<string, string>();
   for (const k of keys) {
-    const to = await presets.copyFile(k, code);
+    const to = await presets.copyFile(k, code, ip);
     if (to) moved.set(k, to);
   }
   if (moved.size) text = text.replace(FILE_URL, (all, k: string) => (moved.has(k) ? `/api/files/${moved.get(k)}` : all));
@@ -84,7 +85,7 @@ export interface SavedPreset {
  * Save a setup as a preset. With the code and owner token of an existing
  * preset, saves over it; otherwise makes a new one with a new code and token.
  */
-export async function savePreset(presets: PresetStore, setup: GameState, opts: { name?: unknown; code?: unknown; token?: unknown }, now = Date.now()): Promise<SavedPreset> {
+export async function savePreset(presets: PresetStore, setup: GameState, opts: { name?: unknown; code?: unknown; token?: unknown; ip?: string }, now = Date.now()): Promise<SavedPreset> {
   const name = cleanPresetName(opts.name);
   let code: string | null = null;
   let token: string | null = null;
@@ -102,9 +103,9 @@ export async function savePreset(presets: PresetStore, setup: GameState, opts: {
     if (!code) throw new HttpError(503, "Couldn't find a free preset code. Try again.");
     token = newOwnerToken();
   }
-  const own = await withOwnFiles(setup, code, presets);
+  const own = await withOwnFiles(setup, code, presets, opts.ip);
   if (JSON.stringify(own).length > MAX_STATE_CHARS) throw new HttpError(413, "That campaign is too big to save as a preset.");
-  await presets.put(code, { v: 1, name, savedAt: now, ownerHash: sha256(token), setup: own });
+  await presets.put(code, { v: 1, name, savedAt: now, ownerHash: sha256(token), setup: own }, opts.ip);
   return { code, token, name, savedAt: now };
 }
 

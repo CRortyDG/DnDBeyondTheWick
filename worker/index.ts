@@ -16,7 +16,7 @@ import { adminDeps, registry } from "./admin";
 import { handleAdmin, isAdminPath } from "@/server/admin";
 import { BATCH_HEADER, COUNTRY_HEADER, PICTURE_ALT_HEADER, PICTURE_ENTRY_HEADER } from "@/server/builder";
 import { carriesBuilderKey, parseBuilderAuth } from "@/server/builderKeys";
-import { DailyCounter, DEFAULT_ROOM_CALLS_PER_DAY, secondsToUtcMidnight, type StorageAnswer, type StorageAsk } from "@/server/spend";
+import { DailyCounter, DEFAULT_ROOM_CALLS_PER_DAY, isDailyRefusal, secondsToUtcMidnight, type StorageAnswer, type StorageAsk } from "@/server/spend";
 
 export { GameRoom, Registry };
 
@@ -29,6 +29,9 @@ const SECURITY_HEADERS: Record<string, string> = {
   "Referrer-Policy": "no-referrer",
   "X-Robots-Tag": "noindex, nofollow",
   "X-Content-Type-Options": "nosniff",
+  // No other site may show these pages in a frame (practice mode frames its own TV and phones): the DM console holds the DM key, so a hidden
+  // frame could trick a DM into pressing Reset or New DM key.
+  "X-Frame-Options": "SAMEORIGIN",
 };
 
 const IMAGE_EXT: Record<string, string> = {
@@ -180,7 +183,7 @@ function releaseStorage(env: Env, ctx: ExecutionContext, ask: StorageAsk) {
   ctx.waitUntil(registry(env).storageRelease(ask.bytes, ask.files).catch((e) => console.error("storage release failed", e)));
 }
 
-const storageRefused = (a: Exclude<StorageAnswer, { ok: true }>) => json({ error: a.error, code: a.code }, a.code === "writes-today" ? 429 : 507);
+const storageRefused = (a: Exclude<StorageAnswer, { ok: true }>) => json({ error: a.error, code: a.code }, isDailyRefusal(a.code) ? 429 : 507);
 
 /**
  * The Worldbuilder's door: POST /api/builder/<op> with a cfb_ key in the
@@ -290,7 +293,7 @@ async function upload(req: Request, env: Env, ctx: ExecutionContext, ip: string)
   if (file.size > MAX_UPLOAD) return json({ error: "That image is over 25 MB." }, 413);
   if (VIDEO_EXT[file.type] && file.size > CLIP_VIDEO_MAX) return json({ error: `That video is over ${CLIP_VIDEO_MAX / 1024 / 1024} MB. A minute of 720p fits.` }, 413);
   // The whole site's storage first, then the campaign's own image space (which checks the key again, in the room that holds it).
-  const ask = { bytes: file.size, files: 1 };
+  const ask = { bytes: file.size, files: 1, ip };
   const site = await reserveStorage(env, ask);
   if (!site.ok) return storageRefused(site);
   const reserve = await room(env, game).fetch(
@@ -339,7 +342,7 @@ async function uploadTiles(req: Request, env: Env, ctx: ExecutionContext, ip: st
     total += f.size;
   }
   if (total > MAX_UPLOAD) return json({ error: "That map is too big to cut up (over 25 MB of pieces). Try a smaller image." }, 413);
-  const ask = { bytes: total, files: files.length };
+  const ask = { bytes: total, files: files.length, ip };
   const site = await reserveStorage(env, ask);
   if (!site.ok) return storageRefused(site);
   const reserve = await room(env, game).fetch(

@@ -3,7 +3,7 @@ import { sha256 } from "@/server/auth";
 import type { Registry as RegistryApi } from "@/server/admin";
 import type { AdminTag, FoundBy, ListedRow, RegistryRow, StorageStatus } from "@/shared/admin";
 import type { Env } from "./env";
-import { addToTally, createProblem, decideStorage, RECOUNT_EVERY_MS, spendLimits, utcDayOf, type StorageAnswer, type StorageAsk, type StorageTally } from "@/server/spend";
+import { addressProblem, addToTally, createProblem, decideStorage, RECOUNT_EVERY_MS, spendLimits, utcDayOf, type StorageAnswer, type StorageAsk, type StorageTally } from "@/server/spend";
 
 
 /**
@@ -23,7 +23,8 @@ export class Registry extends DurableObject<Env> implements RegistryApi {
       `CREATE TABLE IF NOT EXISTS campaigns (code TEXT PRIMARY KEY, added_at INTEGER NOT NULL, found_by TEXT NOT NULL, origin TEXT, country TEXT, net TEXT, tag TEXT, note TEXT);
        CREATE TABLE IF NOT EXISTS meta (k TEXT PRIMARY KEY, v TEXT NOT NULL);
        CREATE TABLE IF NOT EXISTS storage (id INTEGER PRIMARY KEY CHECK (id = 1), bytes INTEGER NOT NULL, files INTEGER NOT NULL, writes INTEGER NOT NULL, day TEXT NOT NULL, off INTEGER NOT NULL, counted_at INTEGER);
-       CREATE TABLE IF NOT EXISTS creates (day TEXT NOT NULL, net TEXT NOT NULL, n INTEGER NOT NULL, PRIMARY KEY (day, net));`,
+       CREATE TABLE IF NOT EXISTS creates (day TEXT NOT NULL, net TEXT NOT NULL, n INTEGER NOT NULL, PRIMARY KEY (day, net));
+       CREATE TABLE IF NOT EXISTS stored_by (day TEXT NOT NULL, net TEXT NOT NULL, files INTEGER NOT NULL, bytes INTEGER NOT NULL, PRIMARY KEY (day, net));`,
     );
     const row = this.sql.exec<{ v: string }>("SELECT v FROM meta WHERE k = 'salt'").toArray()[0];
     if (row) this.salt = row.v;
@@ -135,8 +136,28 @@ export class Registry extends DurableObject<Env> implements RegistryApi {
     if (before.countedAt === null || now - before.countedAt > RECOUNT_EVERY_MS) await this.storageRecount(now).catch((e) => console.error("storage recount failed", e));
     const t = this.tally();
     const clean = { bytes: Math.max(0, Math.floor(ask.bytes) || 0), files: Math.max(1, Math.floor(ask.files) || 1) };
+    // This address's own share of today first (src/server/spend.ts), so one script can't fill the site's caps.
+    const day = utcDayOf(now);
+    const net = ask.ip && ask.ip !== "local" ? this.net(ask.ip) : null;
+    if (net) {
+      this.sql.exec("DELETE FROM stored_by WHERE day < ?", day);
+      const used = this.sql.exec<{ files: number; bytes: number }>("SELECT files, bytes FROM stored_by WHERE day = ? AND net = ?", day, net).toArray()[0] ?? { files: 0, bytes: 0 };
+      const problem = addressProblem(used, clean);
+      if (problem) return problem;
+    }
     const answer = decideStorage(t, clean, spendLimits(this.env), now);
-    if (answer.ok) this.save(addToTally(t, clean, now), t.countedAt);
+    if (answer.ok) {
+      this.save(addToTally(t, clean, now), t.countedAt);
+      if (net) {
+        this.sql.exec(
+          "INSERT INTO stored_by (day, net, files, bytes) VALUES (?, ?, ?, ?) ON CONFLICT(day, net) DO UPDATE SET files = files + excluded.files, bytes = bytes + excluded.bytes",
+          day,
+          net,
+          clean.files,
+          clean.bytes,
+        );
+      }
+    }
     return answer;
   }
 
